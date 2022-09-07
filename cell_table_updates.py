@@ -221,9 +221,28 @@ assignment_dict = {'tumor': ['tumor_CD56', 'tumor_ck17', 'tumor_ecad'],
                    'immune': ['immune_other'],
                    'other': ['other']}
 
+for new_name in assignment_dict:
+    pops = assignment_dict[new_name]
+    idx = np.isin(cell_table['cell_meta_cluster'].values, pops)
+    cell_table.loc[idx,  'cell_cluster'] = new_name
+
+assignment_dict_2 = {'tumor': ['tumor', 'tumor_emt', 'tumor_other'],
+                     'mono_macs': ['macs', 'mono', 'apc'],
+                     'b_cell': ['b_cell'],
+                     't_cell': ['CD4', 'CD8', 'treg', 't_other'],
+                     'granulocyte': ['neutrophil', 'mast'],
+                     'stroma': ['endo', 'fibro', 'stroma'],
+                     'nk': ['nk'],
+                     'other': ['immune', 'other']}
+
+for new_name in assignment_dict_2:
+    pops = assignment_dict_2[new_name]
+    idx = np.isin(cell_table['cell_cluster'].values, pops)
+    cell_table.loc[idx,  'cell_cluster_broad'] = new_name
 
 # save updated cell table
 cell_table = cell_table.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated_new.csv')
+cell_table = pd.read_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated_new.csv')
 
 
 # threshold_list = [['Ki67', 0.002], ['CD38', 0.002], ['CD45RB', 0.001], ['CD45RO', 0.002],
