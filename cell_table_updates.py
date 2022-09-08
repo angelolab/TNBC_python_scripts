@@ -207,15 +207,15 @@ assignment_dict = {'tumor': ['tumor_CD56', 'tumor_ck17', 'tumor_ecad'],
                    'macs': ['CD68', 'CD68_CD163_DP', 'CD163'],
                    'mono': ['CD4_mono', 'CD14'],
                    'apc': ['CD11c_HLADR'],
-                   'b_cell':  ['CD20'],
+                   'bcell':  ['CD20'],
                    'endo': ['CD31', 'CD31_VIM'],
                    'fibro': ['FAP', 'FAP_SMA', 'SMA'],
                    'stroma': ['other_stroma_coll', 'other_stroma_fibronectin', 'VIM'],
                    'nk': ['CD56'],
-                   'neutrophil': ['calprotectin'],
+                   'neut': ['calprotectin'],
                    'mast': ['ChyTry'],
-                   'CD4': ['CD4T','CD4T_HLADR'],
-                   'CD8': ['CD8T'],
+                   'CD4T': ['CD4T','CD4T_HLADR'],
+                   'CD8T': ['CD8T'],
                    'treg': ['Treg'],
                    't_other': ['CD3_DN','CD4T_CD8T_dp'],
                    'immune': ['immune_other'],
@@ -241,8 +241,8 @@ for new_name in assignment_dict_2:
     cell_table.loc[idx,  'cell_cluster_broad'] = new_name
 
 # save updated cell table
-cell_table = cell_table.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated_new.csv')
-cell_table = pd.read_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated_new.csv')
+cell_table.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv')
+cell_table = pd.read_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv')
 
 
 # threshold_list = [['Ki67', 0.002], ['CD38', 0.002], ['CD45RB', 0.001], ['CD45RO', 0.002],
