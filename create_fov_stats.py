@@ -1,8 +1,35 @@
 import os
 
+import ark.utils.misc_utils
 import seaborn as sns
 import pandas as pd
 import numpy as np
+
+from ark.utils.io_utils import list_folders
+from ark.utils.misc_utils import verify_same_elements
+
+
+def create_summary_df(cell_table, result_name, col_name, metadata_df, metadata_cols,
+                      normalize=False):
+    # create 2D summary table
+    crosstab = pd.crosstab(index=cell_table['fov'], rownames=['fov'],
+                           columns=cell_table_small[col_name], normalize=normalize)
+
+    # sort table in same order as metadata df
+    crosstab['fov'] = crosstab.index
+    verify_same_elements(metadata_fovs=metadata_df.fov.array, data_fovs=crosstab.fov.array)
+    crosstab = crosstab.reindex(metadata_df.fov.array)
+
+    # append metadata
+    for col in metadata_cols:
+        crosstab[col] = metadata_df[col].array
+
+    # convert to long format
+    long_df = pd.melt(crosstab, id_vars=['fov'] + metadata_cols, var_name='cell_type')
+    long_df['metric'] = result_name
+
+    return long_df
+
 
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 
@@ -12,48 +39,42 @@ cell_table = cell_table.loc[:, ['fov', 'cell_meta_cluster', 'label', 'cell_clust
                              'cell_cluster_broad']]
 cell_table.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_freqs.csv'))
 
+
+# add column denoting which images were acquired
+all_fovs = list_folders('/Volumes/Big_Boy/TONIC_Cohort/image_data/samples')
+core_df['MIBI_data'] = core_df['fov'].isin(all_fovs)
+core_df.to_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
+
 # load relevant tables
 core_df = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
-cell_table = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_freqs.csv'))
-fovs = cell_table.fov.array.unique()
+cell_table = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_freqs.csv'), index_col=[0])
 
-# create wide format
-for fov in cell_table.fov:
-    subset_df = cell_table.loc[cell_table['fov'] == fov, :]
-
-    # given a list of populations, compute the proportion of each population and append
-    counts = subset_df.groupby('cell_cluster').size()
-    props = counts / np.sum(counts)
-    props_dict = dict(props)
-
-    # for each population, append name and frequency to main table
-    for key in props_dict:
-        val = props_dict[key]
-        name = key + '_prop_cell_cluster'
-        core_df.loc[core_df.fov == fov, name] = val
-
-core_df.to_csv(os.path.join(data_dir, 'TONIC_data_per_core_updated.csv'))
+# subset for testing
+cell_table_small = cell_table.loc[:30000, :]
+core_df_small = core_df.loc[core_df.fov.isin(cell_table_small.fov.unique()), :]
 
 
-# create long format
-fov = []
-stat = []
-category = []
-value = []
+# create summary df with cell-level statistics
+total_df = pd.DataFrame()
 
-cell_table_small = cell_table[:30000]
+# proportion of cells in cell_cluster_broad per patient
+cluster_broad_df = create_summary_df(cell_table=cell_table_small, result_name='cluster_broad_freq',
+                                     col_name='cell_cluster_broad', metadata_df=core_df_small,
+                                     metadata_cols=['Tissue_ID'], normalize='index')
+total_df = pd.concat([total_df, cluster_broad_df])
 
-grouped_counts = cell_table_small.groupby(['fov', 'cell_cluster']).size().unstack(fill_value=0).stack()
-sums = []
-for i in range(len(cell_table_small.fov.unique())):
-    sums.append(np.sum(grouped_counts[i * 19:(i + 1) * 19].array))
+# proportion of T cell subsets
+tcell_mask = cell_table_small['cell_cluster'].isin(['treg', 'CD8', 'CD4', 't_other'])
+tcell_df = create_summary_df(cell_table=cell_table_small.loc[tcell_mask, :],
+                             result_name='tcell_freq',
+                             col_name='cell_cluster', metadata_df=core_df_small,
+                             metadata_cols=['Tissue_ID'], normalize='index')
+total_df = pd.concat([total_df, tcell_df])
 
-sums = np.repeat(sums, len(cell_table_small['cell_cluster'].unique()))
-grouped_props = grouped_counts / sums
+new_cross = pd.pivot(total_df, index='fov', columns='cell_type', values='value')
+new_cross['fov'] = new_cross.index
+new_cross.plot(x='fov', kind='bar', stacked=True)
 
-fovs = grouped_props.index.get_level_values(0)
-category = grouped_props.index.get_level_values(1)
-long_df = pd.DataFrame({'fov': fovs, 'category': category, 'value': grouped_props.array})
+sns.catplot(total_df.loc[total_df.metric == 'tcell_freq'], x='cell_type', y='value', hue='Tissue_ID')
 
-sns.catplot(data=long_df, x='category', y='value')
-
+sns.catplot(tcell_df, x='cell_type', y='value', hue='Tissue_ID')

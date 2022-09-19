@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 
 from ark.phenotyping.post_cluster_utils import plot_hist_thresholds, create_mantis_project
+from ark.utils.io_utils import list_folders
 
 
 cell_table = pd.read_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels.csv')
@@ -243,6 +244,8 @@ for new_name in assignment_dict_2:
 # save updated cell table
 cell_table.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv')
 cell_table = pd.read_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv')
+cell_table_testing = cell_table.loc[cell_table.fov.isin(fovs), :]
+cell_table_testing.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated_testing.csv')
 
 
 # threshold_list = [['Ki67', 0.002], ['CD38', 0.002], ['CD45RB', 0.001], ['CD45RO', 0.002],
@@ -250,3 +253,11 @@ cell_table = pd.read_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Da
 #                   ['PD1', 0.0005], ['PDL1', 0.0005, "tumors could use either threshold", 0.001],
 #                   ['HLA1', 0.001], ['HLADR', 0.001], ['TBET', 0.0015], ['TCF1', 0.001],
 #                   ['TIM3', 0.001]]
+
+# create dataframe with counts of the specified markers
+marker_counts_df = cell_table_testing.loc[:, ['fov', 'label'] + ['Ki67', 'CD38', 'CD45RB', 'CD45RO', 'CD57',
+                                                                 'CD69', 'GLUT1', 'IDO', 'PD1', 'PDL1', 'HLA1', 'HLADR', 'TBET',
+                                                                 'TCF1', 'TIM3']]
+
+# save dataframe
+marker_counts_df.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/mantis/marker_counts.csv', index=False)
