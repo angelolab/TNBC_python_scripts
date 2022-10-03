@@ -1,4 +1,5 @@
 import os
+import json
 
 import pandas as pd
 import numpy as np
@@ -10,19 +11,32 @@ timepoint_table = pd.read_csv(os.path.join(base_dir, 'TONIC_data_per_timepoint.c
 timepoint_table = timepoint_table.loc[timepoint_table['On_TMA'] == 'Yes', :]
 
 # get list of IDs with matching primary and baseline
-primary_ids = timepoint_table.loc[np.isin(timepoint_table['Timepoint'], ['primary', 'biopsy']), 'TONIC_ID'].unique()
+primary_ids = timepoint_table.loc[np.isin(timepoint_table['Timepoint'], ['primary', 'biopsy']), 'TONIC_ID'].unique().tolist()
 
-baseline_ids = timepoint_table.loc[timepoint_table['Timepoint'] == 'baseline', 'TONIC_ID'].unique()
-induction_ids = timepoint_table.loc[timepoint_table['Timepoint'] == 'post_induction', 'TONIC_ID'].unique()
-nivo_ids = timepoint_table.loc[timepoint_table['Timepoint'] == 'on_nivo', 'TONIC_ID'].unique()
-ln_pos_ids = timepoint_table.loc[timepoint_table['Timepoint'] == 'lymphnode_pos', 'TONIC_ID'].unique()
-ln_neg_ids = timepoint_table.loc[timepoint_table['Timepoint'] == 'lymphnode_neg', 'TONIC_ID'].unique()
+baseline_ids = timepoint_table.loc[timepoint_table['Timepoint'] == 'baseline', 'TONIC_ID'].unique().tolist()
+induction_ids = timepoint_table.loc[timepoint_table['Timepoint'] == 'post_induction', 'TONIC_ID'].unique().tolist()
+nivo_ids = timepoint_table.loc[timepoint_table['Timepoint'] == 'on_nivo', 'TONIC_ID'].unique().tolist()
+ln_pos_ids = timepoint_table.loc[timepoint_table['Timepoint'] == 'lymphnode_pos', 'TONIC_ID'].unique().tolist()
+ln_neg_ids = timepoint_table.loc[timepoint_table['Timepoint'] == 'lymphnode_neg', 'TONIC_ID'].unique().tolist()
 
 primary_baseline = list(set(primary_ids).intersection(set(baseline_ids)))
 baseline_induction = list(set(baseline_ids).intersection(set(induction_ids)))
 baseline_nivo = list(set(baseline_ids).intersection(set(nivo_ids)))
 baseline_induction_nivo = list(set(baseline_induction).intersection(set(nivo_ids)))
 ln_both_ids = list(set(ln_neg_ids).intersection(set(ln_pos_ids)))
+
+# save IDs
+id_dict = {}
+id_names = ['primary', 'baseline', 'induction', 'nivo', 'ln_pos', 'ln_neg',
+            'primary_baseline', 'baseline_induction', 'baseline_nivo', 'baseline_ind_nivo']
+id_vals = [primary_ids, baseline_ids, induction_ids, nivo_ids, ln_pos_ids, ln_neg_ids,
+           primary_baseline, baseline_induction, baseline_nivo, baseline_induction_nivo]
+
+for x in range(len(id_vals)):
+    id_dict[id_names[x]] = id_vals[x]
+
+with open(os.path.join(base_dir, 'cohort_ids.json'), mode='w') as jp:
+    json.dump(id_dict, jp)
 
 # plot tissue sites of mets
 plot_df = timepoint_table.loc[np.isin(timepoint_table['TONIC_ID'], primary_baseline), :]

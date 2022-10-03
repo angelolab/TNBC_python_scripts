@@ -1,4 +1,10 @@
+import os
+
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+
 
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
@@ -9,37 +15,90 @@ timepoint_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_timepoin
 timepoint_metadata = timepoint_metadata.loc[:, ['Tissue_ID', 'TONIC_ID', 'Timepoint']]
 timepoint_df = timepoint_df.merge(timepoint_metadata, on='Tissue_ID')
 
-plot_df = timepoint_df.loc[timepoint_df.Timepoint == 'primary', :]
 
 # create stacked barplot
-plot_cross = pd.pivot(plot_df.loc[plot_df.metric == 'cluster_broad_freq', :], index='TONIC_ID',
-                     columns='cell_type', values='mean')
+def create_barplot(plot_df, x_var, data_var, values_var, xlabel, ylabel, title, colors_dict=None,
+                   colormap='husl', savepath=None):
+    plot_cross = pd.pivot(plot_df, index=x_var, columns=data_var, values=values_var)
 
-# order columns by prevalance
-means = plot_cross.mean(axis=0).sort_values(ascending=False)
-plot_cross['TONIC_ID'] = plot_cross.index
-plot_cross.columns = pd.CategoricalIndex(plot_cross.columns.values, ordered=True, categories=means.index.tolist() + ['TONIC_ID'])
-plot_cross = plot_cross.sort_index(axis=1)
+    # order columns by count
+    means = plot_cross.mean(axis=0).sort_values(ascending=False)
+    plot_cross[x_var] = plot_cross.index
+    plot_cross.columns = pd.CategoricalIndex(plot_cross.columns.values, ordered=True,
+                                             categories=means.index.tolist() + [x_var])
+    plot_cross = plot_cross.sort_index(axis=1)
 
-# order rows by count
-tumor_counts = plot_cross[means.index[0]].sort_values(ascending=False)
-plot_cross.index = pd.CategoricalIndex(plot_cross.index.values, ordered=True, categories=tumor_counts.index.tolist())
-plot_cross = plot_cross.sort_index(axis=0)
+    # order rows by count of most common x_var
+    row_counts = plot_cross[means.index[0]].sort_values(ascending=False)
+    plot_cross.index = pd.CategoricalIndex(plot_cross.index.values, ordered=True,
+                                           categories=row_counts.index.tolist())
+    plot_cross = plot_cross.sort_index(axis=0)
 
-plot_cross.plot(x='TONIC_ID', kind='bar', stacked=True, figsize=(12, 5))
+    # set consistent plotting if colors not supplied
+    if colors_dict is None:
+        color_labels = plot_df[data_var].unique()
 
-# reverse legend ordering
-handles, labels = plt.gca().get_legend_handles_labels()
-order = list(np.arange(len(plot_cross.columns) - 1))
-order.reverse()
-plt.legend([handles[idx] for idx in order],[labels[idx] for idx in order])
+        # List of colors in the color palettes
+        rgb_values = sns.color_palette(colormap, len(color_labels))
 
-plt.xlabel('Patient ID', fontsize=15)
-plt.ylabel('Proportion of total cells', fontsize=15)
-plt.title('Frequency of broad clusters across primary tumors', fontsize=15)
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Primary_tumor_cluster_freq.png'))
-plt.close()
+        # Map continents to the colors
+        colors_dict = dict(zip(color_labels, rgb_values))
+
+    # plot barplot
+    plot_cross.plot(x=x_var, kind='bar', stacked=True, figsize=(12, 5))
+
+    # reverse legend ordering
+    handles, labels = plt.gca().get_legend_handles_labels()
+    order = list(np.arange(len(plot_cross.columns) - 1))
+    order.reverse()
+    plt.legend([handles[idx] for idx in order], [labels[idx] for idx in order])
+
+    # annotate plot
+    plt.xlabel(xlabel, fontsize=15)
+    plt.ylabel(ylabel, fontsize=15)
+    plt.title(title, fontsize=15)
+    plt.tight_layout()
+    if savepath is not None:
+        plt.savefig(savepath)
+        plt.close()
 
 
-sns.catplot(total_df.loc[total_df.metric == 'tcell_freq'], x='cell_type', y='value', hue='Tissue_ID')
+# broad clusters across primary tumors
+plot_df = timepoint_df.loc[timepoint_df.Timepoint == 'primary', :]
+plot_df = plot_df.loc[plot_df.metric == 'cluster_broad_freq', :]
+
+create_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
+               xlabel='Patient ID', ylabel='Proportion of total cells',
+               title='Frequency of broad clusters across primary tumors', colormap='Set2',
+               savepath=os.path.join(plot_dir, 'Primary_tumor_broad_cluster_freq.png'))
+
+
+# tcell clusters across primary tumors
+plot_df = timepoint_df.loc[timepoint_df.Timepoint == 'primary', :]
+plot_df = plot_df.loc[plot_df.metric == 'tcell_freq', :]
+
+create_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
+               xlabel='Patient ID', ylabel='Proportion of T cells',
+               title='Frequency of T cell clusters across primary tumors')
+               #savepath=os.path.join(plot_dir, 'Primary_tumor_tcell_cluster_freq.png'))
+
+
+# broad clusters across baseline tumors
+plot_df = timepoint_df.loc[timepoint_df.Timepoint == 'baseline', :]
+plot_df = plot_df.loc[plot_df.metric == 'cluster_broad_freq', :]
+
+create_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
+               xlabel='Patient ID', ylabel='Proportion of total cells',
+               title='Frequency of broad clusters across baseline metastatic tumors',
+               savepath=os.path.join(plot_dir, 'Baseline_tumor_broad_cluster_freq.png'))
+
+
+# tcell clusters across primary tumors
+plot_df = timepoint_df.loc[timepoint_df.Timepoint == 'baseline', :]
+plot_df = plot_df.loc[plot_df.metric == 'tcell_freq', :]
+
+create_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
+               xlabel='Patient ID', ylabel='Proportion of T cells',
+               title='Frequency of T cell clusters across baseline metastatic tumors')
+               #savepath=os.path.join(plot_dir, 'Baseline_tumor_tcell_cluster_freq.png'))
+
