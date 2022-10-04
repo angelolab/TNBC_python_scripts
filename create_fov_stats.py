@@ -71,8 +71,8 @@ core_df = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
 cell_table = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_freqs.csv'))
 
 # subset for testing
-cell_table = cell_table.loc[cell_table.fov.isin(core_df.fov.array[:100]), :]
-core_df = core_df.loc[core_df.fov.isin(cell_table.fov.unique()), :]
+# cell_table = cell_table.loc[cell_table.fov.isin(core_df.fov.array[:100]), :]
+# core_df = core_df.loc[core_df.fov.isin(cell_table.fov.unique()), :]
 
 
 # create summary df with cell-level statistics

@@ -36,6 +36,17 @@ timepoint_metadata = timepoint_metadata.loc[:, ['Tissue_ID', 'TONIC_ID', 'Timepo
 timepoint_df = timepoint_df.merge(timepoint_metadata, on='Tissue_ID')
 
 
+# compute ratio between timepoints
+plot_df = timepoint_df.loc[timepoint_df.Timepoint.isin(['primary', 'baseline']), :]
+plot_df = plot_df.loc[plot_df.TONIC_ID.isin(primary_baseline)]
+plot_df = plot_df.loc[(plot_df.metric == 'cluster_broad_freq'), :]
+grouped = plot_df.groupby(['Timepoint', 'TONIC_ID'])
+
+grouped = pd.pivot(plot_df, index=['TONIC_ID', 'cell_type'], columns='Timepoint', values='mean')
+grouped['ratio'] = np.log2(grouped['baseline'] / grouped['primary'])
+grouped.reset_index(inplace=True)
+
+sns.catplot(grouped, x='cell_type', y='ratio')
 # primary/baseline dotplot
 plot_df = timepoint_df.loc[timepoint_df.Timepoint.isin(['primary', 'baseline']), :]
 plot_df = plot_df.loc[plot_df.TONIC_ID.isin(primary_baseline)]

@@ -45,7 +45,7 @@ def create_barplot(plot_df, x_var, data_var, values_var, xlabel, ylabel, title, 
         colors_dict = dict(zip(color_labels, rgb_values))
 
     # plot barplot
-    plot_cross.plot(x=x_var, kind='bar', stacked=True, figsize=(12, 5))
+    plot_cross.plot(x=x_var, kind='bar', stacked=True, figsize=(12, 5), color=colors_dict)
 
     # reverse legend ordering
     handles, labels = plt.gca().get_legend_handles_labels()
@@ -68,8 +68,8 @@ plot_df = timepoint_df.loc[timepoint_df.Timepoint == 'primary', :]
 plot_df = plot_df.loc[plot_df.metric == 'cluster_broad_freq', :]
 
 create_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
-               xlabel='Patient ID', ylabel='Proportion of total cells',
-               title='Frequency of broad clusters across primary tumors', colormap='Set2',
+               xlabel='Patient ID', ylabel='Proportion of total cells', colormap='bright',
+               title='Frequency of broad clusters across primary tumors',
                savepath=os.path.join(plot_dir, 'Primary_tumor_broad_cluster_freq.png'))
 
 
