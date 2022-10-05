@@ -51,24 +51,9 @@ def create_summary_df(cell_table, result_name, col_name, metadata_df, metadata_c
 
     return long_df
 
-
-# create shortened cell table with only relevant columns
-cell_table = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated.csv'))
-
-cell_table = cell_table.loc[:, ['fov', 'cell_meta_cluster', 'label', 'cell_cluster',
-                             'cell_cluster_broad']]
-cell_table.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_freqs.csv'),
-                  index=False)
-
-
-# add column denoting which images were acquired
-all_fovs = list_folders('/Volumes/Big_Boy/TONIC_Cohort/image_data/samples')
-core_df['MIBI_data'] = core_df['fov'].isin(all_fovs)
-core_df.to_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
-
 # load relevant tables
 core_df = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
-cell_table = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_freqs.csv'))
+cell_table = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_clusters_only.csv'))
 
 # subset for testing
 # cell_table = cell_table.loc[cell_table.fov.isin(core_df.fov.array[:100]), :]
@@ -102,3 +87,26 @@ total_df_timepoint.reset_index(inplace=True)
 
 # save timepoint df
 total_df_timepoint.to_csv(os.path.join(data_dir, 'summary_df_timepoint.csv'), index=False)
+
+
+## functional marker annotation and manipulation
+cell_table_func = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'))
+
+# define marker combinations of interest
+combinations = [['PD1', 'TCF1'], ['PD1', 'TIM3']]
+
+for combo in combinations:
+    first_
+
+cell_table_small = cell_table_func.loc[cell_table_func.fov.isin(cell_table_func.fov.unique()[:3])]
+cell_table_small = cell_table_small.loc[:, ~cell_table_small.columns.isin(['cell_meta_cluster', 'label', 'cell_cluster_broad'])]
+cell_table_small.columns = [col.split('_threshold')[0] for col in cell_table_small.columns]
+grouped = cell_table_small.groupby(['fov', 'cell_cluster'])
+xx = grouped.agg(np.sum)
+xx.reset_index(inplace=True)
+
+long = pd.melt(xx, id_vars=['fov'] + ['cell_cluster'], var_name='functional_marker')
+long['metric'] = 'counts_per_cell_cluster'
+
+
+
