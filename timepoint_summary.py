@@ -12,7 +12,7 @@ plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 # create dataset
 timepoint_df = pd.read_csv(os.path.join(data_dir, 'summary_df_timepoint.csv'))
 timepoint_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_timepoint.csv'))
-timepoint_metadata = timepoint_metadata.loc[:, ['Tissue_ID', 'TONIC_ID', 'Timepoint']]
+timepoint_metadata = timepoint_metadata.loc[:, ['Tissue_ID', 'TONIC_ID', 'Timepoint', 'Localization']]
 timepoint_df = timepoint_df.merge(timepoint_metadata, on='Tissue_ID')
 
 
@@ -101,4 +101,31 @@ create_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', values_v
                xlabel='Patient ID', ylabel='Proportion of T cells',
                title='Frequency of T cell clusters across baseline metastatic tumors')
                #savepath=os.path.join(plot_dir, 'Baseline_tumor_tcell_cluster_freq.png'))
+
+
+# cell proportions across timepoints
+plot_df = timepoint_df.loc[timepoint_df.metric == 'cluster_broad_freq', :]
+plot_df = plot_df.loc[plot_df.Timepoint.isin(['primary', 'baseline', 'biopsy',
+                                              'post_induction', 'on_nivo'])]
+
+g = sns.FacetGrid(plot_df, col='cell_type', col_wrap=4, hue='cell_type',
+                  palette=['Black'], sharey=False, aspect=1.7)
+g.map(sns.stripplot, 'Timepoint', 'mean')
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'Cell_prevelance_timepoints_by_broad_cluster.png'))
+plt.close()
+
+
+# cell proportions across tissues
+plot_df = timepoint_df.loc[timepoint_df.metric == 'cluster_broad_freq', :]
+plot_df = plot_df.loc[plot_df.Localization.isin(['Lymphnode', 'Breast', 'Bone', 'Unknown',
+                                                 'Muscle', 'Skin', 'Liver',   'Lung']), :]
+
+g = sns.FacetGrid(plot_df, col='cell_type', col_wrap=4, hue='cell_type',
+                  palette=['Black'], sharey=False, aspect=2)
+g.map(sns.stripplot, 'Localization', 'mean')
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'Cell_prevelance_tissue_by_broad_cluster.png'))
+plt.close()
+
 

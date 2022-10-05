@@ -248,16 +248,27 @@ cell_table_testing = cell_table.loc[cell_table.fov.isin(fovs), :]
 cell_table_testing.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated_testing.csv')
 
 
-# threshold_list = [['Ki67', 0.002], ['CD38', 0.002], ['CD45RB', 0.001], ['CD45RO', 0.002],
-#                   ['CD57', 0.002], ['CD69', 0.002], ['GLUT1', 0.002], ['IDO', 0.001],
-#                   ['PD1', 0.0005], ['PDL1', 0.0005, "tumors could use either threshold", 0.001],
-#                   ['HLA1', 0.001], ['HLADR', 0.001], ['TBET', 0.0015], ['TCF1', 0.001],
-#                   ['TIM3', 0.001]]
+threshold_list = [['Ki67', 0.002], ['CD38', 0.002], ['CD45RB', 0.001], ['CD45RO', 0.002],
+                  ['CD57', 0.002], ['CD69', 0.002], ['GLUT1', 0.002], ['IDO', 0.001],
+                  ['PD1', 0.0005], ['PDL1', 0.001],
+                  ['HLA1', 0.001], ['HLADR', 0.001], ['TBET', 0.0015], ['TCF1', 0.001],
+                  ['TIM3', 0.001]]
 
-# create dataframe with counts of the specified markers
-marker_counts_df = cell_table_testing.loc[:, ['fov', 'label'] + ['Ki67', 'CD38', 'CD45RB', 'CD45RO', 'CD57',
-                                                                 'CD69', 'GLUT1', 'IDO', 'PD1', 'PDL1', 'HLA1', 'HLADR', 'TBET',
-                                                                 'TCF1', 'TIM3']]
+for marker, threshold in threshold_list:
+    cell_table[marker + '_threshold'] = cell_table[marker].values >= threshold
 
-# save dataframe
-marker_counts_df.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/mantis/marker_counts.csv', index=False)
+
+# set specific threshold for PDL1+ dim tumor cells
+PDL1_mask = np.logical_and(cell_table['PDL1'].values >= 0.0005, cell_table['PDL1'].values < 0.001)
+tumor_mask = cell_table['cell_cluster_broad'] == 'tumor'
+
+cell_table['PDL1_tumor_dim_threshold'] = np.logical_and(PDL1_mask, tumor_mask)
+cell_table.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv', index=False)
+
+# # create dataframe with counts of the specified markers
+# marker_counts_df = cell_table_testing.loc[:, ['fov', 'label'] + ['Ki67', 'CD38', 'CD45RB', 'CD45RO', 'CD57',
+#                                                                  'CD69', 'GLUT1', 'IDO', 'PD1', 'PDL1', 'HLA1', 'HLADR', 'TBET',
+#                                                                  'TCF1', 'TIM3']]
+#
+# # save dataframe
+# marker_counts_df.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/mantis/marker_counts.csv', index=False)

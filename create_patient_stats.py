@@ -46,7 +46,14 @@ grouped = pd.pivot(plot_df, index=['TONIC_ID', 'cell_type'], columns='Timepoint'
 grouped['ratio'] = np.log2(grouped['baseline'] / grouped['primary'])
 grouped.reset_index(inplace=True)
 
-sns.catplot(grouped, x='cell_type', y='ratio')
+sns.catplot(grouped, x='cell_type', y='ratio', aspect=1.7)
+plt.title('Ratio of between baseline mets and primary tumors for major cell proportions')
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'Evolution_primary_baseline_ratio_cell_cluster_broad.png'))
+plt.close()
+
+
+
 # primary/baseline dotplot
 plot_df = timepoint_df.loc[timepoint_df.Timepoint.isin(['primary', 'baseline']), :]
 plot_df = plot_df.loc[plot_df.TONIC_ID.isin(primary_baseline)]
@@ -79,14 +86,12 @@ plot_df = plot_df.loc[(plot_df.TONIC_ID.isin(primary_baseline)) & (plot_df.metri
 g = sns.FacetGrid(plot_df, col='cell_type', col_wrap=4, hue='TONIC_ID', palette=['Black'], sharey=False)
 g.map(sns.lineplot, 'Timepoint', 'mean')
 
+
 plt.savefig(os.path.join(plot_dir, 'Evolution_primary_baseline_facet_proportion_lineplot.png'))
 plt.close()
 
 
 # catplot of cell prevalance per patient, stratified by disease stage
-g = sns.catplot(data=tips, kind="violin", x="day", y="total_bill", hue="smoker", split=True)
-g.set_axis_labels("Bill length (mm)", "Bill depth (mm)", labelpad=10)
-g.despine()
 
 
 # density plot of two variables colored by covariate
