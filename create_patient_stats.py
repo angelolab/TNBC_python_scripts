@@ -101,6 +101,9 @@ https://seaborn.pydata.org/examples/multiple_bivariate_kde.html
 https://seaborn.pydata.org/examples/pairgrid_dotplot.html
 
 
+# CDF for comparing classes with different scales
+https://seaborn.pydata.org/tutorial/distributions.html#empirical-cumulative-distributions
+
 # create a palette in seaborn
 my_colors = {'b_cell': 'red', 'granulocyte': 'green', 'mono_macs': 'blue', 'nk': 'orange', 'other': 'yellow', 'stroma': 'purple',
        't_cell': 'magenta', 'tumor': 'black'}
@@ -119,3 +122,35 @@ color_map = dict(zip(color_labels, rgb_values))
 
 # Finally use the mapped values
 plt.scatter(df['population'], df['Area'], c=df['continent'].map(color_map))
+
+# directly order the plot:
+sns.catplot(data=tips, x="smoker", y="tip", order=["No", "Yes"])
+
+# violin plots: control the bin width, and also show individual values
+bw=0.15
+inner='stick'
+
+# combine biolin with data points
+g = sns.catplot(data=tips, x="day", y="total_bill", kind="violin", inner=None)
+sns.swarmplot(data=tips, x="day", y="total_bill", color="k", size=3, ax=g.ax)
+
+# specify colors, shapes, and styles for plotting elements from fucntion defintition:
+sns.catplot(
+    data=titanic, x="class", y="survived", hue="sex",
+    palette={"male": "g", "female": "m"},
+    markers=["^", "o"], linestyles=["-", "--"],
+    kind="point"
+)
+
+# draw multiple facetted regressions, with multiple lines per plot
+https://seaborn.pydata.org/tutorial/regression.html#conditioning-on-other-variables
+
+# draw all relationships of specified type across pairwise combinations of variables
+# for example exploring correlation between predictors, relationship between cell types etc
+https://seaborn.pydata.org/tutorial/axis_grids.html#plotting-pairwise-data-relationships
+
+# seaborn has functions setting and getting the parameters of a plot
+axes_style() and set_style()
+
+# all matplotlib plotting params can be accessed from seaborn with the 'rc' dict
+sns.set_context("notebook", font_scale=1.5, rc={"lines.linewidth": 2.5})

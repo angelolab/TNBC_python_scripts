@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 
 from ark.utils.io_utils import list_folders
-from ark.utils.misc_utils import verify_same_elements
+from ark.utils.misc_utils import verify_same_elements, verify_in_list
 
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 
@@ -96,17 +96,72 @@ cell_table_func = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normal
 combinations = [['PD1', 'TCF1'], ['PD1', 'TIM3']]
 
 for combo in combinations:
-    first_
+    first_marker = combo[0]
+    base_mask = cell_table_func[first_marker].array
+    for marker in combo[1:]:
+        base_mask = np.logical_and(base_mask, cell_table_func[marker].array)
+    name = '_'.join(combo)
+    cell_table_func[name] = base_mask
 
+
+# subset for testing
 cell_table_small = cell_table_func.loc[cell_table_func.fov.isin(cell_table_func.fov.unique()[:3])]
-cell_table_small = cell_table_small.loc[:, ~cell_table_small.columns.isin(['cell_meta_cluster', 'label', 'cell_cluster_broad'])]
-cell_table_small.columns = [col.split('_threshold')[0] for col in cell_table_small.columns]
-grouped = cell_table_small.groupby(['fov', 'cell_cluster'])
-xx = grouped.agg(np.sum)
-xx.reset_index(inplace=True)
 
-long = pd.melt(xx, id_vars=['fov'] + ['cell_cluster'], var_name='functional_marker')
-long['metric'] = 'counts_per_cell_cluster'
+
+def create_summary_df_functional(func_table, cell_type_col, drop_cols, transform_func, result_name):
+    """Function to summarize functional marker data by cell type"""
+
+    verify_in_list(cell_type_col=cell_type_col, cell_table_columns=func_table.columns)
+    verify_in_list(drop_cols=drop_cols, cell_table_columns=func_table.columns)
+
+    # drop columns from table
+    func_table_small = func_table.loc[:, ~func_table.columns.isin(drop_cols)]
+
+    # group by specified columns
+    grouped_table = func_table_small.groupby(['fov', cell_type_col])
+    transformed = grouped_table.agg(transform_func)
+    transformed.reset_index(inplace=True)
+
+    # reshape to long df
+    long_df = pd.melt(transformed, id_vars=['fov', cell_type_col], var_name='functional_marker')
+    long_df['metric'] = result_name
+    long_df = long_df.rename(columns={cell_type_col: 'cell_type'})
+
+    return long_df
+
+
+# create summary stats for different granularity levels for functional markers
+func_df_counts_broad = create_summary_df_functional(func_table=cell_table_func, cell_type_col='cell_cluster_broad',
+                                       drop_cols=['cell_meta_cluster', 'cell_cluster'],
+                                       transform_func=np.sum, result_name='counts_per_cluster_broad')
+
+func_df_mean_broad = create_summary_df_functional(func_table=cell_table_func, cell_type_col='cell_cluster_broad',
+                                       drop_cols=['cell_meta_cluster', 'cell_cluster'],
+                                       transform_func=np.mean, result_name='avg_per_cluster_broad')
+
+func_df_counts_cluster = create_summary_df_functional(func_table=cell_table_func, cell_type_col='cell_cluster',
+                                       drop_cols=['cell_meta_cluster', 'cell_cluster_broad'],
+                                       transform_func=np.sum, result_name='counts_per_cluster')
+
+func_df_mean_cluster = create_summary_df_functional(func_table=cell_table_func, cell_type_col='cell_cluster',
+                                       drop_cols=['cell_meta_cluster', 'cell_cluster_broad'],
+                                       transform_func=np.mean, result_name='avg_per_cluster')
+
+func_df_counts_meta = create_summary_df_functional(func_table=cell_table_func, cell_type_col='cell_meta_cluster',
+                                       drop_cols=['cell_cluster', 'cell_cluster_broad'],
+                                       transform_func=np.sum, result_name='counts_per_meta')
+
+func_df_mean_meta = create_summary_df_functional(func_table=cell_table_func, cell_type_col='cell_meta_cluster',
+                                       drop_cols=['cell_cluster', 'cell_cluster_broad'],
+                                       transform_func=np.mean, result_name='avg_per_meta')
+
+# combine together into single df
+total_df_func = pd.concat([func_df_counts_broad, func_df_mean_broad, func_df_counts_cluster,
+                           func_df_mean_cluster, func_df_counts_meta, func_df_mean_meta])
+
+
+total_df_func.to_csv(os.path.join(data_dir, 'functional_df_core.csv'), index=False)
+
 
 
 

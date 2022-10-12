@@ -67,3 +67,14 @@ sns.despine()
 plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Heterogeneity_across_cores_by_timepoint.png'))
 plt.close()
+
+
+
+# functional marker plotting
+total_df_func = pd.read_csv(os.path.join(data_dir, 'functional_df_core.csv'))
+
+g = sns.catplot(data=total_df_func.loc[total_df_func.metric == 'avg_per_cluster_broad', :],
+                x='cell_type', y='value', col='functional_marker', col_wrap=5, kind='box')
+
+plt.savefig(os.path.join(plot_dir, 'Functional_marker_boxplot_by_cluster_broad.png'))
+plt.close()
