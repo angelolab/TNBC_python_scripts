@@ -10,7 +10,7 @@ data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 
 # create dataset
-timepoint_df = pd.read_csv(os.path.join(data_dir, 'summary_df_timepoint.csv'))
+timepoint_df = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv'))
 timepoint_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_timepoint.csv'))
 timepoint_metadata = timepoint_metadata.loc[:, ['Tissue_ID', 'TONIC_ID', 'Timepoint', 'Localization']]
 timepoint_df = timepoint_df.merge(timepoint_metadata, on='Tissue_ID')
@@ -37,6 +37,7 @@ def create_barplot(plot_df, x_var, data_var, values_var, xlabel, ylabel, title, 
     # set consistent plotting if colors not supplied
     if colors_dict is None:
         color_labels = plot_df[data_var].unique()
+        color_labels.sort()
 
         # List of colors in the color palettes
         rgb_values = sns.color_palette(colormap, len(color_labels))
@@ -64,23 +65,23 @@ def create_barplot(plot_df, x_var, data_var, values_var, xlabel, ylabel, title, 
 
 
 # broad clusters across primary tumors
-plot_df = timepoint_df.loc[timepoint_df.Timepoint == 'primary', :]
+plot_df = timepoint_df.loc[timepoint_df.Timepoint == 'primary_untreated', :]
 plot_df = plot_df.loc[plot_df.metric == 'cluster_broad_freq', :]
 
 create_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
                xlabel='Patient ID', ylabel='Proportion of total cells', colormap='bright',
                title='Frequency of broad clusters across primary tumors',
-               savepath=os.path.join(plot_dir, 'Primary_tumor_broad_cluster_freq.png'))
+               savepath=os.path.join(plot_dir, 'Primary_tumor_barplot_freq_broad_cluster.png'))
 
 
 # tcell clusters across primary tumors
-plot_df = timepoint_df.loc[timepoint_df.Timepoint == 'primary', :]
+plot_df = timepoint_df.loc[timepoint_df.Timepoint == 'primary_untreated', :]
 plot_df = plot_df.loc[plot_df.metric == 'tcell_freq', :]
 
 create_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
-               xlabel='Patient ID', ylabel='Proportion of T cells',
-               title='Frequency of T cell clusters across primary tumors')
-               #savepath=os.path.join(plot_dir, 'Primary_tumor_tcell_cluster_freq.png'))
+               xlabel='Patient ID', ylabel='Proportion of T cells', colormap='bright',
+               title='Frequency of T cell clusters across primary tumors',
+               savepath=os.path.join(plot_dir, 'Primary_tumor_barplot_freq_tcell.png'))
 
 
 # broad clusters across baseline tumors
@@ -88,32 +89,34 @@ plot_df = timepoint_df.loc[timepoint_df.Timepoint == 'baseline', :]
 plot_df = plot_df.loc[plot_df.metric == 'cluster_broad_freq', :]
 
 create_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
-               xlabel='Patient ID', ylabel='Proportion of total cells',
+               xlabel='Patient ID', ylabel='Proportion of total cells', colormap='bright',
                title='Frequency of broad clusters across baseline metastatic tumors',
-               savepath=os.path.join(plot_dir, 'Baseline_tumor_broad_cluster_freq.png'))
+               savepath=os.path.join(plot_dir, 'Baseline_tumor_barplot_freq_broad_cluster.png'))
 
 
-# tcell clusters across primary tumors
+# tcell clusters across baseline tumors
 plot_df = timepoint_df.loc[timepoint_df.Timepoint == 'baseline', :]
 plot_df = plot_df.loc[plot_df.metric == 'tcell_freq', :]
 
 create_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
-               xlabel='Patient ID', ylabel='Proportion of T cells',
-               title='Frequency of T cell clusters across baseline metastatic tumors')
-               #savepath=os.path.join(plot_dir, 'Baseline_tumor_tcell_cluster_freq.png'))
+               xlabel='Patient ID', ylabel='Proportion of T cells', colormap='bright',
+               title='Frequency of T cell clusters across baseline metastatic tumors',
+               savepath=os.path.join(plot_dir, 'Baseline_tumor_barplot_freq_tcell.png'))
 
 
 # cell proportions across timepoints
-plot_df = timepoint_df.loc[timepoint_df.metric == 'cluster_broad_freq', :]
-plot_df = plot_df.loc[plot_df.Timepoint.isin(['primary', 'baseline', 'biopsy',
-                                              'post_induction', 'on_nivo'])]
+for cluster_name, plot_name in zip(['cluster_broad_freq', 'cluster_freq'], ['broad_cluster', 'cluster']):
 
-g = sns.FacetGrid(plot_df, col='cell_type', col_wrap=4, hue='cell_type',
-                  palette=['Black'], sharey=False, aspect=1.7)
-g.map(sns.stripplot, 'Timepoint', 'mean')
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Cell_prevelance_timepoints_by_broad_cluster.png'))
-plt.close()
+    plot_df = timepoint_df.loc[timepoint_df.metric == cluster_name, :]
+    plot_df = plot_df.loc[plot_df.Timepoint.isin(['primary_untreated', 'baseline',
+                                                  'post_induction', 'on_nivo'])]
+
+    g = sns.FacetGrid(plot_df, col='cell_type', col_wrap=4, hue='cell_type',
+                      palette=['Black'], sharey=False, aspect=1.7)
+    g.map(sns.stripplot, 'Timepoint', 'mean')
+    plt.tight_layout()
+    plt.savefig(os.path.join(plot_dir, 'Cell_prevelance_timepoints_by_{}.png'.format(plot_name)))
+    plt.close()
 
 
 # cell proportions across tissues
