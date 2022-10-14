@@ -5,6 +5,11 @@ import numpy as np
 
 from ark.utils.misc_utils import verify_same_elements, verify_in_list
 
+
+#
+# This file creates plotting-ready data structures for cell prevalance and functional markers
+#
+
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 
 

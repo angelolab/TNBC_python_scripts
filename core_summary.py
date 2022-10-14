@@ -6,6 +6,8 @@ import pandas as pd
 import seaborn as sns
 import itertools
 
+# this file contains code for summarizing the data on an individual core level
+
 
 def compute_pairwise_distances(input_df):
     distances = []
@@ -26,18 +28,16 @@ def compute_distances_between_groups(df_1, df_2):
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 
-# create dataset
-core_df = pd.read_csv(os.path.join(data_dir, 'summary_df_core.csv'))
+# load dataset
+core_df = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
 core_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
 
-# core_metadata = core_metadata.loc[:, ['Tissue_ID', 'fov']]
-# core_df = core_df.merge(core_metadata, on='Tissue_ID')
+
+#
+# Evaluate heterogeneity of cell clusters prevalance across cores
+#
 
 plot_df = core_df.loc[core_df.metric == 'cluster_broad_freq', :]
-
-#test_ids = plot_df.Tissue_ID.unique()[:3]
-#plot_df = plot_df.loc[plot_df.Tissue_ID.isin(test_ids), :]
-
 grouped = plot_df.groupby('Tissue_ID')
 
 # calculate l2 distance between cores from the same timepoint for each patient

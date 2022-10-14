@@ -13,37 +13,23 @@ from ark.utils.misc_utils import verify_same_elements
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 
-# load json file containing patient IDs for each grouping
-with open(os.path.join(data_dir, 'cohort_ids.json'), mode='r') as jp:
-    id_dict = json.load(jp)
-
-primary_ids = id_dict['primary']
-baseline_ids = id_dict['baseline']
-induction_ids = id_dict['induction']
-nivo_ids = id_dict['nivo']
-ln_pos_ids = id_dict['ln_pos']
-ln_neg_ids = id_dict['ln_neg']
-
-primary_baseline = id_dict['primary_baseline']
-baseline_induction = id_dict['baseline_induction']
-baseline_nivo = id_dict['baseline_nivo']
-baseline_induction_nivo = id_dict['baseline_ind_nivo']
+# These scripts generate plots comparing patients across timepoints
 
 # annotate timepoint-level dataset with necessary colum
-timepoint_df = pd.read_csv(os.path.join(data_dir, 'summary_df_timepoint.csv'))
+timepoint_df = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv'))
 timepoint_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_timepoint.csv'))
 timepoint_metadata = timepoint_metadata.loc[:, ['Tissue_ID', 'TONIC_ID', 'Timepoint']]
 timepoint_df = timepoint_df.merge(timepoint_metadata, on='Tissue_ID')
-
+patient_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_patient.csv'))
 
 # compute ratio between timepoints
-plot_df = timepoint_df.loc[timepoint_df.Timepoint.isin(['primary', 'baseline']), :]
-plot_df = plot_df.loc[plot_df.TONIC_ID.isin(primary_baseline)]
+plot_df = timepoint_df.loc[timepoint_df.Timepoint.isin(['primary_untreated', 'baseline']), :]
+plot_df = plot_df.loc[plot_df.TONIC_ID.isin(patient_metadata.loc[patient_metadata.primary_baseline, 'Study_ID'])]
 plot_df = plot_df.loc[(plot_df.metric == 'cluster_broad_freq'), :]
 grouped = plot_df.groupby(['Timepoint', 'TONIC_ID'])
 
 grouped = pd.pivot(plot_df, index=['TONIC_ID', 'cell_type'], columns='Timepoint', values='mean')
-grouped['ratio'] = np.log2(grouped['baseline'] / grouped['primary'])
+grouped['ratio'] = np.log2(grouped['baseline'] / grouped['primary_untreated'])
 grouped.reset_index(inplace=True)
 
 sns.catplot(grouped, x='cell_type', y='ratio', aspect=1.7)
@@ -92,65 +78,3 @@ plt.close()
 
 
 # catplot of cell prevalance per patient, stratified by disease stage
-
-
-# density plot of two variables colored by covariate
-https://seaborn.pydata.org/examples/multiple_bivariate_kde.html
-
-# dotplot single value estimate across many variables
-https://seaborn.pydata.org/examples/pairgrid_dotplot.html
-
-
-# CDF for comparing classes with different scales
-https://seaborn.pydata.org/tutorial/distributions.html#empirical-cumulative-distributions
-
-# create a palette in seaborn
-my_colors = {'b_cell': 'red', 'granulocyte': 'green', 'mono_macs': 'blue', 'nk': 'orange', 'other': 'yellow', 'stroma': 'purple',
-       't_cell': 'magenta', 'tumor': 'black'}
-palette = my_colors
-
-
-# create colormap for matplotlib based on colormap
-# Get Unique continents
-color_labels = df['continent'].unique()
-
-# List of colors in the color palettes
-rgb_values = sns.color_palette("Set2", 4)
-
-# Map continents to the colors
-color_map = dict(zip(color_labels, rgb_values))
-
-# Finally use the mapped values
-plt.scatter(df['population'], df['Area'], c=df['continent'].map(color_map))
-
-# directly order the plot:
-sns.catplot(data=tips, x="smoker", y="tip", order=["No", "Yes"])
-
-# violin plots: control the bin width, and also show individual values
-bw=0.15
-inner='stick'
-
-# combine biolin with data points
-g = sns.catplot(data=tips, x="day", y="total_bill", kind="violin", inner=None)
-sns.swarmplot(data=tips, x="day", y="total_bill", color="k", size=3, ax=g.ax)
-
-# specify colors, shapes, and styles for plotting elements from fucntion defintition:
-sns.catplot(
-    data=titanic, x="class", y="survived", hue="sex",
-    palette={"male": "g", "female": "m"},
-    markers=["^", "o"], linestyles=["-", "--"],
-    kind="point"
-)
-
-# draw multiple facetted regressions, with multiple lines per plot
-https://seaborn.pydata.org/tutorial/regression.html#conditioning-on-other-variables
-
-# draw all relationships of specified type across pairwise combinations of variables
-# for example exploring correlation between predictors, relationship between cell types etc
-https://seaborn.pydata.org/tutorial/axis_grids.html#plotting-pairwise-data-relationships
-
-# seaborn has functions setting and getting the parameters of a plot
-axes_style() and set_style()
-
-# all matplotlib plotting params can be accessed from seaborn with the 'rc' dict
-sns.set_context("notebook", font_scale=1.5, rc={"lines.linewidth": 2.5})

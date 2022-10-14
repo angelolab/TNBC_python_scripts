@@ -7,7 +7,7 @@ import seaborn as sns
 
 base_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 
-
+# summary plots for metadata counting
 
 # plot tissue sites of mets
 plot_df = timepoint_table.loc[np.isin(timepoint_table['TONIC_ID'], primary_baseline), :]
