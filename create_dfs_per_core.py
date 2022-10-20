@@ -13,16 +13,13 @@ from ark.utils.misc_utils import verify_same_elements, verify_in_list
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 
 
-def create_long_df_by_cluster(cell_table, result_name, col_name, metadata_df, metadata_cols,
-                              normalize=False):
+def create_long_df_by_cluster(cell_table, result_name, col_name, normalize=False):
     """Creats a dataframe summarizing cell clusters across FOVs in long format
 
     Args:
         cell_table: the dataframe containing information on each cell
         result_name: the name to give the column which will contain the summarized information
         col_name: the name of the column in the cell_table to summarize cell clusters from
-        metadata_df: dataframe containing metadata about each FOV
-        metadata_cols: which columns from the metadata_df to include in the output table
         normalize: whether to report the total or normalized counts in the result
 
     Returns:
@@ -32,29 +29,16 @@ def create_long_df_by_cluster(cell_table, result_name, col_name, metadata_df, me
     crosstab = pd.crosstab(index=cell_table['fov'], rownames=['fov'],
                            columns=cell_table[col_name], normalize=normalize)
 
-    # determine if any FOVs are missing from table as a result of zero counts
-    crosstab['fov'] = crosstab.index
-    missing_mask = ~metadata_df.fov.array.isin(crosstab.index)
-    if np.any(missing_mask):
-        print("the following FOVs are missing and will be dropped: {}".format(metadata_df.fov.array[missing_mask]))
-        metadata_df = metadata_df.loc[~missing_mask, :]
-
-    verify_same_elements(metadata_fovs=metadata_df.fov.array, data_fovs=crosstab.fov.array)
-    crosstab = crosstab.reindex(metadata_df.fov.array)
-
-    # append metadata
-    for col in metadata_cols:
-        crosstab[col] = metadata_df[col].array
-
     # convert to long format
-    long_df = pd.melt(crosstab, id_vars=['fov'] + metadata_cols, var_name='cell_type')
+    crosstab['fov'] = crosstab.index
+    long_df = pd.melt(crosstab, id_vars=['fov'], var_name='cell_type')
     long_df['metric'] = result_name
 
     return long_df
 
 
-def create_long_df_by_functional(func_table, cell_type_col, metadata_df, metadata_cols,
-                                 drop_cols, transform_func, result_name):
+def create_long_df_by_functional(func_table, cell_type_col, drop_cols,
+                                 transform_func, result_name):
     """Function to summarize functional marker data by cell type"""
 
     verify_in_list(cell_type_col=cell_type_col, cell_table_columns=func_table.columns)
@@ -68,14 +52,8 @@ def create_long_df_by_functional(func_table, cell_type_col, metadata_df, metadat
     transformed = grouped_table.agg(transform_func)
     transformed.reset_index(inplace=True)
 
-    # add metadata
-    verify_same_elements(functional_fovs=transformed.fov.array,
-                         metadata_fovs=metadata_df.fov.array)
-    transformed = transformed.merge(metadata_df[['fov'] + metadata_cols], on='fov')
-
     # reshape to long df
-    long_df = pd.melt(transformed, id_vars=['fov', cell_type_col] + metadata_cols,
-                      var_name='functional_marker')
+    long_df = pd.melt(transformed, id_vars=['fov', cell_type_col], var_name='functional_marker')
     long_df['metric'] = result_name
     long_df = long_df.rename(columns={cell_type_col: 'cell_type'})
 
@@ -83,39 +61,66 @@ def create_long_df_by_functional(func_table, cell_type_col, metadata_df, metadat
 
 
 #
-# Create summary dataframe with proportions and counts of different cell clusters per core
+# Preprocess metadata to ensure all samples are present
 #
 
 # load relevant tables
 core_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
-core_metadata = core_metadata.loc[core_metadata.MIBI_data_generated, :]
+timepoint_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_timepoint.csv'))
 cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_clusters_only.csv'))
 
-# subset for testing
-# cell_table = cell_table.loc[cell_table.fov.isin(core_df.fov.array[:100]), :]
-# core_df = core_df.loc[core_df.fov.isin(cell_table.fov.unique()), :]
+
+# handle NAs in Tissue_ID
+core_missing = core_metadata.Tissue_ID.isnull()
+imaged_cores = core_metadata.MIBI_data_generated
+np.sum(np.logical_and(core_missing, imaged_cores))
+
+# all of the missing cores were not imaged, can be dropped
+core_metadata = core_metadata.loc[~core_missing, :]
+
+# check for FOVs present in imaged data that aren't in core metadata
+missing_fovs = cell_table_clusters.loc[~cell_table_clusters.fov.isin(core_metadata.fov), 'fov'].unique()
+cell_table_clusters = cell_table_clusters.loc[~cell_table_clusters.fov.isin(missing_fovs), :]
+
+# check timepoints
+timepoint_missing = ~core_metadata.Tissue_ID.isin(timepoint_metadata.Tissue_ID)
+timepoint_missing = core_metadata.Tissue_ID[timepoint_missing].unique()
+print(timepoint_missing)
+
+# get metadata on missing cores
+core_metadata.loc[core_metadata.Tissue_ID == timepoint_missing[28], :]
+
+# remove missing cores
+core_metadata = core_metadata.loc[~core_metadata.Tissue_ID.isin(timepoint_missing), :]
+
+# subset for required columns to append
+timepoint_metadata = timepoint_metadata.loc[:, ['Tissue_ID', 'TONIC_ID', 'Timepoint', 'Localization']]
+core_metadata = core_metadata.loc[:, ['fov', 'Tissue_ID']]
+
+
+#
+# Generate counts and proportions of cell clusters per FOV
+#
 
 
 # proportion of cells in cell_cluster_broad per patient
 cluster_broad_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
                                              result_name='cluster_broad_freq',
                                              col_name='cell_cluster_broad',
-                                             metadata_df=core_metadata,
-                                             metadata_cols=['Tissue_ID'], normalize='index')
+                                             normalize='index')
 
 # proportion of cells in cell_cluster per patient
 cluster_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
                                        result_name='cluster_freq',
                                        col_name='cell_cluster',
-                                       metadata_df=core_metadata,
-                                       metadata_cols=['Tissue_ID'], normalize='index')
+                                       normalize='index')
 
 # proportion of T cell subsets
 tcell_mask = cell_table_clusters['cell_cluster'].isin(['treg', 'CD8', 'CD4', 't_other'])
 tcell_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[tcell_mask, :],
                                      result_name='tcell_freq',
-                                     col_name='cell_cluster', metadata_df=core_metadata,
-                                     metadata_cols=['Tissue_ID'], normalize='index')
+                                     col_name='cell_cluster',
+                                     normalize='index')
 
 
 # proportion of immune cell subsets
@@ -123,17 +128,30 @@ immune_mask = cell_table_clusters['cell_cluster_broad'].isin(['mono_macs', 't_ce
                                                               'granulocyte', 'nk', 'b_cell'])
 immune_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[immune_mask, :],
                                       result_name='immune_freq',
-                                      col_name='cell_cluster', metadata_df=core_metadata,
-                                      metadata_cols=['Tissue_ID'], normalize='index')
+                                      col_name='cell_cluster',
+                                      normalize='index')
 
-# save total df
+# create single df with appropriate metadata
 total_df = pd.concat([cluster_broad_df, cluster_df, tcell_df, immune_df])
+
+# check that all metadata from core_metadata succesfully transferred over
+total_df = total_df.merge(core_metadata, on='fov', how='left')
+assert np.sum(total_df.Tissue_ID.isnull()) == 0
+
+bad_metadata = total_df.loc[total_df.Tissue_ID.isnull(), 'fov'].unique()
+
+# check that all metadata from timepoint metadata succesfully transferred over
+total_df = total_df.merge(timepoint_metadata, on='Tissue_ID', how='left')
+assert np.sum(total_df.TONIC_ID.isnull()) == 0
+
+# save annotated cluster counts
 total_df.to_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'), index=False)
 
 # create version aggregated by timepoint
 total_df_grouped = total_df.groupby(['Tissue_ID', 'cell_type', 'metric'])
 total_df_timepoint = total_df_grouped['value'].agg([np.mean, np.std])
 total_df_timepoint.reset_index(inplace=True)
+total_df_timepoint = total_df_timepoint.merge(timepoint_metadata, on='Tissue_ID')
 
 # save timepoint df
 total_df_timepoint.to_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv'), index=False)
@@ -168,8 +186,6 @@ cell_table_func = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normal
 # Total number of cells positive for each functional marker in cell_cluster_broad per image
 func_df_counts_broad = create_long_df_by_functional(func_table=cell_table_func,
                                                     cell_type_col='cell_cluster_broad',
-                                                    metadata_df=core_metadata,
-                                                    metadata_cols=['Tissue_ID'],
                                                     drop_cols=['cell_meta_cluster', 'cell_cluster'],
                                                     transform_func=np.sum,
                                                     result_name='counts_per_cluster_broad')
@@ -177,8 +193,6 @@ func_df_counts_broad = create_long_df_by_functional(func_table=cell_table_func,
 # Proportion of cells positive for each functional marker in cell_cluster_broad per image
 func_df_mean_broad = create_long_df_by_functional(func_table=cell_table_func,
                                                   cell_type_col='cell_cluster_broad',
-                                                  metadata_df=core_metadata,
-                                                  metadata_cols=['Tissue_ID'],
                                                   drop_cols=['cell_meta_cluster', 'cell_cluster'],
                                                   transform_func=np.mean,
                                                   result_name='avg_per_cluster_broad')
@@ -186,8 +200,6 @@ func_df_mean_broad = create_long_df_by_functional(func_table=cell_table_func,
 # Total number of cells positive for each functional marker in cell_cluster per image
 func_df_counts_cluster = create_long_df_by_functional(func_table=cell_table_func,
                                                       cell_type_col='cell_cluster',
-                                                      metadata_df=core_metadata,
-                                                      metadata_cols=['Tissue_ID'],
                                                       drop_cols=['cell_meta_cluster',
                                                                  'cell_cluster_broad'],
                                                       transform_func=np.sum,
@@ -196,8 +208,6 @@ func_df_counts_cluster = create_long_df_by_functional(func_table=cell_table_func
 # Proportion of cells positive for each functional marker in cell_cluster_broad per image
 func_df_mean_cluster = create_long_df_by_functional(func_table=cell_table_func,
                                                     cell_type_col='cell_cluster',
-                                                    metadata_df=core_metadata,
-                                                    metadata_cols=['Tissue_ID'],
                                                     drop_cols=['cell_meta_cluster',
                                                                'cell_cluster_broad'],
                                                     transform_func=np.mean,
@@ -206,8 +216,6 @@ func_df_mean_cluster = create_long_df_by_functional(func_table=cell_table_func,
 # Total number of cells positive for each functional marker in cell_meta_cluster per image
 func_df_counts_meta = create_long_df_by_functional(func_table=cell_table_func,
                                                    cell_type_col='cell_meta_cluster',
-                                                   metadata_df=core_metadata,
-                                                   metadata_cols=['Tissue_ID'],
                                                    drop_cols=['cell_cluster', 'cell_cluster_broad'],
                                                    transform_func=np.sum,
                                                    result_name='counts_per_meta')
@@ -215,16 +223,24 @@ func_df_counts_meta = create_long_df_by_functional(func_table=cell_table_func,
 # Proportion of cells positive for each functional marker in cell_meta_cluster per image
 func_df_mean_meta = create_long_df_by_functional(func_table=cell_table_func,
                                                  cell_type_col='cell_meta_cluster',
-                                                 metadata_df=core_metadata,
-                                                 metadata_cols=['Tissue_ID'],
                                                  drop_cols=['cell_cluster', 'cell_cluster_broad'],
                                                  transform_func=np.mean, result_name='avg_per_meta')
 
-# save total df
+# create combined df
 total_df_func = pd.concat([func_df_counts_broad, func_df_mean_broad, func_df_counts_cluster,
                            func_df_mean_cluster, func_df_counts_meta, func_df_mean_meta])
 
+# check that all metadata from core_metadata succesfully transferred over
+total_df_func = total_df_func.merge(core_metadata, on='fov', how='left')
+assert np.sum(total_df_func.Tissue_ID.isnull()) == 0
 
+bad_metadata = total_df_func.loc[total_df_func.Tissue_ID.isnull(), 'fov'].unique()
+
+# check that all metadata from timepoint metadata succesfully transferred over
+total_df_func = total_df_func.merge(timepoint_metadata, on='Tissue_ID', how='left')
+assert np.sum(total_df_func.TONIC_ID.isnull()) == 0
+
+# save combined df
 total_df_func.to_csv(os.path.join(data_dir, 'functional_df_per_core.csv'), index=False)
 
 
@@ -232,6 +248,7 @@ total_df_func.to_csv(os.path.join(data_dir, 'functional_df_per_core.csv'), index
 total_df_grouped_func = total_df_func.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric'])
 total_df_timepoint_func = total_df_grouped_func['value'].agg([np.mean, np.std])
 total_df_timepoint_func.reset_index(inplace=True)
+total_df_timepoint_func = total_df_timepoint_func.merge(timepoint_metadata, on='Tissue_ID')
 
 # save timepoint df
 total_df_timepoint_func.to_csv(os.path.join(data_dir, 'functional_df_per_timepoint.csv'), index=False)
