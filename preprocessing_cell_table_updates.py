@@ -193,51 +193,70 @@ create_mantis_project(cell_table, fovs=fovs, seg_dir='/Users/noahgreenwald/Docum
                       image_dir='/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/mantis',
                       mantis_dir='/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/mantis')
 
-# generate consistent names for cell clusters
-cell_table.loc[cell_table['cell_meta_cluster'] == 'ck17_tumor', 'cell_meta_cluster'] = 'tumor_ck17'
-cell_table.loc[cell_table['cell_meta_cluster'] == 'ecad_vim', 'cell_meta_cluster'] = 'tumor_vim'
+# generate consistent names for clusters: Tumor -> Cancer, and capitalize all names for plotting
+replacements = [('tumor_other', 'Cancer_Other'),
+                ('ck17_tumor', 'Cancer_CK17'),
+                ('ecad_vim', 'Cancer_Vim'),
+                ('tumor_ecad', 'Cancer_Ecad'),
+                ('tumor_other_mono', 'Cancer_Mono'),
+                ('tumor_sma', 'Cancer_SMA'),
+                ('tumor_CD56', 'Cancer_CD56'),
+                ('CD4_mono', 'CD4_Mono'),
+                ('CD4T_CD8T_dp', 'CD4T_CD8T_DP'),
+                ('ChyTry', 'Mast'),
+                ('calprotectin', 'Neutrophil'),
+                ('immune_other', 'Immune_Other'),
+                ('other', 'Other'),
+                ('other_stroma_coll', 'Stroma_Collagen'),
+                ('other_stroma_fibronectin', 'Stroma_Fibronectin')]
+
+for old_name, new_name in replacements:
+    cell_table = cell_table.replace({'cell_meta_cluster': old_name},
+                                    {'cell_meta_cluster': new_name})
 
 all_clusters = ['CD11c_HLADR', 'CD14', 'CD163', 'CD20', 'CD31', 'CD31_VIM',
-                'CD3_DN', 'CD4T', 'CD4T_CD8T_dp', 'CD4T_HLADR', 'CD4_mono', 'CD56',
-                'CD68', 'CD68_CD163_DP', 'CD8T', 'ChyTry', 'FAP', 'FAP_SMA', 'SMA',
-                'Treg', 'VIM', 'calprotectin', 'immune_other', 'other',
-                'other_stroma_coll', 'other_stroma_fibronectin', 'tumor_CD56',
-                'tumor_ck17', 'tumor_ecad', 'tumor_other', 'tumor_other_mono',
-                'tumor_sma', 'tumor_vim']
+                'CD3_DN', 'CD4T', 'CD4T_CD8T_DP', 'CD4T_HLADR', 'CD4_Mono', 'CD56',
+                'CD68', 'CD68_CD163_DP', 'CD8T', 'Cancer_CD56', 'Cancer_CK17',
+                'Cancer_Ecad', 'Cancer_Mono', 'Cancer_Other', 'Cancer_SMA',
+                'Cancer_Vim', 'FAP', 'FAP_SMA', 'Immune_Other', 'Mast',
+                'Neutrophil', 'Other', 'SMA', 'Stroma_Collagen',
+                'Stroma_Fibronectin', 'Treg', 'VIM']
 
-assignment_dict = {'tumor': ['tumor_CD56', 'tumor_ck17', 'tumor_ecad'],
-                   'tumor_emt': ['tumor_sma', 'tumor_vim'],
-                   'tumor_other': ['tumor_other', 'tumor_other_mono'],
-                   'macs': ['CD68', 'CD68_CD163_DP', 'CD163'],
-                   'mono': ['CD4_mono', 'CD14'],
-                   'apc': ['CD11c_HLADR'],
-                   'bcell':  ['CD20'],
-                   'endo': ['CD31', 'CD31_VIM'],
-                   'fibro': ['FAP', 'FAP_SMA', 'SMA'],
-                   'stroma': ['other_stroma_coll', 'other_stroma_fibronectin', 'VIM'],
-                   'nk': ['CD56'],
-                   'neut': ['calprotectin'],
-                   'mast': ['ChyTry'],
+assignment_dict = {'Cancer': ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad'],
+                   'Cancer_EMT': ['Cancer_SMA', 'Cancer_Vim'],
+                   'Cancer_Other': ['Cancer_Other', 'Cancer_Mono'],
+                   'M1_Mac': ['CD68'],
+                   'M2_Mac': ['CD163'],
+                   'Mac_Other': ['CD68_CD163_DP'],
+                   'Monocyte': ['CD4_Mono', 'CD14'],
+                   'APC': ['CD11c_HLADR'],
+                   'B':  ['CD20'],
+                   'Endothelium': ['CD31', 'CD31_VIM'],
+                   'Fibroblast': ['FAP', 'FAP_SMA', 'SMA'],
+                   'Stroma': ['Stroma_Collagen', 'Stroma_Fibronectin', 'VIM'],
+                   'NK': ['CD56'],
+                   'Neutrophil': ['Neutrophil'],
+                   'Mast': ['Mast'],
                    'CD4T': ['CD4T','CD4T_HLADR'],
                    'CD8T': ['CD8T'],
-                   'treg': ['Treg'],
-                   't_other': ['CD3_DN','CD4T_CD8T_dp'],
-                   'immune': ['immune_other'],
-                   'other': ['other']}
+                   'Treg': ['Treg'],
+                   'T_Other': ['CD3_DN','CD4T_CD8T_DP'],
+                   'Immune_Other': ['Immune_Other'],
+                   'Other': ['Other']}
 
 for new_name in assignment_dict:
     pops = assignment_dict[new_name]
     idx = np.isin(cell_table['cell_meta_cluster'].values, pops)
     cell_table.loc[idx,  'cell_cluster'] = new_name
 
-assignment_dict_2 = {'tumor': ['tumor', 'tumor_emt', 'tumor_other'],
-                     'mono_macs': ['macs', 'mono', 'apc'],
-                     'b_cell': ['b_cell'],
-                     't_cell': ['CD4', 'CD8', 'treg', 't_other'],
-                     'granulocyte': ['neutrophil', 'mast'],
-                     'stroma': ['endo', 'fibro', 'stroma'],
-                     'nk': ['nk'],
-                     'other': ['immune', 'other']}
+assignment_dict_2 = {'Cancer': ['Cancer', 'Cancer_EMT', 'Cancer_Other'],
+                     'Mono_Mac': ['M1_Mac', 'M2_Mac', 'Mac_Other', 'Monocyte', 'APC'],
+                     'B': ['B'],
+                     'T': ['CD4T', 'CD8T', 'Treg', 'T_Other'],
+                     'Granulocyte': ['Neutrophil', 'Mast'],
+                     'Stroma': ['Endothelium', 'Fibroblast', 'Stroma'],
+                     'NK': ['NK'],
+                     'Other': ['Immune_Other', 'Other']}
 
 for new_name in assignment_dict_2:
     pops = assignment_dict_2[new_name]
@@ -245,10 +264,8 @@ for new_name in assignment_dict_2:
     cell_table.loc[idx,  'cell_cluster_broad'] = new_name
 
 # save updated cell table
-cell_table.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv')
+cell_table.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv', index=False)
 cell_table = pd.read_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv')
-cell_table_testing = cell_table.loc[cell_table.fov.isin(fovs), :]
-cell_table_testing.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated_testing.csv')
 
 
 threshold_list = [['Ki67', 0.002], ['CD38', 0.002], ['CD45RB', 0.001], ['CD45RO', 0.002],
