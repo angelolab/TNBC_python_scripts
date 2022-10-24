@@ -6,26 +6,6 @@ from ark.utils.io_utils import list_folders
 
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 
-#
-# Create consolidated version of cell table with populations of interest for fast processing
-#
-
-# create consolidated cell table with only cell populations
-cell_table = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated.csv'))
-
-cell_table = cell_table.loc[:, ['fov', 'cell_meta_cluster', 'label', 'cell_cluster',
-                             'cell_cluster_broad']]
-cell_table.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_clusters_only.csv'),
-                  index=False)
-
-# create consolidated cell table with only functional marker freqs
-cell_table = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated.csv'))
-
-func_cols = [col for col in cell_table.columns if '_threshold' in col]
-cell_table_func = cell_table.loc[:, ['fov', 'cell_cluster_broad', 'cell_cluster', 'cell_meta_cluster'] + func_cols]
-cell_table_func.columns = [col.split('_threshold')[0] for col in cell_table_func.columns]
-cell_table_func.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'),
-                       index=False)
 
 #
 # Determine which cores have valid image data, and update all metadata tables

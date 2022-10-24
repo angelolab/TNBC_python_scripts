@@ -268,6 +268,8 @@ cell_table.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/comb
 cell_table = pd.read_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv')
 
 
+# functional marker thresholding
+
 threshold_list = [['Ki67', 0.002], ['CD38', 0.002], ['CD45RB', 0.001], ['CD45RO', 0.002],
                   ['CD57', 0.002], ['CD69', 0.002], ['GLUT1', 0.002], ['IDO', 0.001],
                   ['PD1', 0.0005], ['PDL1', 0.001],
@@ -283,6 +285,22 @@ PDL1_mask = np.logical_and(cell_table['PDL1'].values >= 0.0005, cell_table['PDL1
 tumor_mask = cell_table['cell_cluster_broad'] == 'Cancer'
 
 cell_table['PDL1_cancer_dim_threshold'] = np.logical_and(PDL1_mask, tumor_mask)
+
+# TODO: Make this compatible with negative gating in addition to positive gating
+# define marker combinations of interest
+combinations = [['PD1', 'TCF1'], ['PD1', 'TIM3']]
+
+for combo in combinations:
+    first_marker = combo[0]
+    base_mask = cell_table_func[first_marker].array
+    for marker in combo[1:]:
+        base_mask = np.logical_and(base_mask, cell_table_func[marker].array)
+    name = '_'.join(combo)
+    cell_table_func[name] = base_mask
+
+cell_table_func.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'), index=False)
+
+
 cell_table.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv', index=False)
 
 

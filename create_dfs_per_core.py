@@ -88,7 +88,7 @@ timepoint_missing = core_metadata.Tissue_ID[timepoint_missing].unique()
 print(timepoint_missing)
 
 # get metadata on missing cores
-core_metadata.loc[core_metadata.Tissue_ID == timepoint_missing[28], :]
+core_metadata.loc[core_metadata.Tissue_ID.isin(timepoint_missing[3:]), :]
 
 # remove missing cores
 core_metadata = core_metadata.loc[~core_metadata.Tissue_ID.isin(timepoint_missing), :]
@@ -116,7 +116,7 @@ cluster_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
                                        normalize='index')
 
 # proportion of T cell subsets
-tcell_mask = cell_table_clusters['cell_cluster'].isin(['treg', 'CD8', 'CD4', 't_other'])
+tcell_mask = cell_table_clusters['cell_cluster'].isin(['Treg', 'CD8T', 'CD4T', 'T_Other'])
 tcell_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[tcell_mask, :],
                                      result_name='tcell_freq',
                                      col_name='cell_cluster',
@@ -124,8 +124,10 @@ tcell_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[tcell_ma
 
 
 # proportion of immune cell subsets
-immune_mask = cell_table_clusters['cell_cluster_broad'].isin(['mono_macs', 't_cell', 'other',
-                                                              'granulocyte', 'nk', 'b_cell'])
+immune_mask = cell_table_clusters['cell_cluster_broad'].isin(['Mono_Mac', 'T',
+                                                              'Granulocyte', 'NK', 'B'])
+immune_mask_2 = cell_table_clusters.cell_cluster == 'Immune_Other'
+immune_mask = np.logical_or(immune_mask, immune_mask_2)
 immune_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[immune_mask, :],
                                       result_name='immune_freq',
                                       col_name='cell_cluster',
@@ -160,24 +162,6 @@ total_df_timepoint.to_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv')
 #
 # Create summary dataframe with proportions and counts of different functional marker populations
 #
-
-# preprocess functional marker df to have specific combinations of markers
-cell_table_func = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'))
-
-# define marker combinations of interest
-combinations = [['PD1', 'TCF1'], ['PD1', 'TIM3']]
-
-# TODO: Make this compatible with negative gating in addition to positive gating
-
-for combo in combinations:
-    first_marker = combo[0]
-    base_mask = cell_table_func[first_marker].array
-    for marker in combo[1:]:
-        base_mask = np.logical_and(base_mask, cell_table_func[marker].array)
-    name = '_'.join(combo)
-    cell_table_func[name] = base_mask
-
-cell_table_func.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'), index=False)
 
 # load processed functional table
 cell_table_func = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'))
