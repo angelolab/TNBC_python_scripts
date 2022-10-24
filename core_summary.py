@@ -116,27 +116,3 @@ plt.close()
 
 
 
-# functional marker plotting
-total_df_func = pd.read_csv(os.path.join(data_dir, 'functional_df_core.csv'))
-
-# functional markers across broad cell types
-plot_df = total_df_func.loc[total_df_func.metric.isin(['avg_per_cluster_broad']) & ~total_df_func.functional_marker.isin(['PD1_TCF1', 'PD1_TIM3', 'PDL1_tumor_dim'])]
-g = sns.catplot(data=plot_df, x='cell_type', y='value', col='functional_marker', col_wrap=5, kind='box')
-for ax in g.axes_dict.values():
-    ax.tick_params(labelrotation=90)
-
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Functional_marker_boxplot_by_cluster_broad.png'))
-plt.close()
-
-# plot functional markers across more granular cell subtypes
-plot_df = total_df_func.loc[total_df_func.metric.isin(['avg_per_cluster']) & ~total_df_func.functional_marker.isin(['PD1_TCF1', 'PD1_TIM3', 'PDL1_tumor_dim'])]
-g = sns.catplot(data=plot_df, x='cell_type', y='value', col='functional_marker', col_wrap=4, kind='box', aspect=1.7)
-
-for ax in g.axes_dict.values():
-    ax.tick_params(labelrotation=90)
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Functional_marker_boxplot_by_cluster.png'))
-plt.close()
-
-
