@@ -139,7 +139,7 @@ create_stacked_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', 
 
 
 # generate paired plots for broad cluster and medium cluster resolutions
-for cluster_name, plot_name in zip(['cluster_broad_freq', 'cluster_freq'], ['broad_cluster', 'cluster']):
+for cluster_name, plot_name in zip(['cluster_broad_freq', 'cluster_freq', 'immune_freq'], ['broad_cluster', 'cluster', 'immune_cluster']):
 
     # cell proportions across timepoints
     plot_df = timepoint_df_cluster.loc[timepoint_df_cluster.metric == cluster_name, :]
@@ -148,7 +148,7 @@ for cluster_name, plot_name in zip(['cluster_broad_freq', 'cluster_freq'], ['bro
 
     g = sns.FacetGrid(plot_df, col='cell_type', col_wrap=4, hue='cell_type',
                       palette=['Black'], sharey=False, aspect=1.7)
-    g.map(sns.stripplot, 'Timepoint', 'mean')
+    g.map(sns.stripplot, 'Timepoint', 'mean', order=['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])
     plt.tight_layout()
     plt.savefig(os.path.join(plot_dir, 'Cell_prevelance_timepoints_by_{}.png'.format(plot_name)))
     plt.close()
@@ -160,7 +160,8 @@ for cluster_name, plot_name in zip(['cluster_broad_freq', 'cluster_freq'], ['bro
 
     g = sns.FacetGrid(plot_df, col='cell_type', col_wrap=4, hue='cell_type',
                       palette=['Black'], sharey=False, aspect=2)
-    g.map(sns.stripplot, 'Localization', 'mean')
+    g.map(sns.stripplot, 'Localization', 'mean', order=['Lymphnode', 'Breast', 'Bone', 'Unknown',
+                                                        'Muscle', 'Skin', 'Liver', 'Lung'])
     plt.tight_layout()
     plt.savefig(os.path.join(plot_dir, 'Cell_prevelance_tissue_by_{}.png'.format(plot_name)))
     plt.close()

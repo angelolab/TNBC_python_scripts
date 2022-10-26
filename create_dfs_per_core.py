@@ -133,6 +133,8 @@ immune_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[immune_
                                       col_name='cell_cluster',
                                       normalize='index')
 
+# TODO: stromal subsets and cancer subsets separate DF
+
 # create single df with appropriate metadata
 total_df = pd.concat([cluster_broad_df, cluster_df, tcell_df, immune_df])
 
