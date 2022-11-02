@@ -133,10 +133,24 @@ immune_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[immune_
                                       col_name='cell_cluster',
                                       normalize='index')
 
-# TODO: stromal subsets and cancer subsets separate DF
+# proportion of stromal subsets
+stromal_mask = cell_table_clusters['cell_cluster_broad'].isin(['Stroma'])
+stromal_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[stromal_mask, :],
+                                       result_name='stromal_freq',
+                                       col_name='cell_meta_cluster',
+                                       normalize='index')
+
+# proportion of cancer subsets
+cancer_mask = cell_table_clusters['cell_cluster_broad'].isin(['Cancer'])
+cancer_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[cancer_mask, :],
+                                      result_name='cancer_freq',
+                                      col_name='cell_meta_cluster',
+                                      normalize='index')
+
 
 # create single df with appropriate metadata
-total_df = pd.concat([cluster_broad_df, cluster_df, tcell_df, immune_df])
+total_df = pd.concat([cluster_broad_df, cluster_df, tcell_df, immune_df, stromal_df, cancer_df],
+                     axis=0)
 
 # check that all metadata from core_metadata succesfully transferred over
 total_df = total_df.merge(core_metadata, on='fov', how='left')

@@ -49,6 +49,7 @@ plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 
 # load dataset
 core_df_cluster = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
+timepoint_df_cluster = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv'))
 core_df_func = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core.csv'))
 
 
@@ -56,79 +57,72 @@ core_df_func = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core.csv'))
 # Evaluate heterogeneity of cell clusters prevalence across cores
 #
 
+# TODO: investigate how tcell_Freq same timepoint dots can be greater than 1
+def compute_difference_in_cell_prev(core_df, timepoint_df, metric):
+    """Computes the difference in cell prevalances across timepoints"""
 
-# calculate l2 distance between cores from the same timepoint for each patient
-timepoints = ['primary_untreated', 'baseline', 'post_induction', 'on_nivo']
+    # subset provided DFs
+    timepoints = ['primary_untreated', 'baseline', 'post_induction', 'on_nivo']
+    core_df_plot = core_df.loc[core_df.Timepoint.isin(timepoints), :]
+    timepoint_df_plot = timepoint_df.loc[timepoint_df.Timepoint.isin(timepoints), :]
 
-# TODO: Make sure distances are calculated from timepoint Df in addition to core DF for each comparison to ensure that isn't driving the difference
-#for metric in ['cluster_broad_freq', 'cluster_freq', 'immune_freq']:
-for metric in ['immune_freq']:
-    plot_df = core_df_cluster.loc[core_df_cluster.metric == metric, :]
-    plot_df = plot_df.loc[plot_df.Timepoint.isin(timepoints)]
+    core_df_plot = core_df_plot.loc[core_df_plot.metric == metric, :]
+    timepoint_df_plot = timepoint_df_plot.loc[timepoint_df_plot.metric == metric, :]
 
-    # compute distances between cores for each timepoint from each patient
-    grouped = plot_df.groupby(['Tissue_ID', 'Timepoint'])
-
-    distances_df_cores = []
+    # compute distances between replicate cores from same patient and timepoint
+    grouped = core_df_plot.groupby(['Tissue_ID', 'Timepoint'])
+    distances_df_core = []
 
     for name, group in grouped:
         wide_df = pd.pivot(group, index='cell_type', columns='fov', values='value')
         if wide_df.shape[1] > 1:
-            distances_df_cores.append(compute_pairwise_distances(input_df=wide_df,
+            distances_df_core.append(compute_pairwise_distances(input_df=wide_df,
                                                            metadata_names=['Tissue_ID', 'Timepoint'],
                                                            metadata_values=name))
-            #
-            # dist_long, met_long = compute_pairwise_distances_by_element(wide_df)
-            # metadata_long.extend([name] * len(met_long))
-            # distances_long.extend(dist_long)
-            # cell_type_long.extend(met_long)
-
-    # distances_df_long = pd.DataFrame(metadata_long, columns=['Tissue_ID', 'Timepoint'])
-    # distances_df_long['distance'] = distances_long
-    # distances_df_long['cell_type'] = cell_type_long
-
 
     # compute distances between cores for each timepoint from random patients
-    grouped_shuffle_timepoint = plot_df.groupby(['Timepoint'])
-    distances_df_shuffle_timepoint = []
-    for name, group in grouped_shuffle_timepoint:
-        fov_names = group.fov.unique()
-        np.random.shuffle(fov_names)
-
-        # select 3 FOVs at a time within each timepoint
-        batch_size = 3
-        for batch_start in range(0, len(group), batch_size):
-            # subset df to just include selected FOVs
-            batch_df = group.loc[group.fov.isin(fov_names[batch_start: batch_start + batch_size]), :]
-            wide_df = pd.pivot(batch_df, index='cell_type', columns='fov', values='value')
-            if wide_df.shape[1] > 1:
-                distances_df_shuffle_timepoint.append(compute_pairwise_distances(input_df=wide_df,
-                                                                                 metadata_names=['Tissue_ID', 'Timepoint'],
-                                                                                 metadata_values=['NA'] + [name]))
+    # plot_df_timepoints = main_df.loc[main_df.metric == metric, :]
+    # grouped_shuffle_timepoint = plot_df_timepoints.groupby(['Timepoint'])
+    # distances_df_shuffle_timepoint = []
+    # for name, group in grouped_shuffle_timepoint:
+    #     # fov_names = group.fov.unique()
+    #     fov_names = group.Tissue_ID.unique()
+    #     np.random.shuffle(fov_names)
+    #
+    #     # select 3 FOVs at a time within each timepoint
+    #     batch_size = 3
+    #     for batch_start in range(0, len(group), batch_size):
+    #         # subset df to just include selected FOVs
+    #         # batch_df = group.loc[group.fov.isin(fov_names[batch_start: batch_start + batch_size]), :]
+    #         batch_df = group.loc[group.Tissue_ID.isin(fov_names[batch_start: batch_start + batch_size]), :]
+    #
+    #         wide_df = pd.pivot(batch_df, index='cell_type', columns='Tissue_ID', values='mean')
+    #         if wide_df.shape[1] > 1:
+    #             distances_df_shuffle_timepoint.append(compute_pairwise_distances(input_df=wide_df,
+    #                                                                              metadata_names=['Tissue_ID', 'Timepoint'],
+    #                                                                              metadata_values=['NA'] + [name]))
 
     # compute distances between cores fully randomized
-    grouped_shuffle = plot_df.loc[plot_df.Timepoint.isin(timepoints), :]
     distances_df_shuffle = []
-    fov_names = grouped_shuffle.fov.unique()
+    fov_names = timepoint_df_plot.Tissue_ID.unique()
     np.random.shuffle(fov_names)
 
     # select 3 FOVs at a time within each timepoint
     batch_size = 3
-    for batch_start in range(0, len(grouped_shuffle), batch_size):
+    for batch_start in range(0, len(timepoint_df_plot), batch_size):
         # subset df to just include selected FOVs
-        batch_df = grouped_shuffle.loc[grouped_shuffle.fov.isin(fov_names[batch_start: batch_start + batch_size]), :]
-        wide_df = pd.pivot(batch_df, index='cell_type', columns='fov', values='value')
+        batch_df = timepoint_df_plot.loc[timepoint_df_plot.Tissue_ID.isin(fov_names[batch_start: batch_start + batch_size]), :]
+        wide_df = pd.pivot(batch_df, index='cell_type', columns='Tissue_ID', values='mean')
         if wide_df.shape[1] > 1:
             distances_df_shuffle.append(compute_pairwise_distances(input_df=wide_df,
                                                                    metadata_names=['Tissue_ID','Timepoint'],
                                                                    metadata_values=['NA', 'NA']))
 
     # compute distances between cores within patients across timepoints
-    grouped_shuffle_patient = plot_df.groupby(['TONIC_ID'])
+    grouped_shuffle_patient = timepoint_df_plot.groupby(['TONIC_ID'])
     distances_df_shuffle_patient = []
-
     for name, group in grouped_shuffle_patient:
-        wide_df = pd.pivot(group, index='cell_type', columns='fov', values='value')
+        wide_df = pd.pivot(group, index='cell_type', columns='Tissue_ID', values='mean')
         if wide_df.shape[1] > 1:
             distances_df_shuffle_patient.append(compute_pairwise_distances(input_df=wide_df,
                                                                  metadata_names=['Tissue_ID',
@@ -137,31 +131,30 @@ for metric in ['immune_freq']:
 
     # plot distances between cores for each timepoint
     distances_df_shuffle_patient = pd.concat(distances_df_shuffle_patient)
-    distances_df_shuffle_patient['metric'] = 'across time'
+    distances_df_shuffle_patient['metric'] = 'Same patients'
 
     distances_df_shuffle = pd.concat(distances_df_shuffle)
-    distances_df_shuffle['metric'] = 'all cores'
+    distances_df_shuffle['metric'] = 'Different patients'
 
-    distances_df_shuffle_timepoint = pd.concat(distances_df_shuffle_timepoint)
-    distances_df_shuffle_timepoint['metric'] = 'within timepoint'
+    distances_df_core = pd.concat(distances_df_core)
+    distances_df_core['metric'] = 'Same timepoints'
 
-    distances_df_cores = pd.concat(distances_df_cores)
-    distances_df_cores['metric'] = 'within replicate cores'
+    distances_df_combined = pd.concat([distances_df_shuffle, distances_df_core, distances_df_shuffle_patient])
 
-    distances_df_combined = pd.concat([distances_df_shuffle, distances_df_shuffle_timepoint,
-                                       distances_df_cores, distances_df_shuffle_patient])
+    return distances_df_combined
 
 
-    fig, ax = plt.subplots(figsize=(12, 6))
-    ax = sns.stripplot(distances_df_combined, x='metric', y='distance', hue='metric')
-    #ax = sns.stripplot(distances_df.loc[distances_df.Timepoint.isin(timepoints), :], x='metric', y='distance', dodge=True)
-    plt.title("Variation in cell prevalence in {} across cores".format(metric))
-    #plt.xticks(rotation=90)
+distances_df_new = compute_difference_in_cell_prev(core_df=core_df_cluster, timepoint_df=timepoint_df_cluster, metric='tcell_freq')
 
-    sns.despine()
-    plt.tight_layout()
-    plt.savefig(os.path.join(plot_dir, 'Heterogeneity_of_{}_across_cores_by_metric.png'.format(metric)))
-    plt.close()
+fig, ax = plt.subplots()
+ax = sns.boxplot(distances_df_new, x='metric', y='distance', order=['Same timepoints',  'Same patients', 'Different patients'])
+plt.title("Variation in cell prevalence in {} across {}".format(metric, 'condition'))
+#plt.xticks(rotation=90)
+
+sns.despine()
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'Heterogeneity_of_{}_across_{}_by_metric.png'.format(metric, 'timepoint')))
+plt.close()
 
 
 
