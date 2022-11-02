@@ -142,6 +142,60 @@ for marker in markers:
     fov_data.append(input_df)
 
 #
+# stromal features
+#
+
+# functional markers in fibroblasts
+markers = ['HLADR', 'IDO', 'PDL1', 'Ki67', 'GLUT1']
+for marker in markers:
+    input_df = functional_df_core[functional_df_core['metric'].isin(['avg_per_cluster_broad'])]
+    input_df = input_df[input_df['cell_type'].isin(['Stroma'])]
+    input_df = input_df[input_df['functional_marker'].isin([marker])]
+    input_df['metric'] = f'{marker}_Stroma'
+    input_df['category'] = 'stromal'
+    input_df = input_df[['fov', 'value', 'metric', 'category']]
+    fov_data.append(input_df)
+
+
+#
+# cancer features
+#
+
+# cancer cell proportions
+cancer_populations = ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad', 'Cancer_SMA', 'Cancer_Vim',
+                      'Cancer_Other', 'Cancer_Mono']
+
+for cancer_population in cancer_populations:
+    input_df = cluster_df_core[cluster_df_core['metric'].isin(['cancer_freq'])]
+    input_df = input_df[input_df['cell_type'].isin([cancer_population])]
+    input_df['metric'] = f'{cancer_population}_cancer_prop'
+    input_df['category'] = 'cancer'
+    input_df = input_df[['fov', 'value', 'metric', 'category']]
+    fov_data.append(input_df)
+
+# cancer diversity
+input_df = cluster_df_core[cluster_df_core['metric'].isin(['cancer_freq'])]
+wide_df = pd.pivot(input_df, index='fov', columns=['cell_type'], values='value')
+wide_df['value'] = wide_df.apply(shannon_diversity, axis=1)
+wide_df.reset_index(inplace=True)
+wide_df['metric'] = 'cancer_diversity'
+wide_df['category'] = 'cancer'
+wide_df = wide_df[['fov', 'value', 'metric', 'category']]
+fov_data.append(wide_df)
+
+
+# functional markers in cancer cells
+markers = ['PDL1', 'PDL1_cancer_dim', 'GLUT1', 'Ki67', 'HLA1', 'HLADR']
+for marker in markers:
+    input_df = functional_df_core[functional_df_core['metric'].isin(['avg_per_cluster_broad'])]
+    input_df = input_df[input_df['cell_type'].isin(['Cancer'])]
+    input_df = input_df[input_df['functional_marker'].isin([marker])]
+    input_df['metric'] = f'{marker}_Cancer'
+    input_df['category'] = 'cancer'
+    input_df = input_df[['fov', 'value', 'metric', 'category']]
+    fov_data.append(input_df)
+
+#
 # global features
 #
 
@@ -182,6 +236,6 @@ timepoint_data_df = timepoint_data_df.pivot(index='Tissue_ID', columns='metric',
 # replace Nan with 0
 timepoint_data_df = timepoint_data_df.fillna(0)
 
-sns.clustermap(timepoint_data_df, z_score=1)
+sns.clustermap(timepoint_data_df, z_score=1, cmap='vlag', vmin=-3, vmax=3)
 
 

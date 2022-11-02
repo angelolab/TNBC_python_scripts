@@ -309,13 +309,13 @@ cell_table.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/comb
 #
 
 # create consolidated cell table with only cell populations
-cell_table_clusters = cell_table.loc[:, ['fov', 'cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad']]
+cell_table_clusters = cell_table.loc[:, ['fov', 'label', 'cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad']]
 cell_table_clusters.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_clusters_only.csv'),
                   index=False)
 
 # create consolidated cell table with only functional marker freqs
 func_cols = [col for col in cell_table.columns if '_threshold' in col]
-cell_table_func = cell_table.loc[:, ['fov', 'cell_cluster_broad', 'cell_cluster', 'cell_meta_cluster'] + func_cols]
+cell_table_func = cell_table.loc[:, ['fov', 'label', 'cell_cluster_broad', 'cell_cluster', 'cell_meta_cluster'] + func_cols]
 cell_table_func.columns = [col.split('_threshold')[0] for col in cell_table_func.columns]
 cell_table_func.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'),
                        index=False)

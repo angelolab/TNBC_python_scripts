@@ -159,7 +159,7 @@ assert np.sum(total_df.Tissue_ID.isnull()) == 0
 bad_metadata = total_df.loc[total_df.Tissue_ID.isnull(), 'fov'].unique()
 
 # check that all metadata from timepoint metadata succesfully transferred over
-total_df = total_df.merge(timepoint_metadata, on='Tissue_ID', how='left')
+total_df = total_df.merge(timepoint_metadata, on='Tissue_ID', how='inner')
 assert np.sum(total_df.TONIC_ID.isnull()) == 0
 
 # save annotated cluster counts
