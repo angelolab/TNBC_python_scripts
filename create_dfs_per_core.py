@@ -115,6 +115,13 @@ cluster_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
                                        col_name='cell_cluster',
                                        normalize='index')
 
+
+# proportion of cells in cell_meta_cluster per patient
+cluster_meta_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
+                                       result_name='meta_cluster_freq',
+                                       col_name='cell_meta_cluster',
+                                       normalize='index')
+
 # proportion of T cell subsets
 tcell_mask = cell_table_clusters['cell_cluster'].isin(['Treg', 'CD8T', 'CD4T', 'T_Other'])
 tcell_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[tcell_mask, :],
@@ -149,8 +156,8 @@ cancer_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[cancer_
 
 
 # create single df with appropriate metadata
-total_df = pd.concat([cluster_broad_df, cluster_df, tcell_df, immune_df, stromal_df, cancer_df],
-                     axis=0)
+total_df = pd.concat([cluster_broad_df, cluster_df, cluster_meta_df, tcell_df, immune_df,
+                      stromal_df, cancer_df], axis=0)
 
 # check that all metadata from core_metadata succesfully transferred over
 total_df = total_df.merge(core_metadata, on='fov', how='left')

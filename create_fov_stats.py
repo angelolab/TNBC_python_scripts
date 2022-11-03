@@ -1,6 +1,7 @@
 # script to generate summary stats for each fov
 import os
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -239,3 +240,92 @@ timepoint_data_df = timepoint_data_df.fillna(0)
 sns.clustermap(timepoint_data_df, z_score=1, cmap='vlag', vmin=-3, vmax=3)
 
 
+
+# create comprehensive features for all major and minor cell types
+fov_data = []
+
+# compute diversity of different levels of granularity
+diversity_features = [['cluster_broad_freq', 'cluster_broad_diversity', 'broad'],
+                      ['immune_freq', 'immune_diversity', 'immune'],
+                      ['cancer_freq', 'cancer_diversity', 'cancer'],
+                      ['stromal_freq', 'stromal_diversity', 'stromal']]
+
+for cluster_name, feature_name, feature_category in diversity_features:
+    input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
+    wide_df = pd.pivot(input_df, index='fov', columns=['cell_type'], values='value')
+    wide_df['value'] = wide_df.apply(shannon_diversity, axis=1)
+    wide_df.reset_index(inplace=True)
+    wide_df['metric'] = feature_name
+    wide_df['category'] = feature_category
+    wide_df = wide_df[['fov', 'value', 'metric', 'category']]
+    fov_data.append(wide_df)
+
+
+# compute proportions of cell types for different levels of granularity
+proportion_features = [['cluster_broad_freq', 'cluster_broad_prop', 'broad'],
+                       ['cluster_freq', 'cluster_prop', 'broad']]
+for cluster_name, feature_name, feature_category in proportion_features[1:2]:
+    input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
+    input_df['metric'] = input_df.cell_type + '_' + feature_name
+    input_df['category'] = feature_category
+    input_df = input_df[['fov', 'value', 'metric', 'category']]
+    fov_data.append(input_df)
+
+
+# compute functional marker positivity for different levels of granularity
+functional_features = [['avg_per_cluster_broad', 'broad']]
+# functional_features = [['avg_per_cluster_broad', 'broad'],
+#                           ['avg_per_cluster', 'broad']]
+for functional_name, feature_category in functional_features:
+    input_df = functional_df_core[functional_df_core['metric'].isin([functional_name])]
+    input_df['metric'] = input_df.functional_marker + '+_' + input_df.cell_type
+    input_df['category'] = feature_category
+    input_df = input_df[['fov', 'value', 'metric', 'category']]
+    fov_data.append(input_df)
+
+
+
+# plot clustermap
+fov_data_df = pd.concat(fov_data)
+temp_metadata = cluster_df_core[cluster_df_core.metric == 'cluster_freq'][['fov', 'Tissue_ID', 'Timepoint']]
+temp_metadata = temp_metadata.drop_duplicates()
+fov_data_df = fov_data_df.merge(temp_metadata, on='fov', how='left')
+
+# primary samples
+fov_data_df_p = fov_data_df[fov_data_df.Timepoint.isin(['primary_untreated'])]
+
+# same thing for timepoint aggregation
+timepoint_data_df = fov_data_df_p.groupby(['Tissue_ID', 'metric']).agg(np.mean)
+timepoint_data_df.reset_index(inplace=True)
+timepoint_data_df = timepoint_data_df.pivot(index='Tissue_ID', columns='metric', values='value')
+
+# replace Nan with 0
+timepoint_data_df = timepoint_data_df.fillna(0)
+
+# drop columns with a sum of zero
+timepoint_data_df = timepoint_data_df.loc[:, (timepoint_data_df != 0).any(axis=0)]
+
+
+sns.clustermap(timepoint_data_df, z_score=1, cmap='vlag', vmin=-3, vmax=3, figsize=(40, 20))
+plt.tight_layout()
+
+# create correlation matrix
+corr_df = timepoint_data_df.corr()
+corr_df = fov_data_df_p
+sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+
+# create metrics to use for subsetting correlation matrix
+colvals = corr_df.abs().sum(axis=0)
+shifted_df = corr_df + 1
+shifted_df = shifted_df / shifted_df.sum(axis=0)
+colvals = shifted_df.apply(shannon_diversity, axis=0)
+
+# subset based on the columns
+col_cutoff = colvals.quantile(0.25)
+keep_mask = colvals < col_cutoff
+corr_df_subset = corr_df.loc[keep_mask, keep_mask]
+
+
+# plot heatmap
+sns.clustermap(corr_df_subset, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+plt.tight_layout()
