@@ -11,9 +11,6 @@ from python_files.utils import create_long_df_by_functional, create_long_df_by_c
 
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 
-
-
-
 #
 # Preprocess metadata to ensure all samples are present
 #
@@ -73,9 +70,9 @@ cluster_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
 
 # proportion of cells in cell_meta_cluster per patient
 cluster_meta_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
-                                       result_name='meta_cluster_freq',
-                                       cluster_col_name='cell_meta_cluster',
-                                       normalize='index')
+                                            result_name='meta_cluster_freq',
+                                            cluster_col_name='cell_meta_cluster',
+                                            normalize='index')
 
 # proportion of T cell subsets
 tcell_mask = cell_table_clusters['cell_cluster'].isin(['Treg', 'CD8T', 'CD4T', 'T_Other'])
@@ -96,11 +93,11 @@ immune_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[immune_
                                       normalize='index')
 
 # proportion of stromal subsets
-stromal_mask = cell_table_clusters['cell_cluster_broad'].isin(['Stroma'])
-stromal_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[stromal_mask, :],
-                                       result_name='stromal_freq',
-                                       cluster_col_name='cell_meta_cluster',
-                                       normalize='index')
+stroma_mask = cell_table_clusters['cell_cluster_broad'].isin(['Stroma'])
+stroma_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[stroma_mask, :],
+                                      result_name='stroma_freq',
+                                      cluster_col_name='cell_meta_cluster',
+                                      normalize='index')
 
 # proportion of cancer subsets
 cancer_mask = cell_table_clusters['cell_cluster_broad'].isin(['Cancer'])
@@ -112,7 +109,7 @@ cancer_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[cancer_
 
 # create single df with appropriate metadata
 total_df = pd.concat([cluster_broad_df, cluster_df, cluster_meta_df, tcell_df, immune_df,
-                      stromal_df, cancer_df], axis=0)
+                      stroma_df, cancer_df], axis=0)
 
 # check that all metadata from core_metadata succesfully transferred over
 total_df = total_df.merge(core_metadata, on='fov', how='left')
@@ -121,7 +118,7 @@ assert np.sum(total_df.Tissue_ID.isnull()) == 0
 bad_metadata = total_df.loc[total_df.Tissue_ID.isnull(), 'fov'].unique()
 
 # check that all metadata from timepoint metadata succesfully transferred over
-total_df = total_df.merge(timepoint_metadata, on='Tissue_ID', how='inner')
+total_df = total_df.merge(timepoint_metadata, on='Tissue_ID', how='left')
 assert np.sum(total_df.TONIC_ID.isnull()) == 0
 
 # save annotated cluster counts
@@ -145,49 +142,48 @@ total_df_timepoint.to_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv')
 cell_table_func = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'))
 
 
-# TODO: Update names to match naming scheme of cell frequencies
 # Total number of cells positive for each functional marker in cell_cluster_broad per image
 func_df_counts_broad = create_long_df_by_functional(func_table=cell_table_func,
                                                     cluster_col_name='cell_cluster_broad',
-                                                    drop_cols=['cell_meta_cluster', 'cell_cluster'],
+                                                    drop_cols=['cell_meta_cluster', 'cell_cluster', 'label', 'H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio'],
                                                     transform_func=np.sum,
-                                                    result_name='counts_per_cluster_broad')
+                                                    result_name='cluster_broad_count')
 
 # Proportion of cells positive for each functional marker in cell_cluster_broad per image
 func_df_mean_broad = create_long_df_by_functional(func_table=cell_table_func,
                                                   cluster_col_name='cell_cluster_broad',
-                                                  drop_cols=['cell_meta_cluster', 'cell_cluster'],
+                                                  drop_cols=['cell_meta_cluster', 'cell_cluster', 'label'],
                                                   transform_func=np.mean,
-                                                  result_name='avg_per_cluster_broad')
+                                                  result_name='cluster_broad_freq')
 
 # Total number of cells positive for each functional marker in cell_cluster per image
 func_df_counts_cluster = create_long_df_by_functional(func_table=cell_table_func,
                                                       cluster_col_name='cell_cluster',
                                                       drop_cols=['cell_meta_cluster',
-                                                                 'cell_cluster_broad'],
+                                                                 'cell_cluster_broad', 'label', 'H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio'],
                                                       transform_func=np.sum,
-                                                      result_name='counts_per_cluster')
+                                                      result_name='cluster_count')
 
 # Proportion of cells positive for each functional marker in cell_cluster_broad per image
 func_df_mean_cluster = create_long_df_by_functional(func_table=cell_table_func,
                                                     cluster_col_name='cell_cluster',
                                                     drop_cols=['cell_meta_cluster',
-                                                               'cell_cluster_broad'],
+                                                               'cell_cluster_broad', 'label'],
                                                     transform_func=np.mean,
-                                                    result_name='avg_per_cluster')
+                                                    result_name='cluster_freq')
 
 # Total number of cells positive for each functional marker in cell_meta_cluster per image
 func_df_counts_meta = create_long_df_by_functional(func_table=cell_table_func,
                                                    cluster_col_name='cell_meta_cluster',
-                                                   drop_cols=['cell_cluster', 'cell_cluster_broad'],
+                                                   drop_cols=['cell_cluster', 'cell_cluster_broad', 'label', 'H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio'],
                                                    transform_func=np.sum,
-                                                   result_name='counts_per_meta')
+                                                   result_name='meta_cluster_count')
 
 # Proportion of cells positive for each functional marker in cell_meta_cluster per image
 func_df_mean_meta = create_long_df_by_functional(func_table=cell_table_func,
                                                  cluster_col_name='cell_meta_cluster',
-                                                 drop_cols=['cell_cluster', 'cell_cluster_broad'],
-                                                 transform_func=np.mean, result_name='avg_per_meta')
+                                                 drop_cols=['cell_cluster', 'cell_cluster_broad', 'label'],
+                                                 transform_func=np.mean, result_name='meta_cluster_freq')
 
 # Ratio of histone markers in cell_cluster_broad per image
 
