@@ -1,0 +1,6 @@
+pytest>=7.1.2,<8.0.0
+pytest-cases>=3.6.0,<4
+pytest-cov>=3.0.0,<4
+pytest-mock<4.0.0
+pytest-pycodestyle>=2.3.0,<3.0
+pytest-asyncio>=0.18.1,<1.0
