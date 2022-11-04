@@ -98,6 +98,7 @@ timepoint_metadata = timepoint_metadata.loc[:, ['Tissue_ID', 'TONIC_ID', 'Timepo
 core_metadata = core_metadata.loc[:, ['fov', 'Tissue_ID']]
 
 
+# TODO: Create conserved metadata sheet that contains core metadata across all formats
 #
 # Generate counts and proportions of cell clusters per FOV
 #
@@ -233,6 +234,9 @@ func_df_mean_meta = create_long_df_by_functional(func_table=cell_table_func,
                                                  cell_type_col='cell_meta_cluster',
                                                  drop_cols=['cell_cluster', 'cell_cluster_broad'],
                                                  transform_func=np.mean, result_name='avg_per_meta')
+
+# Ratio of histone markers in cell_cluster_broad per image
+
 
 # create combined df
 total_df_func = pd.concat([func_df_counts_broad, func_df_mean_broad, func_df_counts_cluster,

@@ -286,22 +286,27 @@ tumor_mask = cell_table['cell_cluster_broad'] == 'Cancer'
 
 cell_table['PDL1_cancer_dim_threshold'] = np.logical_and(PDL1_mask, tumor_mask)
 
-# TODO: Make this compatible with negative gating in addition to positive gating
-# define marker combinations of interest
-combinations = [['PD1', 'TCF1'], ['PD1', 'TIM3']]
+# # TODO: Make this compatible with negative gating in addition to positive gating
+# # define marker combinations of interest
+# combinations = [['PD1', 'TCF1'], ['PD1', 'TIM3']]
+#
+# for combo in combinations:
+#     first_marker = combo[0]
+#     base_mask = cell_table[first_marker].array
+#     for marker in combo[1:]:
+#         base_mask = np.logical_and(base_mask, cell_table_func[marker].array)
+#     name = '_'.join(combo)
+#     cell_table[name] = base_mask
+#
+# cell_table_func.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'), index=False)
+#
 
-for combo in combinations:
-    first_marker = combo[0]
-    base_mask = cell_table_func[first_marker].array
-    for marker in combo[1:]:
-        base_mask = np.logical_and(base_mask, cell_table_func[marker].array)
-    name = '_'.join(combo)
-    cell_table_func[name] = base_mask
-
-cell_table_func.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'), index=False)
-
+# create ratios of relevant markers
+cell_table['H3K9ac_H3K27me3_ratio'] = np.log2(cell_table['H3K9ac'].values / cell_table['H3K27me3'].values)
+cell_table['CD45RO_CD45RB_ratio'] = np.log2(cell_table['CD45RO'].values / cell_table['CD45RB'].values)
 
 cell_table.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv', index=False)
+#cell_table = pd.read_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv')
 
 
 #
@@ -315,7 +320,7 @@ cell_table_clusters.to_csv(os.path.join(data_dir, 'combined_cell_table_normalize
 
 # create consolidated cell table with only functional marker freqs
 func_cols = [col for col in cell_table.columns if '_threshold' in col]
-cell_table_func = cell_table.loc[:, ['fov', 'label', 'cell_cluster_broad', 'cell_cluster', 'cell_meta_cluster'] + func_cols]
+cell_table_func = cell_table.loc[:, ['fov', 'label', 'cell_cluster_broad', 'cell_cluster', 'cell_meta_cluster', 'H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio'] + func_cols]
 cell_table_func.columns = [col.split('_threshold')[0] for col in cell_table_func.columns]
 cell_table_func.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'),
                        index=False)
@@ -328,3 +333,15 @@ cell_table_func.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_ce
 #
 # # save dataframe
 # marker_counts_df.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/mantis/marker_counts.csv', index=False)
+
+
+# determine number of cells per image
+cell_counts = cell_table.groupby('fov').count()['label'].reset_index()
+
+# sort by number of cells
+cell_counts = cell_counts.sort_values('label', ascending=True)
+
+# create histogram of number of cells per image
+sns.histplot(cell_counts.loc[cell_counts.label < 5000, 'label'], bins=50)
+
+io.imshow(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples', 'TONIC_TMA9_R8C2/H3K27me3.tiff'))

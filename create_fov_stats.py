@@ -291,41 +291,70 @@ temp_metadata = cluster_df_core[cluster_df_core.metric == 'cluster_freq'][['fov'
 temp_metadata = temp_metadata.drop_duplicates()
 fov_data_df = fov_data_df.merge(temp_metadata, on='fov', how='left')
 
-# primary samples
-fov_data_df_p = fov_data_df[fov_data_df.Timepoint.isin(['primary_untreated'])]
+# determine which timepoints to use
+include_timepoints = ['primary_untreated']
+fov_data_df_subset = fov_data_df[fov_data_df.Timepoint.isin(include_timepoints)]
 
-# same thing for timepoint aggregation
-timepoint_data_df = fov_data_df_p.groupby(['Tissue_ID', 'metric']).agg(np.mean)
-timepoint_data_df.reset_index(inplace=True)
-timepoint_data_df = timepoint_data_df.pivot(index='Tissue_ID', columns='metric', values='value')
+# determine whether to use image-level or timepoint-level features
+timepoint = False
+
+if timepoint:
+    # aggregate to timepoint level
+    data_wide = fov_data_df_subset.groupby(['Tissue_ID', 'metric']).agg(np.mean)
+    data_wide.reset_index(inplace=True)
+    data_wide = data_wide.pivot(index='Tissue_ID', columns='metric', values='value')
+else:
+    # aggregate to image level
+    data_wide = fov_data_df_subset.pivot(index='fov', columns='metric', values='value')
+
 
 # replace Nan with 0
-timepoint_data_df = timepoint_data_df.fillna(0)
+data_wide = data_wide.fillna(0)
 
 # drop columns with a sum of zero
-timepoint_data_df = timepoint_data_df.loc[:, (timepoint_data_df != 0).any(axis=0)]
+data_wide = data_wide.loc[:, (data_wide != 0).any(axis=0)]
 
 
-sns.clustermap(timepoint_data_df, z_score=1, cmap='vlag', vmin=-3, vmax=3, figsize=(40, 20))
+sns.clustermap(data_wide, z_score=1, cmap='vlag', vmin=-3, vmax=3, figsize=(20, 20))
 plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'patient_by_feature_clustermap.png'), dpi=300)
+plt.close()
 
 # create correlation matrix
-corr_df = timepoint_data_df.corr()
-corr_df = fov_data_df_p
+corr_df = data_wide.corr()
 sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'correlation_clustermap.png'), dpi=300)
+plt.close()
 
 # create metrics to use for subsetting correlation matrix
 colvals = corr_df.abs().sum(axis=0)
-shifted_df = corr_df + 1
-shifted_df = shifted_df / shifted_df.sum(axis=0)
-colvals = shifted_df.apply(shannon_diversity, axis=0)
+# shifted_df = corr_df + 1
+# shifted_df = shifted_df / shifted_df.sum(axis=0)
+# colvals = shifted_df.apply(shannon_diversity, axis=0)
+
+colvals = corr_df.apply(np.var, axis=0)
 
 # subset based on the columns
-col_cutoff = colvals.quantile(0.25)
-keep_mask = colvals < col_cutoff
+col_cutoff = colvals.quantile(0.75)
+keep_mask = colvals > col_cutoff
 corr_df_subset = corr_df.loc[keep_mask, keep_mask]
 
 
 # plot heatmap
-sns.clustermap(corr_df_subset, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
-plt.tight_layout()
+clustergrid = sns.clustermap(corr_df_subset, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+#plt.tight_layout()
+clustergrid.savefig(os.path.join(plot_dir, 'correlation_heatmap_primary_subset.png'), dpi=300)
+plt.close()
+
+
+# plot correlations between features
+keep_cols = corr_df_subset.columns[clustergrid.dendrogram_row.reordered_ind[13:23]]
+keep_cols = ['CD38+_Stroma', 'CD38+_T', 'CD38+_Mono_Mac']
+keep_cols = ['CD4T_cluster_prop', 'T_Other_cluster_prop', 'GLUT1+_Cancer', 'GLUT1+_Stroma']
+
+plot_df = data_wide.loc[:, keep_cols]
+g = sns.PairGrid(plot_df, diag_sharey=False)
+g.map_lower(sns.regplot, scatter_kws={'s': 10, 'alpha': 0.5})
+g.savefig(os.path.join(plot_dir, 'feature_paired_corelations_3.png'), dpi=300)
+plt.close()
