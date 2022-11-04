@@ -283,10 +283,12 @@ for functional_name, feature_category in functional_features:
     input_df = input_df[['fov', 'value', 'metric', 'category']]
     fov_data.append(input_df)
 
+fov_data_df = pd.concat(fov_data)
+fov_data_df.to_csv(os.path.join(data_dir, 'fov_features.csv'), index=False)
 
+fov_data_df = pd.read_csv(os.path.join(data_dir, 'fov_features.csv'))
 
 # plot clustermap
-fov_data_df = pd.concat(fov_data)
 temp_metadata = cluster_df_core[cluster_df_core.metric == 'cluster_freq'][['fov', 'Tissue_ID', 'Timepoint']]
 temp_metadata = temp_metadata.drop_duplicates()
 fov_data_df = fov_data_df.merge(temp_metadata, on='fov', how='left')
