@@ -263,8 +263,9 @@ for cluster_name, feature_name, feature_category in diversity_features:
 
 # compute proportions of cell types for different levels of granularity
 proportion_features = [['cluster_broad_freq', 'cluster_broad_prop', 'broad'],
-                       ['cluster_freq', 'cluster_prop', 'broad']]
-for cluster_name, feature_name, feature_category in proportion_features[1:2]:
+                       ['cluster_freq', 'cluster_prop', 'broad'],
+                       ['meta_cluster_freq', 'meta_cluster_prop', 'broad']]
+for cluster_name, feature_name, feature_category in proportion_features[2:]:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
     input_df['metric'] = input_df.cell_type + '_' + feature_name
     input_df['category'] = feature_category
