@@ -145,15 +145,17 @@ def compute_difference_in_cell_prev(core_df, timepoint_df, metric):
 
 
 distances_df_new = compute_difference_in_cell_prev(core_df=core_df_cluster, timepoint_df=timepoint_df_cluster, metric='tcell_freq')
+distances_df_new = compute_difference_in_cell_prev(core_df=pca_df, timepoint_df=pca_df_timepoint_annot, metric='immune_PCA')
 
 fig, ax = plt.subplots()
 ax = sns.boxplot(distances_df_new, x='metric', y='distance', order=['Same timepoints',  'Same patients', 'Different patients'])
-plt.title("Variation in cell prevalence in {} across {}".format(metric, 'condition'))
+plt.title("Variation in cell prevalence in {} across {}".format('immune_dif', 'condition'))
+plt.title("Variation in immune PC distance")
 #plt.xticks(rotation=90)
 
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Heterogeneity_of_{}_across_{}_by_metric.png'.format(metric, 'timepoint')))
+plt.savefig(os.path.join(plot_dir, 'Heterogeneity_of_immune_PC_distances.png'))
 plt.close()
 
 
