@@ -61,6 +61,17 @@ timepoint_metadata.to_csv(os.path.join(data_dir, 'TONIC_data_per_timepoint.csv')
 # Identify patients with specific combinations of timepoints present
 #
 
+# find the patients with all 3 timepoints from the same location
+timepoint_sums = timepoint_metadata.loc[timepoint_metadata.Timepoint.isin(['baseline', 'on_nivo']), :]
+
+# get the number of entries in Location_studytissue that are equal to 'A' grouped by TONIC_ID
+timepoint_sums = timepoint_sums.loc[:, ['TONIC_ID', 'Location_studytissue']].groupby('TONIC_ID').agg(lambda x: np.sum(x == 'A'))
+timepoint_sums.reset_index(inplace=True)
+timepoint_sums = timepoint_sums.loc[timepoint_sums.Location_studytissue == 2, :]
+
+# include only patients with 2 counts of studytissue 'A'
+timepoint_metadata = timepoint_metadata.loc[timepoint_metadata.TONIC_ID.isin(timepoint_sums.TONIC_ID), :]
+
 # reshape data to allow for easy boolean comparisons
 subset_metadata = timepoint_metadata.loc[timepoint_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
 subset_metadata = subset_metadata.loc[subset_metadata.MIBI_include, :]

@@ -137,9 +137,18 @@ create_stacked_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', 
                title='Frequency of T cell clusters across metastatic tumors',
                savepath=os.path.join(plot_dir, 'Metastatic_tumor_barplot_freq_tcell.png'))
 
+# kmeans freqs across primary tumors
+plot_df = timepoint_df_cluster.loc[timepoint_df_cluster.Timepoint == 'primary_untreated', :]
+plot_df = plot_df.loc[plot_df.metric == 'kmeans_freq', :]
+
+create_stacked_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
+                       xlabel='Patient ID', ylabel='Proportion of cells', colormap='hls',
+                       title='Frequency of neighborhoods across primary tumors')
+                       #savepath=os.path.join(plot_dir, 'Metastatic_tumor_barplot_freq_tcell.png'))
 
 # generate paired plots for broad cluster and medium cluster resolutions
-for cluster_name, plot_name in zip(['cluster_broad_freq', 'cluster_freq', 'immune_freq'], ['broad_cluster', 'cluster', 'immune_cluster']):
+#for cluster_name, plot_name in zip(['cluster_broad_freq', 'cluster_freq', 'immune_freq'], ['broad_cluster', 'cluster', 'immune_cluster']):
+for cluster_name, plot_name in zip(['kmeans_freq'],  ['kmeans_clusters']):
 
     # cell proportions across timepoints
     plot_df = timepoint_df_cluster.loc[timepoint_df_cluster.metric == cluster_name, :]
@@ -172,8 +181,10 @@ for cluster_name, plot_name in zip(['cluster_broad_freq', 'cluster_freq', 'immun
 #
 
 # functional markers across cell types and timepoints
-for cluster_name, plot_name in zip(['avg_per_cluster_broad', 'avg_per_cluster'], ['broad_cluster', 'cluster']):
-    for timepoint in ['primary_untreated', 'baseline', 'post_induction', 'on_nivo', 'all']:
+#for cluster_name, plot_name in zip(['avg_per_cluster_broad', 'avg_per_cluster'], ['broad_cluster', 'cluster']):
+for cluster_name, plot_name in zip(['kmeans_freq'], ['kmeans_cluster']):
+    #for timepoint in ['primary_untreated', 'baseline', 'post_induction', 'on_nivo', 'all']:
+    for timepoint in ['all']:
         plot_df = timepoint_df_func.loc[np.logical_and(timepoint_df_func.metric == cluster_name, ~timepoint_df_func.functional_marker.isin(['PDL1_cancer_dim'])), :]
 
         if timepoint == 'all':
@@ -181,7 +192,7 @@ for cluster_name, plot_name in zip(['avg_per_cluster_broad', 'avg_per_cluster'],
         else:
             plot_df = plot_df.loc[plot_df.Timepoint == timepoint]
 
-        g = sns.catplot(data=plot_df, x='cell_type', y='mean', col='functional_marker', col_wrap=5, kind='box')
+        g = sns.catplot(data=plot_df, x='cell_type', y='mean', col='functional_marker', col_wrap=5, kind='box', sharey=False)
         for ax in g.axes_dict.values():
             ax.tick_params(labelrotation=90)
         plt.tight_layout()
