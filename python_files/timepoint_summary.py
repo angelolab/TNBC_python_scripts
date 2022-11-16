@@ -182,7 +182,8 @@ for cluster_name, plot_name in zip(['kmeans_freq'],  ['kmeans_clusters']):
 
 # functional markers across cell types and timepoints
 #for cluster_name, plot_name in zip(['avg_per_cluster_broad', 'avg_per_cluster'], ['broad_cluster', 'cluster']):
-for cluster_name, plot_name in zip(['kmeans_freq'], ['kmeans_cluster']):
+for cluster_name, plot_name in zip(['cluster_freq'], ['cluster']):
+#for cluster_name, plot_name in zip(['kmeans_freq'], ['kmeans_cluster']):
     #for timepoint in ['primary_untreated', 'baseline', 'post_induction', 'on_nivo', 'all']:
     for timepoint in ['all']:
         plot_df = timepoint_df_func.loc[np.logical_and(timepoint_df_func.metric == cluster_name, ~timepoint_df_func.functional_marker.isin(['PDL1_cancer_dim'])), :]
@@ -192,13 +193,35 @@ for cluster_name, plot_name in zip(['kmeans_freq'], ['kmeans_cluster']):
         else:
             plot_df = plot_df.loc[plot_df.Timepoint == timepoint]
 
-        g = sns.catplot(data=plot_df, x='cell_type', y='mean', col='functional_marker', col_wrap=5, kind='box', sharey=False)
+        g = sns.catplot(data=plot_df, x='cell_type', y='mean', col='functional_marker', col_wrap=5, kind='bar', sharey=False)
         for ax in g.axes_dict.values():
             ax.tick_params(labelrotation=90)
         plt.tight_layout()
-        plt.savefig(os.path.join(plot_dir, 'Functional_marker_boxplot_by_{}_in_{}.png'.format(plot_name, timepoint)))
+        plt.savefig(os.path.join(plot_dir, 'Functional_marker_barplot_by_{}_in_{}.png'.format(plot_name, timepoint)))
         plt.close()
 
+
+# heatmap of functional marker expression per cell type
+plot_df = timepoint_df_func.loc[timepoint_df_func.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
+plot_df = plot_df.loc[plot_df.metric == 'cluster_freq', :]
+plot_df = plot_df.loc[~plot_df.functional_marker.isin(['PDL1_cancer_dim']), :]
+plot_df = plot_df.loc[~plot_df.functional_marker.isin(['H3K9ac_H3K27me3_ratio']), :]
+plot_df = plot_df.loc[~plot_df.functional_marker.isin(['CD45RO_CD45RB_ratio']), :]
+
+# # compute z-score within each functional marker
+# plot_df['zscore'] = plot_df.groupby('functional_marker')['mean'].transform(lambda x: (x - x.mean()) / x.std())
+
+# average the z-score across cell types
+plot_df = plot_df.groupby(['cell_type', 'functional_marker']).mean().reset_index()
+plot_df = pd.pivot(plot_df, index='cell_type', columns='functional_marker', values='mean')
+plot_df = plot_df.apply(lambda x: (x - x.min()), axis=0)
+plot_df = plot_df.apply(lambda x: (x / x.max()), axis=0)
+
+# plot heatmap
+plt.figure(figsize=(10, 10))
+sns.heatmap(plot_df, cmap=sns.color_palette("Greys", as_cmap=True), vmin=0, vmax=1)
+plt.savefig(os.path.join(plot_dir, 'Functional_marker_heatmap_min_max_normalized.png'))
+plt.close()
 
 # functional markers across cell types and timepoints
 # TODO: make top for loop work with correct names

@@ -263,7 +263,7 @@ for cluster_name, feature_name, feature_category in diversity_features:
 
 # compute proportions of cell types for different levels of granularity
 proportion_features = [['cluster_broad_freq', 'cluster_broad_prop', 'broad'],
-                       ['cluster_freq', 'cluster_prop', 'broad'],
+                       #['cluster_freq', 'cluster_prop', 'broad'],
                        ['meta_cluster_freq', 'meta_cluster_prop', 'broad']]
 for cluster_name, feature_name, feature_category in proportion_features[2:]:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
@@ -274,13 +274,21 @@ for cluster_name, feature_name, feature_category in proportion_features[2:]:
 
 
 # compute functional marker positivity for different levels of granularity
-functional_features = [['avg_per_cluster_broad', 'broad']]
+functional_features = [['cluster_freq', 'broad']]
 # functional_features = [['avg_per_cluster_broad', 'broad'],
 #                           ['avg_per_cluster', 'broad']]
 for functional_name, feature_category in functional_features:
     input_df = functional_df_core[functional_df_core['metric'].isin([functional_name])]
     input_df['metric'] = input_df.functional_marker + '+_' + input_df.cell_type
     input_df['category'] = feature_category
+
+    # create vector of False values
+    keep_vector = np.zeros(input_df.shape[0], dtype=bool)
+    for marker in keep_dict:
+        marker_keep = (input_df['cell_type'].isin(keep_dict[marker])) & (input_df['functional_marker'] == marker)
+        keep_vector = keep_vector | marker_keep
+
+    input_df = input_df[keep_vector]
     input_df = input_df[['fov', 'value', 'metric', 'category']]
     fov_data.append(input_df)
 
@@ -290,3 +298,188 @@ temp_metadata = temp_metadata.drop_duplicates()
 fov_data_df = fov_data_df.merge(temp_metadata, on='fov', how='left')
 
 fov_data_df.to_csv(os.path.join(data_dir, 'fov_features.csv'), index=False)
+
+
+# create dictionary of functional markers to keep for each cell type
+lymphocyte = ['B', 'CD4T', 'CD8T', 'Immune_Other', 'NK', 'T_Other', 'Treg']
+cancer = ['Cancer', 'Cancer_EMT', 'Cancer_Other']
+monocyte = ['APC', 'M1_Mac', 'M2_Mac', 'Mono_Mac', 'Monocyte', 'Mac_Other']
+stroma = ['Fibroblast', 'Stroma', 'Endothelium']
+granulocyte = ['Mast', 'Neutrophil']
+
+keep_dict = {'CD38': lymphocyte + monocyte + stroma + granulocyte, 'CD45RB': lymphocyte, 'CD45RO': lymphocyte,
+             'CD57': lymphocyte + cancer, 'CD69': lymphocyte,
+             'GLUT1': lymphocyte + monocyte + stroma + granulocyte + cancer,
+             'HLA1': lymphocyte + monocyte + stroma + granulocyte + cancer,
+             'HLADR': lymphocyte + monocyte, 'IDO': ['APC', 'B'], 'Ki67': lymphocyte + monocyte + stroma + granulocyte + cancer,
+             'PD1': lymphocyte, 'PDL1': lymphocyte + monocyte + granulocyte + cancer, 'PDL1_tumor_dim': cancer,
+             'TBET': lymphocyte, 'TCF1': lymphocyte, 'TIM3': lymphocyte + monocyte + granulocyte}
+
+# create mantis_dir to inspect invididual FOVs
+func_df = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'))
+
+data_wide.loc[data_wide['CD45RB+_CD8T'] > 0.5, ['CD45RB+_CD4T', 'CD45RB+_CD8T']]
+#TONIC_TMA3_R4C2
+#TONIC_TMA6_R5C6
+#TONIC_TMA9_R10C4
+
+fov = ['TONIC_TMA3_R4C2']
+marker = 'CD45RB'
+cell_types = ['CD8T', 'CD4T']
+input_cell_table = func_df[func_df['cell_cluster'].isin(cell_types)]
+input_cell_table['cell_cluster_new'] = input_cell_table['cell_cluster'].values + input_cell_table[marker].astype('str')
+
+keep_channels = ['CD45RB.tiff', 'CD4.tiff', 'CD8.tiff']
+create_mantis_project(cell_table=input_cell_table, fovs=fov, seg_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
+                      pop_col='cell_cluster_new', mask_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/mantis_dir/masks',
+                      image_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples', mantis_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/mantis_dir/mantis_folders')
+
+for chan in keep_channels:
+    os.remove(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/mantis_dir/mantis_folders', fov[0], chan))
+
+from ark.utils import data_utils, plot_utils, load_utils, io_utils
+from ark.utils.misc_utils import verify_in_list
+from ark import settings
+
+import skimage.io as io
+
+
+def label_cells_by_cluster(fov, all_data, label_map, fov_col=settings.FOV_ID,
+                           cell_label_column=settings.CELL_LABEL,
+                           cluster_column=settings.KMEANS_CLUSTER):
+    """Translates cell-ID labeled images according to the clustering assignment.
+    Takes a single FOV, and relabels the image according to the assignment
+    of cell IDs to cluster label.
+    Args:
+        fov (str):
+            The FOV to relabel
+        all_data (pandas.DataFrame):
+            data including fovs, cell labels, and cell expression matrix for all markers.
+        label_map (xarray.DataArray):
+            label map for a single FOV
+        fov_col (str):
+            column with the fovs names in `all_data`.
+        cell_label_column (str):
+            column with the cell labels in `all_data`.
+        cluster_column (str):
+            column with the cluster labels in `all_data`.
+    Returns:
+        numpy.ndarray:
+            The image with new designated label assignments
+    """
+
+    # verify that fov found in all_data
+    # NOTE: label_map fov validation happens in loading function
+    verify_in_list(fov_name=[fov], all_data_fovs=all_data[fov_col].unique())
+
+    # subset all_data on the FOV
+    df = all_data[all_data[fov_col] == fov]
+
+    # generate the labels to use
+    labels_dict = dict(zip(df[cell_label_column], df[cluster_column]))
+
+    # condense extraneous axes
+    labeled_img_array = label_map.squeeze().values
+
+    # relabel the array
+    relabeled_img_array = data_utils.relabel_segmentation(labeled_img_array, labels_dict)
+
+    return relabeled_img_array
+
+
+
+def save_fov_mask(fov, data_dir, mask_data, sub_dir=None, name_suffix=''):
+    """Saves a provided cluster label mask overlay for a FOV.
+    Args:
+        fov (str):
+            The FOV to save
+        data_dir (str):
+            The directory to save the cluster mask
+        mask_data (numpy.ndarray):
+            The cluster mask data for the FOV
+        sub_dir (Optional[str]):
+            The subdirectory to save the masks in. If specified images are saved to
+            "data_dir/sub_dir". If `sub_dir = None` the images are saved to `"data_dir"`.
+            Defaults to `None`.
+        name_suffix (str):
+            Specify what to append at the end of every fov.
+    """
+
+    # data_dir validation
+    io_utils.validate_paths(data_dir)
+
+    # ensure None is handled correctly in file path generation
+    if sub_dir is None:
+        sub_dir = ''
+
+    save_dir = os.path.join(data_dir, sub_dir)
+
+    # make the save_dir if it doesn't already exist
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    # define the file name as the fov name with the name suffix appended
+    fov_file = fov + name_suffix + '.tiff'
+
+    # save the image to data_dir
+    io.imsave(os.path.join(save_dir, fov_file), mask_data, check_contrast=False)
+
+def create_mantis_project(cell_table, fovs, seg_dir, pop_col,
+                          mask_dir, image_dir, mantis_dir) -> None:
+    """Create a complete Mantis project for viewing cell labels
+    Args:
+        cell_table (pd.DataFrame): dataframe of extracted cell features and subtypes
+        fovs (list): list of FOVs to use for creating the project
+        seg_dir (path): path to the directory containing the segmentations
+        pop_col (str): the column containing the distinct cell populations
+        mask_dir (path): path to the directory where the masks will be stored
+        image_dir (path): path to the directory containing the raw image data
+        mantis_dir (path): path to the directory where the mantis project will be created
+        seg_suffix_name (str, optional):
+            The suffix of the segmentation file. Defaults to "_whole_cell".
+    """
+
+    if not os.path.exists(mask_dir):
+        os.makedirs(mask_dir)
+
+    # create small df compatible with FOV function
+    small_table = cell_table.loc[:, [pop_col, 'label', 'fov']]
+
+    # generate unique numeric value for each population
+    small_table['pop_vals'] = pd.factorize(small_table[pop_col].tolist())[0] + 1
+
+    # label and save the cell mask for each FOV
+    for fov in fovs:
+        whole_cell_file = [fov + '_feature_0.tiff' for fov in fovs]
+        print(whole_cell_file)
+        # load the segmentation labels in for the FOV
+        label_map = load_utils.load_imgs_from_dir(
+            data_dir=seg_dir, files=whole_cell_file, xr_dim_name='compartments',
+            xr_channel_names=['feature_0'], trim_suffix='_feature_0'
+        ).loc[fov, ...]
+
+        # use label_cells_by_cluster to create cell masks
+        mask_data = label_cells_by_cluster(
+            fov, small_table, label_map, fov_col='fov',
+            cell_label_column='label', cluster_column='pop_vals'
+        )
+
+        # save the cell mask for each FOV
+        save_fov_mask(
+            fov,
+            mask_dir,
+            mask_data,
+            sub_dir=None,
+            name_suffix='_cell_mask'
+        )
+
+    # rename the columns of small_table
+    mantis_df = small_table.rename({'pop_vals': 'metacluster', pop_col: 'mc_name'}, axis=1)
+
+    # create the mantis project
+    plot_utils.create_mantis_dir(fovs=fovs, mantis_project_path=mantis_dir,
+                                 img_data_path=image_dir, mask_output_dir=mask_dir,
+                                 mask_suffix='_cell_mask', mapping=mantis_df,
+                                 seg_dir=seg_dir, img_sub_folder='')
+
+
