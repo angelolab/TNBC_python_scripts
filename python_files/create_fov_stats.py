@@ -387,7 +387,6 @@ def label_cells_by_cluster(fov, all_data, label_map, fov_col=settings.FOV_ID,
     return relabeled_img_array
 
 
-
 def save_fov_mask(fov, data_dir, mask_data, sub_dir=None, name_suffix=''):
     """Saves a provided cluster label mask overlay for a FOV.
     Args:
