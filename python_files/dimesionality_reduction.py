@@ -53,24 +53,24 @@ plt.close()
 colvals = corr_df.apply(np.var, axis=0)
 
 # subset based on the columns
-col_cutoff = colvals.quantile(0.75)
+col_cutoff = colvals.quantile(0.50)
 keep_mask = colvals > col_cutoff
 corr_df_subset = corr_df.loc[keep_mask, keep_mask]
 
 
 # plot heatmap
 clustergrid = sns.clustermap(corr_df_subset, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
-clustergrid.savefig(os.path.join(plot_dir, 'spearman_correlation_heatmap_primary_subset.png'), dpi=300)
+clustergrid.savefig(os.path.join(plot_dir, 'spearman_correlation_heatmap_primary_subset_50.png'), dpi=300)
 plt.close()
 
 
 # plot correlations between features
-keep_cols = corr_df_subset.columns[clustergrid.dendrogram_row.reordered_ind[14:19]]
+keep_cols = corr_df_subset.columns[clustergrid.dendrogram_row.reordered_ind[82:90]]
 
 plot_df = data_wide.loc[:, keep_cols]
 g = sns.PairGrid(plot_df, diag_sharey=False)
 g.map_lower(sns.regplot, scatter_kws={'s': 10, 'alpha': 0.5})
-g.savefig(os.path.join(plot_dir, 'spearman_feature_paired_corelations_CD38.png'), dpi=300)
+g.savefig(os.path.join(plot_dir, 'spearman_feature_paired_corelations_GLUT1.png'), dpi=300)
 plt.close()
 
 # create PCA of features

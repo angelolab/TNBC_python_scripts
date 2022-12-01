@@ -318,24 +318,35 @@ keep_dict = {'CD38': lymphocyte + monocyte + stroma + granulocyte, 'CD45RB': lym
 # create mantis_dir to inspect invididual FOVs
 func_df = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'))
 
-data_wide.loc[data_wide['CD45RB+_CD8T'] > 0.5, ['CD45RB+_CD4T', 'CD45RB+_CD8T']]
-#TONIC_TMA3_R4C2
-#TONIC_TMA6_R5C6
-#TONIC_TMA9_R10C4
+data_wide.loc[data_wide['GLUT1+_Cancer'] > 0.25, ['GLUT1+_M2_Mac', 'GLUT1+_Fibroblast', 'GLUT1+_Cancer']]
+fovs = data_wide.loc[data_wide['HLA1+_Treg'] > 0.5, :].index.tolist()
 
-fov = ['TONIC_TMA3_R4C2']
-marker = 'CD45RB'
-cell_types = ['CD8T', 'CD4T']
-input_cell_table = func_df[func_df['cell_cluster'].isin(cell_types)]
-input_cell_table['cell_cluster_new'] = input_cell_table['cell_cluster'].values + input_cell_table[marker].astype('str')
+# select 5th and 9th fov
+fovs = fovs[0:2] + fovs[5:7] + fovs[9:11]
+fovs.remove('TONIC_TMA23_R10C1')
 
-keep_channels = ['CD45RB.tiff', 'CD4.tiff', 'CD8.tiff']
-create_mantis_project(cell_table=input_cell_table, fovs=fov, seg_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
+fovs = ['TONIC_TMA9_R6C3', 'TONIC_TMA9_R7C3', 'TONIC_TMA10_R11C6', 'TONIC_TMA10_R5C5', 'TONIC_TMA16_R3C4', 'TONIC_TMA17_R12C3', 'TONIC_TMA3_R2C4']
+fovs = []
+
+marker = 'GLUT1'
+cell_types = ['Cancer', 'Fibroblast', 'Cancer_EMT', 'Cancer_Other', 'M2_Mac']
+input_cell_table = func_df.copy()
+input_cell_table['cell_cluster_new'] = np.where(func_df.cell_cluster.isin(cell_types), func_df.cell_cluster, 'Other')
+input_cell_table['cell_cluster_new'] = input_cell_table['cell_cluster_new'].values + input_cell_table[marker].astype('str')
+input_cell_table['cell_cluster_new'] = np.where(input_cell_table['PDL1_tumor_dim'].values, input_cell_table['cell_cluster'] + input_cell_table['PDL1_tumor_dim'].astype('str') + '_dim', input_cell_table['cell_cluster_new'])
+
+keep_channels = ['CD38.tiff']
+create_mantis_project(cell_table=input_cell_table, fovs=fovs, seg_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
                       pop_col='cell_cluster_new', mask_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/mantis_dir/masks',
                       image_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples', mantis_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/mantis_dir/mantis_folders')
-
-for chan in keep_channels:
-    os.remove(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/mantis_dir/mantis_folders', fov[0], chan))
+all_chans = io_utils.list_files('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/TONIC_TMA3_R4C2', '.tiff')
+# TONIC_TMA2_R8C2
+for chan in all_chans:
+    if chan not in keep_channels:
+        for fov in fovs:
+            path = os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/mantis_dir/mantis_folders', fov, chan)
+            if os.path.exists(path):
+                os.remove(path)
 
 from ark.utils import data_utils, plot_utils, load_utils, io_utils
 from ark.utils.misc_utils import verify_in_list
@@ -480,5 +491,4 @@ def create_mantis_project(cell_table, fovs, seg_dir, pop_col,
                                  img_data_path=image_dir, mask_output_dir=mask_dir,
                                  mask_suffix='_cell_mask', mapping=mantis_df,
                                  seg_dir=seg_dir, img_sub_folder='')
-
 

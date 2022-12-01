@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
@@ -265,12 +266,12 @@ for new_name in assignment_dict_2:
 
 # save updated cell table
 cell_table.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv', index=False)
-cell_table = pd.read_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv')
+#cell_table = pd.read_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv')
 
 
 # functional marker thresholding
 
-threshold_list = [['Ki67', 0.002], ['CD38', 0.002], ['CD45RB', 0.001], ['CD45RO', 0.002],
+threshold_list = [['Ki67', 0.002], ['CD38', 0.004], ['CD45RB', 0.001], ['CD45RO', 0.002],
                   ['CD57', 0.002], ['CD69', 0.002], ['GLUT1', 0.002], ['IDO', 0.001],
                   ['PD1', 0.0005], ['PDL1', 0.001],
                   ['HLA1', 0.001], ['HLADR', 0.001], ['TBET', 0.0015], ['TCF1', 0.001],
@@ -286,27 +287,46 @@ tumor_mask = cell_table['cell_cluster_broad'] == 'Cancer'
 
 cell_table['PDL1_cancer_dim_threshold'] = np.logical_and(PDL1_mask, tumor_mask)
 
-# # TODO: Make this compatible with negative gating in addition to positive gating
-# # define marker combinations of interest
-# combinations = [['PD1', 'TCF1'], ['PD1', 'TIM3']]
-#
-# for combo in combinations:
-#     first_marker = combo[0]
-#     base_mask = cell_table[first_marker].array
-#     for marker in combo[1:]:
-#         base_mask = np.logical_and(base_mask, cell_table_func[marker].array)
-#     name = '_'.join(combo)
-#     cell_table[name] = base_mask
-#
-# cell_table_func.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'), index=False)
-#
+
+
+# collapse ratios into single array
+ratios = np.stack(ratios, axis=0)
+avg = np.nanmean(ratios, axis=0)
+avg = pd.DataFrame(avg, index=functional_markers, columns=functional_markers)
+sns.heatmap(avg, cmap='vlag', vmin=-3, vmax=3)
+plt.tight_layout()
+plt.savefig('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Plots/Functional_Markers/avg_functional_marker_heatmap.png', dpi=300)
+plt.close()
+
+
+# define marker combinations of interest
+combinations = [[('PD1', True), ('TCF1', True)],
+                [('PD1', True), ('TIM3', True)],
+                [('PD1', True), ('CD69', True)],
+                [('PDL1', True), ('TIM3', True)],
+                [('TBET', True), ('TCF1', True)],
+                [('TBET', True), ('CD69', True)],
+                [('CD45RO', True), ('CD69', True)]
+                ]
+
+for combo in combinations:
+    first_marker, first_bool = combo[0]
+    base_mask = cell_table[first_marker].array
+    if not first_bool:
+        base_mask = ~base_mask
+    for marker, bool in combo[1:]:
+        base_mask = np.logical_and(base_mask, cell_table[marker].array)
+        if not bool:
+            base_mask = ~base_mask
+    name = '_'.join(combo)
+    cell_table[name] = base_mask
 
 # create ratios of relevant markers
 cell_table['H3K9ac_H3K27me3_ratio'] = np.log2(cell_table['H3K9ac'].values / cell_table['H3K27me3'].values)
 cell_table['CD45RO_CD45RB_ratio'] = np.log2(cell_table['CD45RO'].values / cell_table['CD45RB'].values)
 
 cell_table.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv', index=False)
-#cell_table = pd.read_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv')
+cell_table = pd.read_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv')
 
 
 #
@@ -325,14 +345,23 @@ cell_table_func.columns = [col.split('_threshold')[0] for col in cell_table_func
 cell_table_func.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'),
                        index=False)
 
+test_fovs = cell_table.fov.unique()
+np.random.shuffle(test_fovs)
+test_fovs = test_fovs[:30]
+test_fovs = [fov for fov in test_fovs if 'TMA2_' not in fov]
+test_fovs = [fov for fov in test_fovs if  not in fov]
 
-# # create dataframe with counts of the specified markers
-# marker_counts_df = cell_table_testing.loc[:, ['fov', 'label'] + ['Ki67', 'CD38', 'CD45RB', 'CD45RO', 'CD57',
-#                                                                  'CD69', 'GLUT1', 'IDO', 'PD1', 'PDL1', 'HLA1', 'HLADR', 'TBET',
-#                                                                  'TCF1', 'TIM3']]
-#
-# # save dataframe
-# marker_counts_df.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/mantis/marker_counts.csv', index=False)
+remove_fovs = ['TONIC_TMA5_R9C4', 'TONIC_TMA10_R10C2', 'TONIC_TMA18_R2C3']
+test_fovs = [fov for fov in test_fovs if fov not in remove_fovs]
+
+cell_table_testing = cell_table.loc[cell_table['fov'].isin(test_fovs), :]
+# create dataframe with counts of the specified markers
+marker_counts_df = cell_table_testing.loc[:, ['fov', 'label'] + ['CD38']]
+
+# save dataframe
+marker_counts_df.to_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/mantis_dir/mantis_folders/marker_counts.csv', index=False)
+
+
 
 
 # determine number of cells per image
