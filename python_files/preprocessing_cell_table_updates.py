@@ -266,7 +266,7 @@ for new_name in assignment_dict_2:
 
 # save updated cell table
 cell_table.to_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv', index=False)
-#cell_table = pd.read_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv')
+cell_table = pd.read_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/combined_cell_table_normalized_cell_labels_updated.csv')
 
 
 # functional marker thresholding
@@ -309,7 +309,7 @@ for combo in combinations:
         base_mask = np.logical_and(base_mask, cell_table[marker].array)
         if not bool:
             base_mask = ~base_mask
-    name = '_'.join(combo)
+    name = '_'.join([tuple[0] for tuple in combo]) + '_threshold'
     cell_table[name] = base_mask
 
 # create ratios of relevant markers
@@ -335,6 +335,11 @@ cell_table_func = cell_table.loc[:, ['fov', 'label', 'cell_cluster_broad', 'cell
 cell_table_func.columns = [col.split('_threshold')[0] for col in cell_table_func.columns]
 cell_table_func.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'),
                        index=False)
+
+# mike_table = cell_table.loc[:, ['fov', 'label', 'cell_cluster_broad', 'cell_cluster', 'cell_meta_cluster', 'H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio'] + chans + func_cols]
+# chans = ['PDL1', 'HLA1', 'CD4', 'CD8', 'H3K9ac', 'H3K27me3', 'ECAD', 'CK17', 'Vim']
+# mike_table = pd.merge(mike_table, harmonized_metadata, on='fov', how='left')
+# mike_table.to_csv(os.path.join(data_dir, 'combined_cell_table_only_mike.csv'), index=False)
 
 # code for setting thresholds for functional markers
 # test_fovs = cell_table.fov.unique()
