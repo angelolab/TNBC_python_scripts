@@ -39,3 +39,13 @@ for cell_type in cell_table.cell_cluster.unique():
     plt.tight_layout()
     fig.savefig('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Plots/Functional_Markers/' + cell_type + '_functional_marker_heatmap.png', dpi=300)
     plt.close()
+
+
+# collapse ratios into single array
+ratios = np.stack(ratios, axis=0)
+avg = np.nanmean(ratios, axis=0)
+avg = pd.DataFrame(avg, index=functional_markers, columns=functional_markers)
+sns.heatmap(avg, cmap='vlag', vmin=-3, vmax=3)
+plt.tight_layout()
+plt.savefig('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Plots/Functional_Markers/avg_functional_marker_heatmap.png', dpi=300)
+plt.close()

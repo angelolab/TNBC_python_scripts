@@ -287,17 +287,8 @@ tumor_mask = cell_table['cell_cluster_broad'] == 'Cancer'
 
 cell_table['PDL1_cancer_dim_threshold'] = np.logical_and(PDL1_mask, tumor_mask)
 
-
-
-# collapse ratios into single array
-ratios = np.stack(ratios, axis=0)
-avg = np.nanmean(ratios, axis=0)
-avg = pd.DataFrame(avg, index=functional_markers, columns=functional_markers)
-sns.heatmap(avg, cmap='vlag', vmin=-3, vmax=3)
-plt.tight_layout()
-plt.savefig('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Plots/Functional_Markers/avg_functional_marker_heatmap.png', dpi=300)
-plt.close()
-
+# set specific threshold for all PDL1+ cells
+cell_table['PDL1_combined_threshold'] = np.logical_or(cell_table['PDL1_threshold'].values, cell_table['PDL1_cancer_dim_threshold'].values)
 
 # define marker combinations of interest
 combinations = [[('PD1', True), ('TCF1', True)],
@@ -345,22 +336,23 @@ cell_table_func.columns = [col.split('_threshold')[0] for col in cell_table_func
 cell_table_func.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'),
                        index=False)
 
-test_fovs = cell_table.fov.unique()
-np.random.shuffle(test_fovs)
-test_fovs = test_fovs[:30]
-test_fovs = [fov for fov in test_fovs if 'TMA2_' not in fov]
-test_fovs = [fov for fov in test_fovs if  not in fov]
-
-remove_fovs = ['TONIC_TMA5_R9C4', 'TONIC_TMA10_R10C2', 'TONIC_TMA18_R2C3']
-test_fovs = [fov for fov in test_fovs if fov not in remove_fovs]
-
-cell_table_testing = cell_table.loc[cell_table['fov'].isin(test_fovs), :]
-# create dataframe with counts of the specified markers
-marker_counts_df = cell_table_testing.loc[:, ['fov', 'label'] + ['CD38']]
-
-# save dataframe
-marker_counts_df.to_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/mantis_dir/mantis_folders/marker_counts.csv', index=False)
-
+# code for setting thresholds for functional markers
+# test_fovs = cell_table.fov.unique()
+# np.random.shuffle(test_fovs)
+# test_fovs = test_fovs[:30]
+# test_fovs = [fov for fov in test_fovs if 'TMA2_' not in fov]
+# test_fovs = [fov for fov in test_fovs if  not in fov]
+#
+# remove_fovs = ['TONIC_TMA5_R9C4', 'TONIC_TMA10_R10C2', 'TONIC_TMA18_R2C3']
+# test_fovs = [fov for fov in test_fovs if fov not in remove_fovs]
+#
+# cell_table_testing = cell_table.loc[cell_table['fov'].isin(test_fovs), :]
+# # create dataframe with counts of the specified markers
+# marker_counts_df = cell_table_testing.loc[:, ['fov', 'label'] + ['CD38']]
+#
+# # save dataframe
+# marker_counts_df.to_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/mantis_dir/mantis_folders/marker_counts.csv', index=False)
+#
 
 
 
