@@ -201,28 +201,6 @@ for cluster_name, plot_name in zip(['cluster_freq'], ['cluster']):
         plt.close()
 
 
-# heatmap of functional marker expression per cell type
-plot_df = timepoint_df_func.loc[timepoint_df_func.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
-plot_df = plot_df.loc[plot_df.metric == 'cluster_freq', :]
-plot_df = plot_df.loc[~plot_df.functional_marker.isin(['PDL1_cancer_dim']), :]
-plot_df = plot_df.loc[~plot_df.functional_marker.isin(['H3K9ac_H3K27me3_ratio']), :]
-plot_df = plot_df.loc[~plot_df.functional_marker.isin(['CD45RO_CD45RB_ratio']), :]
-
-# # compute z-score within each functional marker
-# plot_df['zscore'] = plot_df.groupby('functional_marker')['mean'].transform(lambda x: (x - x.mean()) / x.std())
-
-# average the z-score across cell types
-plot_df = plot_df.groupby(['cell_type', 'functional_marker']).mean().reset_index()
-plot_df = pd.pivot(plot_df, index='cell_type', columns='functional_marker', values='mean')
-plot_df = plot_df.apply(lambda x: (x - x.min()), axis=0)
-plot_df = plot_df.apply(lambda x: (x / x.max()), axis=0)
-
-# plot heatmap
-plt.figure(figsize=(10, 10))
-sns.heatmap(plot_df, cmap=sns.color_palette("Greys", as_cmap=True), vmin=0, vmax=1)
-plt.savefig(os.path.join(plot_dir, 'Functional_marker_heatmap_min_max_normalized.png'))
-plt.close()
-
 # functional markers across cell types and timepoints
 # TODO: make top for loop work with correct names
 for cluster_name, plot_name in zip(['cluster_broad_freq', 'cluster_freq'], ['broad_cluster', 'cluster']):

@@ -110,7 +110,7 @@ total_df.to_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'), index=False)
 total_df_grouped = total_df.groupby(['Tissue_ID', 'cell_type', 'metric'])
 total_df_timepoint = total_df_grouped['value'].agg([np.mean, np.std])
 total_df_timepoint.reset_index(inplace=True)
-total_df_timepoint = total_df_timepoint.merge(timepoint_metadata, on='Tissue_ID')
+total_df_timepoint = total_df_timepoint.merge(harmonized_metadata.drop('fov', axis=1).drop_duplicates(), on='Tissue_ID')
 
 # save timepoint df
 total_df_timepoint.to_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv'), index=False)
@@ -124,6 +124,7 @@ total_df_timepoint.to_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv')
 cell_table_func = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'))
 kmeans_data = cell_table_clusters[['kmeans_labels', 'fov', 'label']]
 cell_table_func = cell_table_func.merge(kmeans_data, on=['fov', 'label'], how='inner')
+
 # Total number of cells positive for each functional marker in cell_cluster_broad per image
 func_df_counts_broad = create_long_df_by_functional(func_table=cell_table_func,
                                                     cluster_col_name='cell_cluster_broad',
@@ -181,14 +182,7 @@ total_df_func = pd.concat([func_df_counts_broad, func_df_mean_broad, func_df_cou
                            func_df_mean_cluster, func_df_counts_meta, func_df_mean_meta, func_df_mean_kmeans])
 
 # check that all metadata from core_metadata succesfully transferred over
-total_df_func = total_df_func.merge(core_metadata, on='fov', how='inner')
-assert np.sum(total_df_func.Tissue_ID.isnull()) == 0
-
-bad_metadata = total_df_func.loc[total_df_func.Tissue_ID.isnull(), 'fov'].unique()
-
-# check that all metadata from timepoint metadata succesfully transferred over
-total_df_func = total_df_func.merge(timepoint_metadata, on='Tissue_ID', how='inner')
-assert np.sum(total_df_func.TONIC_ID.isnull()) == 0
+total_df_func = total_df_func.merge(harmonized_metadata, on='fov', how='inner')
 
 # save combined df
 total_df_func.to_csv(os.path.join(data_dir, 'functional_df_per_core.csv'), index=False)
@@ -198,7 +192,7 @@ total_df_func.to_csv(os.path.join(data_dir, 'functional_df_per_core.csv'), index
 total_df_grouped_func = total_df_func.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric'])
 total_df_timepoint_func = total_df_grouped_func['value'].agg([np.mean, np.std])
 total_df_timepoint_func.reset_index(inplace=True)
-total_df_timepoint_func = total_df_timepoint_func.merge(timepoint_metadata, on='Tissue_ID')
+total_df_timepoint_func = total_df_timepoint_func.merge(harmonized_metadata.drop('fov', axis=1).drop_duplicates(), on='Tissue_ID')
 
 # save timepoint df
 total_df_timepoint_func.to_csv(os.path.join(data_dir, 'functional_df_per_timepoint.csv'), index=False)
