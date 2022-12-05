@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import os
 
 from ark.phenotyping.post_cluster_utils import plot_hist_thresholds, create_mantis_project
 from ark.utils.io_utils import list_folders
@@ -273,7 +274,7 @@ cell_table = pd.read_csv('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Da
 
 threshold_list = [['Ki67', 0.002], ['CD38', 0.004], ['CD45RB', 0.001], ['CD45RO', 0.002],
                   ['CD57', 0.002], ['CD69', 0.002], ['GLUT1', 0.002], ['IDO', 0.001],
-                  ['PD1', 0.0005], ['PDL1', 0.001],
+                  ['LAG3', 0.002], ['PD1', 0.0005], ['PDL1', 0.001],
                   ['HLA1', 0.001], ['HLADR', 0.001], ['TBET', 0.0015], ['TCF1', 0.001],
                   ['TIM3', 0.001]]
 
@@ -341,23 +342,7 @@ cell_table_func.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_ce
 # mike_table = pd.merge(mike_table, harmonized_metadata, on='fov', how='left')
 # mike_table.to_csv(os.path.join(data_dir, 'combined_cell_table_only_mike.csv'), index=False)
 
-# code for setting thresholds for functional markers
-# test_fovs = cell_table.fov.unique()
-# np.random.shuffle(test_fovs)
-# test_fovs = test_fovs[:30]
-# test_fovs = [fov for fov in test_fovs if 'TMA2_' not in fov]
-# test_fovs = [fov for fov in test_fovs if  not in fov]
-#
-# remove_fovs = ['TONIC_TMA5_R9C4', 'TONIC_TMA10_R10C2', 'TONIC_TMA18_R2C3']
-# test_fovs = [fov for fov in test_fovs if fov not in remove_fovs]
-#
-# cell_table_testing = cell_table.loc[cell_table['fov'].isin(test_fovs), :]
-# # create dataframe with counts of the specified markers
-# marker_counts_df = cell_table_testing.loc[:, ['fov', 'label'] + ['CD38']]
-#
-# # save dataframe
-# marker_counts_df.to_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/mantis_dir/mantis_folders/marker_counts.csv', index=False)
-#
+
 
 
 

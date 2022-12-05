@@ -18,6 +18,7 @@ data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 # load relevant tables
 core_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
 timepoint_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_timepoint.csv'))
+harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'harmonized_metadata.csv'))
 cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_clusters_only_kmeans_nh.csv'))
 
 # replace values in a column with other values
@@ -28,36 +29,10 @@ cell_table_clusters['kmeans_labels'] = cell_table_clusters.kmeans_neighborhood
 cell_table_clusters['kmeans_labels'].replace(replace_dict, inplace=True)
 
 
-
-# handle NAs in Tissue_ID
-core_missing = core_metadata.Tissue_ID.isnull()
-imaged_cores = core_metadata.MIBI_data_generated
-np.sum(np.logical_and(core_missing, imaged_cores))
-
-# all of the missing cores were not imaged, can be dropped
-core_metadata = core_metadata.loc[~core_missing, :]
-
 # check for FOVs present in imaged data that aren't in core metadata
 missing_fovs = cell_table_clusters.loc[~cell_table_clusters.fov.isin(core_metadata.fov), 'fov'].unique()
 cell_table_clusters = cell_table_clusters.loc[~cell_table_clusters.fov.isin(missing_fovs), :]
 
-# check timepoints
-timepoint_missing = ~core_metadata.Tissue_ID.isin(timepoint_metadata.Tissue_ID)
-timepoint_missing = core_metadata.Tissue_ID[timepoint_missing].unique()
-print(timepoint_missing)
-
-# get metadata on missing cores
-core_metadata.loc[core_metadata.Tissue_ID.isin(timepoint_missing[3:]), :]
-
-# remove missing cores
-core_metadata = core_metadata.loc[~core_metadata.Tissue_ID.isin(timepoint_missing), :]
-
-# subset for required columns to append
-timepoint_metadata = timepoint_metadata.loc[:, ['Tissue_ID', 'TONIC_ID', 'Timepoint', 'Localization']]
-core_metadata = core_metadata.loc[:, ['fov', 'Tissue_ID']]
-
-
-# TODO: Create conserved metadata sheet that contains core metadata across all formats
 #
 # Generate counts and proportions of cell clusters per FOV
 #
@@ -125,14 +100,8 @@ total_df = pd.concat([cluster_broad_df, cluster_df, cluster_meta_df, tcell_df, i
                       stroma_df, cancer_df, kmeans_df], axis=0)
 
 # check that all metadata from core_metadata succesfully transferred over
-total_df = total_df.merge(core_metadata, on='fov', how='inner')
-assert np.sum(total_df.Tissue_ID.isnull()) == 0
+total_df = total_df.merge(harmonized_metadata, on='fov', how='inner')
 
-bad_metadata = total_df.loc[total_df.Tissue_ID.isnull(), 'fov'].unique()
-
-# check that all metadata from timepoint metadata succesfully transferred over
-total_df = total_df.merge(timepoint_metadata, on='Tissue_ID', how='inner')
-assert np.sum(total_df.TONIC_ID.isnull()) == 0
 
 # save annotated cluster counts
 total_df.to_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'), index=False)

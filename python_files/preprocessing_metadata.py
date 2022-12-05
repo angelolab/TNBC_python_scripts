@@ -154,7 +154,7 @@ assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
 harmonized_metadata.to_csv(os.path.join(data_dir, 'harmonized_metadata.csv'), index=False)
 
 # add in the harmonized metadata
-core_metadata = pd.merge(core_metadata, harmonized_metadata, on='fov', how='left')
+core_metadata = pd.merge(core_metadata, harmonized_metadata, on=['fov', 'Tissue_ID'], how='left')
 
 # add in the harmonized metadata, dropping the fov column
 harmonized_metadata = harmonized_metadata.drop(['fov', 'TONIC_ID', 'Timepoint', 'Localization'], axis=1)
