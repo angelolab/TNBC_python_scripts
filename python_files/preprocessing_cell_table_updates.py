@@ -291,27 +291,27 @@ cell_table['PDL1_cancer_dim_threshold'] = np.logical_and(PDL1_mask, tumor_mask)
 # set specific threshold for all PDL1+ cells
 cell_table['PDL1_combined_threshold'] = np.logical_or(cell_table['PDL1_threshold'].values, cell_table['PDL1_cancer_dim_threshold'].values)
 
-# define marker combinations of interest
-combinations = [[('PD1', True), ('TCF1', True)],
-                [('PD1', True), ('TIM3', True)],
-                [('PD1', True), ('CD69', True)],
-                [('PDL1', True), ('TIM3', True)],
-                [('TBET', True), ('TCF1', True)],
-                [('TBET', True), ('CD69', True)],
-                [('CD45RO', True), ('CD69', True)]
-                ]
-
-for combo in combinations:
-    first_marker, first_bool = combo[0]
-    base_mask = cell_table[first_marker].array
-    if not first_bool:
-        base_mask = ~base_mask
-    for marker, bool in combo[1:]:
-        base_mask = np.logical_and(base_mask, cell_table[marker].array)
-        if not bool:
-            base_mask = ~base_mask
-    name = '_'.join([tuple[0] for tuple in combo]) + '_threshold'
-    cell_table[name] = base_mask
+# # define marker combinations of interest
+# combinations = [[('PD1', True), ('TCF1', True)],
+#                 [('PD1', True), ('TIM3', True)],
+#                 [('PD1', True), ('CD69', True)],
+#                 [('PDL1', True), ('TIM3', True)],
+#                 [('TBET', True), ('TCF1', True)],
+#                 [('TBET', True), ('CD69', True)],
+#                 [('CD45RO', True), ('CD69', True)]
+#                 ]
+#
+# for combo in combinations:
+#     first_marker, first_bool = combo[0]
+#     base_mask = cell_table[first_marker].array
+#     if not first_bool:
+#         base_mask = ~base_mask
+#     for marker, bool in combo[1:]:
+#         base_mask = np.logical_and(base_mask, cell_table[marker].array)
+#         if not bool:
+#             base_mask = ~base_mask
+#     name = '_'.join([tuple[0] for tuple in combo]) + '_threshold'
+#     cell_table[name] = base_mask
 
 # create ratios of relevant markers
 cell_table['H3K9ac_H3K27me3_ratio'] = np.log2(cell_table['H3K9ac'].values / cell_table['H3K27me3'].values)
