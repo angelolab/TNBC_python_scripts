@@ -39,30 +39,48 @@ cell_table_clusters = cell_table_clusters.loc[~cell_table_clusters.fov.isin(miss
 
 
 # proportion of cells in cell_cluster_broad per patient
-cluster_broad_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
-                                             result_name='cluster_broad_freq',
-                                             cluster_col_name='cell_cluster_broad',
-                                             normalize='index')
+cluster_broad_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
+                                                  result_name='cluster_broad_freq',
+                                                  cluster_col_name='cell_cluster_broad',
+                                                  normalize='index')
+
+# number of cells in cell_cluster_broad per patient
+cluster_broad_count_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
+                                                   result_name='cluster_broad_freq',
+                                                   cluster_col_name='cell_cluster_broad',
+                                                   normalize=False)
 
 # proportion of cells in cell_cluster per patient
-cluster_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
-                                       result_name='cluster_freq',
-                                       cluster_col_name='cell_cluster',
-                                       normalize='index')
+cluster_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
+                                            result_name='cluster_freq',
+                                            cluster_col_name='cell_cluster',
+                                            normalize='index')
 
+# number of cells in cell_cluster per patient
+cluster_count_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
+                                             result_name='cluster_count',
+                                             cluster_col_name='cell_cluster',
+                                             normalize=False)
 
 # proportion of cells in cell_meta_cluster per patient
-cluster_meta_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
-                                            result_name='meta_cluster_freq',
-                                            cluster_col_name='cell_meta_cluster',
-                                            normalize='index')
+cluster_meta_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
+                                                 result_name='meta_cluster_freq',
+                                                 cluster_col_name='cell_meta_cluster',
+                                                 normalize='index')
+
+# number of cells in cell_meta_cluster per patient
+cluster_meta_count_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
+                                                  result_name='meta_cluster_count',
+                                                  cluster_col_name='cell_meta_cluster',
+                                                  normalize=False)
+
 
 # proportion of T cell subsets
 tcell_mask = cell_table_clusters['cell_cluster'].isin(['Treg', 'CD8T', 'CD4T', 'T_Other'])
-tcell_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[tcell_mask, :],
-                                     result_name='tcell_freq',
-                                     cluster_col_name='cell_cluster',
-                                     normalize='index')
+tcell_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[tcell_mask, :],
+                                          result_name='tcell_freq',
+                                          cluster_col_name='cell_cluster',
+                                          normalize='index')
 
 
 # proportion of immune cell subsets
@@ -70,34 +88,37 @@ immune_mask = cell_table_clusters['cell_cluster_broad'].isin(['Mono_Mac', 'T',
                                                               'Granulocyte', 'NK', 'B'])
 immune_mask_2 = cell_table_clusters.cell_cluster == 'Immune_Other'
 immune_mask = np.logical_or(immune_mask, immune_mask_2)
-immune_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[immune_mask, :],
-                                      result_name='immune_freq',
-                                      cluster_col_name='cell_cluster',
-                                      normalize='index')
+immune_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[immune_mask, :],
+                                           result_name='immune_freq',
+                                           cluster_col_name='cell_cluster',
+                                           normalize='index')
 
 # proportion of stromal subsets
 stroma_mask = cell_table_clusters['cell_cluster_broad'].isin(['Stroma'])
-stroma_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[stroma_mask, :],
-                                      result_name='stroma_freq',
-                                      cluster_col_name='cell_meta_cluster',
-                                      normalize='index')
+stroma_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[stroma_mask, :],
+                                           result_name='stroma_freq',
+                                           cluster_col_name='cell_meta_cluster',
+                                           normalize='index')
 
 # proportion of cancer subsets
 cancer_mask = cell_table_clusters['cell_cluster_broad'].isin(['Cancer'])
-cancer_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[cancer_mask, :],
-                                      result_name='cancer_freq',
-                                      cluster_col_name='cell_meta_cluster',
-                                      normalize='index')
+cancer_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[cancer_mask, :],
+                                           result_name='cancer_freq',
+                                           cluster_col_name='cell_meta_cluster',
+                                           normalize='index')
 
 # distribution of neighborhoods
-kmeans_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
-                                      result_name='kmeans_freq',
-                                      cluster_col_name='kmeans_labels',
-                                      normalize='index')
+kmeans_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
+                                           result_name='kmeans_freq',
+                                           cluster_col_name='kmeans_labels',
+                                           normalize='index')
 
 # create single df with appropriate metadata
-total_df = pd.concat([cluster_broad_df, cluster_df, cluster_meta_df, tcell_df, immune_df,
-                      stroma_df, cancer_df, kmeans_df], axis=0)
+total_df = pd.concat([cluster_broad_freq_df, cluster_freq_df, cluster_meta_freq_df,
+                      tcell_freq_df, immune_freq_df, stroma_freq_df, cancer_freq_df,
+                      kmeans_freq_df, cluster_broad_count_df, cluster_count_df,
+                      cluster_meta_count_df], axis=0)
+
 
 # check that all metadata from core_metadata succesfully transferred over
 total_df = total_df.merge(harmonized_metadata, on='fov', how='inner')

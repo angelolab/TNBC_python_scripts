@@ -307,12 +307,12 @@ monocyte = ['APC', 'M1_Mac', 'M2_Mac', 'Mono_Mac', 'Monocyte', 'Mac_Other']
 stroma = ['Fibroblast', 'Stroma', 'Endothelium']
 granulocyte = ['Mast', 'Neutrophil']
 
-keep_dict = {'CD38': lymphocyte + monocyte + stroma + granulocyte, 'CD45RB': lymphocyte, 'CD45RO': lymphocyte,
+keep_dict = {'CD38': ['B', 'Immune_other', 'NK', 'Endothelium'], 'CD45RB': lymphocyte, 'CD45RO': lymphocyte,
              'CD57': lymphocyte + cancer, 'CD69': lymphocyte,
              'GLUT1': lymphocyte + monocyte + stroma + granulocyte + cancer,
              'HLA1': lymphocyte + monocyte + stroma + granulocyte + cancer,
              'HLADR': lymphocyte + monocyte, 'IDO': ['APC', 'B'], 'Ki67': lymphocyte + monocyte + stroma + granulocyte + cancer,
-             'PD1': lymphocyte, 'PDL1': lymphocyte + monocyte + granulocyte + cancer, 'PDL1_tumor_dim': cancer,
+             'LAG3': ['B'], 'PD1': lymphocyte, 'PDL1_combined': lymphocyte + monocyte + granulocyte + cancer,
              'TBET': lymphocyte, 'TCF1': lymphocyte, 'TIM3': lymphocyte + monocyte + granulocyte}
 
 

@@ -7,7 +7,7 @@ plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 
 # create dataset
 core_df_cluster = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv'))
-core_df_func = pd.read_csv(os.path.join(data_dir, 'functional_df_per_timepoint.csv'))
+core_df_func = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core.csv'))
 
 
 # identify combinations of markers that are expressed more often than expected by chance

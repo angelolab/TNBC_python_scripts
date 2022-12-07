@@ -63,6 +63,7 @@ def compute_difference_in_cell_prev(core_df, timepoint_df, metric):
 
     # subset provided DFs
     timepoints = ['primary_untreated', 'baseline', 'post_induction', 'on_nivo']
+    timepoints = ['primary_untreated', 'baseline']
     core_df_plot = core_df.loc[core_df.Timepoint.isin(timepoints), :]
     timepoint_df_plot = timepoint_df.loc[timepoint_df.Timepoint.isin(timepoints), :]
 
@@ -144,18 +145,18 @@ def compute_difference_in_cell_prev(core_df, timepoint_df, metric):
     return distances_df_combined
 
 
-distances_df_new = compute_difference_in_cell_prev(core_df=core_df_cluster, timepoint_df=timepoint_df_cluster, metric='tcell_freq')
+distances_df_new = compute_difference_in_cell_prev(core_df=core_df_cluster, timepoint_df=timepoint_df_cluster, metric='cluster_freq')
 distances_df_new = compute_difference_in_cell_prev(core_df=pca_df, timepoint_df=pca_df_timepoint_annot, metric='immune_PCA')
 
 fig, ax = plt.subplots()
 ax = sns.boxplot(distances_df_new, x='metric', y='distance', order=['Same timepoints',  'Same patients', 'Different patients'])
 plt.title("Variation in cell prevalence in {} across {}".format('immune_dif', 'condition'))
-plt.title("Variation in immune PC distance")
+plt.title("Variation in cluster_freq distance")
 #plt.xticks(rotation=90)
 
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Heterogeneity_of_immune_PC_distances.png'))
+plt.savefig(os.path.join(plot_dir, 'Heterogeneity_of_cluster_freqs_primary_baseline.png'))
 plt.close()
 
 
