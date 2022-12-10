@@ -144,12 +144,14 @@ def compute_difference_in_cell_prev(core_df, timepoint_df, metric):
 
     return distances_df_combined
 
+plot_df_core = core_df_cluster[core_df_cluster.cell_type == 'M1_Mac']
+plot_df_timepoint = timepoint_df_cluster[timepoint_df_cluster.cell_type == 'M1_Mac']
 
-distances_df_new = compute_difference_in_cell_prev(core_df=core_df_cluster, timepoint_df=timepoint_df_cluster, metric='cluster_freq')
+distances_df_new = compute_difference_in_cell_prev(core_df=plot_df_core, timepoint_df=plot_df_timepoint, metric='cluster_freq')
 distances_df_new = compute_difference_in_cell_prev(core_df=pca_df, timepoint_df=pca_df_timepoint_annot, metric='immune_PCA')
 
 fig, ax = plt.subplots()
-ax = sns.boxplot(distances_df_new, x='metric', y='distance', order=['Same timepoints',  'Same patients', 'Different patients'])
+ax = sns.stripplot(distances_df_new, x='metric', y='distance', order=['Same timepoints',  'Same patients', 'Different patients'])
 plt.title("Variation in cell prevalence in {} across {}".format('immune_dif', 'condition'))
 plt.title("Variation in cluster_freq distance")
 #plt.xticks(rotation=90)

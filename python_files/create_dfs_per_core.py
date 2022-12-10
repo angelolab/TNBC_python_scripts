@@ -1,5 +1,6 @@
 import os
 
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
@@ -46,7 +47,7 @@ cluster_broad_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters
 
 # number of cells in cell_cluster_broad per patient
 cluster_broad_count_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
-                                                   result_name='cluster_broad_freq',
+                                                   result_name='cluster_broad_count',
                                                    cluster_col_name='cell_cluster_broad',
                                                    normalize=False)
 
@@ -218,4 +219,57 @@ total_df_timepoint_func = total_df_timepoint_func.merge(harmonized_metadata.drop
 # save timepoint df
 total_df_timepoint_func.to_csv(os.path.join(data_dir, 'functional_df_per_timepoint.csv'), index=False)
 
+
+# create histogram of number of cells per cluster per image
+plot_df = total_df[total_df['metric'] == 'cluster_count']
+
+# created fascetted histogram with seaborn
+g = sns.FacetGrid(plot_df, col="cell_type", col_wrap=5, height=2.5, aspect=1.5)
+g.map(sns.histplot, "value", bins=range(0, 400, 10))
+g.savefig(os.path.join(plot_dir, 'cell_count_per_cluster.png'))
+plt.close()
+
+# create histogram of number of cells per image
+plot_df = total_df[total_df['metric'] == 'cluster_count']
+grouped = plot_df[['fov', 'value', 'cell_type']].groupby('fov').sum()
+
+sns.histplot(grouped['value'], bins=range(0, 4000, 100))
+freq_fovs = grouped[grouped['value'] > 500].index
+total_df_filtered = total_df[total_df['fov'].isin(freq_fovs)]
+
+# save annotated cluster counts
+total_df_filtered.to_csv(os.path.join(data_dir, 'cluster_df_per_core_filtered.csv'), index=False)
+
+# create version aggregated by timepoint
+total_df_grouped_filtered = total_df_filtered.groupby(['Tissue_ID', 'cell_type', 'metric'])
+total_df_timepoint_filtered = total_df_grouped_filtered['value'].agg([np.mean, np.std])
+total_df_timepoint_filtered.reset_index(inplace=True)
+total_df_timepoint_filtered = total_df_timepoint_filtered.merge(harmonized_metadata.drop('fov', axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+total_df_timepoint_filtered.to_csv(os.path.join(data_dir, 'cluster_df_per_timepoint_filtered.csv'), index=False)
+
+
+# filter out low frequency clusters
+cells = func_df_mean_cluster.cell_type.unique()
+
+bad_rows = np.repeat(False, len(func_df_mean_cluster))
+
+for cell in cells:
+    cell_df = cluster_count_df[cluster_count_df['cell_type'] == cell]
+    keep_fovs = cell_df[cell_df['value'] > 25].fov.unique()
+
+    # find intersection between keep_fovs and freq_fovs
+    keep_fovs = np.intersect1d(keep_fovs, freq_fovs)
+
+    # remove rows specified by remove_mask
+    bad_rows = bad_rows | ((func_df_mean_cluster['cell_type'] == cell) & (~func_df_mean_cluster['fov'].isin(keep_fovs)))
+
+func_df_mean_cluster_filtered = func_df_mean_cluster[~bad_rows]
+func_df_mean_cluster_filtered = func_df_mean_cluster_filtered.merge(harmonized_metadata, on='fov', how='inner')
+
+total_df_grouped_func = func_df_mean_cluster_filtered.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric'])
+total_df_timepoint_func = total_df_grouped_func['value'].agg([np.mean, np.std])
+total_df_timepoint_func.reset_index(inplace=True)
+total_df_timepoint_func = total_df_timepoint_func.merge(harmonized_metadata.drop('fov', axis=1).drop_duplicates(), on='Tissue_ID')
 
