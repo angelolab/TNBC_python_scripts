@@ -132,11 +132,11 @@ for marker in markers:
 
 # create overlays for specified patients
 core_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
-plot_patients = cluster_evolution.TONIC_ID.unique()[0:5]
+plot_patients = cluster_evolution.TONIC_ID.unique()[:10]
 
 cell_table_short = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_clusters_only.csv'))
-for patient in plot_patients:
-    patient_metadata = core_metadata.loc[core_metadata.TONIC_ID == str(patient), :]
+for patient in plot_patients[5:]:
+    patient_metadata = core_metadata.loc[(core_metadata.TONIC_ID == str(patient)) & core_metadata.MIBI_data_generated, :]
     patient_metadata = patient_metadata[patient_metadata.Timepoint.isin(['primary_untreated', 'baseline'])]
     patient_metadata = patient_metadata[['fov', 'Timepoint']]
 

@@ -1,5 +1,7 @@
 # functions for creating image overlays
 import os
+
+import matplotlib.pyplot as plt
 import pandas as pd
 import skimage.io as io
 import numpy as np
@@ -81,23 +83,28 @@ for image in image_names:
 
 
 def create_cell_overlay(cell_table, seg_folder, fovs, cluster_col, plot_dir, save_names):
-    cell_subset = cell_table[cell_table['fov'].isin(fovs)]
+    cell_subset = cell_table.copy()
     cell_subset['unique_ids'] = pd.factorize(cell_subset[cluster_col])[0] + 1
+
+    categories = cell_subset[[cluster_col, 'unique_ids']].drop_duplicates().cell_cluster_broad.values
 
     # import viridis colormap from mpl
     num_categories = np.max(cell_subset.unique_ids)
-    cm_values = cm.get_cmap('Paired', num_categories - 1)
+    cm_values = cm.get_cmap('Paired', num_categories)
 
     # get RGB values from cm_values
-    rgb_values = cm_values(np.arange(num_categories - 1))
+    rgb_values = cm_values(np.arange(num_categories))
 
     # combine with all black for background
     rgb_values = np.vstack((np.array([0, 0, 0, 1]), rgb_values))
 
     new_cmap = colors.ListedColormap(rgb_values)
 
+    bounds = [i-0.5 for i in np.linspace(0, num_categories+1, num_categories+2)]
+    norm = colors.BoundaryNorm(bounds, new_cmap.N + 1)
+
     for idx, image in enumerate(fovs):
-        seg_mask = io.imread(os.path.join(seg_folder, image + '_feature_0.tif'))[0]
+        seg_mask = io.imread(os.path.join(seg_folder, image + '_feature_0.tiff'))[0]
 
         edges = find_boundaries(seg_mask, mode='inner')
         seg_mask = np.where(edges == 0, seg_mask, 0)
@@ -109,8 +116,18 @@ def create_cell_overlay(cell_table, seg_folder, fovs, cluster_col, plot_dir, sav
         # relabel the array
         relabeled_img_array = data_utils.relabel_segmentation(seg_mask, labels_dict)
 
-        output = new_cmap(relabeled_img_array / np.max(relabeled_img_array))
-        io.imsave(os.path.join(plot_dir, save_names[idx]), output)
+        #output = new_cmap(relabeled_img_array / np.max(relabeled_img_array))
+
+        im = plt.imshow(relabeled_img_array, cmap=new_cmap, norm=norm)
+        tick_names = ['Cluster' + str(x) for x in range(1, num_categories + 1)]
+        tick_names = ['Empty'] + categories.tolist()
+        cbar = plt.colorbar(im, ticks=np.arange(len(tick_names)))
+        cbar.set_ticks(cbar.ax.get_yticks())
+        cbar.ax.set_yticklabels(tick_names)
+        plt.savefig(os.path.join(plot_dir, save_names[idx]), dpi=300)
+        plt.close()
+
+        #io.imsave(os.path.join(plot_dir, save_names[idx]), output)
 
 
 

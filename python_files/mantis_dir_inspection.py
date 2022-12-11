@@ -262,11 +262,11 @@ def create_mantis_project(cell_table, fovs, seg_dir, pop_col,
                                  seg_dir=seg_dir, img_sub_folder='', keep_channels=keep_channels)
 
 
-lag3_counts = cell_table[['fov', 'LAG3_threshold']].groupby('fov').sum('LAG3_threshold')
+lag3_counts = control_cell_table[['fov', 'lag3_threshold']].groupby('fov').sum('LAG3_threshold')
 # sort the dataframe
-lag3_counts = lag3_counts.sort_values(by='LAG3_threshold', ascending=False)
+lag3_counts = lag3_counts.sort_values(by='lag3_threshold', ascending=False)
 
-test_fovs = lag3_counts.index.tolist()[10:20]
+test_fovs = lag3_counts.index.tolist()[:20]
 # code for setting thresholds for functional markers
 # test_fovs = cell_table.fov.unique()
 # np.random.shuffle(test_fovs)
@@ -279,7 +279,7 @@ test_fovs = ['TONIC_TMA10_R10C6', 'TONIC_TMA10_R1C3', 'TONIC_TMA10_R1C4', 'TONIC
 # test_fovs = [fov for fov in test_fovs if fov not in remove_fovs]
 #
 
-cell_table_testing = cell_table.loc[cell_table['fov'].isin(test_fovs), :]
+cell_table_testing = control_cell_table.loc[cell_table['fov'].isin(test_fovs), :]
 # create dataframe with counts of the specified markers
 marker_counts_df = cell_table_testing.loc[:, ['fov', 'label'] + ['LAG3']]
 
@@ -316,3 +316,12 @@ create_mantis_project(cell_table=cell_table_testing, fovs=test_fovs, seg_dir='/V
                       keep_channels=keep_channels)
 
 
+for fov in test_fovs:
+    #include_chans = ['LAG3.tiff', 'H3K27me3.tiff', 'CD20.tiff']
+    include_chans = ['PD1.tiff', 'CD3.tiff', 'CD45.tiff', 'FOXP3.tiff']
+    base_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/lag3_overlays'
+    image_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/controls'
+    output_dir = os.path.join(base_dir, fov)
+    #os.makedirs(output_dir, exist_ok=True)
+    for chan in include_chans:
+        shutil.copy(os.path.join(image_dir, fov, chan), os.path.join(output_dir, chan))
