@@ -132,10 +132,12 @@ for marker in markers:
 
 # create overlays for specified patients
 core_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
-plot_patients = cluster_evolution.TONIC_ID.unique()[:10]
+plot_patients = cluster_evolution.TONIC_ID.unique()
 
 cell_table_short = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_clusters_only.csv'))
-for patient in plot_patients[5:]:
+
+
+for patient in plot_patients[10:30]:
     patient_metadata = core_metadata.loc[(core_metadata.TONIC_ID == str(patient)) & core_metadata.MIBI_data_generated, :]
     patient_metadata = patient_metadata[patient_metadata.Timepoint.isin(['primary_untreated', 'baseline'])]
     patient_metadata = patient_metadata[['fov', 'Timepoint']]
@@ -149,3 +151,12 @@ for patient in plot_patients[5:]:
                         fovs=fovs, cluster_col='cell_cluster_broad', plot_dir=plot_dir,
                         save_names=save_names)
 
+# create overlays for test_images
+fovs = io_utils.list_files('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/segmentation_masks', )
+fovs = [fov.split('_feature')[0] for fov in fovs]
+
+save_names = ['overlay_{}_test.png'.format(x) for x in fovs]
+
+create_cell_overlay(cell_table_short, seg_folder='/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/segmentation_masks',
+                    fovs=fovs, cluster_col='cell_cluster_broad', plot_dir=plot_dir,
+                    save_names=save_names)

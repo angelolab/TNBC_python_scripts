@@ -13,6 +13,7 @@ plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 cluster_df_core = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
 metadata_df_core = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
 functional_df_core = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core.csv'))
+harmonized_metadata_df = pd.read_csv(os.path.join(data_dir, 'harmonized_metadata.csv'))
 
 
 def compute_celltype_ratio(input_data, celltype_1, celltype_2):
@@ -298,6 +299,21 @@ temp_metadata = temp_metadata.drop_duplicates()
 fov_data_df = fov_data_df.merge(temp_metadata, on='fov', how='left')
 
 fov_data_df.to_csv(os.path.join(data_dir, 'fov_features.csv'), index=False)
+
+
+# create fov_data that contains ratio of features across timepoints
+timepoint_data_df = fov_data_df.groupby(['Tissue_ID', 'metric']).agg(np.mean)
+timepoint_data_df.reset_index(inplace=True)
+
+harmonized_metadata_df = harmonized_metadata_df.drop('fov', axis=1).drop_duplicates()
+timepoint_data_df = pd.merge(timepoint_data_df, harmonized_metadata_df, on='Tissue_ID', how='left')
+timepoint_data_df = timepoint_data_df.loc[timepoint_data_df.primary_baseline == True]
+
+evolution_dfs = []
+for patient in timepoint_data_df.TONIC_ID.unique():
+    temp_df = timepoint_data_df[timepoint_data_df.TONIC_ID == patient]
+    temp_df = temp_df[temp_df.Timepoint.isin(['primary_untreated', 'baseline'])]
+    wide_df = temp_df.pivot(index='metric', columns='Timepoint', values='value')
 
 
 # create dictionary of functional markers to keep for each cell type

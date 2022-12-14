@@ -104,7 +104,7 @@ def create_cell_overlay(cell_table, seg_folder, fovs, cluster_col, plot_dir, sav
     norm = colors.BoundaryNorm(bounds, new_cmap.N + 1)
 
     for idx, image in enumerate(fovs):
-        seg_mask = io.imread(os.path.join(seg_folder, image + '_feature_0.tiff'))[0]
+        seg_mask = io.imread(os.path.join(seg_folder, image + '_feature_0.tif'))[0]
 
         edges = find_boundaries(seg_mask, mode='inner')
         seg_mask = np.where(edges == 0, seg_mask, 0)

@@ -14,18 +14,18 @@ fov_data_df = pd.read_csv(os.path.join(data_dir, 'fov_features.csv'))
 
 
 # determine which timepoints to use
-include_timepoints = ['primary_untreated']
+include_timepoints = ['primary_untreated', 'baseline']
 #include_timepoints = fov_data_df.Timepoint.unique()
 fov_data_df_subset = fov_data_df[fov_data_df.Timepoint.isin(include_timepoints)]
 
 # determine whether to use image-level or timepoint-level features
-timepoint = False
+timepoint = True
+fov_data_df_subset = fov_data_df_subset.groupby(['Tissue_ID', 'metric']).agg(np.mean)
+fov_data_df_subset.reset_index(inplace=True)
 
 if timepoint:
     # aggregate to timepoint level
-    data_wide = fov_data_df_subset.groupby(['Tissue_ID', 'metric']).agg(np.mean)
-    data_wide.reset_index(inplace=True)
-    data_wide = data_wide.pivot(index='Tissue_ID', columns='metric', values='value')
+    data_wide = fov_data_df_subset.pivot(index='Tissue_ID', columns='metric', values='value')
 else:
     # aggregate to image level
     data_wide = fov_data_df_subset.pivot(index='fov', columns='metric', values='value')

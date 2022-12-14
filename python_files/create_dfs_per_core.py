@@ -114,11 +114,19 @@ kmeans_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
                                            cluster_col_name='kmeans_labels',
                                            normalize='index')
 
+# calculate total number of cells per image
+grouped_cell_counts = cell_table_clusters[['fov']].groupby('fov').value_counts()
+grouped_cell_counts = pd.DataFrame(grouped_cell_counts)
+grouped_cell_counts.columns = ['value']
+grouped_cell_counts.reset_index(inplace=True)
+grouped_cell_counts['metric'] = 'cell_count'
+grouped_cell_counts['cell_type'] = 'all'
+
 # create single df with appropriate metadata
 total_df = pd.concat([cluster_broad_freq_df, cluster_freq_df, cluster_meta_freq_df,
                       tcell_freq_df, immune_freq_df, stroma_freq_df, cancer_freq_df,
                       kmeans_freq_df, cluster_broad_count_df, cluster_count_df,
-                      cluster_meta_count_df], axis=0)
+                      cluster_meta_count_df, grouped_cell_counts], axis=0)
 
 
 # check that all metadata from core_metadata succesfully transferred over
