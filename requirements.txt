@@ -3,4 +3,4 @@
 #scikit-image>=0.14.3,<=0.16.2
 #scikit-learn>=0.19.1,<1
 #scipy>=1.1.0,<2
-git+https://github.com/angelolab/ark-analysis.git@ebcea5fcf02e0201187ee5f15b9acfa7e6eb4820
+git+https://github.com/angelolab/ark-analysis.git@e354ed3f4a32316d9c8511c7548cf95622780e16
