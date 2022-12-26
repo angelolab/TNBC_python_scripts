@@ -65,43 +65,61 @@ def create_cancer_boundary(img, seg_mask, min_size=3500, hole_size=1000, border_
     return combined_mask
 
 
-channel_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/channel_data'
-seg_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/segmentation_masks'
-plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots'
-data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
+# channel_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/channel_data'
+# seg_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/segmentation_masks'
+# plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots'
+# data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/'
 
-cell_table_short = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_clusters_only.csv'))
+channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
+seg_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
+out_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/tumor_border/'
+cell_table_short = pd.read_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data', 'combined_cell_table_normalized_cell_labels_updated_clusters_only.csv'))
 
 folders = list_folders(channel_dir)
-test_img = 'TONIC_TMA1_R8C1'
-test_img = folders[3]
 
 for folder in folders:
-    ecad = io.imread(os.path.join(channel_dir, folder, 'ECAD.tiff'))
-    seg_label = io.imread(os.path.join(seg_dir, folder + '_feature_0.tif'))[0]
+    try:
+        ecad = io.imread(os.path.join(channel_dir, folder, 'ECAD.tiff'))
+    except:
+        print('No ECAD channel for ' + folder)
+        continue
+    seg_label = io.imread(os.path.join(seg_dir, folder + '_whole_cell.tiff'))[0]
     seg_mask = smooth_seg_mask(seg_label, cell_table_short, folder, 'Cancer')
     combined_mask = create_cancer_boundary(ecad, seg_mask, min_size=7000)
     combined_mask = combined_mask.astype(np.uint8)
-    io.imsave(os.path.join(plot_dir, folder + '_cancer_boundary_combined.png'), combined_mask)
+    out_folder = os.path.join(out_dir, folder)
+    if not os.path.exists(out_folder):
+        os.mkdir(out_folder)
+
+    io.imsave(os.path.join(out_folder, 'border_mask.png'), combined_mask, check_contrast=False)
 
 
 # create combined images for visualization
 for folder in folders:
-    boundary_img = io.imread(os.path.join(plot_dir, 'cancer_stroma_boundary', folder + '_cancer_boundary_combined.png'))
-    overlay_img = io.imread(os.path.join(plot_dir, 'overlays', 'overlay_' + folder + '_test.png'))
+    boundary_img = io.imread(os.path.join(data_dir, 'cancer_stroma_boundary', folder + '_cancer_boundary_combined.png'))
+    overlay_img = io.imread(os.path.join(data_dir, 'overlays', 'overlay_' + folder + '_test.png'))
+    mask_img = io.imread(os.path.join(data_dir, 'mask_overlays', folder + '.png'))
 
     fig, ax = plt.subplots(1, 2, figsize=(20, 10))
-    ax[0].imshow(boundary_img)
-    ax[1].imshow(overlay_img)
+    ax[0].imshow(overlay_img)
+    #ax[1].imshow(boundary_img)
+    ax[1].imshow(mask_img)
+
+    plt.tight_layout()
     plt.savefig(os.path.join(plot_dir, folder + '_border_visualization.png'))
     plt.close()
 
 
 # create folder with individual channels from combined images
-output_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/stroma_masks'
+output_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/tumor_border/stroma_masks/'
 
 for folder in folders:
-    combined_img = io.imread('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/cancer_stroma_boundary/' + folder + '_cancer_boundary_combined.png')
+    try:
+        combined_img = io.imread('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/tumor_border/' + folder + '/border_mask.png')
+    except:
+        print("couldn't find combined image for " + folder)
+        continue
+
     output_folder = os.path.join(output_dir, folder)
     os.mkdir(output_folder)
 
@@ -138,7 +156,16 @@ def assign_cells_to_mask(seg_dir, mask_dir, fovs):
 
     return normalized_cell_table[['fov', 'label', 'mask_name']]
 
+folders = list_folders('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/tumor_border/stroma_masks')
 
-assignment_table = assign_cells_to_mask(seg_dir='/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/segmentation_masks',
-                     mask_dir='/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/stroma_masks',
-                     fovs=folders[:2])
+assignment_table = assign_cells_to_mask(seg_dir=seg_dir,
+                     mask_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/tumor_border/stroma_masks',
+                     fovs=folders)
+assignment_table.to_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/assignment_table.csv'), index=False)
+cell_table_test = cell_table_short.loc[cell_table_short['fov'].isin(folders), :]
+cell_table_test = cell_table_test.merge(assignment_table, on=['fov', 'label'], how='left')
+
+create_cell_overlay(cell_table_test, '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/segmentation_masks',
+                    fovs=folders, cluster_col='mask_name', plot_dir='/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/mask_overlays',
+                    save_names=[folder + '.png' for folder in folders])
+

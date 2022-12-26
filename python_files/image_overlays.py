@@ -86,7 +86,7 @@ def create_cell_overlay(cell_table, seg_folder, fovs, cluster_col, plot_dir, sav
     cell_subset = cell_table.copy()
     cell_subset['unique_ids'] = pd.factorize(cell_subset[cluster_col])[0] + 1
 
-    categories = cell_subset[[cluster_col, 'unique_ids']].drop_duplicates().cell_cluster_broad.values
+    categories = cell_subset[[cluster_col, 'unique_ids']].drop_duplicates()[cluster_col].values
 
     # import viridis colormap from mpl
     num_categories = np.max(cell_subset.unique_ids)
@@ -104,7 +104,7 @@ def create_cell_overlay(cell_table, seg_folder, fovs, cluster_col, plot_dir, sav
     norm = colors.BoundaryNorm(bounds, new_cmap.N + 1)
 
     for idx, image in enumerate(fovs):
-        seg_mask = io.imread(os.path.join(seg_folder, image + '_feature_0.tif'))[0]
+        seg_mask = io.imread(os.path.join(seg_folder, image + '_whole_cell.tiff'))[0]
 
         edges = find_boundaries(seg_mask, mode='inner')
         seg_mask = np.where(edges == 0, seg_mask, 0)
