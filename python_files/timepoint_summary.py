@@ -99,55 +99,79 @@ def create_sorted_barplot(plot_df, x_var, xlabel, ylabel, title, colors_dict=Non
 
 
 # broad clusters across primary tumors
+tumor_regions = timepoint_df_cluster.subset.unique()
 plot_df = timepoint_df_cluster.loc[timepoint_df_cluster.Timepoint == 'primary_untreated', :]
 plot_df = plot_df.loc[plot_df.metric == 'cluster_broad_freq', :]
 
-create_stacked_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
-               xlabel='Patient ID', ylabel='Proportion of total cells', colormap='bright',
-               title='Frequency of broad clusters across primary tumors',
-               savepath=os.path.join(plot_dir, 'Primary_tumor_barplot_freq_broad_cluster.png'))
+for tumor_region in tumor_regions:
+    region_plot_df = plot_df.loc[plot_df.subset == tumor_region, :]
+    create_stacked_barplot(plot_df=region_plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
+                   xlabel='Patient ID', ylabel='Proportion of total cells', colormap='bright',
+                   title='Frequency of broad clusters across primary tumors in {}'.format(tumor_region),
+                   savepath=os.path.join(plot_dir, 'Primary_tumor_barplot_freq_broad_cluster_{}.png'.format(tumor_region)))
 
 
 # tcell clusters across primary tumors
 plot_df = timepoint_df_cluster.loc[timepoint_df_cluster.Timepoint == 'primary_untreated', :]
 plot_df = plot_df.loc[plot_df.metric == 'tcell_freq', :]
 
-create_stacked_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
-               xlabel='Patient ID', ylabel='Proportion of T cells', colormap='bright',
-               title='Frequency of T cell clusters across primary tumors',
-               savepath=os.path.join(plot_dir, 'Primary_tumor_barplot_freq_tcell.png'))
+for tumor_region in tumor_regions:
+    region_plot_df = plot_df.loc[plot_df.subset == tumor_region, :]
+    create_stacked_barplot(plot_df=region_plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
+                   xlabel='Patient ID', ylabel='Proportion of T cells', colormap='bright',
+                   title='Frequency of T cell clusters across primary tumors in {}'.format(tumor_region),
+                   savepath=os.path.join(plot_dir, 'Primary_tumor_barplot_freq_tcell_cluster_{}.png'.format(tumor_region)))
 
 
 # broad clusters across metastatic tumors
 plot_df = timepoint_df_cluster.loc[timepoint_df_cluster.Timepoint == 'baseline', :]
 plot_df = plot_df.loc[plot_df.metric == 'cluster_broad_freq', :]
 
-create_stacked_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
-               xlabel='Patient ID', ylabel='Proportion of total cells', colormap='bright',
-               title='Frequency of broad clusters across metastatic tumors',
-               savepath=os.path.join(plot_dir, 'Metastatic_tumor_barplot_freq_broad_cluster.png'))
+for tumor_region in tumor_regions:
+    region_plot_df = plot_df.loc[plot_df.subset == tumor_region, :]
+    create_stacked_barplot(plot_df=region_plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
+                   xlabel='Patient ID', ylabel='Proportion of total cells', colormap='bright',
+                   title='Frequency of broad clusters across metastatic tumors in {}'.format(tumor_region),
+                   savepath=os.path.join(plot_dir, 'Metastatic_tumor_barplot_freq_broad_cluster_{}.png'.format(tumor_region)))
 
 
 # tcell clusters across metastatic tumors
 plot_df = timepoint_df_cluster.loc[timepoint_df_cluster.Timepoint == 'baseline', :]
 plot_df = plot_df.loc[plot_df.metric == 'tcell_freq', :]
 
-create_stacked_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
-               xlabel='Patient ID', ylabel='Proportion of T cells', colormap='bright',
-               title='Frequency of T cell clusters across metastatic tumors',
-               savepath=os.path.join(plot_dir, 'Metastatic_tumor_barplot_freq_tcell.png'))
+for tumor_region in tumor_regions:
+    region_plot_df = plot_df.loc[plot_df.subset == tumor_region, :]
+    create_stacked_barplot(plot_df=region_plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
+                   xlabel='Patient ID', ylabel='Proportion of T cells', colormap='bright',
+                   title='Frequency of T cell clusters across metastatic tumors in {}'.format(tumor_region),
+                   savepath=os.path.join(plot_dir, 'Metastatic_tumor_barplot_freq_tcell_cluster_{}.png'.format(tumor_region)))
 
 # kmeans freqs across primary tumors
 plot_df = timepoint_df_cluster.loc[timepoint_df_cluster.Timepoint == 'primary_untreated', :]
 plot_df = plot_df.loc[plot_df.metric == 'kmeans_freq', :]
 
-create_stacked_barplot(plot_df=plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
-                       xlabel='Patient ID', ylabel='Proportion of cells', colormap='hls',
-                       title='Frequency of neighborhoods across primary tumors')
-                       #savepath=os.path.join(plot_dir, 'Metastatic_tumor_barplot_freq_tcell.png'))
+for tumor_region in tumor_regions:
+    region_plot_df = plot_df.loc[plot_df.subset == tumor_region, :]
+    create_stacked_barplot(plot_df=region_plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
+                   xlabel='Patient ID', ylabel='Proportion of total cells', colormap='hls',
+                   title='Frequency of kmeans clusters across primary tumors in {}'.format(tumor_region),
+                   savepath=os.path.join(plot_dir, 'Primary_tumor_barplot_freq_kmeans_cluster_{}.png'.format(tumor_region)))
+
+
+# kmeans freqs across metastatic tumors
+plot_df = timepoint_df_cluster.loc[timepoint_df_cluster.Timepoint == 'baseline', :]
+plot_df = plot_df.loc[plot_df.metric == 'kmeans_freq', :]
+
+for tumor_region in tumor_regions:
+    region_plot_df = plot_df.loc[plot_df.subset == tumor_region, :]
+    create_stacked_barplot(plot_df=region_plot_df, x_var='TONIC_ID', data_var='cell_type', values_var='mean',
+                   xlabel='Patient ID', ylabel='Proportion of total cells', colormap='hls',
+                   title='Frequency of kmeans clusters across metastatic tumors in {}'.format(tumor_region),
+                   savepath=os.path.join(plot_dir, 'Metastatic_tumor_barplot_freq_kmeans_cluster_{}.png'.format(tumor_region)))
+
 
 # generate paired plots for broad cluster and medium cluster resolutions
-#for cluster_name, plot_name in zip(['cluster_broad_freq', 'cluster_freq', 'immune_freq'], ['broad_cluster', 'cluster', 'immune_cluster']):
+# for cluster_name, plot_name in zip(['cluster_broad_freq', 'cluster_freq', 'immune_freq'], ['broad_cluster', 'cluster', 'immune_cluster']):
 for cluster_name, plot_name in zip(['kmeans_freq'],  ['kmeans_clusters']):
 
     # cell proportions across timepoints
@@ -155,25 +179,29 @@ for cluster_name, plot_name in zip(['kmeans_freq'],  ['kmeans_clusters']):
     plot_df = plot_df.loc[plot_df.Timepoint.isin(['primary_untreated', 'baseline',
                                                   'post_induction', 'on_nivo'])]
 
-    g = sns.FacetGrid(plot_df, col='cell_type', col_wrap=4, hue='cell_type',
-                      palette=['Black'], sharey=False, aspect=1.7)
-    g.map(sns.stripplot, 'Timepoint', 'mean', order=['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])
-    plt.tight_layout()
-    plt.savefig(os.path.join(plot_dir, 'Cell_prevelance_timepoints_by_{}.png'.format(plot_name)))
+    g = sns.FacetGrid(plot_df, col='cell_type', col_wrap=3 , hue='cell_type',
+                      palette=['Black'], sharey=False, aspect=2.5)
+    g.map(sns.stripplot, 'subset', 'mean', order=['cancer_core', 'cancer_border', 'stroma_border', 'stroma_core', 'all'])
+
+    # add a title
+    g.fig.subplots_adjust(top=0.9)
+    g.fig.suptitle('Cell frequencies in {} by tumor region'.format(plot_name), fontsize=20)
+
+    g.savefig(os.path.join(plot_dir, 'Cell_freq_tumor_region_by_{}.png'.format(plot_name)))
     plt.close()
 
     # cell proportions across tissues
-    plot_df = timepoint_df_cluster.loc[timepoint_df_cluster.metric == cluster_name, :]
-    plot_df = plot_df.loc[plot_df.Localization.isin(['Lymphnode', 'Breast', 'Bone', 'Unknown',
-                                                     'Muscle', 'Skin', 'Liver',   'Lung']), :]
-
-    g = sns.FacetGrid(plot_df, col='cell_type', col_wrap=4, hue='cell_type',
-                      palette=['Black'], sharey=False, aspect=2)
-    g.map(sns.stripplot, 'Localization', 'mean', order=['Lymphnode', 'Breast', 'Bone', 'Unknown',
-                                                        'Muscle', 'Skin', 'Liver', 'Lung'])
-    plt.tight_layout()
-    plt.savefig(os.path.join(plot_dir, 'Cell_prevelance_tissue_by_{}.png'.format(plot_name)))
-    plt.close()
+    # plot_df = timepoint_df_cluster.loc[timepoint_df_cluster.metric == cluster_name, :]
+    # plot_df = plot_df.loc[plot_df.Localization.isin(['Lymphnode', 'Breast', 'Bone', 'Unknown',
+    #                                                  'Muscle', 'Skin', 'Liver',   'Lung']), :]
+    #
+    # g = sns.FacetGrid(plot_df, col='cell_type', col_wrap=4, hue='cell_type',
+    #                   palette=['Black'], sharey=False, aspect=2)
+    # g.map(sns.stripplot, 'Localization', 'mean', order=['Lymphnode', 'Breast', 'Bone', 'Unknown',
+    #                                                     'Muscle', 'Skin', 'Liver', 'Lung'])
+    # plt.tight_layout()
+    # plt.savefig(os.path.join(plot_dir, 'Cell_prevelance_tissue_by_{}.png'.format(plot_name)))
+    # plt.close()
 
 
 #
