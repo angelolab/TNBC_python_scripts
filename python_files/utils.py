@@ -3,40 +3,29 @@ import pandas as pd
 from ark.utils.misc_utils import verify_in_list
 
 
-def cluster_df_new(cell_table, cluster_col_name, result_name, normalize=False):
+def cluster_df_helper(cell_table, cluster_col_name, result_name, normalize=False):
+    """Helper function which creates a df when no subsetting is required
 
+        Args:
+            cell_table: the dataframe containing information on each cell
+            cluster_col_name: the column name in cell_table that contains the cluster information
+            result_name: the name of this statistic in summarized information df
+            normalize: whether to report the total or normalized counts in the result
+
+        Returns:
+            pd.DataFrame: long format dataframe containing the summarized data"""
+
+    # group each fov by the supplied cluster column, then count and normalize
     grouped = cell_table.groupby(['fov'])
     counts = grouped[cluster_col_name].value_counts(normalize=normalize)
-    counts = counts.unstack(level='fov', fill_value=0).stack()
+    counts = counts.unstack(level='cluster', fill_value=0).stack()
 
+    # standardize the column names
     counts = counts.reset_index()
     counts['metric'] = result_name
     counts = counts.rename(columns={cluster_col_name: 'cell_type', 0: 'value'})
 
     return counts
-
-def cluster_df_helper(cell_table, cluster_col_name, result_name, normalize=False):
-    """Creates a dataframe summarizing cell clusters across FOVs in long format
-
-    Args:
-        cell_table: the dataframe containing information on each cell
-        cluster_col_name: the column name in cell_table that contains the cluster information
-        result_name: the name of this statistic in summarized information df
-        normalize: whether to report the total or normalized counts in the result
-
-    Returns:
-        pd.DataFrame: long format dataframe containing the summarized data"""
-
-    # create 2D summary table
-    crosstab = pd.crosstab(index=cell_table['fov'], rownames=['fov'],
-                           columns=cell_table[cluster_col_name], normalize=normalize)
-
-    # convert to long format
-    crosstab['fov'] = crosstab.index
-    long_df = pd.melt(crosstab, id_vars=['fov'], var_name='cell_type')
-    long_df['metric'] = result_name
-
-    return long_df
 
 
 def create_long_df_by_cluster(cell_table, cluster_col_name, result_name, subset_col=None,
@@ -46,7 +35,7 @@ def create_long_df_by_cluster(cell_table, cluster_col_name, result_name, subset_
     Args:
         cell_table (pd.DataFrame): the dataframe containing information on each cell
         cluster_col_name (str): the column name in cell_table that contains the cluster information
-        result_name (str): the name of this statistic in summarized information df
+        result_name (str): the name of this statistic in the returned df
         subset_col (str): the column name in cell_table to subset by
         normalize (bool): whether to report the total or normalized counts in the result
 
@@ -57,20 +46,20 @@ def create_long_df_by_cluster(cell_table, cluster_col_name, result_name, subset_
     long_df_all = cluster_df_helper(cell_table, cluster_col_name, result_name, normalize)
     long_df_all['subset'] = 'all'
 
-    # if a subset column is specified, subset the data
+    # if a subset column is specified, create df stratified by subset
     if subset_col is not None:
         verify_in_list(cell_type_col=subset_col, cell_table_columns=cell_table.columns)
 
-        # subset the data
-        subset_vals = cell_table[subset_col].unique()
+        # group each fov by fov and cluster
+        grouped = cell_table.groupby(['fov', cluster_col_name])
+        counts = grouped[subset_col].value_counts(normalize=normalize)
 
-        # create a long df for each subset value
-        long_df_list = []
-        for val in subset_vals:
-            long_df = cluster_df_helper(cell_table[cell_table[subset_col] == val],
-                                        cluster_col_name, result_name, normalize)
-            long_df['subset'] = val
-            long_df_list.append(long_df)
+        # unstack and restack to make sure that missing values are filled with zeros
+        counts = counts.unstack(level=cluster_col_name, fill_value=0).stack()
+        counts = counts.unstack(level=subset_col, fill_value=0).stack()
+
+
+
 
         long_df_all = pd.concat([long_df_all] + long_df_list, axis=0)
 
