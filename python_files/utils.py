@@ -58,10 +58,17 @@ def create_long_df_by_cluster(cell_table, cluster_col_name, result_name, subset_
         counts = counts.unstack(level=cluster_col_name, fill_value=0).stack()
         counts = counts.unstack(level=subset_col, fill_value=0).stack()
 
+        # standardize the column names
+        counts = counts.reset_index()
+        counts['metric'] = result_name
+        counts = counts.rename(columns={cluster_col_name: 'cell_type', subset_col: 'subset',
+                                        0: 'value'})
 
+        # move subset column to back to enable combining with long_df_all
+        counts = counts[['fov', 'cell_type', 'value', 'metric', 'subset']]
 
-
-        long_df_all = pd.concat([long_df_all] + long_df_list, axis=0)
+        # combine the two dataframes
+        long_df_all = pd.concat([long_df_all, counts], axis=0, ignore_index=True)
 
     return long_df_all
 
