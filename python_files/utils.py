@@ -51,12 +51,18 @@ def create_long_df_by_cluster(cell_table, cluster_col_name, result_name, subset_
         verify_in_list(cell_type_col=subset_col, cell_table_columns=cell_table.columns)
 
         # group each fov by fov and cluster
-        grouped = cell_table.groupby(['fov', cluster_col_name])
-        counts = grouped[subset_col].value_counts(normalize=normalize)
+        grouped = cell_table.groupby(['fov', subset_col])
+        counts = grouped[cluster_col_name].value_counts(normalize=normalize)
 
         # unstack and restack to make sure that missing values are filled with zeros
         counts = counts.unstack(level=cluster_col_name, fill_value=0).stack()
-        counts = counts.unstack(level=subset_col, fill_value=0).stack()
+
+        # if we're returning normalized data, we don't calculate frequencies for subsets where
+        # there are no cells, so we don't fill with zeros
+        if normalize:
+            pass
+        else:
+            counts = counts.unstack(level=subset_col, fill_value=0).stack()
 
         # standardize the column names
         counts = counts.reset_index()

@@ -37,7 +37,7 @@ def test_cluster_df_helper():
 
     # Test normalize = True
     result = utils.cluster_df_helper(cell_table=cell_table, cluster_col_name= "cluster",
-                                             result_name="freq_per_cluster", normalize='index')
+                                             result_name="freq_per_cluster", normalize=True)
     result = result.sort_values(by=["cell_type", "fov"]).reset_index(drop=True)
 
     # first and second fovs have three total cells, third has 1
@@ -47,7 +47,7 @@ def test_cluster_df_helper():
     pd.testing.assert_frame_equal(result, expected)
 
 
-def test_create_long_df_by_cluster():
+def test_create_long_df_by_cluster_counts():
 
     # create identical cell table as above, but with additional mask column that has only one value
     cell_table = pd.DataFrame(
@@ -136,6 +136,93 @@ def test_create_long_df_by_cluster():
 
     output_len = len(cell_table.fov.unique()) * len(cell_table.cluster.unique()) * len(cell_table["mask"].unique())
     assert len(result) == output_len
+
+
+# TODO: This code is largely copied from above
+def test_create_long_df_by_cluster_freq():
+    # create identical cell table as above, but with additional mask column that has only one value
+    cell_table = pd.DataFrame(
+        {
+            "fov": ["fov1", "fov1", "fov1", "fov2", "fov2", "fov2", "fov3"],
+            "cluster": ["cell_type1", "cell_type2", "cell_type2", "cell_type1",
+                        "cell_type2", "cell_type2", "cell_type1"],
+            "mask": ['region1', 'region1', 'region1', 'region1', 'region1', 'region1', 'region1']}
+    )
+
+    # Test without supplying a subset column
+    result_no_subset = utils.create_long_df_by_cluster(cell_table=cell_table,
+                                                       cluster_col_name="cluster",
+                                                       result_name="freq_per_cluster",
+                                                       subset_col=None, normalize=True)
+    expected = pd.DataFrame(
+        {
+            "fov": ["fov1", "fov2", "fov3", "fov1", "fov2", "fov3"],
+            "cell_type": ["cell_type1", "cell_type1", "cell_type1", "cell_type2", "cell_type2",
+                          "cell_type2"],
+            "value": [1/3, 1/3, 1, 2/3, 2/3, 0],
+        }
+    )
+
+    result_no_subset = result_no_subset.drop(columns=['subset'])
+    result_no_subset = result_no_subset.sort_values(by=["cell_type", "fov"]).reset_index(drop=True)
+
+    expected["metric"] = "freq_per_cluster"
+    pd.testing.assert_frame_equal(result_no_subset, expected)
+
+    # Test when supplying a subset column, 'all' is equivalent to previous
+    result_subset = utils.create_long_df_by_cluster(cell_table=cell_table,
+                                                    cluster_col_name="cluster",
+                                                    result_name="freq_per_cluster",
+                                                    subset_col='mask',
+                                                    normalize=True)
+
+    result_subset = result_subset.sort_values(by=["cell_type", "fov"]).reset_index(drop=True)
+
+    # extract just the freq per region, discarding names of the subset and index
+    result_subset_all = result_subset[result_subset.subset == 'all'].drop(columns=['subset'])
+    result_subset_all.reset_index(drop=True, inplace=True)
+
+    result_subset_region1 = result_subset[result_subset.subset == 'region1'].drop(
+        columns=['subset'])
+    result_subset_region1.reset_index(drop=True, inplace=True)
+
+    # check that these are equivalent to each other
+    pd.testing.assert_frame_equal(result_subset_all, result_subset_region1)
+
+    # check that these are equivalent to the output when not subsetting
+    pd.testing.assert_frame_equal(result_subset_region1, result_no_subset)
+
+    # create a single row with region2
+    cell_table = cell_table.append({'fov': 'fov1', 'cluster': 'cell_type1', 'mask': 'region2'},
+                                   ignore_index=True)
+
+    # check that the output is the same as before, but with an additional row for region2
+    result = utils.create_long_df_by_cluster(cell_table=cell_table, cluster_col_name="cluster",
+                                             result_name="freq_per_cluster", subset_col='mask',
+                                             normalize=True)
+
+    result = result.sort_values(by=["cell_type", "fov"]).reset_index(drop=True)
+
+    result_subset_region1 = result[result.subset == 'region1'].drop(columns=['subset'])
+    result_subset_region1.reset_index(drop=True, inplace=True)
+
+    result_subset_region2 = result[result.subset == 'region2'].drop(columns=['subset'])
+    result_subset_region2.reset_index(drop=True, inplace=True)
+
+    # region1 should be identical to the output when not subsetting
+    pd.testing.assert_frame_equal(result_subset_region1, result_no_subset)
+
+    # region2 should contain only two rows, 100% cell_type1 and 0% cell_type2 in fov1
+    expected_region2 = pd.DataFrame(
+        {
+            "fov": ["fov1", "fov1"],
+            "cell_type": ["cell_type1", "cell_type2"],
+            "value": [1.0, 0.0],
+            "metric": ["freq_per_cluster", "freq_per_cluster"]
+        }
+    )
+
+    pd.testing.assert_frame_equal(result_subset_region2, expected_region2)
 
 
 def test_create_long_df_by_functional():
