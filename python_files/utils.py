@@ -18,7 +18,7 @@ def cluster_df_helper(cell_table, cluster_col_name, result_name, normalize=False
     # group each fov by the supplied cluster column, then count and normalize
     grouped = cell_table.groupby(['fov'])
     counts = grouped[cluster_col_name].value_counts(normalize=normalize)
-    counts = counts.unstack(level='cluster', fill_value=0).stack()
+    counts = counts.unstack(level=cluster_col_name, fill_value=0).stack()
 
     # standardize the column names
     counts = counts.reset_index()

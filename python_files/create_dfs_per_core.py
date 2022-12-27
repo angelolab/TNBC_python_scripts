@@ -20,7 +20,7 @@ data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 core_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
 timepoint_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_timepoint.csv'))
 harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'harmonized_metadata.csv'))
-cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_clusters_only_kmeans_nh.csv'))
+cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_clusters_only_kmeans_nh_mask.csv'))
 
 # replace values in a column with other values
 replace_dict = {1: 'cancer_vim_56', 2: 'immune_other', 3: 'cancer_sma', 4: 'cd4t', 5: 'cancer_ck17',
@@ -43,37 +43,37 @@ cell_table_clusters = cell_table_clusters.loc[~cell_table_clusters.fov.isin(miss
 cluster_broad_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
                                                   result_name='cluster_broad_freq',
                                                   cluster_col_name='cell_cluster_broad',
-                                                  normalize='index')
+                                                  subset_col='tumor_region', normalize=True)
 
 # number of cells in cell_cluster_broad per patient
 cluster_broad_count_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
                                                    result_name='cluster_broad_count',
                                                    cluster_col_name='cell_cluster_broad',
-                                                   normalize=False)
+                                                   subset_col='tumor_region', normalize=False)
 
 # proportion of cells in cell_cluster per patient
 cluster_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
                                             result_name='cluster_freq',
                                             cluster_col_name='cell_cluster',
-                                            normalize='index')
+                                            subset_col='tumor_region', normalize=True)
 
 # number of cells in cell_cluster per patient
 cluster_count_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
                                              result_name='cluster_count',
                                              cluster_col_name='cell_cluster',
-                                             normalize=False)
+                                             subset_col='tumor_region', normalize=False)
 
 # proportion of cells in cell_meta_cluster per patient
 cluster_meta_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
                                                  result_name='meta_cluster_freq',
                                                  cluster_col_name='cell_meta_cluster',
-                                                 normalize='index')
+                                                 subset_col='tumor_region', normalize=True)
 
 # number of cells in cell_meta_cluster per patient
 cluster_meta_count_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
                                                   result_name='meta_cluster_count',
                                                   cluster_col_name='cell_meta_cluster',
-                                                  normalize=False)
+                                                  subset_col='tumor_region', normalize=False)
 
 
 # proportion of T cell subsets
@@ -81,7 +81,7 @@ tcell_mask = cell_table_clusters['cell_cluster'].isin(['Treg', 'CD8T', 'CD4T', '
 tcell_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[tcell_mask, :],
                                           result_name='tcell_freq',
                                           cluster_col_name='cell_cluster',
-                                          normalize='index')
+                                          subset_col='tumor_region', normalize=True)
 
 
 # proportion of immune cell subsets
@@ -92,27 +92,27 @@ immune_mask = np.logical_or(immune_mask, immune_mask_2)
 immune_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[immune_mask, :],
                                            result_name='immune_freq',
                                            cluster_col_name='cell_cluster',
-                                           normalize='index')
+                                           subset_col='tumor_region', normalize=True)
 
 # proportion of stromal subsets
 stroma_mask = cell_table_clusters['cell_cluster_broad'].isin(['Stroma'])
 stroma_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[stroma_mask, :],
                                            result_name='stroma_freq',
                                            cluster_col_name='cell_meta_cluster',
-                                           normalize='index')
+                                           subset_col='tumor_region', normalize=True)
 
 # proportion of cancer subsets
 cancer_mask = cell_table_clusters['cell_cluster_broad'].isin(['Cancer'])
 cancer_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[cancer_mask, :],
                                            result_name='cancer_freq',
                                            cluster_col_name='cell_meta_cluster',
-                                           normalize='index')
+                                           subset_col='tumor_region', normalize=True)
 
 # distribution of neighborhoods
 kmeans_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
                                            result_name='kmeans_freq',
                                            cluster_col_name='kmeans_labels',
-                                           normalize='index')
+                                           subset_col='tumor_region', normalize=True)
 
 # calculate total number of cells per image
 grouped_cell_counts = cell_table_clusters[['fov']].groupby('fov').value_counts()
@@ -121,12 +121,38 @@ grouped_cell_counts.columns = ['value']
 grouped_cell_counts.reset_index(inplace=True)
 grouped_cell_counts['metric'] = 'cell_count'
 grouped_cell_counts['cell_type'] = 'all'
+grouped_cell_counts['subset'] = 'all'
+
+#
+
+# calculate total number of cells per region per image
+grouped_cell_counts_region = cell_table_clusters[['fov', 'tumor_region']].groupby(['fov', 'tumor_region']).value_counts()
+grouped_cell_counts_region = grouped_cell_counts_region.unstack(level='tumor_region', fill_value=0).stack()
+grouped_cell_counts_region = pd.DataFrame(grouped_cell_counts_region)
+grouped_cell_counts_region.columns = ['value']
+grouped_cell_counts_region.reset_index(inplace=True)
+grouped_cell_counts_region['metric'] = 'cell_count_tumor_region'
+grouped_cell_counts_region.rename(columns={'tumor_region': 'subset'}, inplace=True)
+grouped_cell_counts_region['cell_type'] = 'all'
+
+# calculate frequency of cell types per region per image
+grouped_cell_freq_region = cell_table_clusters[['fov', 'tumor_region']].groupby(['fov'])
+grouped_cell_freq_region = grouped_cell_freq_region['tumor_region'].value_counts(normalize=True)
+grouped_cell_freq_region = grouped_cell_freq_region.unstack(level='tumor_region', fill_value=0).stack()
+grouped_cell_freq_region = pd.DataFrame(grouped_cell_freq_region)
+grouped_cell_freq_region.columns = ['value']
+grouped_cell_freq_region.reset_index(inplace=True)
+grouped_cell_freq_region['metric'] = 'cell_freq_tumor_region'
+grouped_cell_freq_region.rename(columns={'tumor_region': 'subset'}, inplace=True)
+grouped_cell_freq_region['cell_type'] = 'all'
+
 
 # create single df with appropriate metadata
 total_df = pd.concat([cluster_broad_freq_df, cluster_freq_df, cluster_meta_freq_df,
                       tcell_freq_df, immune_freq_df, stroma_freq_df, cancer_freq_df,
                       kmeans_freq_df, cluster_broad_count_df, cluster_count_df,
-                      cluster_meta_count_df, grouped_cell_counts], axis=0)
+                      cluster_meta_count_df, grouped_cell_counts, grouped_cell_counts_region,
+                      grouped_cell_freq_region], axis=0)
 
 
 # check that all metadata from core_metadata succesfully transferred over
@@ -137,7 +163,7 @@ total_df = total_df.merge(harmonized_metadata, on='fov', how='inner')
 total_df.to_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'), index=False)
 
 # create version aggregated by timepoint
-total_df_grouped = total_df.groupby(['Tissue_ID', 'cell_type', 'metric'])
+total_df_grouped = total_df.groupby(['Tissue_ID', 'cell_type', 'metric', 'subset'])
 total_df_timepoint = total_df_grouped['value'].agg([np.mean, np.std])
 total_df_timepoint.reset_index(inplace=True)
 total_df_timepoint = total_df_timepoint.merge(harmonized_metadata.drop('fov', axis=1).drop_duplicates(), on='Tissue_ID')

@@ -68,7 +68,7 @@ def create_cancer_boundary(img, seg_mask, min_size=3500, hole_size=1000, border_
 channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
 seg_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
 out_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/tumor_border/'
-cell_table_short = pd.read_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data', 'combined_cell_table_normalized_cell_labels_updated_clusters_only.csv'))
+cell_table_short = pd.read_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data', 'combined_cell_table_normalized_cell_labels_updated_clusters_only_kmeans_nh.csv'))
 
 folders = list_folders(channel_dir)
 
@@ -159,10 +159,11 @@ assignment_table = assign_cells_to_mask(seg_dir=seg_dir,
                                         mask_dir=individual_dir,
                                         fovs=folders)
 assignment_table.to_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/assignment_table.csv'), index=False)
-cell_table_test = cell_table_short.loc[cell_table_short['fov'].isin(assignment_table.fov.unique()), :]
-cell_table_test = cell_table_test.merge(assignment_table, on=['fov', 'label'], how='left')
+cell_table_short = cell_table_short.loc[cell_table_short['fov'].isin(assignment_table.fov.unique()), :]
+cell_table_short = cell_table_short.merge(assignment_table, on=['fov', 'label'], how='left')
+cell_table_short = cell_table_short.rename(columns={'mask_name': 'tumor_region'})
+cell_table_short.loc[cell_table_short['tumor_region'] == 'other', 'tumor_region'] = 'stroma_core'
 
-create_cell_overlay(cell_table_test, '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/segmentation_masks',
-                    fovs=folders, cluster_col='mask_name', plot_dir='/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/mask_overlays',
-                    save_names=[folder + '.png' for folder in folders])
+
+cell_table_short.to_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data', 'combined_cell_table_normalized_cell_labels_updated_clusters_only_kmeans_nh_mask.csv'), index=False)
 
