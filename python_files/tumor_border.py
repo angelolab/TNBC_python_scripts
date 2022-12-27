@@ -65,11 +65,6 @@ def create_cancer_boundary(img, seg_mask, min_size=3500, hole_size=1000, border_
     return combined_mask
 
 
-# channel_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/channel_data'
-# seg_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/segmentation_masks'
-# plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots'
-# data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/'
-
 channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
 seg_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
 out_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/tumor_border/'
@@ -77,21 +72,42 @@ cell_table_short = pd.read_csv(os.path.join('/Users/noahgreenwald/Documents/Grad
 
 folders = list_folders(channel_dir)
 
+combined_dir = os.path.join(out_dir, 'combined_masks')
+if not os.path.exists(combined_dir):
+    os.mkdir(combined_dir)
+
+
+individual_dir = os.path.join(out_dir, 'individual_masks')
+if not os.path.exists(individual_dir):
+    os.mkdir(individual_dir)
+
+# create mask of tumor borders for each FOV
 for folder in folders:
     try:
         ecad = io.imread(os.path.join(channel_dir, folder, 'ECAD.tiff'))
     except:
         print('No ECAD channel for ' + folder)
         continue
+
+    # generate mask by combining segmentation mask and channel mask
     seg_label = io.imread(os.path.join(seg_dir, folder + '_whole_cell.tiff'))[0]
     seg_mask = smooth_seg_mask(seg_label, cell_table_short, folder, 'Cancer')
     combined_mask = create_cancer_boundary(ecad, seg_mask, min_size=7000)
     combined_mask = combined_mask.astype(np.uint8)
-    out_folder = os.path.join(out_dir, folder)
-    if not os.path.exists(out_folder):
-        os.mkdir(out_folder)
+    combined_folder = os.path.join(combined_dir, folder)
+    if not os.path.exists(combined_folder):
+        os.mkdir(combined_folder)
 
-    io.imsave(os.path.join(out_folder, 'border_mask.png'), combined_mask, check_contrast=False)
+    io.imsave(os.path.join(combined_folder, 'border_mask.png'), combined_mask, check_contrast=False)
+
+    # create a separte folder which contains a separate binary mask for each compartment
+    individual_folder = os.path.join(individual_dir, folder)
+    os.mkdir(individual_folder)
+
+    for idx, name in zip(range(1, 4), ['stroma_border', 'cancer_border', 'cancer_core']):
+        channel_img = combined_mask == idx
+        io.imsave(os.path.join(individual_folder, name + '.tiff'), channel_img.astype(np.uint8),
+                  check_contrast=False)
 
 
 # create combined images for visualization
@@ -108,24 +124,6 @@ for folder in folders:
     plt.tight_layout()
     plt.savefig(os.path.join(plot_dir, folder + '_border_visualization.png'))
     plt.close()
-
-
-# create folder with individual channels from combined images
-output_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/tumor_border/stroma_masks/'
-
-for folder in folders:
-    try:
-        combined_img = io.imread('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/tumor_border/' + folder + '/border_mask.png')
-    except:
-        print("couldn't find combined image for " + folder)
-        continue
-
-    output_folder = os.path.join(output_dir, folder)
-    os.mkdir(output_folder)
-
-    for idx, name in zip(range(1, 4), ['stroma_border', 'cancer_border', 'cancer_core']):
-        channel_img = combined_img == idx
-        io.imsave(os.path.join(output_folder, name + '.tiff'), channel_img.astype(np.uint8))
 
 
 # create dataframe with cell assignments to mask
@@ -156,13 +154,12 @@ def assign_cells_to_mask(seg_dir, mask_dir, fovs):
 
     return normalized_cell_table[['fov', 'label', 'mask_name']]
 
-folders = list_folders('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/tumor_border/stroma_masks')
 
 assignment_table = assign_cells_to_mask(seg_dir=seg_dir,
-                     mask_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/tumor_border/stroma_masks',
-                     fovs=folders)
+                                        mask_dir=individual_dir,
+                                        fovs=folders)
 assignment_table.to_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/assignment_table.csv'), index=False)
-cell_table_test = cell_table_short.loc[cell_table_short['fov'].isin(folders), :]
+cell_table_test = cell_table_short.loc[cell_table_short['fov'].isin(assignment_table.fov.unique()), :]
 cell_table_test = cell_table_test.merge(assignment_table, on=['fov', 'label'], how='left')
 
 create_cell_overlay(cell_table_test, '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/segmentation_masks',

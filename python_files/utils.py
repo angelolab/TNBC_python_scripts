@@ -3,7 +3,19 @@ import pandas as pd
 from ark.utils.misc_utils import verify_in_list
 
 
-def create_long_df_by_cluster(cell_table, cluster_col_name, result_name, normalize=False):
+def cluster_df_new(cell_table, cluster_col_name, result_name, normalize=False):
+
+    grouped = cell_table.groupby(['fov'])
+    counts = grouped[cluster_col_name].value_counts(normalize=normalize)
+    counts = counts.unstack(level='fov', fill_value=0).stack()
+
+    counts = counts.reset_index()
+    counts['metric'] = result_name
+    counts = counts.rename(columns={cluster_col_name: 'cell_type', 0: 'value'})
+
+    return counts
+
+def cluster_df_helper(cell_table, cluster_col_name, result_name, normalize=False):
     """Creates a dataframe summarizing cell clusters across FOVs in long format
 
     Args:
@@ -25,6 +37,44 @@ def create_long_df_by_cluster(cell_table, cluster_col_name, result_name, normali
     long_df['metric'] = result_name
 
     return long_df
+
+
+def create_long_df_by_cluster(cell_table, cluster_col_name, result_name, subset_col=None,
+                              normalize=False):
+    """Summarize cell counts by cluster, with the option to subset by an additional feature
+
+    Args:
+        cell_table (pd.DataFrame): the dataframe containing information on each cell
+        cluster_col_name (str): the column name in cell_table that contains the cluster information
+        result_name (str): the name of this statistic in summarized information df
+        subset_col (str): the column name in cell_table to subset by
+        normalize (bool): whether to report the total or normalized counts in the result
+
+    Returns:
+        pd.DataFrame: long format dataframe containing the summarized data"""
+
+    # first generate df without subsetting
+    long_df_all = cluster_df_helper(cell_table, cluster_col_name, result_name, normalize)
+    long_df_all['subset'] = 'all'
+
+    # if a subset column is specified, subset the data
+    if subset_col is not None:
+        verify_in_list(cell_type_col=subset_col, cell_table_columns=cell_table.columns)
+
+        # subset the data
+        subset_vals = cell_table[subset_col].unique()
+
+        # create a long df for each subset value
+        long_df_list = []
+        for val in subset_vals:
+            long_df = cluster_df_helper(cell_table[cell_table[subset_col] == val],
+                                        cluster_col_name, result_name, normalize)
+            long_df['subset'] = val
+            long_df_list.append(long_df)
+
+        long_df_all = pd.concat([long_df_all] + long_df_list, axis=0)
+
+    return long_df_all
 
 
 def create_long_df_by_functional(func_table, cluster_col_name, drop_cols, transform_func, result_name):
