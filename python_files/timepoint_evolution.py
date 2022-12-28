@@ -25,6 +25,20 @@ plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 #              'TBET': lymphocyte, 'TCF1': lymphocyte, 'TIM3': lymphocyte + monocyte + granulocyte}
 
 
+core_df_cluster = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
+fov_metadata = harmonized_metadata[harmonized_metadata.Timepoint == 'primary_untreated']
+fov_metadata = fov_metadata[fov_metadata.fov.isin(core_df_cluster.fov.unique())]
+keep_fov_1 = []
+keep_fov_2 = []
+for name, items in fov_metadata[['fov', 'Tissue_ID']].groupby('Tissue_ID'):
+    if len(items) > 1:
+        keep_fov_1.append(items.iloc[0].fov)
+        keep_fov_2.append(items.iloc[1].fov)
+
+
+cluster_evolution = core_df_cluster[core_df_cluster.fov.isin(keep_fov_1 + keep_fov_2)]
+cluster_evolution['placeholder'] = cluster_evolution.fov.isin(keep_fov_1).astype(int)
+
 
 # create dataset
 timepoint_df_cluster = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv'))
@@ -34,7 +48,7 @@ cluster_evolution = timepoint_df_cluster.loc[timepoint_df_cluster.primary_baseli
 cluster_evolution = cluster_evolution.loc[cluster_evolution.Timepoint.isin(['primary_untreated', 'baseline']), :]
 
 # compute ratio across relevant metrics
-metric = 'cluster_broad_freq'
+metric = 'cluster_freq'
 cluster_evolution_plot = cluster_evolution.loc[cluster_evolution.metric == metric, :]
 
 cells = cluster_evolution_plot.cell_type.unique()
@@ -45,7 +59,9 @@ for cell_type in cells:
     cluster_evolution_cell = cluster_evolution_plot.loc[cluster_evolution_plot.cell_type == cell_type, :]
     for region in tumor_regions:
         cluster_evolution_region = cluster_evolution_cell.loc[cluster_evolution_cell.subset == region, :]
-        cluster_evolution_wide = cluster_evolution_region.pivot(index=['TONIC_ID'], columns=['Timepoint'], values='mean')
+
+        cluster_evolution_wide = cluster_evolution_region.pivot(index=['TONIC_ID'], columns=['placeholder'], values='value')
+        #cluster_evolution_wide = cluster_evolution_region.pivot(index=['TONIC_ID'], columns=['placeholder'], values='value')
         cluster_evolution_wide.reset_index(inplace=True)
 
         # check if any columns have NaNs
@@ -54,12 +70,18 @@ for cell_type in cells:
             cluster_evolution_wide.dropna(inplace=True)
 
         # remove rows with very low frequency in both timepoints
-        keep_mask = (cluster_evolution_wide.primary_untreated > 0.05) | (cluster_evolution_wide.baseline > 0.05)
+        keep_mask = (cluster_evolution_wide[0] > 0.05) | (cluster_evolution_wide[1] > 0.05)
+        #keep_mask = (cluster_evolution_wide[0] > 0.05) | (cluster_evolution_wide[1] > 0.05)
         cluster_evolution_wide = cluster_evolution_wide.loc[keep_mask, :]
 
         # compute ratio between primary and baseline
-        cluster_evolution_wide['ratio'] = np.log2(cluster_evolution_wide['baseline'] / cluster_evolution_wide['primary_untreated'])
-        cluster_evolution_wide['ratio_adjusted'] = np.log2((cluster_evolution_wide['baseline'] + 0.01) / (cluster_evolution_wide['primary_untreated'] + 0.01))
+        # cluster_evolution_wide['ratio'] = np.log2(cluster_evolution_wide['baseline'] / cluster_evolution_wide['primary_untreated'])
+        # cluster_evolution_wide['ratio_adjusted'] = np.log2((cluster_evolution_wide['baseline'] + 0.01) / (cluster_evolution_wide['primary_untreated'] + 0.01))
+        cluster_evolution_wide['ratio'] = np.log2(
+            cluster_evolution_wide[1] / cluster_evolution_wide[0])
+        cluster_evolution_wide['ratio_adjusted'] = np.log2(
+            (cluster_evolution_wide[1] + 0.01) / (
+                        cluster_evolution_wide[0] + 0.01))
         cluster_evolution_wide['metric'] = metric
         cluster_evolution_wide['cell_type'] = cell_type
         cluster_evolution_wide['comparison'] = 'paired'
@@ -68,8 +90,12 @@ for cell_type in cells:
 
         # create a copy with ranodmized values in ratio
         cluster_evolution_wide_random = cluster_evolution_wide.copy()
-        cluster_evolution_wide_random.baseline = np.random.permutation(cluster_evolution_wide.baseline)
-        cluster_evolution_wide_random['ratio_adjusted'] = np.log2((cluster_evolution_wide_random['baseline'] + 0.01) / (cluster_evolution_wide_random['primary_untreated'] + 0.01))
+        #cluster_evolution_wide_random.baseline = np.random.permutation(cluster_evolution_wide.baseline)
+        #cluster_evolution_wide_random['ratio_adjusted'] = np.log2((cluster_evolution_wide_random['baseline'] + 0.01) / (cluster_evolution_wide_random['primary_untreated'] + 0.01))
+        cluster_evolution_wide_random[0] = np.random.permutation(cluster_evolution_wide[0])
+        cluster_evolution_wide_random['ratio_adjusted'] = np.log2((cluster_evolution_wide_random[1] + 0.01) / (cluster_evolution_wide_random[0] + 0.01))
+
+
         cluster_evolution_wide_random['metric'] = metric
         cluster_evolution_wide_random['cell_type'] = cell_type
         cluster_evolution_wide_random['comparison'] = 'random'
@@ -104,8 +130,8 @@ for cell_type in cells:
     g.set_xticklabels(rotation=90)
     # add a horizonal line at y=0
     plt.axhline(y=0, color='black', linestyle='--')
-    plt.title('Ratio of {} in primaries and mets'.format(cell_type))
-    g.savefig(os.path.join(plot_dir, 'Evolution_{}_compartment.png'.format(cell_type)), dpi=300)
+    plt.title('Ratio of {} in replicate cores'.format(cell_type))
+    g.savefig(os.path.join(plot_dir, 'Paired_core_{}_compartment.png'.format(cell_type)), dpi=300)
     plt.close()
 
 # create evolution plot for functional markers
