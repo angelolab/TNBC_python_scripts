@@ -38,7 +38,6 @@ timepoint_metadata['MIBI_data_generated'] = timepoint_metadata.Tissue_ID.isin(in
 
 # identify patients with and without neo-adjuvant chemotherapy (NAC)
 patient_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_patient_unprocessed.csv'))
-patient_metadata['TONIC_ID'] = patient_metadata['TONIC_ID'].values.astype(str)
 untreated_pts = patient_metadata.loc[patient_metadata.NAC_received_for_primary_tumor == 'No', 'TONIC_ID']
 treated_pts = patient_metadata.loc[patient_metadata.NAC_received_for_primary_tumor == 'Yes', 'TONIC_ID']
 
