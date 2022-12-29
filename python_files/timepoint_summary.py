@@ -208,24 +208,22 @@ for cluster_name, plot_name in zip(['kmeans_freq'],  ['kmeans_clusters']):
 # functional marker plotting
 #
 
-# functional markers across cell types and timepoints
-#for cluster_name, plot_name in zip(['avg_per_cluster_broad', 'avg_per_cluster'], ['broad_cluster', 'cluster']):
+# one plot per cell type, across cell types by tumor region
+#for cluster_name, plot_name in zip(['cluster_freq', 'cluster_broad_freq'], ['cluster', 'cluster_broad']):
 for cluster_name, plot_name in zip(['cluster_freq'], ['cluster']):
-#for cluster_name, plot_name in zip(['kmeans_freq'], ['kmeans_cluster']):
-    #for timepoint in ['primary_untreated', 'baseline', 'post_induction', 'on_nivo', 'all']:
-    for timepoint in ['all']:
-        plot_df = timepoint_df_func.loc[np.logical_and(timepoint_df_func.metric == cluster_name, ~timepoint_df_func.functional_marker.isin(['PDL1_cancer_dim'])), :]
+    plot_df = timepoint_df_func.loc[timepoint_df_func.metric == cluster_name, :]
+    plot_df = plot_df.loc[plot_df.Timepoint.isin(['primary_untreated', 'baseline']), :]
 
-        if timepoint == 'all':
-            plot_df = plot_df.loc[plot_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
-        else:
-            plot_df = plot_df.loc[plot_df.Timepoint == timepoint]
+    cell_types = plot_df.cell_type.unique()
+    for cell_type in cell_types:
+        cell_df = plot_df.loc[plot_df.cell_type == cell_type, :]
 
-        g = sns.catplot(data=plot_df, x='cell_type', y='mean', col='functional_marker', col_wrap=5, kind='bar', sharey=False)
+        g = sns.catplot(data=cell_df, x='subset', y='mean', col='functional_marker', col_wrap=5, kind='box', sharey=False,
+                        order=['cancer_core', 'cancer_border', 'stroma_border', 'stroma_core', 'all'])
         for ax in g.axes_dict.values():
             ax.tick_params(labelrotation=90)
         plt.tight_layout()
-        plt.savefig(os.path.join(plot_dir, 'Functional_marker_barplot_by_{}_in_{}.png'.format(plot_name, timepoint)))
+        plt.savefig(os.path.join(plot_dir, 'Functional_marker_boxplot_by_{}_for_{}.png'.format(plot_name, cell_type)))
         plt.close()
 
 

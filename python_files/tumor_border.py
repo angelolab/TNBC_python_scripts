@@ -159,11 +159,21 @@ assignment_table = assign_cells_to_mask(seg_dir=seg_dir,
                                         mask_dir=individual_dir,
                                         fovs=folders)
 assignment_table.to_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/assignment_table.csv'), index=False)
+
+assignment_table = pd.read_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/assignment_table.csv'))
+
 cell_table_short = cell_table_short.loc[cell_table_short['fov'].isin(assignment_table.fov.unique()), :]
 cell_table_short = cell_table_short.merge(assignment_table, on=['fov', 'label'], how='left')
 cell_table_short = cell_table_short.rename(columns={'mask_name': 'tumor_region'})
 cell_table_short.loc[cell_table_short['tumor_region'] == 'other', 'tumor_region'] = 'stroma_core'
-
-
 cell_table_short.to_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data', 'combined_cell_table_normalized_cell_labels_updated_clusters_only_kmeans_nh_mask.csv'), index=False)
+
+cell_table_func = pd.read_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/', 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'))
+cell_table_func = cell_table_func.loc[cell_table_func['fov'].isin(assignment_table.fov.unique()), :]
+cell_table_func = cell_table_func.merge(assignment_table, on=['fov', 'label'], how='left')
+cell_table_func = cell_table_func.rename(columns={'mask_name': 'tumor_region'})
+cell_table_func.loc[cell_table_func['tumor_region'] == 'other', 'tumor_region'] = 'stroma_core'
+cell_table_func.to_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data', 'combined_cell_table_normalized_cell_labels_updated_functional_only_mask.csv'), index=False)
+
+
 
