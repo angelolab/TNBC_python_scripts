@@ -38,81 +38,52 @@ cell_table_clusters = cell_table_clusters.loc[~cell_table_clusters.fov.isin(miss
 # Generate counts and proportions of cell clusters per FOV
 #
 
+# Create list to hold parameters for each df that will be produced
+cluster_df_params = [['cluster_broad_freq', 'cell_cluster_broad', True],
+                     ['cluster_broad_count', 'cell_cluster_broad', False],
+                     ['cluster_freq', 'cell_cluster', True],
+                     ['cluster_count', 'cell_cluster', False],
+                     ['meta_cluster_freq', 'cell_meta_cluster', True],
+                     ['meta_cluster_count', 'cell_meta_cluster', False],
+                     ['kmeans_freq', 'kmeans_labels', True]]
 
-# proportion of cells in cell_cluster_broad per patient
-cluster_broad_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
-                                                  result_name='cluster_broad_freq',
-                                                  cluster_col_name='cell_cluster_broad',
-                                                  subset_col='tumor_region', normalize=True)
+cluster_dfs = []
+for result_name, cluster_col_name, normalize in cluster_df_params:
+    cluster_dfs.append(create_long_df_by_cluster(cell_table=cell_table_clusters,
+                                                 result_name=result_name,
+                                                 cluster_col_name=cluster_col_name,
+                                                 subset_col='tumor_region',
+                                                 normalize=normalize))
 
-# number of cells in cell_cluster_broad per patient
-cluster_broad_count_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
-                                                   result_name='cluster_broad_count',
-                                                   cluster_col_name='cell_cluster_broad',
-                                                   subset_col='tumor_region', normalize=False)
 
-# proportion of cells in cell_cluster per patient
-cluster_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
-                                            result_name='cluster_freq',
-                                            cluster_col_name='cell_cluster',
-                                            subset_col='tumor_region', normalize=True)
-
-# number of cells in cell_cluster per patient
-cluster_count_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
-                                             result_name='cluster_count',
-                                             cluster_col_name='cell_cluster',
-                                             subset_col='tumor_region', normalize=False)
-
-# proportion of cells in cell_meta_cluster per patient
-cluster_meta_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
-                                                 result_name='meta_cluster_freq',
-                                                 cluster_col_name='cell_meta_cluster',
-                                                 subset_col='tumor_region', normalize=True)
-
-# number of cells in cell_meta_cluster per patient
-cluster_meta_count_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
-                                                  result_name='meta_cluster_count',
-                                                  cluster_col_name='cell_meta_cluster',
-                                                  subset_col='tumor_region', normalize=False)
-
+# create masks for dfs looking at only a subset of cells
 
 # proportion of T cell subsets
 tcell_mask = cell_table_clusters['cell_cluster'].isin(['Treg', 'CD8T', 'CD4T', 'T_Other'])
-tcell_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[tcell_mask, :],
-                                          result_name='tcell_freq',
-                                          cluster_col_name='cell_cluster',
-                                          subset_col='tumor_region', normalize=True)
-
 
 # proportion of immune cell subsets
 immune_mask = cell_table_clusters['cell_cluster_broad'].isin(['Mono_Mac', 'T',
                                                               'Granulocyte', 'NK', 'B'])
 immune_mask_2 = cell_table_clusters.cell_cluster == 'Immune_Other'
 immune_mask = np.logical_or(immune_mask, immune_mask_2)
-immune_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[immune_mask, :],
-                                           result_name='immune_freq',
-                                           cluster_col_name='cell_cluster',
-                                           subset_col='tumor_region', normalize=True)
 
 # proportion of stromal subsets
 stroma_mask = cell_table_clusters['cell_cluster_broad'].isin(['Stroma'])
-stroma_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[stroma_mask, :],
-                                           result_name='stroma_freq',
-                                           cluster_col_name='cell_meta_cluster',
-                                           subset_col='tumor_region', normalize=True)
 
 # proportion of cancer subsets
 cancer_mask = cell_table_clusters['cell_cluster_broad'].isin(['Cancer'])
-cancer_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[cancer_mask, :],
-                                           result_name='cancer_freq',
-                                           cluster_col_name='cell_meta_cluster',
-                                           subset_col='tumor_region', normalize=True)
 
-# distribution of neighborhoods
-kmeans_freq_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
-                                           result_name='kmeans_freq',
-                                           cluster_col_name='kmeans_labels',
-                                           subset_col='tumor_region', normalize=True)
+cluster_mask_params = [['tcell_freq', 'cell_cluster', True, tcell_mask],
+                       ['immune_freq', 'cell_cluster', True, immune_mask],
+                       ['stroma_freq', 'cell_meta_cluster', True, stroma_mask],
+                       ['cancer_freq', 'cell_meta_cluster', True, cancer_mask]]
+
+for result_name, cluster_col_name, normalize, mask in cluster_mask_params:
+    cluster_dfs.append(create_long_df_by_cluster(cell_table=cell_table_clusters.loc[mask, :],
+                                                 result_name=result_name,
+                                                 cluster_col_name=cluster_col_name,
+                                                 subset_col='tumor_region',
+                                                 normalize=normalize))
 
 # calculate total number of cells per image
 grouped_cell_counts = cell_table_clusters[['fov']].groupby('fov').value_counts()
@@ -135,7 +106,7 @@ grouped_cell_counts_region['metric'] = 'cell_count_tumor_region'
 grouped_cell_counts_region.rename(columns={'tumor_region': 'subset'}, inplace=True)
 grouped_cell_counts_region['cell_type'] = 'all'
 
-# calculate frequency of cell types per region per image
+# calculate proportions of cells per region per image
 grouped_cell_freq_region = cell_table_clusters[['fov', 'tumor_region']].groupby(['fov'])
 grouped_cell_freq_region = grouped_cell_freq_region['tumor_region'].value_counts(normalize=True)
 grouped_cell_freq_region = grouped_cell_freq_region.unstack(level='tumor_region', fill_value=0).stack()
@@ -146,13 +117,13 @@ grouped_cell_freq_region['metric'] = 'cell_freq_tumor_region'
 grouped_cell_freq_region.rename(columns={'tumor_region': 'subset'}, inplace=True)
 grouped_cell_freq_region['cell_type'] = 'all'
 
+# add manually defined dfs to overall list
+cluster_dfs.extend([grouped_cell_counts,
+                    grouped_cell_counts_region,
+                    grouped_cell_freq_region])
 
 # create single df with appropriate metadata
-total_df = pd.concat([cluster_broad_freq_df, cluster_freq_df, cluster_meta_freq_df,
-                      tcell_freq_df, immune_freq_df, stroma_freq_df, cancer_freq_df,
-                      kmeans_freq_df, cluster_broad_count_df, cluster_count_df,
-                      cluster_meta_count_df, grouped_cell_counts, grouped_cell_counts_region,
-                      grouped_cell_freq_region], axis=0)
+total_df = pd.concat(cluster_dfs, axis=0)
 
 
 # check that all metadata from core_metadata succesfully transferred over
@@ -180,6 +151,35 @@ total_df_timepoint.to_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv')
 cell_table_func = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only_mask.csv'))
 kmeans_data = cell_table_clusters[['kmeans_labels', 'fov', 'label']]
 cell_table_func = cell_table_func.merge(kmeans_data, on=['fov', 'label'], how='inner')
+
+# Columns which are not thresholded (such as ratios between markers) can only be calculated for
+# dfs looking at normalized expression, and need to be dropped when calculating counts
+count_drop_cols = ['H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio', 'kmeans_labels']
+
+# Create list to hold parameters for each df that will be produced
+func_df_params = [['cluster_broad_count', 'cell_cluster_broad', False]]
+
+func_dfs = []
+for result_name, cluster_col_name, normalize in func_df_params:
+    # columns which are not functional markers need to be dropped from the df
+    drop_cols = ['label']
+    if not normalize:
+        drop_cols.extend(count_drop_cols)
+
+    # remove cluster_names except for the one specified for the df
+    cluster_names = ['cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad']
+    cluster_names.remove(cluster_col_name)
+    drop_cols.extend(cluster_names)
+
+    # create df
+    func_dfs.append(create_long_df_by_functional(func_table=cell_table_func,
+                                                 result_name=result_name,
+                                                 cluster_col_name=cluster_col_name,
+                                                 drop_cols=drop_cols,
+                                                 normalize=normalize,
+                                                 subset_col='tumor_region'))
+
+
 
 # Total number of cells positive for each functional marker in cell_cluster_broad per image
 func_df_counts_broad = create_long_df_by_functional(func_table=cell_table_func,
