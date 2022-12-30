@@ -157,7 +157,13 @@ cell_table_func = cell_table_func.merge(kmeans_data, on=['fov', 'label'], how='i
 count_drop_cols = ['H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio', 'kmeans_labels']
 
 # Create list to hold parameters for each df that will be produced
-func_df_params = [['cluster_broad_count', 'cell_cluster_broad', False]]
+func_df_params = [['cluster_broad_count', 'cell_cluster_broad', False],
+                  ['cluster_broad_freq', 'cell_cluster_broad', True],
+                  ['cluster_count', 'cell_cluster', False],
+                  ['cluster_freq', 'cell_cluster', True],
+                  ['meta_cluster_count', 'cell_meta_cluster', False],
+                  ['meta_cluster_freq', 'cell_meta_cluster', True],
+                  ['kmeans_freq', 'kmeans_labels', True]]
 
 func_dfs = []
 for result_name, cluster_col_name, normalize in func_df_params:
@@ -167,7 +173,7 @@ for result_name, cluster_col_name, normalize in func_df_params:
         drop_cols.extend(count_drop_cols)
 
     # remove cluster_names except for the one specified for the df
-    cluster_names = ['cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad']
+    cluster_names = ['cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad', 'kmeans_labels']
     cluster_names.remove(cluster_col_name)
     drop_cols.extend(cluster_names)
 
@@ -179,72 +185,8 @@ for result_name, cluster_col_name, normalize in func_df_params:
                                                  normalize=normalize,
                                                  subset_col='tumor_region'))
 
-
-
-# Total number of cells positive for each functional marker in cell_cluster_broad per image
-func_df_counts_broad = create_long_df_by_functional(func_table=cell_table_func,
-                                                    cluster_col_name='cell_cluster_broad',
-                                                    drop_cols=['cell_meta_cluster', 'cell_cluster', 'label', 'H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio', 'kmeans_labels'],
-                                                    normalize=False,
-                                                    result_name='cluster_broad_count',
-                                                    subset_col='tumor_region')
-
-# Proportion of cells positive for each functional marker in cell_cluster_broad per image
-func_df_mean_broad = create_long_df_by_functional(func_table=cell_table_func,
-                                                  cluster_col_name='cell_cluster_broad',
-                                                  drop_cols=['cell_meta_cluster', 'cell_cluster', 'label', 'kmeans_labels'],
-                                                  normalize=True,
-                                                  result_name='cluster_broad_freq',
-                                                  subset_col='tumor_region')
-
-# Total number of cells positive for each functional marker in cell_cluster per image
-func_df_counts_cluster = create_long_df_by_functional(func_table=cell_table_func,
-                                                      cluster_col_name='cell_cluster',
-                                                      drop_cols=['cell_meta_cluster',
-                                                                 'cell_cluster_broad', 'label', 'H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio', 'kmeans_labels'],
-                                                      normalize=False,
-                                                      result_name='cluster_count',
-                                                      subset_col='tumor_region')
-
-# Proportion of cells positive for each functional marker in cell_cluster_broad per image
-func_df_mean_cluster = create_long_df_by_functional(func_table=cell_table_func,
-                                                    cluster_col_name='cell_cluster',
-                                                    drop_cols=['cell_meta_cluster',
-                                                               'cell_cluster_broad', 'label', 'kmeans_labels'],
-                                                    normalize=True,
-                                                    result_name='cluster_freq',
-                                                    subset_col='tumor_region')
-
-# Total number of cells positive for each functional marker in cell_meta_cluster per image
-func_df_counts_meta = create_long_df_by_functional(func_table=cell_table_func,
-                                                   cluster_col_name='cell_meta_cluster',
-                                                   drop_cols=['cell_cluster', 'cell_cluster_broad',
-                                                              'label', 'H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio', 'kmeans_labels'],
-                                                   normalize=False,
-                                                   result_name='meta_cluster_count',
-                                                   subset_col='tumor_region')
-
-# Proportion of cells positive for each functional marker in cell_meta_cluster per image
-func_df_mean_meta = create_long_df_by_functional(func_table=cell_table_func,
-                                                 cluster_col_name='cell_meta_cluster',
-                                                 drop_cols=['cell_cluster', 'cell_cluster_broad', 'label', 'kmeans_labels'],
-                                                 normalize=True, result_name='meta_cluster_freq',
-                                                 subset_col='tumor_region')
-
-
-# Proportion of cells positive for each functional marker in kmeans neighborhood per image
-func_df_mean_kmeans = create_long_df_by_functional(func_table=cell_table_func,
-                                                   cluster_col_name='kmeans_labels',
-                                                   drop_cols=['cell_cluster', 'cell_cluster_broad',
-                                                              'label', 'cell_meta_cluster'],
-                                                   normalize=True,
-                                                   result_name='kmeans_freq',
-                                                   subset_col='tumor_region')
-
-
 # create combined df
-total_df_func = pd.concat([func_df_counts_broad, func_df_mean_broad, func_df_counts_cluster,
-                           func_df_mean_cluster, func_df_counts_meta, func_df_mean_meta, func_df_mean_kmeans])
+total_df_func = pd.concat(func_dfs, axis=0)
 
 # check that all metadata from core_metadata succesfully transferred over
 total_df_func = total_df_func.merge(harmonized_metadata, on='fov', how='inner')
