@@ -99,7 +99,7 @@ def test_create_long_df_by_cluster_counts():
     cell_table = cell_table.append({'fov': 'fov1', 'cluster': 'cell_type1', 'mask': 'region2'},
                                    ignore_index=True)
 
-    # check that the output is the same as before, but with an additional row for region2
+    # check outputs
     result = utils.create_long_df_by_cluster(cell_table=cell_table, cluster_col_name="cluster",
                                                 result_name="counts_per_cluster", subset_col='mask')
 
@@ -114,14 +114,19 @@ def test_create_long_df_by_cluster_counts():
     # region1 should be identical to the output when not subsetting
     pd.testing.assert_frame_equal(result_subset_region1, result_no_subset)
 
-    # region2 should be zero everywhere except for first row
-    expected_region2 = expected.copy()
-    expected_region2['value'] = 0
-    expected_region2.iloc[0, 2] = 1
+    # region2 should only show up for FOV1, with a count of 1 for cell_type1 and 0 for cell_type2
+    expected_region2 = pd.DataFrame(
+        {
+            "fov": ["fov1", "fov1"],
+            "cell_type": ["cell_type1", "cell_type2"],
+            "value": [1, 0],
+            "metric": ["counts_per_cluster", "counts_per_cluster"]
+        }
+    )
 
     pd.testing.assert_frame_equal(result_subset_region2, expected_region2)
 
-    # check that all combinations of missing values are filled with zeros
+    # create that mismatch of fovs, masks, and cluters produces expected result
     cell_table = pd.DataFrame(
         {
             "fov": ["fov1", "fov2", "fov2", "fov3", "fov4", "fov5", "fov5", "fov5"],
@@ -134,7 +139,10 @@ def test_create_long_df_by_cluster_counts():
                                                 result_name="counts_per_cluster", subset_col='mask')
     result = result[result.subset != 'all']
 
-    output_len = len(cell_table.fov.unique()) * len(cell_table.cluster.unique()) * len(cell_table["mask"].unique())
+    # each unique pairing of fov and mask should contain all clusters
+    unique_pairs = result[['fov', 'subset']].drop_duplicates()
+
+    output_len = len(unique_pairs) * len(cell_table.cluster.unique())
     assert len(result) == output_len
 
 
