@@ -160,23 +160,24 @@ for folder in folders:
 
 
 # create combined images for visualization
-for folder in folders:
-    overlay_img = io.imread(os.path.join(overlay_dir, 'overlay_' + folder + '_test.png'))
-    gold_mask = io.imread(os.path.join(intermediate_dir, folder, 'gold_mask.png'))
+for folder in folders[:50]:
+    overlay_img = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay', folder + '.png'))
     gold_chan = io.imread(os.path.join(channel_dir, folder, 'Au.tiff'))
     border_mask = io.imread(os.path.join(intermediate_dir, folder, 'cancer_mask.png'))
-    tils_mask = io.imread(os.path.join(intermediate_dir, folder, 'tls_mask.png'))
+    tls_mask = io.imread(os.path.join(intermediate_dir, folder, 'tls_mask.png'))
+    gold_mask = io.imread(os.path.join(intermediate_dir, folder, 'gold_mask.png'))
 
+    # create a single unified mask; TLS and background override tumor compartments
+    border_mask[tls_mask == 1] = 5
     border_mask[gold_mask == 1] = 0
-    border_mask[tils_mask == 1] = 5
 
-    fig, ax = plt.subplots(2, 2, figsize=(20, 10))
-    ax[0, 0].imshow(overlay_img)
-    ax[0, 1].imshow(gold_chan)
-    ax[1, 0].imshow(border_mask)
+    fig, ax = plt.subplots(1, 3, figsize=(20, 10))
+    ax[0].imshow(overlay_img)
+    ax[1].imshow(gold_chan)
+    ax[2].imshow(border_mask)
 
     plt.tight_layout()
-    plt.savefig(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/combined_overlays', folder + '_border_visualization.png'))
+    plt.savefig(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/combined_mask_overlay', folder + '.png'))
     plt.close()
 
 
@@ -260,6 +261,7 @@ cell_table_func.to_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/
 
 
 area_df = calculate_mask_areas(mask_dir=individual_dir)
+area_df.to_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data', 'mask_area.csv'), index=False)
 
 test_df = core_df_cluster.loc[core_df_cluster.fov.isin(folders)]
 

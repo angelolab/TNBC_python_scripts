@@ -119,7 +119,6 @@ def create_cell_overlay(cell_table, seg_folder, fovs, cluster_col, plot_dir, sav
         #output = new_cmap(relabeled_img_array / np.max(relabeled_img_array))
 
         im = plt.imshow(relabeled_img_array, cmap=new_cmap, norm=norm)
-        tick_names = ['Cluster' + str(x) for x in range(1, num_categories + 1)]
         tick_names = ['Empty'] + categories.tolist()
         cbar = plt.colorbar(im, ticks=np.arange(len(tick_names)))
         cbar.set_ticks(cbar.ax.get_yticks())
@@ -130,4 +129,8 @@ def create_cell_overlay(cell_table, seg_folder, fovs, cluster_col, plot_dir, sav
         #io.imsave(os.path.join(plot_dir, save_names[idx]), output)
 
 
+np.random.shuffle(folders)
 
+create_cell_overlay(cell_table=cell_table_short, seg_folder='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
+                    fovs=folders[:50], cluster_col='cell_cluster_broad', plot_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay',
+                    save_names=['{}.png'.format(x) for x in folders[:50]])
