@@ -21,6 +21,7 @@ core_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
 timepoint_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_timepoint.csv'))
 harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'harmonized_metadata.csv'))
 cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_clusters_only_kmeans_nh_mask.csv'))
+area_df = pd.read_csv(os.path.join(data_dir, 'mask_area.csv'))
 
 # replace values in a column with other values
 replace_dict = {1: 'cancer_vim_56', 2: 'immune_other', 3: 'cancer_sma', 4: 'cd4t', 5: 'cancer_ck17',
@@ -90,7 +91,7 @@ grouped_cell_counts = cell_table_clusters[['fov']].groupby('fov').value_counts()
 grouped_cell_counts = pd.DataFrame(grouped_cell_counts)
 grouped_cell_counts.columns = ['value']
 grouped_cell_counts.reset_index(inplace=True)
-grouped_cell_counts['metric'] = 'cell_count'
+grouped_cell_counts['metric'] = 'total_cell_count'
 grouped_cell_counts['cell_type'] = 'all'
 grouped_cell_counts['subset'] = 'all'
 
@@ -98,22 +99,20 @@ grouped_cell_counts['subset'] = 'all'
 
 # calculate total number of cells per region per image
 grouped_cell_counts_region = cell_table_clusters[['fov', 'tumor_region']].groupby(['fov', 'tumor_region']).value_counts()
-grouped_cell_counts_region = grouped_cell_counts_region.unstack(level='tumor_region', fill_value=0).stack()
 grouped_cell_counts_region = pd.DataFrame(grouped_cell_counts_region)
 grouped_cell_counts_region.columns = ['value']
 grouped_cell_counts_region.reset_index(inplace=True)
-grouped_cell_counts_region['metric'] = 'cell_count_tumor_region'
+grouped_cell_counts_region['metric'] = 'total_cell_count'
 grouped_cell_counts_region.rename(columns={'tumor_region': 'subset'}, inplace=True)
 grouped_cell_counts_region['cell_type'] = 'all'
 
 # calculate proportions of cells per region per image
 grouped_cell_freq_region = cell_table_clusters[['fov', 'tumor_region']].groupby(['fov'])
 grouped_cell_freq_region = grouped_cell_freq_region['tumor_region'].value_counts(normalize=True)
-grouped_cell_freq_region = grouped_cell_freq_region.unstack(level='tumor_region', fill_value=0).stack()
 grouped_cell_freq_region = pd.DataFrame(grouped_cell_freq_region)
 grouped_cell_freq_region.columns = ['value']
 grouped_cell_freq_region.reset_index(inplace=True)
-grouped_cell_freq_region['metric'] = 'cell_freq_tumor_region'
+grouped_cell_freq_region['metric'] = 'total_cell_freq'
 grouped_cell_freq_region.rename(columns={'tumor_region': 'subset'}, inplace=True)
 grouped_cell_freq_region['cell_type'] = 'all'
 
@@ -125,6 +124,20 @@ cluster_dfs.extend([grouped_cell_counts,
 # create single df with appropriate metadata
 total_df = pd.concat(cluster_dfs, axis=0)
 
+# compute density of cells for counts-based metrics
+count_metrics = total_df.metric.unique()
+count_metrics = [x for x in count_metrics if 'count' in x]
+
+count_df = total_df.loc[total_df.metric.isin(count_metrics), :]
+area_df = area_df.rename(columns={'compartment': 'subset'})
+count_df = count_df.merge(area_df, on=['fov', 'subset'], how='left')
+count_df['value'] = count_df['value'] / count_df['area']
+count_df['value'] = count_df['value'] * 1000
+
+# rename metric from count to density
+count_df['metric'] = count_df['metric'].str.replace('count', 'density')
+count_df = count_df.drop(columns=['area'])
+total_df = pd.concat([total_df, count_df], axis=0)
 
 # check that all metadata from core_metadata succesfully transferred over
 total_df = total_df.merge(harmonized_metadata, on='fov', how='inner')

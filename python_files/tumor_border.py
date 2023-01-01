@@ -189,7 +189,7 @@ def calculate_mask_areas(mask_dir):
     mask_names = [os.path.splitext(os.path.basename(x))[0] for x in mask_files]
 
     area_dfs = []
-    for fov in fovs:
+    for fov in fovs[927:]:
         mask_areas = []
         for mask_file in mask_files:
             mask = io.imread(os.path.join(mask_dir, fov, mask_file))
@@ -229,10 +229,6 @@ def assign_cells_to_mask(seg_dir, mask_dir, fovs):
     label_col = normalized_cell_table.pop('label')
     normalized_cell_table.insert(1, 'label', label_col)
 
-    # get fraction of pixels per cell not assigned to any of the supplied masks
-    cell_sum = normalized_cell_table.iloc[:, 2:].sum(axis=1)
-    normalized_cell_table.insert(normalized_cell_table.shape[1], 'other', 1 - cell_sum)
-
     # create new column with name of column max for each row
     normalized_cell_table['mask_name'] = normalized_cell_table.iloc[:, 2:].idxmax(axis=1)
 
@@ -249,14 +245,12 @@ assignment_table = pd.read_csv(os.path.join('/Users/noahgreenwald/Documents/Grad
 cell_table_short = cell_table_short.loc[cell_table_short['fov'].isin(assignment_table.fov.unique()), :]
 cell_table_short = cell_table_short.merge(assignment_table, on=['fov', 'label'], how='left')
 cell_table_short = cell_table_short.rename(columns={'mask_name': 'tumor_region'})
-cell_table_short.loc[cell_table_short['tumor_region'] == 'other', 'tumor_region'] = 'stroma_core'
 cell_table_short.to_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data', 'combined_cell_table_normalized_cell_labels_updated_clusters_only_kmeans_nh_mask.csv'), index=False)
 
 cell_table_func = pd.read_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/', 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'))
 cell_table_func = cell_table_func.loc[cell_table_func['fov'].isin(assignment_table.fov.unique()), :]
 cell_table_func = cell_table_func.merge(assignment_table, on=['fov', 'label'], how='left')
 cell_table_func = cell_table_func.rename(columns={'mask_name': 'tumor_region'})
-cell_table_func.loc[cell_table_func['tumor_region'] == 'other', 'tumor_region'] = 'stroma_core'
 cell_table_func.to_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data', 'combined_cell_table_normalized_cell_labels_updated_functional_only_mask.csv'), index=False)
 
 
