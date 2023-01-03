@@ -161,7 +161,8 @@ for folder in folders:
 
 # create combined images for visualization
 for folder in folders[:50]:
-    overlay_img = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay', folder + '.png'))
+    cluster_overlay = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay', folder + '.png'))
+    compartment_overlay = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/compartment_overlay', folder + '.png'))
     gold_chan = io.imread(os.path.join(channel_dir, folder, 'Au.tiff'))
     border_mask = io.imread(os.path.join(intermediate_dir, folder, 'cancer_mask.png'))
     tls_mask = io.imread(os.path.join(intermediate_dir, folder, 'tls_mask.png'))
@@ -171,10 +172,14 @@ for folder in folders[:50]:
     border_mask[tls_mask == 1] = 5
     border_mask[gold_mask == 1] = 0
 
-    fig, ax = plt.subplots(1, 3, figsize=(20, 10))
-    ax[0].imshow(overlay_img)
-    ax[1].imshow(gold_chan)
-    ax[2].imshow(border_mask)
+    # make top row shorter than bottom row
+    fig, ax = plt.subplots(2, 2, figsize=(15, 10), gridspec_kw={'height_ratios': [1, 2]})
+    ax[1, 0].imshow(cluster_overlay)
+    ax[1, 0].axis('off')
+    ax[0, 0].imshow(gold_chan)
+    ax[0, 1].imshow(border_mask)
+    ax[1, 1].imshow(compartment_overlay)
+    ax[1, 1].axis('off')
 
     plt.tight_layout()
     plt.savefig(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/combined_mask_overlay', folder + '.png'))

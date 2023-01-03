@@ -38,6 +38,12 @@ for name, items in fov_metadata[['fov', 'Tissue_ID']].groupby('Tissue_ID'):
 
 cluster_evolution = core_df_cluster[core_df_cluster.fov.isin(keep_fov_1 + keep_fov_2)]
 cluster_evolution['placeholder'] = cluster_evolution.fov.isin(keep_fov_1).astype(int)
+cluster_evolution['placeholder'] = cluster_evolution['placeholder'].replace({0: 'fov1', 1: 'fov2'})
+
+plot_df = cluster_evolution[cluster_evolution.metric == 'cluster_broad_density']
+plot_df = plot_df.pivot(index=['Tissue_ID', 'metric', 'subset', 'cell_type'], columns='placeholder', values='value')
+plot_df = plot_df.reset_index()
+
 
 
 # create dataset
@@ -48,7 +54,7 @@ cluster_evolution = timepoint_df_cluster.loc[timepoint_df_cluster.primary_baseli
 cluster_evolution = cluster_evolution.loc[cluster_evolution.Timepoint.isin(['primary_untreated', 'baseline']), :]
 
 # compute ratio across relevant metrics
-metric = 'cluster_freq'
+metric = 'cluster_broad_freq'
 cluster_evolution_plot = cluster_evolution.loc[cluster_evolution.metric == metric, :]
 
 cells = cluster_evolution_plot.cell_type.unique()
@@ -70,9 +76,9 @@ for cell_type in cells:
             cluster_evolution_wide.dropna(inplace=True)
 
         # remove rows with very low frequency in both timepoints
-        keep_mask = (cluster_evolution_wide[0] > 0.05) | (cluster_evolution_wide[1] > 0.05)
+        #keep_mask = (cluster_evolution_wide[0] > 0.001) | (cluster_evolution_wide[1] > 0.001)
         #keep_mask = (cluster_evolution_wide[0] > 0.05) | (cluster_evolution_wide[1] > 0.05)
-        cluster_evolution_wide = cluster_evolution_wide.loc[keep_mask, :]
+        #cluster_evolution_wide = cluster_evolution_wide.loc[keep_mask, :]
 
         # compute ratio between primary and baseline
         # cluster_evolution_wide['ratio'] = np.log2(cluster_evolution_wide['baseline'] / cluster_evolution_wide['primary_untreated'])

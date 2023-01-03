@@ -129,8 +129,8 @@ def create_cell_overlay(cell_table, seg_folder, fovs, cluster_col, plot_dir, sav
         #io.imsave(os.path.join(plot_dir, save_names[idx]), output)
 
 
+folders = cell_table_clusters.fov.unique()
 np.random.shuffle(folders)
-
-create_cell_overlay(cell_table=cell_table_short, seg_folder='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
-                    fovs=folders[:50], cluster_col='cell_cluster_broad', plot_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay',
+create_cell_overlay(cell_table=cell_table_clusters, seg_folder='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
+                    fovs=folders[:50], cluster_col='tumor_region', plot_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/compartment_overlay',
                     save_names=['{}.png'.format(x) for x in folders[:50]])
