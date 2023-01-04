@@ -32,6 +32,19 @@ def smooth_seg_mask(seg_mask, cell_table, fov_name, cell_types, sigma=10, smooth
     return cell_mask
 
 
+def smooth_channel(img, intensity_thresh, sigma, min_size, max_hole_size):
+    # create a binary mask
+    img_smoothed = gaussian_filter(img.astype(float), sigma=sigma)
+    img_mask = img_smoothed > intensity_thresh
+
+    # clean up mask
+    label_mask = skimage.measure.label(img_mask)
+    label_mask = morphology.remove_small_objects(label_mask, min_size=min_size)
+    label_mask = morphology.remove_small_holes(label_mask, area_threshold=max_hole_size)
+
+    return label_mask
+
+
 def create_cancer_boundary(img, seg_mask, min_size=3500, hole_size=1000, border_size=50, channel_thresh=0.0015):
     img_smoothed = gaussian_filter(img, sigma=10)
     img_mask = img_smoothed > channel_thresh
@@ -65,6 +78,59 @@ def create_cancer_boundary(img, seg_mask, min_size=3500, hole_size=1000, border_
     return combined_mask
 
 
+# compute the area of each compartment per fov
+def calculate_mask_areas(mask_dir, fovs):
+    mask_files = io_utils.list_files(os.path.join(mask_dir, fovs[0]))
+    mask_names = [os.path.splitext(os.path.basename(x))[0] for x in mask_files]
+
+    area_dfs = []
+    for fov in fovs:
+        mask_areas = []
+        for mask_file in mask_files:
+            mask = io.imread(os.path.join(mask_dir, fov, mask_file))
+            mask_areas.append(np.sum(mask))
+
+        area_df = pd.DataFrame({'compartment': mask_names, 'area': mask_areas,
+                                'fov': fov})
+
+        # separately calculate size for non-background compartment
+        bg_area = area_df[area_df['compartment'] == 'empty_slide']['area'].values[0]
+        foreground_area = mask.shape[0] ** 2 - bg_area
+
+        area_df = area_df.append({'compartment': 'all', 'area': foreground_area, 'fov': fov},
+                       ignore_index=True)
+
+        area_dfs.append(area_df)
+
+    return pd.concat(area_dfs, axis=0)
+
+
+# create dataframe with cell assignments to mask
+def assign_cells_to_mask(seg_dir, mask_dir, fovs):
+    normalized_cell_table, _ = marker_quantification.generate_cell_table(segmentation_dir=seg_dir,
+                                                               tiff_dir=mask_dir, fovs=fovs,
+                                                               img_sub_folder='')
+    # drop cell_size column
+    normalized_cell_table = normalized_cell_table.drop(columns=['cell_size'])
+
+    # move fov column to front
+    fov_col = normalized_cell_table.pop('fov')
+    normalized_cell_table.insert(0, 'fov', fov_col)
+
+    # remove all columns after label
+    normalized_cell_table = normalized_cell_table.loc[:, :'label']
+
+    # move label column to front
+    label_col = normalized_cell_table.pop('label')
+    normalized_cell_table.insert(1, 'label', label_col)
+
+    # create new column with name of column max for each row
+    normalized_cell_table['mask_name'] = normalized_cell_table.iloc[:, 2:].idxmax(axis=1)
+
+    return normalized_cell_table[['fov', 'label', 'mask_name']]
+
+
+
 # for testing
 channel_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/channel_data/'
 seg_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/segmentation_masks'
@@ -80,16 +146,16 @@ cell_table_short = pd.read_csv(os.path.join('/Users/noahgreenwald/Documents/Grad
 
 folders = list_folders(channel_dir)
 
+# create directories to hold masks
 intermediate_dir = os.path.join(out_dir, 'intermediate_masks')
 if not os.path.exists(intermediate_dir):
     os.mkdir(intermediate_dir)
-
 
 individual_dir = os.path.join(out_dir, 'individual_masks')
 if not os.path.exists(individual_dir):
     os.mkdir(individual_dir)
 
-# create masks for each FOV
+# loop over each FOV and generate the appropriate masks
 for folder in folders:
     try:
         ecad = io.imread(os.path.join(channel_dir, folder, 'ECAD.tiff'))
@@ -97,15 +163,15 @@ for folder in folders:
         print('No ECAD channel for ' + folder)
         continue
 
-    # generate mask by combining segmentation mask and channel mask
-    seg_label = io.imread(os.path.join(seg_dir, folder + '_whole_cell.tiff'))[0]
-    seg_mask = smooth_seg_mask(seg_label, cell_table_short, folder, ['Cancer'])
-    cancer_mask = create_cancer_boundary(ecad, seg_mask, min_size=7000)
-    cancer_mask = cancer_mask.astype(np.uint8)
     intermediate_folder = os.path.join(intermediate_dir, folder)
     if not os.path.exists(intermediate_folder):
         os.mkdir(intermediate_folder)
 
+    # generate cancer/stroma mask by combining segmentation mask with ECAD channel
+    seg_label = io.imread(os.path.join(seg_dir, folder + '_whole_cell.tiff'))[0]
+    seg_mask = smooth_seg_mask(seg_label, cell_table_short, folder, ['Cancer'])
+    cancer_mask = create_cancer_boundary(ecad, seg_mask, min_size=7000)
+    cancer_mask = cancer_mask.astype(np.uint8)
     io.imsave(os.path.join(intermediate_folder, 'cancer_mask.png'), cancer_mask,
               check_contrast=False)
 
@@ -114,28 +180,24 @@ for folder in folders:
     tls_label_mask = skimage.measure.label(tls_mask)
     tls_label_mask = morphology.remove_small_objects(tls_label_mask, min_size=25000)
     tls_label_mask = morphology.remove_small_holes(tls_label_mask, area_threshold=7000)
-
     io.imsave(os.path.join(intermediate_folder, 'tls_mask.png'), tls_label_mask.astype(np.uint8),
               check_contrast=False)
 
     # create mask for slide background
     gold = io.imread(os.path.join(channel_dir, folder, 'Au.tiff'))
-    gold_smoothed = gaussian_filter(gold.astype(float), sigma=2)
-    gold_mask = gold_smoothed > 350
 
-    # clean up mask prior to analysis
-    gold_label_mask = skimage.measure.label(gold_mask)
-    gold_label_mask = morphology.remove_small_objects(gold_label_mask, min_size=5000)
-    gold_label_mask = morphology.remove_small_holes(gold_label_mask, area_threshold=1000)
+    gold_mask = smooth_channel(img=gold, sigma=2, intensity_thresh=350, min_size=5000,
+                               max_hole_size=1000)
 
     for _ in range(5):
-        gold_label_mask = morphology.binary_erosion(gold_label_mask)
+        gold_mask = morphology.binary_erosion(gold_mask)
 
-    io.imsave(os.path.join(intermediate_folder, 'gold_mask.png'), gold_label_mask.astype(np.uint8),
+    io.imsave(os.path.join(intermediate_folder, 'gold_mask.png'), gold_mask.astype(np.uint8),
                 check_contrast=False)
 
 folders = list_folders(intermediate_dir)
 
+# remove any overlapping pixels from different masks, then save individually
 for folder in folders:
     # read in generated masks
     intermediate_folder = os.path.join(intermediate_dir, folder)
@@ -185,59 +247,6 @@ for folder in folders[:50]:
     plt.savefig(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/combined_mask_overlay', folder + '.png'))
     plt.close()
 
-
-# compute the area of each compartment per fov
-def calculate_mask_areas(mask_dir):
-    fovs = io_utils.list_folders(mask_dir)
-
-    mask_files = io_utils.list_files(os.path.join(mask_dir, fovs[0]))
-    mask_names = [os.path.splitext(os.path.basename(x))[0] for x in mask_files]
-
-    area_dfs = []
-    for fov in fovs[927:]:
-        mask_areas = []
-        for mask_file in mask_files:
-            mask = io.imread(os.path.join(mask_dir, fov, mask_file))
-            mask_areas.append(np.sum(mask))
-
-        area_df = pd.DataFrame({'compartment': mask_names, 'area': mask_areas,
-                                'fov': fov})
-
-        # separately calculate size for non-background compartment
-        bg_area = area_df[area_df['compartment'] == 'empty_slide']['area'].values[0]
-        foreground_area = mask.shape[0] ** 2 - bg_area
-
-        area_df = area_df.append({'compartment': 'all', 'area': foreground_area, 'fov': fov},
-                       ignore_index=True)
-
-        area_dfs.append(area_df)
-
-    return pd.concat(area_dfs, axis=0)
-
-
-# create dataframe with cell assignments to mask
-def assign_cells_to_mask(seg_dir, mask_dir, fovs):
-    normalized_cell_table, _ = marker_quantification.generate_cell_table(segmentation_dir=seg_dir,
-                                                               tiff_dir=mask_dir, fovs=fovs,
-                                                               img_sub_folder='')
-    # drop cell_size column
-    normalized_cell_table = normalized_cell_table.drop(columns=['cell_size'])
-
-    # move fov column to front
-    fov_col = normalized_cell_table.pop('fov')
-    normalized_cell_table.insert(0, 'fov', fov_col)
-
-    # remove all columns after label
-    normalized_cell_table = normalized_cell_table.loc[:, :'label']
-
-    # move label column to front
-    label_col = normalized_cell_table.pop('label')
-    normalized_cell_table.insert(1, 'label', label_col)
-
-    # create new column with name of column max for each row
-    normalized_cell_table['mask_name'] = normalized_cell_table.iloc[:, 2:].idxmax(axis=1)
-
-    return normalized_cell_table[['fov', 'label', 'mask_name']]
 
 
 assignment_table = assign_cells_to_mask(seg_dir=seg_dir,
