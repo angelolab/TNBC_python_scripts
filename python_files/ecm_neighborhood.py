@@ -12,45 +12,22 @@ import itertools
 from skimage.segmentation import find_boundaries
 import seaborn as sns
 from sklearn.cluster import KMeans
+from scipy.ndimage import gaussian_filter
+from skimage import morphology
+
+
 
 out_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/ecm_masks'
 channel_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/channel_data/'
 mask_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/mask_dir/individual_masks'
 fovs = io_utils.list_folders(channel_dir)
+plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/ecm_5cluster'
 
-for fov in folders:
-    col = io.imread(os.path.join(channel_dir, fov, 'Collagen1.tiff'))
-    col_mask = smooth_channel(img=col, sigma=5, intensity_thresh=0.0015,
-                              min_size=100, max_hole_size=100)
+#
+# Visualization to assess spatial patterns in signal
+#
 
-    col[col > 0.015] = 0.015
-
-
-    seg_mask = io.imread(os.path.join(seg_dir, fov + '_whole_cell.tiff'))[0]
-    edges = find_boundaries(seg_mask, mode='inner')
-    seg_mask = np.where(edges == 0, seg_mask, 0)
-
-    combined_mask = np.zeros_like(seg_mask)
-    combined_mask[seg_mask > 0] = 1
-    combined_mask[col_mask > 0] = 2
-    combined_mask[np.logical_and(seg_mask > 0, col_mask > 0)] = 3
-
-    fig, ax = plt.subplots(1, 3, figsize=(15, 5))
-    ax[0].imshow(col)
-    ax[1].imshow(col_mask)
-    ax[2].imshow(combined_mask)
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(out_dir, fov + '.png'), dpi=300)
-    plt.close()
-
-
-# stitch images together to enable comparison
-image_data = load_utils.load_imgs_from_tree(channel_dir,
-                                            fovs=fovs,
-                                            img_sub_folder='',
-                                            channels=['Collagen1', 'Fibronectin', 'FAP', 'SMA', 'Vim'])
-
+# calculate image percentiles
 percentiles = {}
 for chan in image_data.channels.values:
     current_data = image_data.loc[:, :, :, chan]
@@ -66,6 +43,12 @@ pd.DataFrame(percentiles, index=['percentile']).to_csv(os.path.join(out_dir, 'pe
 # load the percentiles
 percentiles = pd.read_csv(os.path.join(out_dir, 'percentiles.csv'), index_col=0).to_dict(orient='records')[0]
 
+# stitch images together to enable comparison
+image_data = load_utils.load_imgs_from_tree(channel_dir,
+                                            fovs=fovs,
+                                            img_sub_folder='',
+                                            channels=['Collagen1', 'Fibronectin', 'FAP', 'SMA', 'Vim'])
+
 stitched = data_utils.stitch_images(image_data, 5)
 
 stitch_dir = os.path.join(out_dir, 'stitched_images_single_channel')
@@ -78,29 +61,67 @@ for chan in stitched.channels.values:
                   check_contrast=False)
 
 
+# create mask for total foreground of all ECM channels
+
+
+def create_combined_channel_mask(chans, channel_dir, percentiles, threshold, smooth_val,
+                                 erode_val):
+    """
+    Creates a mask for the total foreground of all channels in chans
+    """
+
+    normalized_chans = []
+    for chan in chans:
+        current_img = io.imread(os.path.join(channel_dir, chan + '.tiff'))
+        current_img /= percentiles[chan]
+        current_img[current_img > 1] = 1
+        normalized_chans.append(current_img)
+
+    normalized_chans = np.stack(normalized_chans, axis=0)
+    normalized_chans = np.sum(normalized_chans, axis=0)
+
+    smoothed = gaussian_filter(normalized_chans, sigma=smooth_val)
+    mask = smoothed > threshold
+    for _ in range(erode_val):
+        mask = morphology.binary_erosion(mask)
+
+    return mask
+
+
+# create ecm mask for each FOV
+for fov in fovs:
+    mask = create_combined_channel_mask(chans=['Collagen1', 'Fibronectin', 'FAP', 'SMA', 'Vim'],
+                                        channel_dir=os.path.join(channel_dir, fov),
+                                        percentiles=percentiles,
+                                        threshold=0.1,
+                                        smooth_val=5,
+                                        erode_val=5)
+
+    # create mask
+    io.imsave(os.path.join(out_dir, 'total_ecm', fov + '.tiff'), mask.astype('uint8'),
+              check_contrast=False)
+
 crop_size = 256
 
 img_sums = []
 metadata_list = []
 
-from timeit import default_timer as timer
 for fov in fovs:
     img_data = load_utils.load_imgs_from_tree(channel_dir,
                                                 fovs=[fov],
                                                 img_sub_folder='',
                                                 channels=['Collagen1', 'Fibronectin',
                                                           'FAP', 'SMA', 'Vim'])
-    mask = io.imread(os.path.join(mask_dir, fov, 'empty_slide.tiff'))
-    start_time = timer()
-    for row_crop, col_crop in itertools.product(range(0, mask.shape[0], 20), #int(crop_size / 2)),
-                                                range(0, mask.shape[1], 20)): #int(crop_size/2))):
+    mask = io.imread(os.path.join(out_dir, 'total_ecm', fov + '.tiff'))
+    for row_crop, col_crop in itertools.product(range(0, mask.shape[0], crop_size),
+                                                range(0, mask.shape[1], crop_size)):
 
         # calculate percentage of background in the image
         background_pix = np.sum(mask[row_crop:row_crop + crop_size, col_crop:col_crop + crop_size])
         area_prop = 1 - (background_pix / crop_size**2)
 
         # if more than half background we'll skip this crop
-        if area_prop < 0.5:
+        if area_prop < 0.2:
             continue
 
         # crop the image data
@@ -111,8 +132,6 @@ for fov in fovs:
         img_sums.append(crop_sums)
         metadata_list.append(crop_metadata)
 
-    elapsed_time = timer() - start_time
-    print(elapsed_time)
 
 img_df = pd.DataFrame(img_sums, columns=img_data.channels.values)
 metadata_df = pd.DataFrame(metadata_list, columns=['fov', 'row', 'col', 'area_prop'])
@@ -131,12 +150,14 @@ img_df_norm = img_df.div(img_df.sum(axis=1), axis=0)
 
 # create heatmap
 
-sns.clustermap(img_df.iloc[:, :-1], cmap='vlag', figsize=(10, 10))
-plt.savefig(os.path.join(out_dir, 'clustermap_zscore_norm.png'), dpi=300)
+sns.clustermap(img_df, cmap='Reds', figsize=(10, 10))
+plt.savefig(os.path.join(plot_dir, 'clustermap_zscore_norm.png'), dpi=300)
 plt.close()
 
 # cluster the data
-kmeans = KMeans(n_clusters=9, random_state=0).fit(img_df)
+kmeans = KMeans(n_clusters=5, random_state=0).fit(img_df)
+
+new_labels = kmeans.predict(img_df.iloc[:, :-1])
 
 metadata_df['cluster'] = kmeans.labels_.astype('str')
 img_df['cluster'] = kmeans.labels_.astype('str')
@@ -145,20 +166,18 @@ img_df['cluster'] = kmeans.labels_.astype('str')
 cluster_means = img_df.groupby('cluster').mean()
 
 # plot the average images
-cluster_means_clustermap = sns.clustermap(cluster_means, cmap='vlag', figsize=(10, 10))
-plt.savefig(os.path.join(out_dir, 'cluster_means_norm.png'), dpi=300)
+cluster_means_clustermap = sns.clustermap(cluster_means, cmap='Reds', figsize=(10, 10))
+plt.savefig(os.path.join(plot_dir, 'cluster_means.png'), dpi=300)
 plt.close()
 
 # save dfs
-img_df.to_csv(os.path.join(out_dir, 'img_df.csv'), index=False)
-metadata_df.to_csv(os.path.join(out_dir, 'metadata_df.csv'), index=False)
+img_df.to_csv(os.path.join(plot_dir, 'img_df.csv'), index=False)
+metadata_df.to_csv(os.path.join(plot_dir, 'metadata_df.csv'), index=False)
 
-img_df = img_df.iloc[:, 1:]
-metadata_df = metadata_df.iloc[:, 1:]
 
 # create a stitched image with example images from each cluster
 channels = cluster_means.columns[cluster_means_clustermap.dendrogram_col.reordered_ind]
-n_examples = 6
+n_examples = 8
 for cluster in img_df.cluster.unique():
     cluster_data = metadata_df[metadata_df.cluster == cluster]
     cluster_data = cluster_data.sample(n=n_examples, random_state=0)
@@ -177,7 +196,7 @@ for cluster in img_df.cluster.unique():
 
             stitched_img[i * crop_size:(i + 1) * crop_size, j * crop_size:(j + 1) * crop_size] = img_subset
 
-    io.imsave(os.path.join(out_dir, 'cluster_' + cluster + '.tiff'), stitched_img.astype('float32'),
+    io.imsave(os.path.join(plot_dir, 'cluster_' + cluster + '.tiff'), stitched_img.astype('float32'),
                 check_contrast=False)
 
 
@@ -190,10 +209,20 @@ cluster_counts = cluster_counts.apply(lambda x: x / x.sum(), axis=1)
 
 # plot the cluster counts
 cluster_counts_clustermap = sns.clustermap(cluster_counts, cmap='Reds', figsize=(10, 10))
-plt.savefig(os.path.join(out_dir, 'cluster_fov_counts.png'), dpi=300)
+plt.savefig(os.path.join(plot_dir, 'cluster_fov_counts.png'), dpi=300)
 plt.close()
 
 
 from skimage.measure import regionprops_table
 
-props = pd.DataFrame(regionprops_table(test_seg, properties=['label', 'area', 'centroid', 'bbox']))
+# check that saving and loading a sklearn model works as expected
+import pickle
+pickle.dump(kmeans, open(os.path.join(plot_dir, 'kmeans_model.pkl'), 'wb'))
+
+
+# load the model
+saved_model = pickle.load(open(os.path.join(plot_dir, 'kmeans_model.pkl'), 'rb'))
+
+new_outputs = saved_model.predict(img_df.iloc[:, :-1])
+
+assert np.array_equal(new_outputs, new_labels)
