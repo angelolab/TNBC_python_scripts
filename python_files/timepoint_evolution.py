@@ -26,6 +26,8 @@ plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 
 
 core_df_cluster = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
+harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'harmonized_metadata.csv'))
+
 fov_metadata = harmonized_metadata[harmonized_metadata.Timepoint == 'primary_untreated']
 fov_metadata = fov_metadata[fov_metadata.fov.isin(core_df_cluster.fov.unique())]
 keep_fov_1 = []
@@ -40,21 +42,21 @@ cluster_evolution = core_df_cluster[core_df_cluster.fov.isin(keep_fov_1 + keep_f
 cluster_evolution['placeholder'] = cluster_evolution.fov.isin(keep_fov_1).astype(int)
 cluster_evolution['placeholder'] = cluster_evolution['placeholder'].replace({0: 'fov1', 1: 'fov2'})
 
-plot_df = cluster_evolution[cluster_evolution.metric == 'cluster_broad_density']
+plot_df = cluster_evolution[cluster_evolution.metric == 'cluster_broad_freq']
 plot_df = plot_df.pivot(index=['Tissue_ID', 'metric', 'subset', 'cell_type'], columns='placeholder', values='value')
 plot_df = plot_df.reset_index()
 
 
 
-# create dataset
-timepoint_df_cluster = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv'))
-#timepoint_df_func = pd.read_csv(os.path.join(data_dir, 'functional_df_per_timepoint.csv'))
-
-cluster_evolution = timepoint_df_cluster.loc[timepoint_df_cluster.primary_baseline == True, :]
-cluster_evolution = cluster_evolution.loc[cluster_evolution.Timepoint.isin(['primary_untreated', 'baseline']), :]
+# # create dataset
+# timepoint_df_cluster = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv'))
+# #timepoint_df_func = pd.read_csv(os.path.join(data_dir, 'functional_df_per_timepoint.csv'))
+#
+# cluster_evolution = timepoint_df_cluster.loc[timepoint_df_cluster.primary_baseline == True, :]
+# cluster_evolution = cluster_evolution.loc[cluster_evolution.Timepoint.isin(['primary_untreated', 'baseline']), :]
 
 # compute ratio across relevant metrics
-metric = 'cluster_broad_freq'
+metric = 'cluster_broad_density'
 cluster_evolution_plot = cluster_evolution.loc[cluster_evolution.metric == metric, :]
 
 cells = cluster_evolution_plot.cell_type.unique()
