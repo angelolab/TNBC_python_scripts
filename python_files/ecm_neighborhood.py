@@ -15,7 +15,9 @@ from sklearn.cluster import KMeans
 from scipy.ndimage import gaussian_filter
 from skimage import morphology
 
-
+#
+# This script is for generating the ECM assignments for image crops
+#
 
 out_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/ecm_masks'
 channel_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/channel_data/'

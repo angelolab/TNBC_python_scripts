@@ -4,6 +4,10 @@ import numpy as np
 import os
 import seaborn as sns
 
+#
+# This script is for clustering patients across multiple FOV-level metrics to understand
+# patterns of change
+#
 
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'

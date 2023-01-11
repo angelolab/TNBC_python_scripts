@@ -47,6 +47,35 @@ plot_df = plot_df.pivot(index=['Tissue_ID', 'metric', 'subset', 'cell_type'], co
 plot_df = plot_df.reset_index()
 
 
+# updated code for assessing correlation across timepoitns
+
+# plot correlation for all cell types
+cell_types = plot_df.cell_type.unique()
+regions = plot_df.subset.unique()
+regions = [x for x in regions if x not in ['empty_slide', 'tls']]
+
+from scipy.stats import pearsonr, spearmanr
+fig, ax = plt.subplots(len(cell_types), len(regions), figsize=(len(regions)*5, len(cell_types)*5))
+for i, cell_type in enumerate(cell_types):
+    for j, region in enumerate(regions):
+        temp_df = plot_df[(plot_df.subset == region) & (plot_df.cell_type == cell_type)]
+        temp_df = temp_df.dropna()
+
+        sns.regplot(x='fov1', y='fov2', data=temp_df, ax=ax[i, j])
+        ax[i, j].set_title('Correlation of {} in {}'.format(cell_type, region))
+        correlation = spearmanr(temp_df.fov1, temp_df.fov2)[0]
+        #r2_val = r2_score(temp_df.fov1, temp_df.fov2)
+
+        ax[i, j].text(0.05, 0.95, 'Spearman R: {:.2f}'.format(correlation), transform=ax[i, j].transAxes, fontsize=12, verticalalignment='top')
+        #ax[i, j].text(0.05, 0.85, 'R2: {:.2f}'.format(r2_val), transform=ax[i, j].transAxes, fontsize=12, verticalalignment='top')
+
+
+plt.tight_layout()
+plt.savefig('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/correlation_freq_plots.png', dpi=150)
+plt.close()
+
+
+
 
 # # create dataset
 # timepoint_df_cluster = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv'))

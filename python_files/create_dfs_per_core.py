@@ -7,7 +7,11 @@ import numpy as np
 from python_files.utils import create_long_df_by_functional, create_long_df_by_cluster
 
 #
-# This file creates plotting-ready data structures for cell prevalance and functional markers
+# This file creates plotting-ready data structures to enumerate the frequency, count, and density
+# of cell populations. It also creates data structures with the frequency and count of functional
+# marker positivity. Each of these dfs can be created across multiple levels of clustering
+# granularity. For example, a broad classification might include T, B, Myeloid, Stroma, and Cancer,
+# whereas a more granular clustering scheme would separate out CD4T, CD8T, Tregs, etc.
 #
 
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
@@ -39,7 +43,11 @@ cell_table_clusters = cell_table_clusters.loc[~cell_table_clusters.fov.isin(miss
 # Generate counts and proportions of cell clusters per FOV
 #
 
-# Create list to hold parameters for each df that will be produced
+# Specify the types of cluster dfs to produce. Each row corresponds to a different way of
+# summarizing the data. The first item in each list is the name for the df, the second is the
+# name of the column to use to for the cluster labels, and the third is a boolean flag controlling
+# whether normalized frequencies or total counts will be returned
+
 cluster_df_params = [['cluster_broad_freq', 'cell_cluster_broad', True],
                      ['cluster_broad_count', 'cell_cluster_broad', False],
                      ['cluster_freq', 'cell_cluster', True],
