@@ -63,6 +63,7 @@ def compute_difference_in_cell_prev(core_df, timepoint_df, metric):
 
     # subset provided DFs
     timepoints = ['primary_untreated', 'baseline', 'post_induction', 'on_nivo']
+    timepoints = ['primary_untreated', 'baseline']
     core_df_plot = core_df.loc[core_df.Timepoint.isin(timepoints), :]
     timepoint_df_plot = timepoint_df.loc[timepoint_df.Timepoint.isin(timepoints), :]
 
@@ -122,6 +123,7 @@ def compute_difference_in_cell_prev(core_df, timepoint_df, metric):
     grouped_shuffle_patient = timepoint_df_plot.groupby(['TONIC_ID'])
     distances_df_shuffle_patient = []
     for name, group in grouped_shuffle_patient:
+        print(name)
         wide_df = pd.pivot(group, index='cell_type', columns='Tissue_ID', values='mean')
         if wide_df.shape[1] > 1:
             distances_df_shuffle_patient.append(compute_pairwise_distances(input_df=wide_df,
@@ -144,19 +146,29 @@ def compute_difference_in_cell_prev(core_df, timepoint_df, metric):
     return distances_df_combined
 
 
-distances_df_new = compute_difference_in_cell_prev(core_df=core_df_cluster, timepoint_df=timepoint_df_cluster, metric='tcell_freq')
-distances_df_new = compute_difference_in_cell_prev(core_df=pca_df, timepoint_df=pca_df_timepoint_annot, metric='immune_PCA')
+metric = 'cluster_freq'
+for subset in core_df_cluster.subset.unique():
+    plot_df_core = core_df_cluster[core_df_cluster.subset == subset]
+    plot_df_timepoint = timepoint_df_cluster[timepoint_df_cluster.subset == subset]
 
-fig, ax = plt.subplots()
-ax = sns.boxplot(distances_df_new, x='metric', y='distance', order=['Same timepoints',  'Same patients', 'Different patients'])
-plt.title("Variation in cell prevalence in {} across {}".format('immune_dif', 'condition'))
-plt.title("Variation in immune PC distance")
-#plt.xticks(rotation=90)
+    distances_df_new = compute_difference_in_cell_prev(core_df=plot_df_core, timepoint_df=plot_df_timepoint, metric=metric)
+    #distances_df_new = compute_difference_in_cell_prev(core_df=pca_df, timepoint_df=pca_df_timepoint_annot, metric='immune_PCA')
 
-sns.despine()
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Heterogeneity_of_immune_PC_distances.png'))
-plt.close()
+    g = sns.boxplot(x=distances_df_new.metric.values, y=distances_df_new.distance.values, order=['Same timepoints',  'Same patients', 'Different patients'])
+
+    # set y axis height
+    g.set_ylim(0, 1)
+    plt.title("Variation in cell prevalence in {} across {}".format(metric, subset))
+    #plt.title("Variation in cluster_freq distance")
+    #plt.xticks(rotation=90)
+
+    sns.despine()
+    plt.tight_layout()
+    plt.savefig(os.path.join(plot_dir, 'Heterogeneity_of_{}_within_{}.png'.format(metric, subset)), dpi=300)
+    plt.close()
 
 
+
+grouped = distances_df_new.groupby(['metric'])
+grouped.agg(np.mean)
 

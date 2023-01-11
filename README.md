@@ -18,9 +18,6 @@ data, such as which patients have data from multiple timepoints
 a series of long-format dfs which can be easily used for data visualization. It creates separate dfs for cell population evaluations and functional marker
 evaluation
 
-`core_summary.py`: Creates visualizations on a per-core basis
-
-`timepoint_summary.py`: Creates visualizations on a per-timepoint basis
-
+`create_image_masks.py`: This file creates masks for each image based on supplied critieria. It identifies background based on the gold channel, tumor compartments based on ECAD staining patterns, and TLS structures. It then takes these masks, and assigns each cell each image to the mask that it overlaps most with
 
 

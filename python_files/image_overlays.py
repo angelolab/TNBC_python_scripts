@@ -1,11 +1,18 @@
 # functions for creating image overlays
 import os
+
+import matplotlib.pyplot as plt
 import pandas as pd
 import skimage.io as io
 import numpy as np
 from skimage.measure import block_reduce
 
+from matplotlib import cm
+from matplotlib import colors
+
 from ark.utils import io_utils, data_utils
+from skimage.segmentation import find_boundaries
+
 
 # get FOVs of size 2048 x 2048
 image_dir = '/Volumes/Big_Boy/TONIC_Cohort/image_data/samples/'
@@ -62,6 +69,8 @@ new_cmap = colors.ListedColormap(rgb_values)
 for image in image_names:
     seg_mask = io.imread(os.path.join(base_dir, 'segmentation_data/deepcell_output', image + '_feature_0.tif'))[0]
 
+
+
     # convert string entries in pandas df to unique integers
     cell_subset_plot = cell_subset[cell_subset['fov'] == image]
     labels_dict = dict(zip(cell_subset_plot['label'], cell_subset_plot['unique_ids']))
@@ -71,3 +80,57 @@ for image in image_names:
 
     output = new_cmap(relabeled_img_array / np.max(relabeled_img_array))
     io.imsave(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/figures/overlays', image + '_seg_overlay.png'), output)
+
+
+def create_cell_overlay(cell_table, seg_folder, fovs, cluster_col, plot_dir, save_names):
+    cell_subset = cell_table.copy()
+    cell_subset['unique_ids'] = pd.factorize(cell_subset[cluster_col])[0] + 1
+
+    categories = cell_subset[[cluster_col, 'unique_ids']].drop_duplicates()[cluster_col].values
+
+    # import viridis colormap from mpl
+    num_categories = np.max(cell_subset.unique_ids)
+    cm_values = cm.get_cmap('Paired', num_categories)
+
+    # get RGB values from cm_values
+    rgb_values = cm_values(np.arange(num_categories))
+
+    # combine with all black for background
+    rgb_values = np.vstack((np.array([0, 0, 0, 1]), rgb_values))
+
+    new_cmap = colors.ListedColormap(rgb_values)
+
+    bounds = [i-0.5 for i in np.linspace(0, num_categories+1, num_categories+2)]
+    norm = colors.BoundaryNorm(bounds, new_cmap.N + 1)
+
+    for idx, image in enumerate(fovs):
+        seg_mask = io.imread(os.path.join(seg_folder, image + '_whole_cell.tiff'))[0]
+
+        edges = find_boundaries(seg_mask, mode='inner')
+        seg_mask = np.where(edges == 0, seg_mask, 0)
+
+        # convert string entries in pandas df to unique integers
+        cell_subset_plot = cell_subset[cell_subset['fov'] == image]
+        labels_dict = dict(zip(cell_subset_plot['label'], cell_subset_plot['unique_ids']))
+
+        # relabel the array
+        relabeled_img_array = data_utils.relabel_segmentation(seg_mask, labels_dict)
+
+        #output = new_cmap(relabeled_img_array / np.max(relabeled_img_array))
+
+        im = plt.imshow(relabeled_img_array, cmap=new_cmap, norm=norm)
+        tick_names = ['Empty'] + categories.tolist()
+        cbar = plt.colorbar(im, ticks=np.arange(len(tick_names)))
+        cbar.set_ticks(cbar.ax.get_yticks())
+        cbar.ax.set_yticklabels(tick_names)
+        plt.savefig(os.path.join(plot_dir, save_names[idx]), dpi=300)
+        plt.close()
+
+        #io.imsave(os.path.join(plot_dir, save_names[idx]), output)
+
+
+folders = cell_table_clusters.fov.unique()
+np.random.shuffle(folders)
+create_cell_overlay(cell_table=cell_table_clusters, seg_folder='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
+                    fovs=folders[:50], cluster_col='tumor_region', plot_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/compartment_overlay',
+                    save_names=['{}.png'.format(x) for x in folders[:50]])

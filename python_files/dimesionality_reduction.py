@@ -4,6 +4,10 @@ import numpy as np
 import os
 import seaborn as sns
 
+#
+# This script is for clustering patients across multiple FOV-level metrics to understand
+# patterns of change
+#
 
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
@@ -14,18 +18,18 @@ fov_data_df = pd.read_csv(os.path.join(data_dir, 'fov_features.csv'))
 
 
 # determine which timepoints to use
-include_timepoints = ['primary_untreated']
+include_timepoints = ['primary_untreated', 'baseline']
 #include_timepoints = fov_data_df.Timepoint.unique()
 fov_data_df_subset = fov_data_df[fov_data_df.Timepoint.isin(include_timepoints)]
 
 # determine whether to use image-level or timepoint-level features
-timepoint = False
+timepoint = True
+fov_data_df_subset = fov_data_df_subset.groupby(['Tissue_ID', 'metric']).agg(np.mean)
+fov_data_df_subset.reset_index(inplace=True)
 
 if timepoint:
     # aggregate to timepoint level
-    data_wide = fov_data_df_subset.groupby(['Tissue_ID', 'metric']).agg(np.mean)
-    data_wide.reset_index(inplace=True)
-    data_wide = data_wide.pivot(index='Tissue_ID', columns='metric', values='value')
+    data_wide = fov_data_df_subset.pivot(index='Tissue_ID', columns='metric', values='value')
 else:
     # aggregate to image level
     data_wide = fov_data_df_subset.pivot(index='fov', columns='metric', values='value')
@@ -53,24 +57,24 @@ plt.close()
 colvals = corr_df.apply(np.var, axis=0)
 
 # subset based on the columns
-col_cutoff = colvals.quantile(0.75)
+col_cutoff = colvals.quantile(0.50)
 keep_mask = colvals > col_cutoff
 corr_df_subset = corr_df.loc[keep_mask, keep_mask]
 
 
 # plot heatmap
 clustergrid = sns.clustermap(corr_df_subset, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
-clustergrid.savefig(os.path.join(plot_dir, 'spearman_correlation_heatmap_primary_subset.png'), dpi=300)
+clustergrid.savefig(os.path.join(plot_dir, 'spearman_correlation_heatmap_primary_subset_50.png'), dpi=300)
 plt.close()
 
 
 # plot correlations between features
-keep_cols = corr_df_subset.columns[clustergrid.dendrogram_row.reordered_ind[14:19]]
+keep_cols = corr_df_subset.columns[clustergrid.dendrogram_row.reordered_ind[82:90]]
 
 plot_df = data_wide.loc[:, keep_cols]
 g = sns.PairGrid(plot_df, diag_sharey=False)
 g.map_lower(sns.regplot, scatter_kws={'s': 10, 'alpha': 0.5})
-g.savefig(os.path.join(plot_dir, 'spearman_feature_paired_corelations_CD38.png'), dpi=300)
+g.savefig(os.path.join(plot_dir, 'spearman_feature_paired_corelations_GLUT1.png'), dpi=300)
 plt.close()
 
 # create PCA of features

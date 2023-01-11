@@ -1,12 +1,17 @@
 import os
 
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
 from python_files.utils import create_long_df_by_functional, create_long_df_by_cluster
 
 #
-# This file creates plotting-ready data structures for cell prevalance and functional markers
+# This file creates plotting-ready data structures to enumerate the frequency, count, and density
+# of cell populations. It also creates data structures with the frequency and count of functional
+# marker positivity. Each of these dfs can be created across multiple levels of clustering
+# granularity. For example, a broad classification might include T, B, Myeloid, Stroma, and Cancer,
+# whereas a more granular clustering scheme would separate out CD4T, CD8T, Tregs, etc.
 #
 
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
@@ -18,7 +23,9 @@ data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 # load relevant tables
 core_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
 timepoint_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_timepoint.csv'))
-cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_clusters_only_kmeans_nh.csv'))
+harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'harmonized_metadata.csv'))
+cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_clusters_only_kmeans_nh_mask.csv'))
+area_df = pd.read_csv(os.path.join(data_dir, 'mask_area.csv'))
 
 # replace values in a column with other values
 replace_dict = {1: 'cancer_vim_56', 2: 'immune_other', 3: 'cancer_sma', 4: 'cd4t', 5: 'cancer_ck17',
@@ -28,120 +35,130 @@ cell_table_clusters['kmeans_labels'] = cell_table_clusters.kmeans_neighborhood
 cell_table_clusters['kmeans_labels'].replace(replace_dict, inplace=True)
 
 
-
-# handle NAs in Tissue_ID
-core_missing = core_metadata.Tissue_ID.isnull()
-imaged_cores = core_metadata.MIBI_data_generated
-np.sum(np.logical_and(core_missing, imaged_cores))
-
-# all of the missing cores were not imaged, can be dropped
-core_metadata = core_metadata.loc[~core_missing, :]
-
 # check for FOVs present in imaged data that aren't in core metadata
 missing_fovs = cell_table_clusters.loc[~cell_table_clusters.fov.isin(core_metadata.fov), 'fov'].unique()
 cell_table_clusters = cell_table_clusters.loc[~cell_table_clusters.fov.isin(missing_fovs), :]
 
-# check timepoints
-timepoint_missing = ~core_metadata.Tissue_ID.isin(timepoint_metadata.Tissue_ID)
-timepoint_missing = core_metadata.Tissue_ID[timepoint_missing].unique()
-print(timepoint_missing)
-
-# get metadata on missing cores
-core_metadata.loc[core_metadata.Tissue_ID.isin(timepoint_missing[3:]), :]
-
-# remove missing cores
-core_metadata = core_metadata.loc[~core_metadata.Tissue_ID.isin(timepoint_missing), :]
-
-# subset for required columns to append
-timepoint_metadata = timepoint_metadata.loc[:, ['Tissue_ID', 'TONIC_ID', 'Timepoint', 'Localization']]
-core_metadata = core_metadata.loc[:, ['fov', 'Tissue_ID']]
-
-
-# TODO: Create conserved metadata sheet that contains core metadata across all formats
 #
 # Generate counts and proportions of cell clusters per FOV
 #
 
+# Specify the types of cluster dfs to produce. Each row corresponds to a different way of
+# summarizing the data. The first item in each list is the name for the df, the second is the
+# name of the column to use to for the cluster labels, and the third is a boolean flag controlling
+# whether normalized frequencies or total counts will be returned
 
-# proportion of cells in cell_cluster_broad per patient
-cluster_broad_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
-                                             result_name='cluster_broad_freq',
-                                             cluster_col_name='cell_cluster_broad',
-                                             normalize='index')
+cluster_df_params = [['cluster_broad_freq', 'cell_cluster_broad', True],
+                     ['cluster_broad_count', 'cell_cluster_broad', False],
+                     ['cluster_freq', 'cell_cluster', True],
+                     ['cluster_count', 'cell_cluster', False],
+                     ['meta_cluster_freq', 'cell_meta_cluster', True],
+                     ['meta_cluster_count', 'cell_meta_cluster', False],
+                     ['kmeans_freq', 'kmeans_labels', True]]
 
-# proportion of cells in cell_cluster per patient
-cluster_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
-                                       result_name='cluster_freq',
-                                       cluster_col_name='cell_cluster',
-                                       normalize='index')
+cluster_dfs = []
+for result_name, cluster_col_name, normalize in cluster_df_params:
+    cluster_dfs.append(create_long_df_by_cluster(cell_table=cell_table_clusters,
+                                                 result_name=result_name,
+                                                 cluster_col_name=cluster_col_name,
+                                                 subset_col='tumor_region',
+                                                 normalize=normalize))
 
 
-# proportion of cells in cell_meta_cluster per patient
-cluster_meta_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
-                                            result_name='meta_cluster_freq',
-                                            cluster_col_name='cell_meta_cluster',
-                                            normalize='index')
+# create masks for dfs looking at only a subset of cells
 
 # proportion of T cell subsets
 tcell_mask = cell_table_clusters['cell_cluster'].isin(['Treg', 'CD8T', 'CD4T', 'T_Other'])
-tcell_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[tcell_mask, :],
-                                     result_name='tcell_freq',
-                                     cluster_col_name='cell_cluster',
-                                     normalize='index')
-
 
 # proportion of immune cell subsets
 immune_mask = cell_table_clusters['cell_cluster_broad'].isin(['Mono_Mac', 'T',
                                                               'Granulocyte', 'NK', 'B'])
 immune_mask_2 = cell_table_clusters.cell_cluster == 'Immune_Other'
 immune_mask = np.logical_or(immune_mask, immune_mask_2)
-immune_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[immune_mask, :],
-                                      result_name='immune_freq',
-                                      cluster_col_name='cell_cluster',
-                                      normalize='index')
 
 # proportion of stromal subsets
 stroma_mask = cell_table_clusters['cell_cluster_broad'].isin(['Stroma'])
-stroma_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[stroma_mask, :],
-                                      result_name='stroma_freq',
-                                      cluster_col_name='cell_meta_cluster',
-                                      normalize='index')
 
 # proportion of cancer subsets
 cancer_mask = cell_table_clusters['cell_cluster_broad'].isin(['Cancer'])
-cancer_df = create_long_df_by_cluster(cell_table=cell_table_clusters.loc[cancer_mask, :],
-                                      result_name='cancer_freq',
-                                      cluster_col_name='cell_meta_cluster',
-                                      normalize='index')
 
-# distribution of neighborhoods
-kmeans_df = create_long_df_by_cluster(cell_table=cell_table_clusters,
-                                      result_name='kmeans_freq',
-                                      cluster_col_name='kmeans_labels',
-                                      normalize='index')
+cluster_mask_params = [['tcell_freq', 'cell_cluster', True, tcell_mask],
+                       ['immune_freq', 'cell_cluster', True, immune_mask],
+                       ['stroma_freq', 'cell_meta_cluster', True, stroma_mask],
+                       ['cancer_freq', 'cell_meta_cluster', True, cancer_mask]]
+
+for result_name, cluster_col_name, normalize, mask in cluster_mask_params:
+    cluster_dfs.append(create_long_df_by_cluster(cell_table=cell_table_clusters.loc[mask, :],
+                                                 result_name=result_name,
+                                                 cluster_col_name=cluster_col_name,
+                                                 subset_col='tumor_region',
+                                                 normalize=normalize))
+
+# calculate total number of cells per image
+grouped_cell_counts = cell_table_clusters[['fov']].groupby('fov').value_counts()
+grouped_cell_counts = pd.DataFrame(grouped_cell_counts)
+grouped_cell_counts.columns = ['value']
+grouped_cell_counts.reset_index(inplace=True)
+grouped_cell_counts['metric'] = 'total_cell_count'
+grouped_cell_counts['cell_type'] = 'all'
+grouped_cell_counts['subset'] = 'all'
+
+#
+
+# calculate total number of cells per region per image
+grouped_cell_counts_region = cell_table_clusters[['fov', 'tumor_region']].groupby(['fov', 'tumor_region']).value_counts()
+grouped_cell_counts_region = pd.DataFrame(grouped_cell_counts_region)
+grouped_cell_counts_region.columns = ['value']
+grouped_cell_counts_region.reset_index(inplace=True)
+grouped_cell_counts_region['metric'] = 'total_cell_count'
+grouped_cell_counts_region.rename(columns={'tumor_region': 'subset'}, inplace=True)
+grouped_cell_counts_region['cell_type'] = 'all'
+
+# calculate proportions of cells per region per image
+grouped_cell_freq_region = cell_table_clusters[['fov', 'tumor_region']].groupby(['fov'])
+grouped_cell_freq_region = grouped_cell_freq_region['tumor_region'].value_counts(normalize=True)
+grouped_cell_freq_region = pd.DataFrame(grouped_cell_freq_region)
+grouped_cell_freq_region.columns = ['value']
+grouped_cell_freq_region.reset_index(inplace=True)
+grouped_cell_freq_region['metric'] = 'total_cell_freq'
+grouped_cell_freq_region.rename(columns={'tumor_region': 'subset'}, inplace=True)
+grouped_cell_freq_region['cell_type'] = 'all'
+
+# add manually defined dfs to overall list
+cluster_dfs.extend([grouped_cell_counts,
+                    grouped_cell_counts_region,
+                    grouped_cell_freq_region])
 
 # create single df with appropriate metadata
-total_df = pd.concat([cluster_broad_df, cluster_df, cluster_meta_df, tcell_df, immune_df,
-                      stroma_df, cancer_df, kmeans_df], axis=0)
+total_df = pd.concat(cluster_dfs, axis=0)
+
+# compute density of cells for counts-based metrics
+count_metrics = total_df.metric.unique()
+count_metrics = [x for x in count_metrics if 'count' in x]
+
+count_df = total_df.loc[total_df.metric.isin(count_metrics), :]
+area_df = area_df.rename(columns={'compartment': 'subset'})
+count_df = count_df.merge(area_df, on=['fov', 'subset'], how='left')
+count_df['value'] = count_df['value'] / count_df['area']
+count_df['value'] = count_df['value'] * 1000
+
+# rename metric from count to density
+count_df['metric'] = count_df['metric'].str.replace('count', 'density')
+count_df = count_df.drop(columns=['area'])
+total_df = pd.concat([total_df, count_df], axis=0)
 
 # check that all metadata from core_metadata succesfully transferred over
-total_df = total_df.merge(core_metadata, on='fov', how='inner')
-assert np.sum(total_df.Tissue_ID.isnull()) == 0
+total_df = total_df.merge(harmonized_metadata, on='fov', how='inner')
 
-bad_metadata = total_df.loc[total_df.Tissue_ID.isnull(), 'fov'].unique()
-
-# check that all metadata from timepoint metadata succesfully transferred over
-total_df = total_df.merge(timepoint_metadata, on='Tissue_ID', how='inner')
-assert np.sum(total_df.TONIC_ID.isnull()) == 0
 
 # save annotated cluster counts
 total_df.to_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'), index=False)
 
 # create version aggregated by timepoint
-total_df_grouped = total_df.groupby(['Tissue_ID', 'cell_type', 'metric'])
+total_df_grouped = total_df.groupby(['Tissue_ID', 'cell_type', 'metric', 'subset'])
 total_df_timepoint = total_df_grouped['value'].agg([np.mean, np.std])
 total_df_timepoint.reset_index(inplace=True)
-total_df_timepoint = total_df_timepoint.merge(timepoint_metadata, on='Tissue_ID')
+total_df_timepoint = total_df_timepoint.merge(harmonized_metadata.drop('fov', axis=1).drop_duplicates(), on='Tissue_ID')
 
 # save timepoint df
 total_df_timepoint.to_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv'), index=False)
@@ -152,86 +169,113 @@ total_df_timepoint.to_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv')
 #
 
 # load processed functional table
-cell_table_func = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'))
+cell_table_func = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only_mask.csv'))
 kmeans_data = cell_table_clusters[['kmeans_labels', 'fov', 'label']]
 cell_table_func = cell_table_func.merge(kmeans_data, on=['fov', 'label'], how='inner')
-# Total number of cells positive for each functional marker in cell_cluster_broad per image
-func_df_counts_broad = create_long_df_by_functional(func_table=cell_table_func,
-                                                    cluster_col_name='cell_cluster_broad',
-                                                    drop_cols=['cell_meta_cluster', 'cell_cluster', 'label', 'H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio', 'kmeans_labels'],
-                                                    transform_func=np.sum,
-                                                    result_name='cluster_broad_count')
 
-# Proportion of cells positive for each functional marker in cell_cluster_broad per image
-func_df_mean_broad = create_long_df_by_functional(func_table=cell_table_func,
-                                                  cluster_col_name='cell_cluster_broad',
-                                                  drop_cols=['cell_meta_cluster', 'cell_cluster', 'label', 'kmeans_labels'],
-                                                  transform_func=np.mean,
-                                                  result_name='cluster_broad_freq')
+# Columns which are not thresholded (such as ratios between markers) can only be calculated for
+# dfs looking at normalized expression, and need to be dropped when calculating counts
+count_drop_cols = ['H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio', 'kmeans_labels']
 
-# Total number of cells positive for each functional marker in cell_cluster per image
-func_df_counts_cluster = create_long_df_by_functional(func_table=cell_table_func,
-                                                      cluster_col_name='cell_cluster',
-                                                      drop_cols=['cell_meta_cluster',
-                                                                 'cell_cluster_broad', 'label', 'H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio', 'kmeans_labels'],
-                                                      transform_func=np.sum,
-                                                      result_name='cluster_count')
+# Create list to hold parameters for each df that will be produced
+func_df_params = [['cluster_broad_count', 'cell_cluster_broad', False],
+                  ['cluster_broad_freq', 'cell_cluster_broad', True],
+                  ['cluster_count', 'cell_cluster', False],
+                  ['cluster_freq', 'cell_cluster', True],
+                  ['meta_cluster_count', 'cell_meta_cluster', False],
+                  ['meta_cluster_freq', 'cell_meta_cluster', True],
+                  ['kmeans_freq', 'kmeans_labels', True]]
 
-# Proportion of cells positive for each functional marker in cell_cluster_broad per image
-func_df_mean_cluster = create_long_df_by_functional(func_table=cell_table_func,
-                                                    cluster_col_name='cell_cluster',
-                                                    drop_cols=['cell_meta_cluster',
-                                                               'cell_cluster_broad', 'label', 'kmeans_labels'],
-                                                    transform_func=np.mean,
-                                                    result_name='cluster_freq')
+func_dfs = []
+for result_name, cluster_col_name, normalize in func_df_params:
+    # columns which are not functional markers need to be dropped from the df
+    drop_cols = ['label']
+    if not normalize:
+        drop_cols.extend(count_drop_cols)
 
-# Total number of cells positive for each functional marker in cell_meta_cluster per image
-func_df_counts_meta = create_long_df_by_functional(func_table=cell_table_func,
-                                                   cluster_col_name='cell_meta_cluster',
-                                                   drop_cols=['cell_cluster', 'cell_cluster_broad',
-                                                              'label', 'H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio', 'kmeans_labels'],
-                                                   transform_func=np.sum,
-                                                   result_name='meta_cluster_count')
+    # remove cluster_names except for the one specified for the df
+    cluster_names = ['cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad', 'kmeans_labels']
+    cluster_names.remove(cluster_col_name)
+    drop_cols.extend(cluster_names)
 
-# Proportion of cells positive for each functional marker in cell_meta_cluster per image
-func_df_mean_meta = create_long_df_by_functional(func_table=cell_table_func,
-                                                 cluster_col_name='cell_meta_cluster',
-                                                 drop_cols=['cell_cluster', 'cell_cluster_broad', 'label', 'kmeans_labels'],
-                                                 transform_func=np.mean, result_name='meta_cluster_freq')
-
-
-# Proportion of cells positive for each functional marker in kmeans neighborhood per image
-func_df_mean_kmeans = create_long_df_by_functional(func_table=cell_table_func,
-                                                 cluster_col_name='kmeans_labels',
-                                                 drop_cols=['cell_cluster', 'cell_cluster_broad', 'label', 'cell_meta_cluster'],
-                                                 transform_func=np.mean, result_name='kmeans_freq')
-
+    # create df
+    func_dfs.append(create_long_df_by_functional(func_table=cell_table_func,
+                                                 result_name=result_name,
+                                                 cluster_col_name=cluster_col_name,
+                                                 drop_cols=drop_cols,
+                                                 normalize=normalize,
+                                                 subset_col='tumor_region'))
 
 # create combined df
-total_df_func = pd.concat([func_df_counts_broad, func_df_mean_broad, func_df_counts_cluster,
-                           func_df_mean_cluster, func_df_counts_meta, func_df_mean_meta, func_df_mean_kmeans])
+total_df_func = pd.concat(func_dfs, axis=0)
 
 # check that all metadata from core_metadata succesfully transferred over
-total_df_func = total_df_func.merge(core_metadata, on='fov', how='inner')
-assert np.sum(total_df_func.Tissue_ID.isnull()) == 0
-
-bad_metadata = total_df_func.loc[total_df_func.Tissue_ID.isnull(), 'fov'].unique()
-
-# check that all metadata from timepoint metadata succesfully transferred over
-total_df_func = total_df_func.merge(timepoint_metadata, on='Tissue_ID', how='inner')
-assert np.sum(total_df_func.TONIC_ID.isnull()) == 0
+total_df_func = total_df_func.merge(harmonized_metadata, on='fov', how='inner')
 
 # save combined df
 total_df_func.to_csv(os.path.join(data_dir, 'functional_df_per_core.csv'), index=False)
 
 
 # create version aggregated by timepoint
-total_df_grouped_func = total_df_func.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric'])
+total_df_grouped_func = total_df_func.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric', 'subset'])
 total_df_timepoint_func = total_df_grouped_func['value'].agg([np.mean, np.std])
 total_df_timepoint_func.reset_index(inplace=True)
-total_df_timepoint_func = total_df_timepoint_func.merge(timepoint_metadata, on='Tissue_ID')
+total_df_timepoint_func = total_df_timepoint_func.merge(harmonized_metadata.drop('fov', axis=1).drop_duplicates(), on='Tissue_ID')
 
 # save timepoint df
 total_df_timepoint_func.to_csv(os.path.join(data_dir, 'functional_df_per_timepoint.csv'), index=False)
 
+
+# create histogram of number of cells per cluster per image
+plot_df = total_df[total_df['metric'] == 'cluster_count']
+
+# created fascetted histogram with seaborn
+g = sns.FacetGrid(plot_df, col="cell_type", col_wrap=5, height=2.5, aspect=1.5)
+g.map(sns.histplot, "value", bins=range(0, 400, 10))
+g.savefig(os.path.join(plot_dir, 'cell_count_per_cluster.png'))
+plt.close()
+
+# create histogram of number of cells per image
+plot_df = total_df[total_df['metric'] == 'cluster_count']
+grouped = plot_df[['fov', 'value', 'cell_type']].groupby('fov').sum()
+
+sns.histplot(grouped['value'], bins=range(0, 4000, 100))
+freq_fovs = grouped[grouped['value'] > 500].index
+total_df_filtered = total_df[total_df['fov'].isin(freq_fovs)]
+
+# save annotated cluster counts
+total_df_filtered.to_csv(os.path.join(data_dir, 'cluster_df_per_core_filtered.csv'), index=False)
+
+# create version aggregated by timepoint
+total_df_grouped_filtered = total_df_filtered.groupby(['Tissue_ID', 'cell_type', 'metric'])
+total_df_timepoint_filtered = total_df_grouped_filtered['value'].agg([np.mean, np.std])
+total_df_timepoint_filtered.reset_index(inplace=True)
+total_df_timepoint_filtered = total_df_timepoint_filtered.merge(harmonized_metadata.drop('fov', axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+total_df_timepoint_filtered.to_csv(os.path.join(data_dir, 'cluster_df_per_timepoint_filtered.csv'), index=False)
+
+
+# filter out low frequency clusters
+cells = func_df_mean_cluster.cell_type.unique()
+
+bad_rows = np.repeat(False, len(func_df_mean_cluster))
+
+for cell in cells:
+    cell_df = cluster_count_df[cluster_count_df['cell_type'] == cell]
+    keep_fovs = cell_df[cell_df['value'] > 25].fov.unique()
+
+    # find intersection between keep_fovs and freq_fovs
+    keep_fovs = np.intersect1d(keep_fovs, freq_fovs)
+
+    # remove rows specified by remove_mask
+    bad_rows = bad_rows | ((func_df_mean_cluster['cell_type'] == cell) & (~func_df_mean_cluster['fov'].isin(keep_fovs)))
+
+func_df_mean_cluster_filtered = func_df_mean_cluster[~bad_rows]
+func_df_mean_cluster_filtered = func_df_mean_cluster_filtered.merge(harmonized_metadata, on='fov', how='inner')
+
+total_df_grouped_func = func_df_mean_cluster_filtered.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric'])
+total_df_timepoint_func = total_df_grouped_func['value'].agg([np.mean, np.std])
+total_df_timepoint_func.reset_index(inplace=True)
+total_df_timepoint_func = total_df_timepoint_func.merge(harmonized_metadata.drop('fov', axis=1).drop_duplicates(), on='Tissue_ID')
 
