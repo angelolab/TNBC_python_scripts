@@ -20,7 +20,7 @@ from skimage import morphology
 #
 
 out_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/ecm_masks'
-channel_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/channel_data/'
+channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples'
 mask_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/mask_dir/individual_masks'
 fovs = io_utils.list_folders(channel_dir)
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/ecm_5cluster'
@@ -28,6 +28,19 @@ plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/ecm_5clust
 #
 # Visualization to assess spatial patterns in signal
 #
+
+
+fov_subset = ['TONIC_TMA3_R2C5', 'TONIC_TMA20_R5C3', 'TONIC_TMA9_R7C6', 'TONIC_TMA9_R3C1',
+              'TONIC_TMA6_R11C6', 'TONIC_TMA20_R5C4', 'TONIC_TMA13_R1C5', 'TONIC_TMA10_R5C4',
+              'TONIC_TMA24_R5C1', 'TONIC_TMA9_R11C1', 'TONIC_TMA23_R12C2', 'TONIC_TMA22_R9C1',
+              'TONIC_TMA13_R11C6', 'TONIC_TMA17_R8C5', 'TONIC_TMA12_R4C3', 'TONIC_TMA13_R10C6',
+              'TONIC_TMA19_R3C6', 'TONIC_TMA24_R4C3', 'TONIC_TMA21_R9C2', 'TONIC_TMA11_R6C4',
+              'TONIC_TMA13_R5C4', 'TONIC_TMA7_R4C5', 'TONIC_TMA21_R1C4', 'TONIC_TMA20_R8C2',
+              'TONIC_TMA2_R10C6', 'TONIC_TMA8_R7C6', 'TONIC_TMA20_R10C5', 'TONIC_TMA16_R10C6',
+              'TONIC_TMA14_R8C2', 'TONIC_TMA23_R9C4', 'TONIC_TMA12_R10C5', 'TONIC_TMA4_R2C3',
+              'TONIC_TMA11_R8C6', 'TONIC_TMA11_R2C1', 'TONIC_TMA15_R1C5', 'TONIC_TMA9_R9C6',
+              'TONIC_TMA15_R2C5', 'TONIC_TMA14_R4C1', 'TONIC_TMA7_R8C5', 'TONIC_TMA9_R6C3',
+              'TONIC_TMA14_R8C1', 'TONIC_TMA2_R12C4']
 
 # calculate image percentiles
 percentiles = {}
@@ -47,11 +60,12 @@ percentiles = pd.read_csv(os.path.join(out_dir, 'percentiles.csv'), index_col=0)
 
 # stitch images together to enable comparison
 image_data = load_utils.load_imgs_from_tree(channel_dir,
-                                            fovs=fovs,
+                                            fovs=fovs[:42],
                                             img_sub_folder='',
+                                            max_image_size=2048,
                                             channels=['Collagen1', 'Fibronectin', 'FAP', 'SMA', 'Vim'])
 
-stitched = data_utils.stitch_images(image_data, 5)
+stitched = data_utils.stitch_images(image_data, 6)
 
 stitch_dir = os.path.join(out_dir, 'stitched_images_single_channel')
 if not os.path.exists(stitch_dir):
@@ -59,7 +73,7 @@ if not os.path.exists(stitch_dir):
 
 for chan in stitched.channels.values:
         current_img = stitched.loc['stitched_image', :, :, chan].values
-        io.imsave(os.path.join(stitch_dir, chan + '.tiff'), current_img.astype('float32'),
+        io.imsave(os.path.join(stitch_dir, chan + '_16.tiff'), current_img.astype('float16'),
                   check_contrast=False)
 
 
