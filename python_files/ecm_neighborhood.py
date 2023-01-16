@@ -15,6 +15,12 @@ from sklearn.cluster import KMeans
 from scipy.ndimage import gaussian_filter
 from skimage import morphology
 
+from sklearn import preprocessing
+from sklearn.pipeline import make_pipeline
+import pickle
+
+
+
 #
 # This script is for generating the ECM assignments for image crops
 #
@@ -122,6 +128,7 @@ crop_size = 256
 img_sums = []
 metadata_list = []
 
+# extract crops from each FOV
 for fov in fov_subset:
     img_data = load_utils.load_imgs_from_tree(channel_dir,
                                                 fovs=[fov],
@@ -156,37 +163,29 @@ for fov in fov_subset:
 img_df = pd.DataFrame(img_sums, columns=img_data.channels.values)
 metadata_df = pd.DataFrame(metadata_list, columns=['fov', 'row', 'col', 'area_prop'])
 
-# z score the data
-# img_df = (img_df - img_df.mean()) / img_df.std()
-# img_df.values[img_df.values > 3] = 3
-# img_df.values[img_df.values < -3] = -3
+# save dfs
+img_df.to_csv(os.path.join(plot_dir, 'img_df_raw.csv'), index=False)
+metadata_df.to_csv(os.path.join(plot_dir, 'metadata_df_raw.csv'), index=False)
 
-# use scikit for preprocessing
-from sklearn import preprocessing
-pt = preprocessing.PowerTransformer(method='yeo-johnson', standardize=True)
-img_df.values[:] = pt.fit_transform(img_df.values)
 
-# # divide each channel by the 99th percentile
-# for chan in img_df.columns.values:
-#     img_df[chan] = img_df[chan] / np.percentile(img_df[chan], 99)
-#
-# # normalize by rowsums
-# img_df_norm = img_df.div(img_df.sum(axis=1), axis=0)
+# create a pipeline for normalization and clustering the data
+kmeans_pipe = make_pipeline(preprocessing.PowerTransformer(method='yeo-johnson', standardize=True),
+                            KMeans(n_clusters=5, random_state=0))
 
-# create heatmap
-img_df['area_prop'] = metadata_df['area_prop']
+# fit the pipeline on the data
+kmeans_pipe.fit(img_df.values)
 
-sns.clustermap(img_df, cmap='Reds', figsize=(10, 10))
-plt.savefig(os.path.join(plot_dir, 'clustermap.png'), dpi=300)
-plt.close()
+# save the trained pipeline
+pickle.dump(kmeans_pipe, open(os.path.join(plot_dir, 'kmeans_pipe.pkl'), 'wb'))
 
-# cluster the data
-kmeans = KMeans(n_clusters=5, random_state=0).fit(img_df)
 
-#new_labels = kmeans.predict(img_df.iloc[:, :-1])
+# load the model
+kmeans_pipe = pickle.load(open(os.path.join(plot_dir, 'kmeans_pipe.pkl'), 'rb'))
 
-metadata_df['cluster'] = kmeans.labels_.astype('str')
-img_df['cluster'] = kmeans.labels_.astype('str')
+kmeans_preds = kmeans_pipe.predict(img_df.values)
+
+metadata_df['cluster'] = kmeans_preds.astype('str')
+img_df['cluster'] = kmeans_preds.astype('str')
 
 # generate average image for each cluster
 cluster_means = img_df.groupby('cluster').mean()
@@ -194,6 +193,19 @@ cluster_means = img_df.groupby('cluster').mean()
 # plot the average images
 cluster_means_clustermap = sns.clustermap(cluster_means, cmap='Reds', figsize=(10, 10))
 plt.savefig(os.path.join(plot_dir, 'cluster_means.png'), dpi=300)
+plt.close()
+
+# plot distribution of clusters in each fov
+cluster_counts = metadata_df.groupby('fov').value_counts(['cluster'])
+cluster_counts = cluster_counts.reset_index()
+cluster_counts.columns = ['fov', 'cluster', 'count']
+cluster_counts = cluster_counts.pivot(index='fov', columns='cluster', values='count')
+cluster_counts = cluster_counts.fillna(0)
+cluster_counts = cluster_counts.apply(lambda x: x / x.sum(), axis=1)
+
+# plot the cluster counts
+cluster_counts_clustermap = sns.clustermap(cluster_counts, cmap='Reds', figsize=(10, 10))
+plt.savefig(os.path.join(plot_dir, 'cluster_fov_counts.png'), dpi=300)
 plt.close()
 
 # save dfs
@@ -229,31 +241,3 @@ for cluster in img_df.cluster.unique():
 
     io.imsave(os.path.join(plot_dir, 'cluster_' + cluster + '.tiff'), stitched_img.astype('float32'),
                 check_contrast=False)
-
-
-cluster_counts = metadata_df.groupby('fov').value_counts(['cluster'])
-cluster_counts = cluster_counts.reset_index()
-cluster_counts.columns = ['fov', 'cluster', 'count']
-cluster_counts = cluster_counts.pivot(index='fov', columns='cluster', values='count')
-cluster_counts = cluster_counts.fillna(0)
-cluster_counts = cluster_counts.apply(lambda x: x / x.sum(), axis=1)
-
-# plot the cluster counts
-cluster_counts_clustermap = sns.clustermap(cluster_counts, cmap='Reds', figsize=(10, 10))
-plt.savefig(os.path.join(plot_dir, 'cluster_fov_counts.png'), dpi=300)
-plt.close()
-
-
-from skimage.measure import regionprops_table
-
-# check that saving and loading a sklearn model works as expected
-import pickle
-pickle.dump(kmeans, open(os.path.join(plot_dir, 'kmeans_model.pkl'), 'wb'))
-
-
-# load the model
-saved_model = pickle.load(open(os.path.join(plot_dir, 'kmeans_model.pkl'), 'rb'))
-
-new_outputs = saved_model.predict(img_df.iloc[:, :-1])
-
-assert np.array_equal(new_outputs, new_labels)
