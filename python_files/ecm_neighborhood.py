@@ -167,6 +167,9 @@ metadata_df = pd.DataFrame(metadata_list, columns=['fov', 'row', 'col', 'area_pr
 img_df.to_csv(os.path.join(plot_dir, 'img_df_raw.csv'), index=False)
 metadata_df.to_csv(os.path.join(plot_dir, 'metadata_df_raw.csv'), index=False)
 
+# load dfs
+img_df = pd.read_csv(os.path.join(plot_dir, 'img_df_raw.csv'))
+metadata_df = pd.read_csv(os.path.join(plot_dir, 'metadata_df_raw.csv'))
 
 # create a pipeline for normalization and clustering the data
 kmeans_pipe = make_pipeline(preprocessing.PowerTransformer(method='yeo-johnson', standardize=True),
@@ -184,11 +187,13 @@ kmeans_pipe = pickle.load(open(os.path.join(plot_dir, 'kmeans_pipe.pkl'), 'rb'))
 
 kmeans_preds = kmeans_pipe.predict(img_df.values)
 
-metadata_df['cluster'] = kmeans_preds.astype('str')
-img_df['cluster'] = kmeans_preds.astype('str')
+# get the transformed intermediate data
+transformed_data = kmeans_pipe.named_steps['powertransformer'].transform(img_df.values)
+transformed_df = pd.DataFrame(transformed_data, columns=img_df.columns)
+transformed_df['cluster'] = kmeans_preds
 
 # generate average image for each cluster
-cluster_means = img_df.groupby('cluster').mean()
+cluster_means = transformed_df.groupby('cluster').mean()
 
 # plot the average images
 cluster_means_clustermap = sns.clustermap(cluster_means, cmap='Reds', figsize=(10, 10))
