@@ -251,43 +251,6 @@ for cluster in img_df.cluster.unique():
 # generate crops around cells to classify using the trained model
 
 
-
-def extract_cell_crop_sums(cell_table_fov, img_data, crop_size):
-    """Extracts and sums crops around cells present in the cell table
-
-    Args:
-        cell_table_fov (pd.DataFrame): cell table for a single fov
-        img_data (np.ndarray): image data for a single fov
-        crop_size (int): size of the bounding box around each cell
-
-    Returns:
-        np.ndarray: array of summed crops around cells
-    """
-    # list to hold crop sums
-    crop_sums = []
-
-    for idx, cell_id in cell_table_fov.label:
-        # get the cell centroid
-        row_coord, col_coord = cell_table_fov.loc[idx, ['centroid-0', 'centroid-1']]
-        row_coord, col_coord = adjust_cell_centroid(row_coord, col_coord, crop_size,
-                                                    img_data.shape[1:])
-
-        # get the crop around the cell
-        crop = img_data[row_coord - crop_size // 2:row_coord + crop_size // 2,
-                        col_coord - crop_size // 2:col_coord + crop_size // 2, :]
-
-        # sum the channels within the crop
-        crop_sum = crop.sum(axis=(0, 1))
-
-        # add metadata for the crop
-        crop_sum = np.append(crop_sum, cell_id)
-
-        # add the crop sum to the list
-        crop_sums.append(crop_sum)
-
-    return np.array(crop_sums)
-
-
 def generate_cell_sum_dfs(cell_table, channel_dir, mask_dir, channels, crop_size):
     """Generates dataframes of summed crops around cells for each fov
 

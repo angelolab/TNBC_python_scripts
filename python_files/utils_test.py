@@ -496,3 +496,34 @@ def test_adjust_cell_centroid():
         row_coord, col_coord = utils.adjust_cell_centroid(row_coords[i], col_coords[i], crop_size, img_shape)
         assert row_coord == expected_row_coords[i]
         assert col_coord == expected_col_coords[i]
+
+
+def test_extract_cell_crop_sums():
+    # create test image
+    chan0 = np.zeros((100, 100))
+    chan0[:10, 50:60] = 2
+    chan0[10:20, 20:30] = 1
+
+    chan1 = np.zeros((100, 100))
+    chan1[50:60, 40:50] = 3
+
+    img = np.stack([chan0, chan1], axis=-1)
+
+    # create cells
+    cell_ids = [1, 2, 3, 4, 5]
+    row_coords = [5, 15, 55, 0, 80]
+    col_coords = [55, 25, 45, 55, 80]
+
+    cell_table = pd.DataFrame({"label": cell_ids, "centroid-0": row_coords,
+                               "centroid-1": col_coords})
+
+    # create expected output
+    expected = pd.DataFrame({"chan0": [200, 100, 0, 200, 0],
+                             "chan1": [0, 0, 300, 0, 0], "label": cell_ids})
+    expected = expected.astype(float)
+
+    # test
+    result = utils.extract_cell_crop_sums(cell_table_fov=cell_table, img_data=img, crop_size=10)
+    result = pd.DataFrame(result, columns=["chan0", "chan1", "label"])
+    pd.testing.assert_frame_equal(result, expected)
+
