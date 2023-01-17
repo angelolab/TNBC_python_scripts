@@ -7,7 +7,7 @@ from skimage.measure import label
 import skimage.io as io
 
 from ark.utils.misc_utils import verify_in_list
-from ark.utils import io_utils
+from ark.utils import io_utils, load_utils
 from ark.segmentation import marker_quantification
 
 
@@ -380,10 +380,10 @@ def extract_cell_crop_sums(cell_table_fov, img_data, crop_size):
                                                     img_data.shape[:-1])
 
         # get the crop around the cell
-        print("row_start {}, row_end {}, col_start {}, col_end {}".format(row_coord - crop_size // 2,
-                                                                            row_coord + crop_size // 2,
-                                                                            col_coord - crop_size // 2,
-                                                                            col_coord + crop_size // 2))
+        # print("row_start {}, row_end {}, col_start {}, col_end {}".format(row_coord - crop_size // 2,
+        #                                                                     row_coord + crop_size // 2,
+        #                                                                     col_coord - crop_size // 2,
+        #                                                                     col_coord + crop_size // 2))
 
         crop = img_data[row_coord - crop_size // 2:row_coord + crop_size // 2,
                         col_coord - crop_size // 2:col_coord + crop_size // 2, :]
@@ -398,3 +398,50 @@ def extract_cell_crop_sums(cell_table_fov, img_data, crop_size):
         crop_sums.append(crop_sum)
 
     return np.array(crop_sums)
+
+
+def generate_cell_sum_dfs(cell_table, channel_dir, mask_dir, channels, crop_size):
+    """Generates dataframes of summed crops around cells for each fov
+
+    Args:
+        cell_table (pd.DataFrame): cell table
+        channel_dir (str): path to the directory containing image data
+        mask_dir (str): path to the directory containing the ecm masks
+        channels (list): list of channels to extract crops from
+        crop_size (int): size of the bounding box around each cell
+
+    Returns:
+        pd.DataFrame: dataframe of summed crops around cells
+    """
+    # list to hold dataframes
+    cell_sum_dfs = []
+
+    for fov in cell_table.fov.unique():
+        # load the image data
+        img_data = load_utils.load_imgs_from_tree(channel_dir,
+                                                  fovs=[fov],
+                                                  img_sub_folder='',
+                                                  channels=channels)
+        ecm_mask = io.imread(os.path.join(mask_dir, fov, 'total_ecm.tiff'))
+
+        # combine the image data and the ecm mask into numpy array
+        img_data = np.concatenate((img_data[0].values, ecm_mask[..., None]), axis=-1)
+
+        # subset the cell table to the current fov
+        cell_table_fov = cell_table[cell_table.fov == fov]
+        cell_table_fov = cell_table_fov.reset_index(drop=True)
+
+        # extract summed counts around each cell
+        crop_sums = extract_cell_crop_sums(cell_table_fov=cell_table_fov,
+                                           img_data=img_data,
+                                           crop_size=crop_size)
+
+        # create a dataframe of the summed counts
+        crop_sums_df = pd.DataFrame(crop_sums,
+                                    columns=channels + ['ecm_mask'] + ['label'])
+        crop_sums_df['fov'] = fov
+
+        # add the dataframe to the list
+        cell_sum_dfs.append(crop_sums_df)
+
+    return pd.concat(cell_sum_dfs, ignore_index=True)
