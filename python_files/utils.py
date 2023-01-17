@@ -356,7 +356,7 @@ def adjust_cell_centroid(row_coord, col_coord, crop_size, img_shape):
     elif col_coord > img_width - crop_size // 2:
         col_coord = img_width - crop_size // 2
 
-    return row_coord, col_coord
+    return int(row_coord), int(col_coord)
 
 
 def extract_cell_crop_sums(cell_table_fov, img_data, crop_size):
@@ -380,11 +380,6 @@ def extract_cell_crop_sums(cell_table_fov, img_data, crop_size):
                                                     img_data.shape[:-1])
 
         # get the crop around the cell
-        # print("row_start {}, row_end {}, col_start {}, col_end {}".format(row_coord - crop_size // 2,
-        #                                                                     row_coord + crop_size // 2,
-        #                                                                     col_coord - crop_size // 2,
-        #                                                                     col_coord + crop_size // 2))
-
         crop = img_data[row_coord - crop_size // 2:row_coord + crop_size // 2,
                         col_coord - crop_size // 2:col_coord + crop_size // 2, :]
 

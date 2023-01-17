@@ -19,6 +19,7 @@ from sklearn import preprocessing
 from sklearn.pipeline import make_pipeline
 import pickle
 
+from python_files import utils
 
 
 #
@@ -249,5 +250,26 @@ for cluster in img_df.cluster.unique():
 
 
 # generate crops around cells to classify using the trained model
+cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated.csv'))
+cell_table_clusters = cell_table_clusters[cell_table_clusters.fov.isin(fov_subset)]
+cell_sums = utils.generate_cell_sum_dfs(cell_table=cell_table_clusters, channel_dir=channel_dir,
+                                        mask_dir=mask_dir, channels=['Collagen1', 'Fibronectin',
+                                                                     'FAP', 'SMA', 'Vim'],
+                                        crop_size=256)
 
+cell_classifications = kmeans_pipe.predict(cell_sums.values[:, :5])
+cell_table_clusters['ecm_cluster'] = cell_classifications
 
+min_pixels = crop_size ** 2
+replace_mask = cell_sums['ecm_mask'] < min_pixels
+
+cell_table_clusters.loc[replace_mask.values, 'ecm_cluster'] = -1
+
+# replace cluster integers with cluster names
+replace_dict = {0: 'Fibronectin_col', 1: 'Collagen_only', 2: 'Collagen_medium', 3: 'Collagen_hot',
+                4: 'hot_low_collagen', -1: 'no_ecm'}
+
+cell_table_clusters['ecm_cluster'] = cell_table_clusters['ecm_cluster'].replace(replace_dict)
+
+# save the cell table
+cell_table_clusters.to_csv(os.path.join(plot_dir, 'combined_cell_table_normalized_cell_labels_updated_ecm_clusters.csv'), index=False)
