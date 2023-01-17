@@ -330,3 +330,30 @@ def assign_cells_to_mask(seg_dir, mask_dir, fovs):
 
     return normalized_cell_table[['fov', 'label', 'mask_name']]
 
+
+def adjust_cell_centroid(row_coord, col_coord, crop_size, img_shape):
+    """Adjusts the cell centroid to be within a bounding box of the specified size.
+
+    Args:
+        row_coord (int): row coordinate of the cell centroid
+        col_coord (int): column coordinate of the cell centroid
+        crop_size (int): size of the bounding box
+        img_shape (tuple): shape of the image
+    """
+
+    # get the image dimensions
+    img_height, img_width = img_shape
+
+    # adjust the row coordinate to be at least crop_size / 2 away from the edge
+    if row_coord < crop_size // 2:
+        row_coord = crop_size // 2
+    elif row_coord > img_height - crop_size // 2:
+        row_coord = img_height - crop_size // 2
+
+    # adjust the column coordinate to be at least crop_size / 2 away from the edge
+    if col_coord < crop_size // 2:
+        col_coord = crop_size // 2
+    elif col_coord > img_width - crop_size // 2:
+        col_coord = img_width - crop_size // 2
+
+    return row_coord, col_coord
