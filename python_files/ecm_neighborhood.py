@@ -273,3 +273,33 @@ cell_table_clusters['ecm_cluster'] = cell_table_clusters['ecm_cluster'].replace(
 
 # save the cell table
 cell_table_clusters.to_csv(os.path.join(plot_dir, 'combined_cell_table_normalized_cell_labels_updated_ecm_clusters.csv'), index=False)
+
+# group cells in each FOV according to their ECM cluster
+cell_table_clusters = cell_table_clusters[cell_table_clusters.fov.isin(fov_subset)]
+grouped_ecm_region = cell_table_clusters[['fov', 'ecm_cluster', 'cell_cluster_broad']].groupby(['fov', 'ecm_cluster']).value_counts(normalize=True)
+grouped_ecm_region = grouped_ecm_region.unstack(level='cell_cluster_broad', fill_value=0).stack()
+
+grouped_ecm_region = grouped_ecm_region.reset_index()
+grouped_ecm_region.columns = ['fov',  'ecm_cluster', 'cell_cluster','count']
+
+
+# plot the distribution of cell clusters in each ECM cluster
+g = sns.FacetGrid(grouped_ecm_region, col='cell_cluster', col_wrap=3, hue='ecm_cluster',
+                  palette=['Black'], sharey=False, aspect=2.5)
+g.map(sns.violinplot, 'ecm_cluster', 'count',
+      order=['Collagen_hot', 'Collagen_medium', 'Collagen_only',
+       'Fibronectin_col', 'hot_low_collagen', 'no_ecm'])
+
+
+# QC clustering results
+
+# generate image with each crop set to the value of the cluster its assigned to
+metadata_df = pd.read_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/20230116/ecm_normalized_distribution/metadata_df.csv'))
+img = 'TONIC_TMA6_R11C6'
+cluster_crop_img = np.zeros((2048, 2048))
+
+metadata_subset = metadata_df[metadata_df.fov == img]
+for row_crop, col_crop, cluster in zip(metadata_subset.row, metadata_subset.col, metadata_subset.cluster):
+    cluster_crop_img[row_crop:row_crop + crop_size, col_crop:col_crop + crop_size] = int(cluster)
+
+io.imshow(cluster_crop_img)
