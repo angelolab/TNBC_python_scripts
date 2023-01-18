@@ -331,8 +331,8 @@ def assign_cells_to_mask(seg_dir, mask_dir, fovs):
     return normalized_cell_table[['fov', 'label', 'mask_name']]
 
 
-def adjust_cell_centroid(row_coord, col_coord, crop_size, img_shape):
-    """Adjusts the cell centroid to be within a bounding box of the specified size.
+def identify_cell_bounding_box(row_centroid, col_centroid, crop_size, img_shape):
+    """Finds the upper-left hand corner of a bounding box surrounding the cell, corrected for edges.
 
     Args:
         row_coord (int): row coordinate of the cell centroid
@@ -344,20 +344,23 @@ def adjust_cell_centroid(row_coord, col_coord, crop_size, img_shape):
     # get the image dimensions
     img_height, img_width = img_shape
 
-    # adjust the row coordinate to be at least crop_size / 2 away from the edge
-    if row_coord < crop_size // 2:
-        row_coord = crop_size // 2
-    elif row_coord > img_height - crop_size // 2:
-        row_coord = img_height - crop_size // 2
+    # adjust the centroid to be at least crop_size / 2 away from the bottom right corner
+    if row_centroid > img_height - crop_size // 2:
+        row_centroid = img_height - crop_size // 2
+    if col_centroid > img_width - crop_size // 2:
+        col_centroid = img_width - crop_size // 2
 
-    # adjust the column coordinate to be at least crop_size / 2 away from the edge
-    if col_coord < crop_size // 2:
-        col_coord = crop_size // 2
-    elif col_coord > img_width - crop_size // 2:
-        col_coord = img_width - crop_size // 2
+    # set new coordinates to be crop_size / 2 up and to the left of the centroid
+    col_coord = col_centroid - crop_size // 2
+    row_coord = row_centroid - crop_size // 2
+
+    # make sure the coordinates are not negative
+    col_coord = max(col_coord, 0)
+    row_coord = max(row_coord, 0)
 
     return int(row_coord), int(col_coord)
 
+# TODO: refactor this function to have a generate_crops function which operates on either cell tables or tiled images
 
 def extract_cell_crop_sums(cell_table_fov, img_data, crop_size):
     """Extracts and sums crops around cells present in the cell table

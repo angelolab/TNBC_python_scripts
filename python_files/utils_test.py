@@ -479,23 +479,24 @@ def test_create_long_df_by_functional_freq():
     pd.testing.assert_frame_equal(result_subset_region2, expected_subset_region2)
 
 
-def test_adjust_cell_centroid():
-    # when the centroid is at least crop_size/2 away from the edge, the centroid should not change
-    # otherwise, the centroid should be adjusted to be at crop_size/2 away from the edge
+def test_identify_cell_bounding_box():
+    # when the centroid is at least crop_size/2 away from the edge, the bounding box should not change
+    # otherwise, the bounding box should be adjusted to be at crop_size/2 away from the edge
 
     row_coords = [3, 10, 30, 98]
     col_coords = [30, 4, 99, 90]
 
-    expected_row_coords = [10, 10, 30, 90]
-    expected_col_coords = [30, 10, 90, 90]
+    bb_row_coords = [0, 0, 20, 80]
+    bb_col_coords = [20, 0, 80, 80]
 
     crop_size = 20
     img_shape = (100, 100)
 
     for i in range(len(row_coords)):
-        row_coord, col_coord = utils.adjust_cell_centroid(row_coords[i], col_coords[i], crop_size, img_shape)
-        assert row_coord == expected_row_coords[i]
-        assert col_coord == expected_col_coords[i]
+        row_coord, col_coord = utils.identify_cell_bounding_box(row_coords[i], col_coords[i],
+                                                                crop_size, img_shape)
+        assert row_coord == bb_row_coords[i]
+        assert col_coord == bb_col_coords[i]
 
 
 def test_extract_cell_crop_sums():
