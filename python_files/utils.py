@@ -360,9 +360,38 @@ def identify_cell_bounding_box(row_centroid, col_centroid, crop_size, img_shape)
 
     return int(row_coord), int(col_coord)
 
-# TODO: refactor this function to have a generate_crops function which operates on either cell tables or tiled images
 
-def extract_cell_crop_sums(cell_table_fov, img_data, crop_size):
+def generate_cell_crop_coords(cell_table_fov, crop_size, img_shape):
+    """Generates the coordinates for cropping each cell in a fov
+
+    Args:
+        cell_table_fov (pd.DataFrame): dataframe containing the location of each cell
+        crop_size (int): size of the bounding box
+        img_shape (tuple): shape of the image
+
+    Returns:
+        pd.DataFrame: dataframe containing the coordinates for cropping each cell
+    """
+    # get the coordinates for each cell
+    cell_coords = cell_table_fov[['centroid-0', 'centroid-1']].values
+
+    # calculate the coordinates for the upper left hand corner of the bounding box
+    cell_coords = [identify_cell_bounding_box(row_coord, col_coord, crop_size, img_shape)
+                   for row_coord, col_coord in cell_coords]
+
+    # create a dataframe with the coordinates
+    cell_coords_df = pd.DataFrame(cell_coords, columns=['row_coord', 'col_coord'])
+
+    # add the fov column
+    cell_coords_df['fov'] = cell_table_fov['fov'].values[0]
+
+    # add the label column
+    cell_coords_df['label'] = cell_table_fov['label'].values
+
+    return cell_coords_df
+
+
+def extract_crop_sums(cell_table_fov, img_data, crop_size):
     """Extracts and sums crops around cells present in the cell table
 
     Args:

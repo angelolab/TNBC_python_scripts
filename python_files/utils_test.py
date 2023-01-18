@@ -499,6 +499,28 @@ def test_identify_cell_bounding_box():
         assert col_coord == bb_col_coords[i]
 
 
+def test_generate_cell_crop_coords():
+    row_coords = [3, 10, 30, 98]
+    col_coords = [30, 4, 99, 90]
+
+    bb_row_coords = [0, 0, 20, 80]
+    bb_col_coords = [20, 0, 80, 80]
+
+    crop_size = 20
+    img_shape = (100, 100)
+
+    cell_table = pd.DataFrame({'fov': ['fov1', 'fov1', 'fov1', 'fov1'],
+                               'label': [1, 2, 3, 4],
+                               'centroid-0': row_coords,
+                               'centroid-1': col_coords})
+
+    bb_df = utils.generate_cell_crop_coords(cell_table, crop_size, img_shape)
+    assert bb_df.row_coord.tolist() == bb_row_coords
+    assert bb_df.col_coord.tolist() == bb_col_coords
+    assert bb_df.fov.tolist() == ['fov1', 'fov1', 'fov1', 'fov1']
+    assert bb_df.label.tolist() == [1, 2, 3, 4]
+    
+
 def test_extract_cell_crop_sums():
     # create test image
     chan0 = np.zeros((100, 100))
