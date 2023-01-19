@@ -1,3 +1,5 @@
+import itertools
+
 import numpy as np
 import pandas as pd
 
@@ -518,8 +520,24 @@ def test_generate_cell_crop_coords():
     assert bb_df.row_coord.tolist() == bb_row_coords
     assert bb_df.col_coord.tolist() == bb_col_coords
     assert bb_df.fov.tolist() == ['fov1', 'fov1', 'fov1', 'fov1']
-    assert bb_df.label.tolist() == [1, 2, 3, 4]
-    
+    assert bb_df.id.tolist() == [1, 2, 3, 4]
+
+
+def test_generate_tiled_crop_coords():
+    img_shape = (100, 100)
+    crop_size = 20
+
+    # generate combinations of row and col coords
+    coords = itertools.product(range(0, img_shape[0], crop_size),
+                                 range(0, img_shape[1], crop_size))
+    predicted_df = pd.DataFrame(coords, columns=['row_coord', 'col_coord'])
+
+
+    coord_df = utils.generate_tiled_crop_coords(crop_size, img_shape, 'fov1')
+
+    pd.testing.assert_frame_equal(coord_df[['row_coord', 'col_coord']],
+                                  predicted_df[['row_coord', 'col_coord']])
+
 
 def test_extract_cell_crop_sums():
     # create test image

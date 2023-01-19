@@ -1,3 +1,4 @@
+import itertools
 import numpy as np
 import os
 import pandas as pd
@@ -376,17 +377,49 @@ def generate_cell_crop_coords(cell_table_fov, crop_size, img_shape):
     cell_coords = cell_table_fov[['centroid-0', 'centroid-1']].values
 
     # calculate the coordinates for the upper left hand corner of the bounding box
-    cell_coords = [identify_cell_bounding_box(row_coord, col_coord, crop_size, img_shape)
+    crop_coords = [identify_cell_bounding_box(row_coord, col_coord, crop_size, img_shape)
                    for row_coord, col_coord in cell_coords]
 
     # create a dataframe with the coordinates
-    cell_coords_df = pd.DataFrame(cell_coords, columns=['row_coord', 'col_coord'])
+    crop_coords_df = pd.DataFrame(crop_coords, columns=['row_coord', 'col_coord'])
 
     # add the fov column
-    cell_coords_df['fov'] = cell_table_fov['fov'].values[0]
+    crop_coords_df['fov'] = cell_table_fov['fov'].values[0]
 
     # add the label column
-    cell_coords_df['label'] = cell_table_fov['label'].values
+    crop_coords_df['id'] = cell_table_fov['label'].values
+
+    return crop_coords_df
+
+
+def generate_tiled_crop_coords(crop_size, img_shape, fov_name):
+    """Generate coordinates for uniformly tiled crops
+
+    Args:
+        crop_size (int): size of the bounding box
+        img_shape (tuple): shape of the image
+        fov_name (str): name of the fov
+
+    Returns:
+        pd.DataFrame: dataframe containing the coordinates for cropping each tile
+    """
+
+    # compute all combinations of start coordinates
+    img_height, img_width = img_shape
+
+    row_coords = np.arange(0, img_height, crop_size)
+    col_coords = np.arange(0, img_width, crop_size)
+    coords = itertools.product(row_coords, col_coords)
+
+    # create a dataframe with the coordinates
+    cell_coords_df = pd.DataFrame(coords, columns=['row_coord', 'col_coord'])
+
+    # add the fov column
+    cell_coords_df['fov'] = fov_name
+
+    # add a column for the tile combination
+    cell_coords_df['id'] = [f'row_{row}_col_{col}' for row, col in zip(cell_coords_df['row_coord'],
+                                                                       cell_coords_df['col_coord'])]
 
     return cell_coords_df
 
