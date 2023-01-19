@@ -519,7 +519,6 @@ def test_generate_cell_crop_coords():
     bb_df = utils.generate_cell_crop_coords(cell_table, crop_size, img_shape)
     assert bb_df.row_coord.tolist() == bb_row_coords
     assert bb_df.col_coord.tolist() == bb_col_coords
-    assert bb_df.fov.tolist() == ['fov1', 'fov1', 'fov1', 'fov1']
     assert bb_df.id.tolist() == [1, 2, 3, 4]
 
 
@@ -533,7 +532,7 @@ def test_generate_tiled_crop_coords():
     predicted_df = pd.DataFrame(coords, columns=['row_coord', 'col_coord'])
 
 
-    coord_df = utils.generate_tiled_crop_coords(crop_size, img_shape, 'fov1')
+    coord_df = utils.generate_tiled_crop_coords(crop_size, img_shape)
 
     pd.testing.assert_frame_equal(coord_df[['row_coord', 'col_coord']],
                                   predicted_df[['row_coord', 'col_coord']])
@@ -565,66 +564,92 @@ def test_extract_crop_sums():
 
     np.testing.assert_array_equal(result, expected)
 
-# def test_generate_cell_sum_dfs(tmpdir):
-#     # create image data for first fov
-#     fov1_chan1 = np.zeros((100, 100))
-#     fov1_chan1[:10, 50:60] = 1
-#
-#     fov1_chan2 = np.zeros((100, 100))
-#     fov1_chan2[50:60, 40:50] = 1
-#
-#     fov1_mask = np.zeros((100, 100))
-#     fov1_mask[:5, 50:60] = 1
-#     fov1_mask = fov1_mask == 1
-#
-#     # create image data for second fov
-#     fov2_chan1 = np.zeros((100, 100))
-#     fov2_chan1[90:, 20:30] = 2
-#
-#     fov2_chan2 = np.zeros((100, 100))
-#     fov2_chan2[70:80, 20:30] = 1
-#
-#     fov2_mask = np.zeros((100, 100))
-#     fov2_mask[75:80, 20:30] = 1
-#     fov2_mask = fov2_mask == 1
-#
-#     # create directory structure
-#     channel_dir = tmpdir.mkdir("channel_dir")
-#     fov1_dir = channel_dir.mkdir("fov1")
-#     fov2_dir = channel_dir.mkdir("fov2")
-#
-#     import skimage.io as io
-#     for chan_name, chan_mask in zip(["chan1", "chan2", "total_ecm"],
-#                                     [fov1_chan1, fov1_chan2, fov1_mask.astype('uint8')]):
-#         io.imsave(fov1_dir.join(f"{chan_name}.tiff").strpath, chan_mask, check_contrast=False)
-#
-#     for chan_name, chan_mask in zip(["chan1", "chan2", "total_ecm"],
-#                                     [fov2_chan1, fov2_chan2, fov2_mask.astype('uint8')]):
-#         io.imsave(fov2_dir.join(f"{chan_name}.tiff").strpath, chan_mask, check_contrast=False)
-#
-#     # create cell table
-#     cell_ids = [1, 2, 1, 3]
-#     fovs = ["fov1", "fov1", "fov2", "fov2"]
-#     row_coords = [0, 55, 95, 75]
-#     col_coords = [55, 45, 25, 25]
-#
-#     cell_table = pd.DataFrame({"label": cell_ids, "fov": fovs, "centroid-0": row_coords,
-#                                  "centroid-1": col_coords})
-#
-#     # create expected output
-#     expected_output = pd.DataFrame({"chan1": [100, 0, 200, 0],
-#                                   "chan2": [0, 100, 0, 100],
-#                                   "ecm_mask": [50, 0, 0, 50],
-#                                   'label': [1, 2, 1, 3],
-#                                   'fov': ["fov1", "fov1", "fov2", "fov2"]})
-#
-#
-#     # test
-#     result = utils.generate_cell_sum_dfs(cell_table=cell_table, channel_dir=channel_dir.strpath,
-#                                          mask_dir=channel_dir.strpath, channels=['chan1', 'chan2'],
-#                                          crop_size=10)
-#
-#     # compare results
-#     expected_output.iloc[:, 0:4] = expected_output.iloc[:, 0:4].astype(float)
-#     pd.testing.assert_frame_equal(result, expected_output)
-#
+
+def test_generate_crop_sum_dfs(tmpdir):
+    # create image data for first fov
+    fov1_chan1 = np.zeros((100, 100))
+    fov1_chan1[:10, :10] = 1
+
+    fov1_chan2 = np.zeros((100, 100))
+    fov1_chan2[50:60, :10] = 1
+
+    fov1_mask = np.zeros((100, 100))
+    fov1_mask[50:55, :10] = 1
+    fov1_mask = fov1_mask == 1
+
+    # create image data for second fov
+    fov2_chan1 = np.zeros((100, 100))
+    fov2_chan1[90:, 90:] = 2
+
+    fov2_chan2 = np.zeros((100, 100))
+    fov2_chan2[70:80, 20:30] = 1
+
+    fov2_mask = np.zeros((100, 100))
+    fov2_mask[75:80, 20:30] = 1
+    fov2_mask = fov2_mask == 1
+
+    # create directory structure
+    channel_dir = tmpdir.mkdir("channel_dir")
+    fov1_dir = channel_dir.mkdir("fov1")
+    fov2_dir = channel_dir.mkdir("fov2")
+
+    import skimage.io as io
+    for chan_name, chan_mask in zip(["chan1", "chan2", "total_ecm"],
+                                    [fov1_chan1, fov1_chan2, fov1_mask.astype('uint8')]):
+        io.imsave(fov1_dir.join(f"{chan_name}.tiff").strpath, chan_mask, check_contrast=False)
+
+    for chan_name, chan_mask in zip(["chan1", "chan2", "total_ecm"],
+                                    [fov2_chan1, fov2_chan2, fov2_mask.astype('uint8')]):
+        io.imsave(fov2_dir.join(f"{chan_name}.tiff").strpath, chan_mask, check_contrast=False)
+
+    # create cell table
+    cell_ids = [1, 2, 1, 3]
+    fovs = ["fov1", "fov1", "fov2", "fov2"]
+    row_centroid = [5, 55, 100, 75]
+    row_coords = [0, 50, 90, 70]
+    col_centroid = [5, 5, 95, 25]
+    col_coords = [0, 0, 90, 20]
+
+    cell_table = pd.DataFrame({"label": cell_ids, "fov": fovs, "centroid-0": row_centroid,
+                                 "centroid-1": col_centroid})
+
+    # create expected output
+    expected_output = pd.DataFrame({"row_coord": row_coords, "col_coord": col_coords,
+                                    "id": cell_ids,
+                                    "chan1": [100.0, 0, 200, 0],
+                                  "chan2": [0.0, 100, 0, 100],
+                                  "ecm_mask": [0, 50, 0, 50],
+                                  'fov': ["fov1", "fov1", "fov2", "fov2"]})
+
+    # test
+    result = utils.generate_crop_sum_dfs(channel_dir=channel_dir.strpath,
+                                         mask_dir=channel_dir.strpath, channels=['chan1', 'chan2'],
+                                         crop_size=10, fovs=['fov1', 'fov2'], cell_table=cell_table)
+
+    # compare results
+    expected_output.iloc[:, 3:6] = expected_output.iloc[:, 3:6].astype(float)
+    pd.testing.assert_frame_equal(result, expected_output)
+
+    # test tiling across the images
+    tiled_result = utils.generate_crop_sum_dfs(channel_dir=channel_dir.strpath,
+                                            mask_dir=channel_dir.strpath, channels=['chan1', 'chan2'],
+                                            crop_size=10, fovs=['fov1', 'fov2'], cell_table=None)
+
+    # compare results
+    fov1_tiled = tiled_result[tiled_result['fov'] == 'fov1']
+    fov2_tiled = tiled_result[tiled_result['fov'] == 'fov2']
+
+    # check that the first entry in fov1 is the same as the first cell
+    pd.testing.assert_frame_equal(fov1_tiled.iloc[0:1, 3:], expected_output.iloc[0:1, 3:])
+
+    # check that middle entry in fov1 is same as the second cell
+    fov1_middle = fov1_tiled.iloc[50:51, 3:]
+    fov1_middle.reset_index(drop=True, inplace=True)
+
+    expected_output_middle = expected_output.iloc[1:2, 3:]
+    expected_output_middle.reset_index(drop=True, inplace=True)
+
+    pd.testing.assert_frame_equal(fov1_middle, expected_output_middle)
+
+    # check that there are only two rows with positive values in fov1
+    assert np.sum((fov1_tiled['chan1'] > 0) | (fov1_tiled['chan2'] > 0) | (fov1_tiled['ecm_mask'] > 0)) == 2

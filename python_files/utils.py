@@ -383,22 +383,18 @@ def generate_cell_crop_coords(cell_table_fov, crop_size, img_shape):
     # create a dataframe with the coordinates
     crop_coords_df = pd.DataFrame(crop_coords, columns=['row_coord', 'col_coord'])
 
-    # add the fov column
-    crop_coords_df['fov'] = cell_table_fov['fov'].values[0]
-
     # add the label column
     crop_coords_df['id'] = cell_table_fov['label'].values
 
     return crop_coords_df
 
 
-def generate_tiled_crop_coords(crop_size, img_shape, fov_name):
+def generate_tiled_crop_coords(crop_size, img_shape):
     """Generate coordinates for uniformly tiled crops
 
     Args:
         crop_size (int): size of the bounding box
         img_shape (tuple): shape of the image
-        fov_name (str): name of the fov
 
     Returns:
         pd.DataFrame: dataframe containing the coordinates for cropping each tile
@@ -413,9 +409,6 @@ def generate_tiled_crop_coords(crop_size, img_shape, fov_name):
 
     # create a dataframe with the coordinates
     crop_coords_df = pd.DataFrame(coords, columns=['row_coord', 'col_coord'])
-
-    # add the fov column
-    crop_coords_df['fov'] = fov_name
 
     # add a column for the tile combination
     crop_coords_df['id'] = [f'row_{row}_col_{col}' for row, col in zip(crop_coords_df['row_coord'],
@@ -452,23 +445,25 @@ def extract_crop_sums(img_data, crop_size, crop_coords_df):
     return np.array(crop_sums)
 
 
-def generate_cell_sum_dfs(cell_table, channel_dir, mask_dir, channels, crop_size):
-    """Generates dataframes of summed crops around cells for each fov
+def generate_crop_sum_dfs(channel_dir, mask_dir, channels, crop_size, fovs, cell_table):
+    """Generates dataframes of summed crops around cells or tiles for each fov
 
     Args:
-        cell_table (pd.DataFrame): cell table
         channel_dir (str): path to the directory containing image data
         mask_dir (str): path to the directory containing the ecm masks
         channels (list): list of channels to extract crops from
-        crop_size (int): size of the bounding box around each cell
+        crop_size (int): size of the bounding box around each cell or tile
+        fovs (list): list of fovs to process
+        cell_table (pd.DataFrame): cell table, if None will tile the image
+
 
     Returns:
         pd.DataFrame: dataframe of summed crops around cells
     """
     # list to hold dataframes
-    cell_sum_dfs = []
+    crop_df_list = []
 
-    for fov in cell_table.fov.unique():
+    for fov in fovs:
         # load the image data
         img_data = load_utils.load_imgs_from_tree(channel_dir,
                                                   fovs=[fov],
@@ -479,21 +474,33 @@ def generate_cell_sum_dfs(cell_table, channel_dir, mask_dir, channels, crop_size
         # combine the image data and the ecm mask into numpy array
         img_data = np.concatenate((img_data[0].values, ecm_mask[..., None]), axis=-1)
 
-        # subset the cell table to the current fov
-        cell_table_fov = cell_table[cell_table.fov == fov]
-        cell_table_fov = cell_table_fov.reset_index(drop=True)
+        # set logic based on whether or not a cell table is provided
+        if cell_table is not None:
+            cell_table_fov = cell_table[cell_table.fov == fov]
+            cell_table_fov = cell_table_fov.reset_index(drop=True)
+
+            # generate the coordinates for cropping each cell
+            crop_coords_df = generate_cell_crop_coords(cell_table_fov=cell_table_fov,
+                                                       crop_size=crop_size,
+                                                       img_shape=img_data.shape[:-1])
+        else:
+            # generate the coordinates for cropping each tile
+            crop_coords_df = generate_tiled_crop_coords(crop_size=crop_size,
+                                                        img_shape=img_data.shape[:-1])
 
         # extract summed counts around each cell
-        crop_sums = extract_cell_crop_sums(cell_table_fov=cell_table_fov,
-                                           img_data=img_data,
-                                           crop_size=crop_size)
+        crop_sums = extract_crop_sums(img_data=img_data, crop_size=crop_size,
+                                      crop_coords_df=crop_coords_df)
 
         # create a dataframe of the summed counts
         crop_sums_df = pd.DataFrame(crop_sums,
-                                    columns=channels + ['ecm_mask'] + ['label'])
+                                    columns=channels + ['ecm_mask'])
+
+        # combine the crop_sums_df with the crop_coords_df
+        crop_sums_df = pd.concat([crop_coords_df, crop_sums_df], axis=1)
         crop_sums_df['fov'] = fov
 
         # add the dataframe to the list
-        cell_sum_dfs.append(crop_sums_df)
+        crop_df_list.append(crop_sums_df)
 
-    return pd.concat(cell_sum_dfs, ignore_index=True)
+    return pd.concat(crop_df_list, ignore_index=True)
