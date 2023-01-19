@@ -412,47 +412,39 @@ def generate_tiled_crop_coords(crop_size, img_shape, fov_name):
     coords = itertools.product(row_coords, col_coords)
 
     # create a dataframe with the coordinates
-    cell_coords_df = pd.DataFrame(coords, columns=['row_coord', 'col_coord'])
+    crop_coords_df = pd.DataFrame(coords, columns=['row_coord', 'col_coord'])
 
     # add the fov column
-    cell_coords_df['fov'] = fov_name
+    crop_coords_df['fov'] = fov_name
 
     # add a column for the tile combination
-    cell_coords_df['id'] = [f'row_{row}_col_{col}' for row, col in zip(cell_coords_df['row_coord'],
-                                                                       cell_coords_df['col_coord'])]
+    crop_coords_df['id'] = [f'row_{row}_col_{col}' for row, col in zip(crop_coords_df['row_coord'],
+                                                                       crop_coords_df['col_coord'])]
 
-    return cell_coords_df
+    return crop_coords_df
 
 
-def extract_crop_sums(cell_table_fov, img_data, crop_size):
-    """Extracts and sums crops around cells present in the cell table
+def extract_crop_sums(img_data, crop_size, crop_coords_df):
+    """Extracts and sums crops from an image
 
     Args:
-        cell_table_fov (pd.DataFrame): cell table for a single fov
         img_data (np.ndarray): image data for a single fov
         crop_size (int): size of the bounding box around each cell
+        crop_coords_df (pd.DataFrame): dataframe containing the coordinates for cropping each tile
 
     Returns:
-        np.ndarray: array of summed crops around cells
+        np.ndarray: array of crop sums
     """
     # list to hold crop sums
     crop_sums = []
 
-    for idx, cell_id in enumerate(cell_table_fov.label):
-        # get the cell centroid
-        row_coord, col_coord = cell_table_fov.loc[idx, ['centroid-0', 'centroid-1']]
-        row_coord, col_coord = adjust_cell_centroid(row_coord, col_coord, crop_size,
-                                                    img_data.shape[:-1])
-
-        # get the crop around the cell
-        crop = img_data[row_coord - crop_size // 2:row_coord + crop_size // 2,
-                        col_coord - crop_size // 2:col_coord + crop_size // 2, :]
+    for row_coord, col_coord in zip(crop_coords_df['row_coord'], crop_coords_df['col_coord']):
+        # crop based on provided coords
+        crop = img_data[row_coord:row_coord + crop_size,
+                        col_coord:col_coord + crop_size, :]
 
         # sum the channels within the crop
         crop_sum = crop.sum(axis=(0, 1))
-
-        # add metadata for the crop
-        crop_sum = np.append(crop_sum, cell_id)
 
         # add the crop sum to the list
         crop_sums.append(crop_sum)

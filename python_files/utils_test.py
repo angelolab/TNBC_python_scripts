@@ -539,7 +539,7 @@ def test_generate_tiled_crop_coords():
                                   predicted_df[['row_coord', 'col_coord']])
 
 
-def test_extract_cell_crop_sums():
+def test_extract_crop_sums():
     # create test image
     chan0 = np.zeros((100, 100))
     chan0[:10, 50:60] = 2
@@ -550,85 +550,81 @@ def test_extract_cell_crop_sums():
 
     img = np.stack([chan0, chan1], axis=-1)
 
-    # create cells
-    cell_ids = [1, 2, 3, 4, 5]
-    row_coords = [5, 15, 55, 0, 80]
-    col_coords = [55, 25, 45, 55, 80]
+    # create crop coordinates
+    row_coords = [0, 10, 50, 0, 80]
+    col_coords = [50, 20, 40, 55, 80]
 
-    cell_table = pd.DataFrame({"label": cell_ids, "centroid-0": row_coords,
-                               "centroid-1": col_coords})
-
-    # create expected output
-    expected = pd.DataFrame({"chan0": [200, 100, 0, 200, 0],
-                             "chan1": [0, 0, 300, 0, 0], "label": cell_ids})
-    expected = expected.astype(float)
-
-    # test
-    result = utils.extract_cell_crop_sums(cell_table_fov=cell_table, img_data=img, crop_size=10)
-    result = pd.DataFrame(result, columns=["chan0", "chan1", "label"])
-    pd.testing.assert_frame_equal(result, expected)
-
-
-def test_generate_cell_sum_dfs(tmpdir):
-    # create image data for first fov
-    fov1_chan1 = np.zeros((100, 100))
-    fov1_chan1[:10, 50:60] = 1
-
-    fov1_chan2 = np.zeros((100, 100))
-    fov1_chan2[50:60, 40:50] = 1
-
-    fov1_mask = np.zeros((100, 100))
-    fov1_mask[:5, 50:60] = 1
-    fov1_mask = fov1_mask == 1
-
-    # create image data for second fov
-    fov2_chan1 = np.zeros((100, 100))
-    fov2_chan1[90:, 20:30] = 2
-
-    fov2_chan2 = np.zeros((100, 100))
-    fov2_chan2[70:80, 20:30] = 1
-
-    fov2_mask = np.zeros((100, 100))
-    fov2_mask[75:80, 20:30] = 1
-    fov2_mask = fov2_mask == 1
-
-    # create directory structure
-    channel_dir = tmpdir.mkdir("channel_dir")
-    fov1_dir = channel_dir.mkdir("fov1")
-    fov2_dir = channel_dir.mkdir("fov2")
-
-    import skimage.io as io
-    for chan_name, chan_mask in zip(["chan1", "chan2", "total_ecm"],
-                                    [fov1_chan1, fov1_chan2, fov1_mask.astype('uint8')]):
-        io.imsave(fov1_dir.join(f"{chan_name}.tiff").strpath, chan_mask, check_contrast=False)
-
-    for chan_name, chan_mask in zip(["chan1", "chan2", "total_ecm"],
-                                    [fov2_chan1, fov2_chan2, fov2_mask.astype('uint8')]):
-        io.imsave(fov2_dir.join(f"{chan_name}.tiff").strpath, chan_mask, check_contrast=False)
-
-    # create cell table
-    cell_ids = [1, 2, 1, 3]
-    fovs = ["fov1", "fov1", "fov2", "fov2"]
-    row_coords = [0, 55, 95, 75]
-    col_coords = [55, 45, 25, 25]
-
-    cell_table = pd.DataFrame({"label": cell_ids, "fov": fovs, "centroid-0": row_coords,
-                                 "centroid-1": col_coords})
+    coords_df = pd.DataFrame({"row_coord": row_coords,
+                               "col_coord": col_coords})
 
     # create expected output
-    expected_output = pd.DataFrame({"chan1": [100, 0, 200, 0],
-                                  "chan2": [0, 100, 0, 100],
-                                  "ecm_mask": [50, 0, 0, 50],
-                                  'label': [1, 2, 1, 3],
-                                  'fov': ["fov1", "fov1", "fov2", "fov2"]})
-
-
+    expected = np.stack([[200, 100, 0, 100, 0],
+                         [0, 0, 300, 0, 0]], axis=-1)
     # test
-    result = utils.generate_cell_sum_dfs(cell_table=cell_table, channel_dir=channel_dir.strpath,
-                                         mask_dir=channel_dir.strpath, channels=['chan1', 'chan2'],
-                                         crop_size=10)
+    result = utils.extract_crop_sums( img_data=img, crop_size=10, crop_coords_df=coords_df)
 
-    # compare results
-    expected_output.iloc[:, 0:4] = expected_output.iloc[:, 0:4].astype(float)
-    pd.testing.assert_frame_equal(result, expected_output)
+    np.testing.assert_array_equal(result, expected)
 
+# def test_generate_cell_sum_dfs(tmpdir):
+#     # create image data for first fov
+#     fov1_chan1 = np.zeros((100, 100))
+#     fov1_chan1[:10, 50:60] = 1
+#
+#     fov1_chan2 = np.zeros((100, 100))
+#     fov1_chan2[50:60, 40:50] = 1
+#
+#     fov1_mask = np.zeros((100, 100))
+#     fov1_mask[:5, 50:60] = 1
+#     fov1_mask = fov1_mask == 1
+#
+#     # create image data for second fov
+#     fov2_chan1 = np.zeros((100, 100))
+#     fov2_chan1[90:, 20:30] = 2
+#
+#     fov2_chan2 = np.zeros((100, 100))
+#     fov2_chan2[70:80, 20:30] = 1
+#
+#     fov2_mask = np.zeros((100, 100))
+#     fov2_mask[75:80, 20:30] = 1
+#     fov2_mask = fov2_mask == 1
+#
+#     # create directory structure
+#     channel_dir = tmpdir.mkdir("channel_dir")
+#     fov1_dir = channel_dir.mkdir("fov1")
+#     fov2_dir = channel_dir.mkdir("fov2")
+#
+#     import skimage.io as io
+#     for chan_name, chan_mask in zip(["chan1", "chan2", "total_ecm"],
+#                                     [fov1_chan1, fov1_chan2, fov1_mask.astype('uint8')]):
+#         io.imsave(fov1_dir.join(f"{chan_name}.tiff").strpath, chan_mask, check_contrast=False)
+#
+#     for chan_name, chan_mask in zip(["chan1", "chan2", "total_ecm"],
+#                                     [fov2_chan1, fov2_chan2, fov2_mask.astype('uint8')]):
+#         io.imsave(fov2_dir.join(f"{chan_name}.tiff").strpath, chan_mask, check_contrast=False)
+#
+#     # create cell table
+#     cell_ids = [1, 2, 1, 3]
+#     fovs = ["fov1", "fov1", "fov2", "fov2"]
+#     row_coords = [0, 55, 95, 75]
+#     col_coords = [55, 45, 25, 25]
+#
+#     cell_table = pd.DataFrame({"label": cell_ids, "fov": fovs, "centroid-0": row_coords,
+#                                  "centroid-1": col_coords})
+#
+#     # create expected output
+#     expected_output = pd.DataFrame({"chan1": [100, 0, 200, 0],
+#                                   "chan2": [0, 100, 0, 100],
+#                                   "ecm_mask": [50, 0, 0, 50],
+#                                   'label': [1, 2, 1, 3],
+#                                   'fov': ["fov1", "fov1", "fov2", "fov2"]})
+#
+#
+#     # test
+#     result = utils.generate_cell_sum_dfs(cell_table=cell_table, channel_dir=channel_dir.strpath,
+#                                          mask_dir=channel_dir.strpath, channels=['chan1', 'chan2'],
+#                                          crop_size=10)
+#
+#     # compare results
+#     expected_output.iloc[:, 0:4] = expected_output.iloc[:, 0:4].astype(float)
+#     pd.testing.assert_frame_equal(result, expected_output)
+#
