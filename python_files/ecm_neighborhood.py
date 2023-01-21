@@ -124,77 +124,50 @@ for fov in fov_subset:
     io.imsave(os.path.join(mask_dir, fov, 'total_ecm.tiff'), mask.astype('uint8'),
               check_contrast=False)
 
+# generate crop sums
+channels = ['Collagen1', 'Fibronectin', 'FAP', 'Vim']
 crop_size = 256
+tiled_crops = utils.generate_crop_sum_dfs(channel_dir=channel_dir,
+                                          mask_dir=mask_dir,
+                                          channels=channels,
+                                          crop_size=crop_size, fovs=fov_subset, cell_table=None)
+# normalize by ecm area
+tiled_crops['ecm_fraction'] = (tiled_crops['ecm_mask'] + 1) / (crop_size ** 2)
 
-img_sums = []
-metadata_list = []
-
-# extract crops from each FOV
-for fov in fov_subset:
-    img_data = load_utils.load_imgs_from_tree(channel_dir,
-                                                fovs=[fov],
-                                                img_sub_folder='',
-                                                channels=['Collagen1', 'Fibronectin',
-                                                          'FAP', 'SMA', 'Vim'])
-    ecm_mask = io.imread(os.path.join(mask_dir, fov, 'total_ecm.tiff'))
-    for row_crop, col_crop in itertools.product(range(0, ecm_mask.shape[0], crop_size),
-                                                range(0, ecm_mask.shape[1], crop_size)):
-
-        # calculate percentage of image with ecm
-        ecm_pix = np.sum(ecm_mask[row_crop:row_crop + crop_size, col_crop:col_crop + crop_size])
-        area_prop = ecm_pix / crop_size**2
-
-        # if less than 10% of the image is ecm, skip
-        if area_prop < 0.1:
-            continue
-
-        # crop the image data
-        crop_sums = img_data.values[0, row_crop:row_crop + crop_size,
-                    col_crop:col_crop + crop_size, :].sum(axis=(0, 1))
-
-        # normalize by area
-        crop_sums = crop_sums / area_prop
-
-        # append to list
-        crop_metadata = [fov, row_crop, col_crop, area_prop]
-        img_sums.append(crop_sums)
-        metadata_list.append(crop_metadata)
-
-
-img_df = pd.DataFrame(img_sums, columns=img_data.channels.values)
-metadata_df = pd.DataFrame(metadata_list, columns=['fov', 'row', 'col', 'area_prop'])
-
-# save dfs
-img_df.to_csv(os.path.join(plot_dir, 'img_df_raw.csv'), index=False)
-metadata_df.to_csv(os.path.join(plot_dir, 'metadata_df_raw.csv'), index=False)
-
-# load dfs
-img_df = pd.read_csv(os.path.join(plot_dir, 'img_df_raw.csv'))
-metadata_df = pd.read_csv(os.path.join(plot_dir, 'metadata_df_raw.csv'))
+tiled_crops.loc[:, channels] = tiled_crops.loc[:, channels].div(tiled_crops['ecm_fraction'], axis=0)
 
 # create a pipeline for normalization and clustering the data
 kmeans_pipe = make_pipeline(preprocessing.PowerTransformer(method='yeo-johnson', standardize=True),
-                            KMeans(n_clusters=5, random_state=0))
+                            KMeans(n_clusters=4, random_state=0))
+
+# select subset of data to train on
+no_ecm_mask = tiled_crops.ecm_fraction < 0.1
+train_data = tiled_crops[~no_ecm_mask]
+train_data = train_data.loc[:, channels]
 
 # fit the pipeline on the data
-kmeans_pipe.fit(img_df.values)
+kmeans_pipe.fit(train_data.values)
 
 # save the trained pipeline
-pickle.dump(kmeans_pipe, open(os.path.join(plot_dir, 'kmeans_pipe.pkl'), 'wb'))
+pickle.dump(kmeans_pipe, open(os.path.join(plot_dir, 'kmeans_pipe_new_4_all_data.pkl'), 'wb'))
 
 
 # load the model
-kmeans_pipe = pickle.load(open(os.path.join(plot_dir, 'kmeans_pipe.pkl'), 'rb'))
+kmeans_pipe = pickle.load(open(os.path.join(plot_dir, 'kmeans_pipe_new.pkl'), 'rb'))
 
-kmeans_preds = kmeans_pipe.predict(img_df.values)
+kmeans_preds = kmeans_pipe.predict(tiled_crops[channels].values)
 
 # get the transformed intermediate data
-transformed_data = kmeans_pipe.named_steps['powertransformer'].transform(img_df.values)
-transformed_df = pd.DataFrame(transformed_data, columns=img_df.columns)
+transformed_data = kmeans_pipe.named_steps['powertransformer'].transform(tiled_crops[channels].values)
+transformed_df = pd.DataFrame(transformed_data, columns=channels)
 transformed_df['cluster'] = kmeans_preds
+tiled_crops['cluster'] = kmeans_preds
+tiled_crops.loc[no_ecm_mask, 'cluster'] = -1
+transformed_df.loc[no_ecm_mask, 'cluster'] = -1
 
 # generate average image for each cluster
-cluster_means = transformed_df.groupby('cluster').mean()
+cluster_means = transformed_df[~no_ecm_mask].groupby('cluster').mean()
+
 
 # plot the average images
 cluster_means_clustermap = sns.clustermap(cluster_means, cmap='Reds', figsize=(10, 10))
@@ -202,7 +175,7 @@ plt.savefig(os.path.join(plot_dir, 'cluster_means.png'), dpi=300)
 plt.close()
 
 # plot distribution of clusters in each fov
-cluster_counts = metadata_df.groupby('fov').value_counts(['cluster'])
+cluster_counts = tiled_crops.groupby('fov').value_counts(['cluster'])
 cluster_counts = cluster_counts.reset_index()
 cluster_counts.columns = ['fov', 'cluster', 'count']
 cluster_counts = cluster_counts.pivot(index='fov', columns='cluster', values='count')
@@ -215,22 +188,21 @@ plt.savefig(os.path.join(plot_dir, 'cluster_fov_counts.png'), dpi=300)
 plt.close()
 
 # save dfs
-img_df.to_csv(os.path.join(plot_dir, 'img_df.csv'), index=False)
-metadata_df.to_csv(os.path.join(plot_dir, 'metadata_df.csv'), index=False)
+tiled_crops.to_csv(os.path.join(plot_dir, 'tiled_crops.csv'), index=False)
 
 
 # create a stitched image with example images from each cluster
 channels = cluster_means.columns[cluster_means_clustermap.dendrogram_col.reordered_ind]
-n_examples = 15
-for cluster in img_df.cluster.unique():
-    cluster_data = metadata_df[metadata_df.cluster == cluster]
+n_examples = 20
+for cluster in tiled_crops.cluster.unique():
+    cluster_data = tiled_crops[(~no_ecm_mask) & (tiled_crops.cluster == cluster)]
     cluster_data = cluster_data.sample(n=n_examples, random_state=0)
 
     stitched_img = np.zeros((crop_size * n_examples, crop_size * (len(channels) + 1)))
     for i in range(n_examples):
         fov_name = cluster_data.iloc[i]['fov']
-        row_start = cluster_data.iloc[i]['row']
-        col_start = cluster_data.iloc[i]['col']
+        row_start = cluster_data.iloc[i]['row_coord']
+        col_start = cluster_data.iloc[i]['col_coord']
 
         for j, chan in enumerate(channels):
             img = io.imread(os.path.join(channel_dir, fov_name, chan + '.tiff'))
@@ -245,29 +217,35 @@ for cluster in img_df.cluster.unique():
         img_subset = img[row_start:row_start + crop_size, col_start:col_start + crop_size]
         stitched_img[i * crop_size:(i + 1) * crop_size, -crop_size:] = img_subset
 
-    io.imsave(os.path.join(plot_dir, 'cluster_' + cluster + '.tiff'), stitched_img.astype('float32'),
+    io.imsave(os.path.join(plot_dir, 'cluster_' + str(cluster) + '.tiff'), stitched_img.astype('float32'),
                 check_contrast=False)
 
 
 # generate crops around cells to classify using the trained model
 cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated.csv'))
 cell_table_clusters = cell_table_clusters[cell_table_clusters.fov.isin(fov_subset)]
-cell_sums = utils.generate_cell_sum_dfs(cell_table=cell_table_clusters, channel_dir=channel_dir,
-                                        mask_dir=mask_dir, channels=['Collagen1', 'Fibronectin',
-                                                                     'FAP', 'SMA', 'Vim'],
-                                        crop_size=256)
+cell_table_clusters = cell_table_clusters[['fov', 'centroid-0', 'centroid-1', 'label']]
 
-cell_classifications = kmeans_pipe.predict(cell_sums.values[:, :5])
+cell_crops = utils.generate_crop_sum_dfs(channel_dir=channel_dir,
+                                         mask_dir=mask_dir,
+                                         channels=channels,
+                                         crop_size=crop_size, fovs=fov_subset,
+                                         cell_table=cell_table_clusters)
+
+# normalize based on ecm area
+cell_crops['ecm_fraction'] = (cell_crops['ecm_mask'] + 1) / (crop_size ** 2)
+cell_crops.loc[:, channels] = cell_crops.loc[:, channels].div(cell_crops['ecm_fraction'], axis=0)
+
+cell_classifications = kmeans_pipe.predict(cell_crops[channels].values.astype('float64'))
 cell_table_clusters['ecm_cluster'] = cell_classifications
 
-min_pixels = crop_size ** 2
-replace_mask = cell_sums['ecm_mask'] < min_pixels
+no_ecm_mask_cell = cell_crops.ecm_fraction < 0.1
 
-cell_table_clusters.loc[replace_mask.values, 'ecm_cluster'] = -1
+cell_table_clusters.loc[no_ecm_mask_cell.values, 'ecm_cluster'] = -1
 
 # replace cluster integers with cluster names
-replace_dict = {0: 'Fibronectin_col', 1: 'Collagen_only', 2: 'Collagen_medium', 3: 'Collagen_hot',
-                4: 'hot_low_collagen', -1: 'no_ecm'}
+replace_dict = {0: 'Fibronectin', 1: 'Collagen_only', 2: 'VIM', 3: 'Collagen_hot',
+                -1: 'no_ecm'}
 
 cell_table_clusters['ecm_cluster'] = cell_table_clusters['ecm_cluster'].replace(replace_dict)
 
@@ -295,11 +273,11 @@ g.map(sns.violinplot, 'ecm_cluster', 'count',
 
 # generate image with each crop set to the value of the cluster its assigned to
 metadata_df = pd.read_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/20230116/ecm_normalized_distribution/metadata_df.csv'))
-img = 'TONIC_TMA6_R11C6'
+img = 'TONIC_TMA2_R10C6'
 cluster_crop_img = np.zeros((2048, 2048))
 
-metadata_subset = metadata_df[metadata_df.fov == img]
-for row_crop, col_crop, cluster in zip(metadata_subset.row, metadata_subset.col, metadata_subset.cluster):
+metadata_subset = tiled_crops[tiled_crops.fov == img]
+for row_crop, col_crop, cluster in zip(metadata_subset.row_coord, metadata_subset.col_coord, metadata_subset.cluster):
     cluster_crop_img[row_crop:row_crop + crop_size, col_crop:col_crop + crop_size] = int(cluster)
 
 io.imshow(cluster_crop_img)
