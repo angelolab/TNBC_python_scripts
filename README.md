@@ -66,7 +66,18 @@ In addition to these core columns, metadata can be added to faciliate easy analy
 | TMA2_FOV4| Macrophage  | 20 | cell_count_detail | TIM3 |  Stage II | 
 
 
-*neighborhood_matrix*: This data structures summarizes information about the location of a given cell compared to its neighbors. Each row represents an individual cell, with the columns representing the neighboring cells. For example, the first row would represent the number of cells of each cell type present within some pre-determined distance around the first cell in the image. 
+*distance_matrix.xr*: this data structure represents the distances between all cells in an image. The rows and columns are labeled according to the cell ID of each cell in an image, with the value at `ij`th cell representing the euclidian distance, in pixels, between cell `i` and cell `j.
+
+|  | 1 | 3 | 6 | 8 | 
+| :---:  |  :---:  |  :---:  | :---:  | :---: | 
+| 1| 0 | 200 | 30 | 21 | 
+| 3| 200  | 0 | 22 | 25 | 
+| 6| 30  | 22 | 0 | 300 | 
+| 8| 21  | 25 | 300 | 0 | 
+
+
+
+*neighborhood_matrix*: This data structures summarizes information about the composition of a cell's neighbors. Each row represents an individual cell, with the columns representing the neighboring cells. For example, the first row would represent the number of cells of each cell type present within some pre-determined distance around the first cell in the image. 
 
 
 | fov | label | T cell | B cell | Macrophage | Treg | 
