@@ -653,3 +653,30 @@ def test_generate_crop_sum_dfs(tmpdir):
 
     # check that there are only two rows with positive values in fov1
     assert np.sum((fov1_tiled['chan1'] > 0) | (fov1_tiled['chan2'] > 0) | (fov1_tiled['ecm_mask'] > 0)) == 2
+
+
+def test_normalize_by_ecm_area():
+    chan1 = [100, 40, 200, 0]
+    chan2 = [34, 0, 500, 1011]
+    cell_labels = [1, 2, 3, 8]
+    ecm_mask = [100, 50, 90, 0]
+
+    crop_sums = pd.DataFrame({"chan1": chan1, "chan2": chan2,
+                              "ecm_mask": ecm_mask, "id": cell_labels})
+
+    # create normalization vector
+    crop_size = 10
+    ecm_fraction = (np.array(ecm_mask) + 1) / (crop_size ** 2)
+
+    chan1_norm = np.array(chan1) / ecm_fraction
+    chan2_norm = np.array(chan2) / ecm_fraction
+
+    expected_output = pd.DataFrame({"chan1": chan1_norm, "chan2": chan2_norm,
+                                    "ecm_mask": ecm_mask, "id": cell_labels,
+                                    "ecm_fraction": ecm_fraction})
+
+    # test
+    result = utils.normalize_by_ecm_area(crop_sums, crop_size, ['chan1', 'chan2'])
+
+    # compare results
+    pd.testing.assert_frame_equal(result, expected_output)

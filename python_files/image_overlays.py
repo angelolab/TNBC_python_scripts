@@ -103,8 +103,8 @@ create_cell_overlay(cell_table=cell_table_clusters, seg_folder='/Volumes/Shared/
 
 # create overlays based on microenvironment
 fovs = cell_table_clusters.fov.unique()
-create_cell_overlay(cell_table=cell_table_clusters, seg_folder='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
-                    fovs=fov_subset, cluster_col='tumor_region', plot_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/compartment_overlay',
+create_cell_overlay(cell_table=cell_crops, seg_folder='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
+                    fovs=fov_subset, cluster_col='ecm_cluster', plot_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/ecm_overlay',
                     save_names=['{}.png'.format(x) for x in fov_subset])
 
 
@@ -112,28 +112,28 @@ create_cell_overlay(cell_table=cell_table_clusters, seg_folder='/Volumes/Shared/
 # create combined images for visualization
 for fov in fov_subset:
     cluster_overlay = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay', fov + '.png'))
-    compartment_overlay = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/compartment_overlay', fov + '.png'))
+    #compartment_overlay = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/compartment_overlay', fov + '.png'))
     ecm_overlay = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/ecm_overlay', fov + '.png'))
 
     # plot a combined image with all three overlays in a row
-    fig, ax = plt.subplots(1, 3, figsize=(15, 5))
+    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
     ax[0].imshow(cluster_overlay)
     ax[0].set_title('Cell Type')
     ax[0].axis('off')
-    ax[1].imshow(compartment_overlay)
-    ax[1].set_title('Compartment')
+    # ax[1].imshow(compartment_overlay)
+    # ax[1].set_title('Compartment')
+    # ax[1].axis('off')
+    ax[1].imshow(ecm_overlay)
+    ax[1].set_title('ECM')
     ax[1].axis('off')
-    ax[2].imshow(ecm_overlay)
-    ax[2].set_title('ECM')
-    ax[2].axis('off')
     plt.tight_layout()
 
-    plt.savefig(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/combined_ecm_overlay', fov + '.png'), dpi=300)
+    plt.savefig(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/combined_ecm_overlay',  'simple_' + fov + '.png'), dpi=300)
     plt.close()
 
 
 # create combined images for visualization
-for fov in fov_subset:
+for fov in fov_subset[2:]:
     ecm_overlay = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/ecm_overlay', fov + '.png'))
     cluster_overlay = io.imread(
         os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay',

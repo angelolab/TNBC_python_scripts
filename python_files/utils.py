@@ -504,3 +504,22 @@ def generate_crop_sum_dfs(channel_dir, mask_dir, channels, crop_size, fovs, cell
         crop_df_list.append(crop_sums_df)
 
     return pd.concat(crop_df_list, ignore_index=True)
+
+
+# normalize by ecm area
+def normalize_by_ecm_area(crop_sums, crop_size, channels):
+    """Normalize the summed pixel values by the area of the ecm mask
+
+    Args:
+        crop_sums (pd.DataFrame): dataframe of crop sums
+        crop_size (int): size of the crop
+        channels (list): list of channels to normalize
+
+    Returns:
+        pd.DataFrame: normalized dataframe
+    """
+
+    crop_sums['ecm_fraction'] = (crop_sums['ecm_mask'] + 1) / (crop_size ** 2)
+    crop_sums.loc[:, channels] = crop_sums.loc[:, channels].div(crop_sums['ecm_fraction'], axis=0)
+
+    return crop_sums

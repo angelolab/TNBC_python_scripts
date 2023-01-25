@@ -112,8 +112,8 @@ def create_combined_channel_mask(chans, channel_dir, percentiles, threshold, smo
 
 
 # create ecm mask for each FOV
-for fov in fov_subset:
-    mask = create_combined_channel_mask(chans=['Collagen1', 'Fibronectin', 'FAP', 'SMA', 'Vim'],
+for fov in all_fovs[0:1]:
+    mask = create_combined_channel_mask(chans=['Collagen1', 'Fibronectin', 'FAP', 'Vim'],
                                         channel_dir=os.path.join(channel_dir, fov),
                                         percentiles=percentiles,
                                         threshold=0.1,
@@ -131,10 +131,10 @@ tiled_crops = utils.generate_crop_sum_dfs(channel_dir=channel_dir,
                                           mask_dir=mask_dir,
                                           channels=channels,
                                           crop_size=crop_size, fovs=fov_subset, cell_table=None)
-# normalize by ecm area
-tiled_crops['ecm_fraction'] = (tiled_crops['ecm_mask'] + 1) / (crop_size ** 2)
 
-tiled_crops.loc[:, channels] = tiled_crops.loc[:, channels].div(tiled_crops['ecm_fraction'], axis=0)
+
+tiled_crops = utils.normalize_by_ecm_area(crop_sums=tiled_crops, crop_size=crop_size,
+                                          channels=channels)
 
 # create a pipeline for normalization and clustering the data
 kmeans_pipe = make_pipeline(preprocessing.PowerTransformer(method='yeo-johnson', standardize=True),
@@ -223,7 +223,7 @@ for cluster in tiled_crops.cluster.unique():
 
 # generate crops around cells to classify using the trained model
 cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated.csv'))
-cell_table_clusters = cell_table_clusters[cell_table_clusters.fov.isin(fov_subset)]
+#cell_table_clusters = cell_table_clusters[cell_table_clusters.fov.isin(fov_subset)]
 cell_table_clusters = cell_table_clusters[['fov', 'centroid-0', 'centroid-1', 'label']]
 
 cell_crops = utils.generate_crop_sum_dfs(channel_dir=channel_dir,
@@ -233,21 +233,21 @@ cell_crops = utils.generate_crop_sum_dfs(channel_dir=channel_dir,
                                          cell_table=cell_table_clusters)
 
 # normalize based on ecm area
-cell_crops['ecm_fraction'] = (cell_crops['ecm_mask'] + 1) / (crop_size ** 2)
-cell_crops.loc[:, channels] = cell_crops.loc[:, channels].div(cell_crops['ecm_fraction'], axis=0)
+cell_crops = utils.normalize_by_ecm_area(crop_sums=cell_crops, crop_size=crop_size,
+                                         channels=channels)
 
 cell_classifications = kmeans_pipe.predict(cell_crops[channels].values.astype('float64'))
-cell_table_clusters['ecm_cluster'] = cell_classifications
+cell_crops['ecm_cluster'] = cell_classifications
 
 no_ecm_mask_cell = cell_crops.ecm_fraction < 0.1
 
-cell_table_clusters.loc[no_ecm_mask_cell.values, 'ecm_cluster'] = -1
+cell_crops.loc[no_ecm_mask_cell, 'ecm_cluster'] = -1
 
 # replace cluster integers with cluster names
 replace_dict = {0: 'Fibronectin', 1: 'Collagen_only', 2: 'VIM', 3: 'Collagen_hot',
                 -1: 'no_ecm'}
 
-cell_table_clusters['ecm_cluster'] = cell_table_clusters['ecm_cluster'].replace(replace_dict)
+cell_crops['ecm_cluster'] = cell_crops['ecm_cluster'].replace(replace_dict)
 
 # save the cell table
 cell_table_clusters.to_csv(os.path.join(plot_dir, 'combined_cell_table_normalized_cell_labels_updated_ecm_clusters.csv'), index=False)
@@ -273,7 +273,7 @@ g.map(sns.violinplot, 'ecm_cluster', 'count',
 
 # generate image with each crop set to the value of the cluster its assigned to
 metadata_df = pd.read_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/20230116/ecm_normalized_distribution/metadata_df.csv'))
-img = 'TONIC_TMA2_R10C6'
+img = 'TONIC_TMA20_R5C3'
 cluster_crop_img = np.zeros((2048, 2048))
 
 metadata_subset = tiled_crops[tiled_crops.fov == img]
