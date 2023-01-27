@@ -43,44 +43,6 @@ output_img = output_img / np.max(output_img)
 io.imsave('/Users/noahgreenwald/Downloads/ECAD.tiff', output_img)
 
 
-# create image with segmentation mask colored by cell type
-image_names = ['TONIC_TMA10_R11C6', 'TONIC_TMA10_R10C6']
-
-base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
-data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
-
-cell_table = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_clusters_only.csv'))
-cell_subset = cell_table[cell_table['fov'].isin(image_names)]
-cell_subset['unique_ids'] = pd.factorize(cell_subset['cell_cluster'])[0] + 1
-
-
-# import viridis colormap from mpl
-num_categories = np.max(cell_subset.unique_ids)
-cm_values = cm.get_cmap('Paired', num_categories - 1)
-
-# get RGB values from cm_values
-rgb_values = cm_values(np.arange(num_categories - 1))
-
-# combine with all black for background
-rgb_values = np.vstack((np.array([0, 0, 0, 1]), rgb_values))
-
-new_cmap = colors.ListedColormap(rgb_values)
-
-for image in image_names:
-    seg_mask = io.imread(os.path.join(base_dir, 'segmentation_data/deepcell_output', image + '_feature_0.tif'))[0]
-
-
-
-    # convert string entries in pandas df to unique integers
-    cell_subset_plot = cell_subset[cell_subset['fov'] == image]
-    labels_dict = dict(zip(cell_subset_plot['label'], cell_subset_plot['unique_ids']))
-
-    # relabel the array
-    relabeled_img_array = data_utils.relabel_segmentation(seg_mask, labels_dict)
-
-    output = new_cmap(relabeled_img_array / np.max(relabeled_img_array))
-    io.imsave(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/figures/overlays', image + '_seg_overlay.png'), output)
-
 
 def create_cell_overlay(cell_table, seg_folder, fovs, cluster_col, plot_dir, save_names):
     cell_subset = cell_table.copy()
@@ -129,8 +91,99 @@ def create_cell_overlay(cell_table, seg_folder, fovs, cluster_col, plot_dir, sav
         #io.imsave(os.path.join(plot_dir, save_names[idx]), output)
 
 
-folders = cell_table_clusters.fov.unique()
-np.random.shuffle(folders)
+#folders = cell_table_clusters.fov.unique()
+#np.random.shuffle(folders)
+
+fovs = harmonized_metadata.loc[harmonized_metadata['primary_baseline'] == True, 'fov'].values
+fovs = cell_table_clusters.fov.unique()
 create_cell_overlay(cell_table=cell_table_clusters, seg_folder='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
-                    fovs=folders[:50], cluster_col='tumor_region', plot_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/compartment_overlay',
-                    save_names=['{}.png'.format(x) for x in folders[:50]])
+                    fovs=fovs, cluster_col='cell_cluster_broad', plot_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay',
+                    save_names=['{}.png'.format(x) for x in fovs])
+
+
+# create overlays based on microenvironment
+fovs = cell_table_clusters.fov.unique()
+create_cell_overlay(cell_table=plot_cell_crops, seg_folder='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
+                    fovs=fov_subset, cluster_col='ecm_cluster', plot_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/ecm_overlay',
+                    save_names=['{}.png'.format(x) for x in fov_subset])
+
+
+
+# create combined images for visualization
+for fov in fov_subset:
+    cluster_overlay = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay', fov + '.png'))
+    #compartment_overlay = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/compartment_overlay', fov + '.png'))
+    ecm_overlay = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/ecm_overlay', fov + '.png'))
+
+    # plot a combined image with all three overlays in a row
+    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+    ax[0].imshow(cluster_overlay)
+    ax[0].set_title('Cell Type')
+    ax[0].axis('off')
+    # ax[1].imshow(compartment_overlay)
+    # ax[1].set_title('Compartment')
+    # ax[1].axis('off')
+    ax[1].imshow(ecm_overlay)
+    ax[1].set_title('ECM')
+    ax[1].axis('off')
+    plt.tight_layout()
+
+    plt.savefig(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/combined_ecm_overlay',  'simple_' + fov + '.png'), dpi=300)
+    plt.close()
+
+
+# create combined images for visualization
+for fov in fov_subset:
+    ecm_overlay = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/ecm_overlay', fov + '.png'))
+    cluster_overlay = io.imread(
+        os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay',
+                     fov + '.png'))
+    compartment_overlay = io.imread(
+        os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/compartment_overlay',
+                     fov + '.png'))
+    collagen_img = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples', fov,  'Collagen1.tiff'))
+    collagen_img /= percentiles['Collagen1']
+    collagen_img = np.where(collagen_img > 1, 1, collagen_img)
+
+    FAP_img = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples', fov,  'FAP.tiff'))
+    FAP_img /= percentiles['FAP']
+    FAP_img = np.where(FAP_img > 1, 1, FAP_img)
+
+    Fibronectin_img = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples', fov,  'Fibronectin.tiff'))
+    Fibronectin_img /= percentiles['Fibronectin']
+    Fibronectin_img = np.where(Fibronectin_img > 1, 1, Fibronectin_img)
+
+    VIM_img = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples', fov,  'VIM.tiff'))
+    VIM_img /= percentiles['Vim']
+    VIM_img = np.where(VIM_img > 1, 1, VIM_img)
+
+    # plot a combined image with all three overlays in a row
+    fig, ax = plt.subplots(2, 3, figsize=(12, 5))
+    ax[0, 0].imshow(cluster_overlay)
+    ax[0, 0].set_title('Cell Type')
+    ax[0, 0].axis('off')
+    ax[0, 1].imshow(ecm_overlay)
+    ax[0, 1].set_title('ECM')
+    ax[0, 1].axis('off')
+    ax[0, 2].imshow(VIM_img)
+    ax[0, 2].set_title('VIM')
+    ax[0, 2].axis('off')
+
+
+    ax[1, 0].imshow(collagen_img)
+    ax[1, 0].set_title('Collagen')
+    ax[1, 0].axis('off')
+    ax[1, 1].imshow(FAP_img)
+    ax[1, 1].set_title('FAP')
+    ax[1, 1].axis('off')
+    ax[1, 2].imshow(Fibronectin_img)
+    ax[1, 2].set_title('Fibronectin')
+    ax[1, 2].axis('off')
+    plt.tight_layout()
+
+
+
+    plt.savefig(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/combined_ecm_overlay', fov + '.png'), dpi=300)
+    plt.close()
+
+

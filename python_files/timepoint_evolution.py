@@ -225,33 +225,40 @@ for marker in markers:
     plt.close()
 
 
-# create overlays for specified patients
-core_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
-plot_patients = cluster_evolution.TONIC_ID.unique()
+# combine overlays together into a single image for easier viewing
+cluster_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay'
+plot_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/baseline_nivo_overlay'
+harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'harmonized_metadata.csv'))
 
-cell_table_short = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_clusters_only.csv'))
+#patients = harmonized_metadata.loc[harmonized_metadata.primary_baseline == True, 'TONIC_ID'].unique()
+patients = harmonized_metadata.loc[harmonized_metadata.baseline_on_nivo == True, 'TONIC_ID'].unique()
+fov_df = harmonized_metadata.loc[harmonized_metadata.TONIC_ID.isin(patients), ['TONIC_ID', 'fov', 'Timepoint']]
+fov_df = fov_df.loc[fov_df.fov.isin(cell_table_clusters.fov.unique())]
+for patient in patients:
 
+    # get all primary samples
+    timepoint_1 = fov_df.loc[(fov_df.TONIC_ID == patient) & (fov_df.Timepoint == 'baseline'), 'fov'].unique()
+    timepoint_2 = fov_df.loc[(fov_df.TONIC_ID == patient) & (fov_df.Timepoint == 'on_nivo'), 'fov'].unique()
 
-for patient in plot_patients[10:30]:
-    patient_metadata = core_metadata.loc[(core_metadata.TONIC_ID == str(patient)) & core_metadata.MIBI_data_generated, :]
-    patient_metadata = patient_metadata[patient_metadata.Timepoint.isin(['primary_untreated', 'baseline'])]
-    patient_metadata = patient_metadata[['fov', 'Timepoint']]
+    max_len = max(len(timepoint_1), len(timepoint_2))
 
-    # convert pandas df to a list for each column
-    fovs, timepoints = [patient_metadata[x].tolist() for x in ['fov', 'Timepoint']]
+    fig, axes = plt.subplots(2, max_len, figsize=(max_len*5, 10))
+    for i in range(len(timepoint_1)):
+        try:
+            axes[0, i].imshow(plt.imread(os.path.join(cluster_dir, timepoint_1[i] + '.png')))
+            axes[0, i].axis('off')
+            axes[0, i].set_title('Baseline')
+        except:
+            print('No primary image for {}'.format(patient))
 
-    save_names = ['overlay_{}_{}_{}.png'.format(patient, x, y) for x, y in zip(fovs, timepoints)]
+    for i in range(len(timepoint_2)):
+        try:
+            axes[1, i].imshow(plt.imread(os.path.join(cluster_dir, timepoint_2[i] + '.png')))
+            axes[1, i].axis('off')
+            axes[1, i].set_title('On Nivo')
+        except:
+            print('No baseline image for {}'.format(patient))
 
-    create_cell_overlay(cell_table_short, seg_folder='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
-                        fovs=fovs, cluster_col='cell_cluster_broad', plot_dir=plot_dir,
-                        save_names=save_names)
-
-# create overlays for test_images
-fovs = io_utils.list_files('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/segmentation_masks', )
-fovs = [fov.split('_feature')[0] for fov in fovs]
-
-save_names = ['overlay_{}_test.png'.format(x) for x in fovs]
-
-create_cell_overlay(cell_table_short, seg_folder='/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/segmentation_masks',
-                    fovs=fovs, cluster_col='cell_cluster_broad', plot_dir=plot_dir,
-                    save_names=save_names)
+    plt.tight_layout()
+    plt.savefig(os.path.join(plot_dir, 'TONIC_{}.png'.format(patient)), dpi=300)
+    plt.close()

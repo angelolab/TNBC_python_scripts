@@ -1,3 +1,5 @@
+import itertools
+
 import numpy as np
 import pandas as pd
 
@@ -478,3 +480,203 @@ def test_create_long_df_by_functional_freq():
 
     pd.testing.assert_frame_equal(result_subset_region2, expected_subset_region2)
 
+
+def test_identify_cell_bounding_box():
+    # when the centroid is at least crop_size/2 away from the edge, the bounding box should not change
+    # otherwise, the bounding box should be adjusted to be at crop_size/2 away from the edge
+
+    row_coords = [3, 10, 30, 98]
+    col_coords = [30, 4, 99, 90]
+
+    bb_row_coords = [0, 0, 20, 80]
+    bb_col_coords = [20, 0, 80, 80]
+
+    crop_size = 20
+    img_shape = (100, 100)
+
+    for i in range(len(row_coords)):
+        row_coord, col_coord = utils.identify_cell_bounding_box(row_coords[i], col_coords[i],
+                                                                crop_size, img_shape)
+        assert row_coord == bb_row_coords[i]
+        assert col_coord == bb_col_coords[i]
+
+
+def test_generate_cell_crop_coords():
+    row_coords = [3, 10, 30, 98]
+    col_coords = [30, 4, 99, 90]
+
+    bb_row_coords = [0, 0, 20, 80]
+    bb_col_coords = [20, 0, 80, 80]
+
+    crop_size = 20
+    img_shape = (100, 100)
+
+    cell_table = pd.DataFrame({'fov': ['fov1', 'fov1', 'fov1', 'fov1'],
+                               'label': [1, 2, 3, 4],
+                               'centroid-0': row_coords,
+                               'centroid-1': col_coords})
+
+    bb_df = utils.generate_cell_crop_coords(cell_table, crop_size, img_shape)
+    assert bb_df.row_coord.tolist() == bb_row_coords
+    assert bb_df.col_coord.tolist() == bb_col_coords
+    assert bb_df.id.tolist() == [1, 2, 3, 4]
+
+
+def test_generate_tiled_crop_coords():
+    img_shape = (100, 100)
+    crop_size = 20
+
+    # generate combinations of row and col coords
+    coords = itertools.product(range(0, img_shape[0], crop_size),
+                                 range(0, img_shape[1], crop_size))
+    predicted_df = pd.DataFrame(coords, columns=['row_coord', 'col_coord'])
+
+
+    coord_df = utils.generate_tiled_crop_coords(crop_size, img_shape)
+
+    pd.testing.assert_frame_equal(coord_df[['row_coord', 'col_coord']],
+                                  predicted_df[['row_coord', 'col_coord']])
+
+
+def test_extract_crop_sums():
+    # create test image
+    chan0 = np.zeros((100, 100))
+    chan0[:10, 50:60] = 2
+    chan0[10:20, 20:30] = 1
+
+    chan1 = np.zeros((100, 100))
+    chan1[50:60, 40:50] = 3
+
+    img = np.stack([chan0, chan1], axis=-1)
+
+    # create crop coordinates
+    row_coords = [0, 10, 50, 0, 80]
+    col_coords = [50, 20, 40, 55, 80]
+
+    coords_df = pd.DataFrame({"row_coord": row_coords,
+                               "col_coord": col_coords})
+
+    # create expected output
+    expected = np.stack([[200, 100, 0, 100, 0],
+                         [0, 0, 300, 0, 0]], axis=-1)
+    # test
+    result = utils.extract_crop_sums( img_data=img, crop_size=10, crop_coords_df=coords_df)
+
+    np.testing.assert_array_equal(result, expected)
+
+
+def test_generate_crop_sum_dfs(tmpdir):
+    # create image data for first fov
+    fov1_chan1 = np.zeros((100, 100))
+    fov1_chan1[:10, :10] = 1
+
+    fov1_chan2 = np.zeros((100, 100))
+    fov1_chan2[50:60, :10] = 1
+
+    fov1_mask = np.zeros((100, 100))
+    fov1_mask[50:55, :10] = 1
+    fov1_mask = fov1_mask == 1
+
+    # create image data for second fov
+    fov2_chan1 = np.zeros((100, 100))
+    fov2_chan1[90:, 90:] = 2
+
+    fov2_chan2 = np.zeros((100, 100))
+    fov2_chan2[70:80, 20:30] = 1
+
+    fov2_mask = np.zeros((100, 100))
+    fov2_mask[75:80, 20:30] = 1
+    fov2_mask = fov2_mask == 1
+
+    # create directory structure
+    channel_dir = tmpdir.mkdir("channel_dir")
+    fov1_dir = channel_dir.mkdir("fov1")
+    fov2_dir = channel_dir.mkdir("fov2")
+
+    import skimage.io as io
+    for chan_name, chan_mask in zip(["chan1", "chan2", "total_ecm"],
+                                    [fov1_chan1, fov1_chan2, fov1_mask.astype('uint8')]):
+        io.imsave(fov1_dir.join(f"{chan_name}.tiff").strpath, chan_mask, check_contrast=False)
+
+    for chan_name, chan_mask in zip(["chan1", "chan2", "total_ecm"],
+                                    [fov2_chan1, fov2_chan2, fov2_mask.astype('uint8')]):
+        io.imsave(fov2_dir.join(f"{chan_name}.tiff").strpath, chan_mask, check_contrast=False)
+
+    # create cell table
+    cell_ids = [1, 2, 1, 3]
+    fovs = ["fov1", "fov1", "fov2", "fov2"]
+    row_centroid = [5, 55, 100, 75]
+    row_coords = [0, 50, 90, 70]
+    col_centroid = [5, 5, 95, 25]
+    col_coords = [0, 0, 90, 20]
+
+    cell_table = pd.DataFrame({"label": cell_ids, "fov": fovs, "centroid-0": row_centroid,
+                                 "centroid-1": col_centroid})
+
+    # create expected output
+    expected_output = pd.DataFrame({"row_coord": row_coords, "col_coord": col_coords,
+                                    "id": cell_ids,
+                                    "chan1": [100.0, 0, 200, 0],
+                                  "chan2": [0.0, 100, 0, 100],
+                                  "ecm_mask": [0, 50, 0, 50],
+                                  'fov': ["fov1", "fov1", "fov2", "fov2"]})
+
+    # test
+    result = utils.generate_crop_sum_dfs(channel_dir=channel_dir.strpath,
+                                         mask_dir=channel_dir.strpath, channels=['chan1', 'chan2'],
+                                         crop_size=10, fovs=['fov1', 'fov2'], cell_table=cell_table)
+
+    # compare results
+    expected_output.iloc[:, 3:6] = expected_output.iloc[:, 3:6].astype(float)
+    pd.testing.assert_frame_equal(result, expected_output)
+
+    # test tiling across the images
+    tiled_result = utils.generate_crop_sum_dfs(channel_dir=channel_dir.strpath,
+                                            mask_dir=channel_dir.strpath, channels=['chan1', 'chan2'],
+                                            crop_size=10, fovs=['fov1', 'fov2'], cell_table=None)
+
+    # compare results
+    fov1_tiled = tiled_result[tiled_result['fov'] == 'fov1']
+    fov2_tiled = tiled_result[tiled_result['fov'] == 'fov2']
+
+    # check that the first entry in fov1 is the same as the first cell
+    pd.testing.assert_frame_equal(fov1_tiled.iloc[0:1, 3:], expected_output.iloc[0:1, 3:])
+
+    # check that middle entry in fov1 is same as the second cell
+    fov1_middle = fov1_tiled.iloc[50:51, 3:]
+    fov1_middle.reset_index(drop=True, inplace=True)
+
+    expected_output_middle = expected_output.iloc[1:2, 3:]
+    expected_output_middle.reset_index(drop=True, inplace=True)
+
+    pd.testing.assert_frame_equal(fov1_middle, expected_output_middle)
+
+    # check that there are only two rows with positive values in fov1
+    assert np.sum((fov1_tiled['chan1'] > 0) | (fov1_tiled['chan2'] > 0) | (fov1_tiled['ecm_mask'] > 0)) == 2
+
+
+def test_normalize_by_ecm_area():
+    chan1 = [100, 40, 200, 0]
+    chan2 = [34, 0, 500, 1011]
+    cell_labels = [1, 2, 3, 8]
+    ecm_mask = [100, 50, 90, 0]
+
+    crop_sums = pd.DataFrame({"chan1": chan1, "chan2": chan2,
+                              "ecm_mask": ecm_mask, "id": cell_labels})
+
+    # create normalization vector
+    crop_size = 10
+    ecm_fraction = (np.array(ecm_mask) + 1) / (crop_size ** 2)
+
+    chan1_norm = np.array(chan1) / ecm_fraction
+    chan2_norm = np.array(chan2) / ecm_fraction
+
+    expected_output = pd.DataFrame({"chan1": chan1_norm, "chan2": chan2_norm,
+                                    "ecm_mask": ecm_mask, "id": cell_labels,
+                                    "ecm_fraction": ecm_fraction})
+
+    # test
+    result = utils.normalize_by_ecm_area(crop_sums, crop_size, ['chan1', 'chan2'])
+
+    # compare results
+    pd.testing.assert_frame_equal(result, expected_output)

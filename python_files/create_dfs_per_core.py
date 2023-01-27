@@ -27,6 +27,8 @@ harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'harmonized_metadata.cs
 cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_clusters_only_kmeans_nh_mask.csv'))
 area_df = pd.read_csv(os.path.join(data_dir, 'mask_area.csv'))
 
+# TODO: combine individually generated cell phenotype tables together to avoid opening main df
+
 # replace values in a column with other values
 replace_dict = {1: 'cancer_vim_56', 2: 'immune_other', 3: 'cancer_sma', 4: 'cd4t', 5: 'cancer_ck17',
                 6: 'CD8T', 7: 'FAP_fibro', 8: 'CD163_mac', 9: 'Bcells', 10: 'Cancer_Ecad',
