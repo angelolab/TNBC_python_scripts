@@ -103,7 +103,7 @@ create_cell_overlay(cell_table=cell_table_clusters, seg_folder='/Volumes/Shared/
 
 # create overlays based on microenvironment
 fovs = cell_table_clusters.fov.unique()
-create_cell_overlay(cell_table=cell_crops, seg_folder='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
+create_cell_overlay(cell_table=plot_cell_crops, seg_folder='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
                     fovs=fov_subset, cluster_col='ecm_cluster', plot_dir='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/ecm_overlay',
                     save_names=['{}.png'.format(x) for x in fov_subset])
 
@@ -133,7 +133,7 @@ for fov in fov_subset:
 
 
 # create combined images for visualization
-for fov in fov_subset[2:]:
+for fov in fov_subset:
     ecm_overlay = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/ecm_overlay', fov + '.png'))
     cluster_overlay = io.imread(
         os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay',
@@ -153,16 +153,20 @@ for fov in fov_subset[2:]:
     Fibronectin_img /= percentiles['Fibronectin']
     Fibronectin_img = np.where(Fibronectin_img > 1, 1, Fibronectin_img)
 
+    VIM_img = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples', fov,  'VIM.tiff'))
+    VIM_img /= percentiles['Vim']
+    VIM_img = np.where(VIM_img > 1, 1, VIM_img)
+
     # plot a combined image with all three overlays in a row
     fig, ax = plt.subplots(2, 3, figsize=(12, 5))
     ax[0, 0].imshow(cluster_overlay)
     ax[0, 0].set_title('Cell Type')
     ax[0, 0].axis('off')
-    ax[0, 1].imshow(compartment_overlay)
-    ax[0, 1].set_title('Compartment')
+    ax[0, 1].imshow(ecm_overlay)
+    ax[0, 1].set_title('ECM')
     ax[0, 1].axis('off')
-    ax[0, 2].imshow(ecm_overlay)
-    ax[0, 2].set_title('ECM')
+    ax[0, 2].imshow(VIM_img)
+    ax[0, 2].set_title('VIM')
     ax[0, 2].axis('off')
 
 

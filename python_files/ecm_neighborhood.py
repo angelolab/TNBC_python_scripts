@@ -29,7 +29,6 @@ from python_files import utils
 out_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/ecm_masks'
 channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples'
 mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/mask_dir/individual_masks/'
-fovs = io_utils.list_folders(channel_dir)
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots'
 
 #
@@ -149,7 +148,7 @@ train_data = train_data.loc[:, channels]
 kmeans_pipe.fit(train_data.values)
 
 # save the trained pipeline
-pickle.dump(kmeans_pipe, open(os.path.join(plot_dir, 'kmeans_pipe_new_4_all_data.pkl'), 'wb'))
+pickle.dump(kmeans_pipe, open(os.path.join(plot_dir, 'kmeans_pipe.pkl'), 'wb'))
 
 
 # load the model
@@ -188,7 +187,7 @@ plt.savefig(os.path.join(plot_dir, 'cluster_fov_counts.png'), dpi=300)
 plt.close()
 
 # save dfs
-tiled_crops.to_csv(os.path.join(plot_dir, 'tiled_crops.csv'), index=False)
+tiled_crops.to_csv(os.path.join(data_dir, 'tiled_crops.csv'), index=False)
 
 
 # create a stitched image with example images from each cluster
@@ -244,16 +243,20 @@ no_ecm_mask_cell = cell_crops.ecm_fraction < 0.1
 cell_crops.loc[no_ecm_mask_cell, 'ecm_cluster'] = -1
 
 # replace cluster integers with cluster names
-replace_dict = {0: 'Fibronectin', 1: 'Collagen_only', 2: 'VIM', 3: 'Collagen_hot',
+replace_dict = {0: 'Hot_Coll', 1: 'Fibro_Coll', 2: 'VIM_Fibro', 3: 'Cold_Coll',
                 -1: 'no_ecm'}
 
 cell_crops['ecm_cluster'] = cell_crops['ecm_cluster'].replace(replace_dict)
+cell_crops.to_csv(os.path.join(data_dir, 'cell_crops.csv'), index=False)
 
-# save the cell table
-cell_table_clusters.to_csv(os.path.join(plot_dir, 'combined_cell_table_normalized_cell_labels_updated_ecm_clusters.csv'), index=False)
 
 # group cells in each FOV according to their ECM cluster
-cell_table_clusters = cell_table_clusters[cell_table_clusters.fov.isin(fov_subset)]
+plot_cell_crops = cell_crops[['fov', 'id', 'ecm_cluster']]
+plot_cell_crops = plot_cell_crops.rename(columns={'id': 'label'})
+
+cell_table_clusters = pd.merge(cell_table_clusters, plot_cell_crops[['fov', 'label', 'ecm_cluster']],
+                                 on=['fov', 'label'], how='left')
+
 grouped_ecm_region = cell_table_clusters[['fov', 'ecm_cluster', 'cell_cluster_broad']].groupby(['fov', 'ecm_cluster']).value_counts(normalize=True)
 grouped_ecm_region = grouped_ecm_region.unstack(level='cell_cluster_broad', fill_value=0).stack()
 
@@ -265,8 +268,8 @@ grouped_ecm_region.columns = ['fov',  'ecm_cluster', 'cell_cluster','count']
 g = sns.FacetGrid(grouped_ecm_region, col='cell_cluster', col_wrap=3, hue='ecm_cluster',
                   palette=['Black'], sharey=False, aspect=2.5)
 g.map(sns.violinplot, 'ecm_cluster', 'count',
-      order=['Collagen_hot', 'Collagen_medium', 'Collagen_only',
-       'Fibronectin_col', 'hot_low_collagen', 'no_ecm'])
+      order=['Hot_Coll', 'VIM_Fibro', 'Fibro_Coll',
+       'Cold_Coll', 'no_ecm'])
 
 
 # QC clustering results
@@ -281,3 +284,56 @@ for row_crop, col_crop, cluster in zip(metadata_subset.row_coord, metadata_subse
     cluster_crop_img[row_crop:row_crop + crop_size, col_crop:col_crop + crop_size] = int(cluster)
 
 io.imshow(cluster_crop_img)
+
+
+# correlate ECM subtypes with patient data using hierarchically clustered heatmap as index
+test_fov = 'TONIC_TMA22_R7C1'
+test_fov_idx = np.where(cluster_counts.index == test_fov)[0][0]
+
+stop_idx = np.where(cluster_counts_clustermap.dendrogram_row.reordered_ind == test_fov_idx)[0][0]
+
+cluster_counts_subset = cluster_counts.iloc[cluster_counts_clustermap.dendrogram_row.reordered_ind[:stop_idx + 1], :]
+
+test_fov_2 = 'TONIC_TMA21_R9C5'
+test_fov_idx_2 = np.where(cluster_counts.index == test_fov_2)[0][0]
+
+stop_idx_2 = np.where(cluster_counts_clustermap.dendrogram_row.reordered_ind == test_fov_idx_2)[0][0]
+
+cluster_counts_subset_2 = cluster_counts.iloc[cluster_counts_clustermap.dendrogram_row.reordered_ind[stop_idx:stop_idx_2 + 1], :]
+
+cluster_counts_subset_3 = cluster_counts.iloc[cluster_counts_clustermap.dendrogram_row.reordered_ind[stop_idx_2:], :]
+
+harmonized_metadata['ecm_cluster'] = 'inflamed'
+harmonized_metadata.loc[harmonized_metadata.fov.isin(cluster_counts_subset.index), 'ecm_cluster'] = 'no_ecm'
+harmonized_metadata.loc[harmonized_metadata.fov.isin(cluster_counts_subset_2.index), 'ecm_cluster'] = 'cold_collagen'
+
+# plot the distribution of ECM subtypes in each patient by localization
+g = sns.catplot(y='Localization', hue='ecm_cluster', data=harmonized_metadata,
+                kind='count')
+g.savefig(os.path.join(plot_dir, 'ecm_subtype_distribution.png'), dpi=300)
+plt.close()
+
+# plot marker expression in each ECM subtype
+plot_df = core_df_func.merge(harmonized_metadata[['fov', 'ecm_cluster']], on='fov', how='left')
+
+# look at all fibroblasts
+temp_df = plot_df[plot_df.subset == 'all']
+temp_df = temp_df[temp_df.metric == 'cluster_broad_freq']
+temp_df = temp_df[temp_df.cell_type == 'Stroma']
+temp_df = temp_df[temp_df.functional_marker.isin(['PDL1', 'TIM3', 'IDO', 'HLADR', 'GLUT1'])]
+
+g = sns.catplot(x='ecm_cluster', y='value', data=temp_df,
+                kind='strip', col='functional_marker', sharey=False)
+g.savefig(os.path.join(plot_dir, 'fibroblast_functional_status_by_ecm.png'), dpi=300)
+plt.close()
+
+# look at M2 macrophages
+temp_df = plot_df[plot_df.subset == 'all']
+temp_df = temp_df[temp_df.metric == 'cluster_freq']
+temp_df = temp_df[temp_df.cell_type == 'M2_Mac']
+temp_df = temp_df[temp_df.functional_marker.isin(['PDL1', 'TIM3', 'IDO', 'HLADR', 'GLUT1'])]
+
+g = sns.catplot(x='ecm_cluster', y='value', data=temp_df,
+                kind='box', col='functional_marker', sharey=False)
+g.savefig(os.path.join(plot_dir, 'm2_mac_functional_status_by_ecm.png'), dpi=300)
+plt.close()
