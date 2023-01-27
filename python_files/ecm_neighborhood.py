@@ -315,6 +315,7 @@ plt.close()
 
 # plot marker expression in each ECM subtype
 plot_df = core_df_func.merge(harmonized_metadata[['fov', 'ecm_cluster']], on='fov', how='left')
+plot_df = plot_df[plot_df.Timepoint == 'primary_untreated']
 
 # look at all fibroblasts
 temp_df = plot_df[plot_df.subset == 'all']
@@ -330,10 +331,22 @@ plt.close()
 # look at M2 macrophages
 temp_df = plot_df[plot_df.subset == 'all']
 temp_df = temp_df[temp_df.metric == 'cluster_freq']
-temp_df = temp_df[temp_df.cell_type == 'M2_Mac']
+temp_df = temp_df[temp_df.cell_type == 'M1_Mac']
 temp_df = temp_df[temp_df.functional_marker.isin(['PDL1', 'TIM3', 'IDO', 'HLADR', 'GLUT1'])]
 
 g = sns.catplot(x='ecm_cluster', y='value', data=temp_df,
                 kind='box', col='functional_marker', sharey=False)
-g.savefig(os.path.join(plot_dir, 'm2_mac_functional_status_by_ecm.png'), dpi=300)
+g.savefig(os.path.join(plot_dir, 'm1_mac_functional_status_by_ecm.png'), dpi=300)
+plt.close()
+
+# look at cell densities
+plot_df = core_df_cluster.merge(harmonized_metadata[['fov', 'ecm_cluster']], on='fov', how='left')
+plot_df = plot_df[plot_df.Timepoint == 'primary_untreated']
+
+temp_df = plot_df[plot_df.subset == 'all']
+temp_df = temp_df[temp_df.metric == 'cluster_broad_density']
+
+g = sns.catplot(x='ecm_cluster', y='value', data=temp_df,
+                kind='box', col='cell_type', sharey=False, col_wrap=4)
+g.savefig(os.path.join(plot_dir, 'cell_density_primary_broad.png'), dpi=300)
 plt.close()
