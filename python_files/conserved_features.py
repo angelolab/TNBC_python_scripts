@@ -12,7 +12,7 @@ data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 
 core_df_cluster = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
-core_df_func = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core.csv'))
+core_df_func = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'))
 harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'harmonized_metadata.csv'))
 
 fov_metadata = harmonized_metadata[harmonized_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'on_nivo', 'post_induction'])]
@@ -29,8 +29,7 @@ conserved_df = core_df_cluster[core_df_cluster.fov.isin(keep_fov_1 + keep_fov_2)
 conserved_df['placeholder'] = conserved_df.fov.isin(keep_fov_1).astype(int)
 conserved_df['placeholder'] = conserved_df['placeholder'].replace({0: 'fov1', 1: 'fov2'})
 
-conserved_df = conserved_df[conserved_df.metric.isin(['cluster_broad_density', 'cluster_density',
-                                                      'meta_cluster_density', 'immune_freq', 'cancer_freq'])]
+conserved_df = conserved_df[conserved_df.metric.isin(['cluster_density'])]
 conserved_df = conserved_df.pivot(index=['Tissue_ID', 'metric', 'subset', 'cell_type'], columns='placeholder', values='value')
 conserved_df = conserved_df.reset_index()
 
@@ -40,9 +39,7 @@ names = []
 for metric, cell_type, subset in conserved_df[['metric', 'cell_type', 'subset']].drop_duplicates().values:
     values = conserved_df[(conserved_df.metric == metric) & (conserved_df.cell_type == cell_type) & (conserved_df.subset == subset)]
     values.dropna(inplace=True)
-    shuffled = values.fov1.values
-    np.random.shuffle(shuffled)
-    cor, p_val = pearsonr(shuffled, values.fov2)
+    cor, p_val = spearmanr(values.fov1, values.fov2)
     p_vals.append(p_val)
     cors.append(cor)
     names.append(f'{metric}__{cell_type}__{subset}')
@@ -69,6 +66,8 @@ values = conserved_df[(conserved_df.metric == metric) & (conserved_df.cell_type 
 values.dropna(inplace=True)
 sns.scatterplot(data=values, x='fov1', y='fov2')
 plt.title(f'{metric}__{cell_type}__{subset}__{correlation}')
+plt.savefig(os.path.join(plot_dir, 'conserved_features_5.png'))
+plt.close()
 
 
 ### same thing for functional markers
@@ -76,8 +75,7 @@ conserved_df = core_df_func[core_df_func.fov.isin(keep_fov_1 + keep_fov_2)]
 conserved_df['placeholder'] = conserved_df.fov.isin(keep_fov_1).astype(int)
 conserved_df['placeholder'] = conserved_df['placeholder'].replace({0: 'fov1', 1: 'fov2'})
 
-conserved_df = conserved_df[conserved_df.metric.isin(['cluster_broad_freq', 'cluster_freq',
-                                                      'meta_cluster_freq'])]
+conserved_df = conserved_df[conserved_df.metric.isin(['cluster_freq'])]
 conserved_df = conserved_df.pivot(index=['Tissue_ID', 'metric', 'subset', 'cell_type', 'functional_marker'], columns='placeholder', values='value')
 conserved_df = conserved_df.reset_index()
 
@@ -92,7 +90,7 @@ for metric, cell_type, subset, func in conserved_df[['metric', 'cell_type', 'sub
     # remove infs
     values = values[~values.isin([np.inf, -np.inf]).any(1)]
 
-    if len(values) > 10:
+    if len(values) > 20:
         cor, p_val = spearmanr(values.fov1, values.fov2)
         p_vals.append(p_val)
         cors.append(cor)
@@ -121,7 +119,7 @@ values = conserved_df[(conserved_df.metric == metric) & (conserved_df.cell_type 
 values.dropna(inplace=True)
 sns.scatterplot(data=values, x='fov1', y='fov2')
 plt.title(f'{metric}__{cell_type}__{subset}__{func}__{correlation}')
-plt.savefig(os.path.join(plot_dir, 'example_plot7.png'))
+plt.savefig(os.path.join(plot_dir, 'example_plot_func_6.png'))
 plt.close()
 
 # create cascading plot across p values and correlation values
