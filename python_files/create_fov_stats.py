@@ -12,7 +12,7 @@ plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 # load datasets
 cluster_df_core = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
 metadata_df_core = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
-functional_df_core = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core.csv'))
+functional_df_core = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'))
 harmonized_metadata_df = pd.read_csv(os.path.join(data_dir, 'harmonized_metadata.csv'))
 
 #
@@ -20,37 +20,38 @@ harmonized_metadata_df = pd.read_csv(os.path.join(data_dir, 'harmonized_metadata
 # frequencies for plotting, picking only a subset of the relevant relationships
 #
 
-# def compute_celltype_ratio(input_data, celltype_1, celltype_2):
-#     wide_df = pd.pivot(input_data, index='fov', columns=['cell_type'], values='value')
-#     wide_df.reset_index(inplace=True)
-#
-#     # if celltypes are lists, create columns which are a sum of individual elements
-#     if isinstance(celltype_1, list):
-#         wide_df['celltype_1'] = wide_df[celltype_1].sum(axis=1)
-#         celltype_1 = 'celltype_1'
-#
-#     if isinstance(celltype_2, list):
-#         wide_df['celltype_2'] = wide_df[celltype_2].sum(axis=1)
-#         celltype_2 = 'celltype_2'
-#
-#     # replace zeros with minimum non-vero value
-#     celltype_1_min = np.min(wide_df[celltype_1].array[wide_df[celltype_1] > 0])
-#     celltype_2_min = np.min(wide_df[celltype_2].array[wide_df[celltype_2] > 0])
-#     celltype_1_threshold = np.where(wide_df[celltype_1] > 0, wide_df[celltype_1], celltype_1_min)
-#     celltype_2_threshold = np.where(wide_df[celltype_2] > 0, wide_df[celltype_2], celltype_2_min)
-#
-#     wide_df['value'] = np.log2(celltype_1_threshold / celltype_2_threshold)
-#     wide_df = wide_df[['fov', 'value']]
-#
-#     return wide_df
-#
-#
-# # compute shannon diversity from list of proportions
-# def shannon_diversity(proportions):
-#     proportions = [prop for prop in proportions if prop > 0]
-#     return -np.sum(proportions * np.log2(proportions))
-#
-#
+
+def compute_celltype_ratio(input_data, celltype_1, celltype_2):
+    wide_df = pd.pivot(input_data, index='fov', columns=['cell_type'], values='value')
+    wide_df.reset_index(inplace=True)
+
+    # if celltypes are lists, create columns which are a sum of individual elements
+    if isinstance(celltype_1, list):
+        wide_df['celltype_1'] = wide_df[celltype_1].sum(axis=1)
+        celltype_1 = 'celltype_1'
+
+    if isinstance(celltype_2, list):
+        wide_df['celltype_2'] = wide_df[celltype_2].sum(axis=1)
+        celltype_2 = 'celltype_2'
+
+    # replace zeros with minimum non-vero value
+    celltype_1_min = np.min(wide_df[celltype_1].array[wide_df[celltype_1] > 0])
+    celltype_2_min = np.min(wide_df[celltype_2].array[wide_df[celltype_2] > 0])
+    celltype_1_threshold = np.where(wide_df[celltype_1] > 0, wide_df[celltype_1], celltype_1_min)
+    celltype_2_threshold = np.where(wide_df[celltype_2] > 0, wide_df[celltype_2], celltype_2_min)
+
+    wide_df['value'] = np.log2(celltype_1_threshold / celltype_2_threshold)
+    wide_df = wide_df[['fov', 'value']]
+
+    return wide_df
+
+
+# compute shannon diversity from list of proportions
+def shannon_diversity(proportions):
+    proportions = [prop for prop in proportions if prop > 0]
+    return -np.sum(proportions * np.log2(proportions))
+
+
 # # list to hold each fov, metric, value dataframe
 # fov_data = []
 #
@@ -249,61 +250,86 @@ harmonized_metadata_df = pd.read_csv(os.path.join(data_dir, 'harmonized_metadata
 # This version of the code is for extracting features across all cell x functional marker combos
 #
 
+# create lookup table for mapping individual cell types to broader categories
+broad_to_narrow = {'Cancer': ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad', 'Cancer_SMA',
+                              'Cancer_Vim', 'Cancer_Other', 'Cancer_Mono', 'Cancer', 'Cancer_EMT'],
+                   'Immune': ['CD68', 'CD163', 'CD68_CD163_DP', 'CD4_Mono', 'CD14', 'CD11c_HLADR',
+                              'CD20', 'CD31', 'CD31_VIM', 'FAP', 'FAP_SMA', 'SMA', 'CD56',
+                              'Neutrophil', 'Mast', 'CD4T', 'CD4T_HLADR', 'CD8T', 'Treg', 'CD3_DN',
+                              'CD4T_CD8T_DP', 'Immune_Other', 'M1_Mac', 'M2_Mac', 'Mac_Other',
+                              'Monocyte', 'APC', 'B', 'CD4T', 'CD8T', 'Treg', 'T_Other',
+                              'Neutrophil', 'Mast', 'NK', 'Mono_Mac', 'Granulocyte', 'T'],
+                   'Stroma': ['Stroma_Collagen', 'Stroma_Fibronectin', 'VIM', 'Other',
+                              'Endothelium', 'Fibroblast', 'Stroma'],
+                   }
+# reverse lookup table
+narrow_to_broad = {}
+for broad, narrow in broad_to_narrow.items():
+    for n in narrow:
+        narrow_to_broad[n] = broad
+
 fov_data = []
 
 # compute diversity of different levels of granularity
-diversity_features = [['cluster_broad_freq', 'cluster_broad_diversity', 'broad'],
-                      ['immune_freq', 'immune_diversity', 'immune'],
-                      ['cancer_freq', 'cancer_diversity', 'cancer'],
-                      ['stromal_freq', 'stromal_diversity', 'stromal']]
+diversity_features = [['cluster_broad_freq', 'cluster_broad_diversity'],
+                      ['immune_freq', 'immune_diversity'],
+                      ['cancer_freq', 'cancer_diversity'],
+                      ['stroma_freq', 'stroma_diversity']]
 
-for cluster_name, feature_name, feature_category in diversity_features:
+for cluster_name, feature_name in diversity_features:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
-    wide_df = pd.pivot(input_df, index='fov', columns=['cell_type'], values='value')
-    wide_df['value'] = wide_df.apply(shannon_diversity, axis=1)
-    wide_df.reset_index(inplace=True)
-    wide_df['metric'] = feature_name
-    wide_df['category'] = feature_category
-    wide_df = wide_df[['fov', 'value', 'metric', 'category']]
-    fov_data.append(wide_df)
+    for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+        compartment_df = input_df[input_df.subset == compartment]
+        wide_df = pd.pivot(compartment_df, index='fov', columns=['cell_type'], values='value')
+        wide_df['value'] = wide_df.apply(shannon_diversity, axis=1)
+        wide_df.reset_index(inplace=True)
+        wide_df['feature_name'] = feature_name + '_' + compartment
+        wide_df['compartment'] = compartment
+
+        if cluster_name == 'cluster_broad_freq':
+            cell_pop = 'all'
+        else:
+            cell_pop = cluster_name.split('_')[0]
+
+        wide_df['cell_pop'] = cell_pop
+        wide_df['feature_type'] = 'diversity'
+        wide_df = wide_df[['fov', 'value', 'feature_name', 'compartment', 'cell_pop', 'feature_type']]
+        fov_data.append(wide_df)
 
 
-# compute proportions of cell types for different levels of granularity
-proportion_features = [['cluster_broad_freq', 'cluster_broad_prop', 'broad'],
-                       #['cluster_freq', 'cluster_prop', 'broad'],
-                       ['meta_cluster_freq', 'meta_cluster_prop', 'broad']]
-for cluster_name, feature_name, feature_category in proportion_features[2:]:
+# compute abundance of cell types
+abundance_features = [['cluster_broad_freq', 'cluster_broad_prop'],
+                      ['meta_cluster_freq', 'meta_cluster_prop'],
+                      ['cluster_density', 'cluster_density']]
+for cluster_name, feature_name in abundance_features:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
-    input_df['metric'] = input_df.cell_type + '_' + feature_name
-    input_df['category'] = feature_category
-    input_df = input_df[['fov', 'value', 'metric', 'category']]
-    fov_data.append(input_df)
+    for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+        compartment_df = input_df[input_df.subset == compartment]
+        compartment_df['feature_name'] = compartment_df.cell_type + '_' + feature_name + '_' + compartment
+        compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
+        compartment_df['cell_pop'] = compartment_df.cell_type.apply(lambda x: narrow_to_broad[x])
+        compartment_df['feature_type'] = cluster_name.split('_')[-1]
+        compartment_df = compartment_df[['fov', 'value', 'feature_name', 'compartment', 'cell_pop', 'feature_type']]
+        fov_data.append(compartment_df)
 
 
 # compute functional marker positivity for different levels of granularity
-functional_features = [['cluster_freq', 'broad']]
+functional_features = ['cluster_freq']
 # functional_features = [['avg_per_cluster_broad', 'broad'],
 #                           ['avg_per_cluster', 'broad']]
-for functional_name, feature_category in functional_features:
+for functional_name in functional_features:
     input_df = functional_df_core[functional_df_core['metric'].isin([functional_name])]
-    input_df['metric'] = input_df.functional_marker + '+_' + input_df.cell_type
-    input_df['category'] = feature_category
+    for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+        compartment_df = input_df[input_df.subset == compartment]
+        compartment_df['feature_name'] = compartment_df.functional_marker + '+_' + compartment_df.cell_type + '_' + compartment
+        compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
+        compartment_df['cell_pop'] = compartment_df.cell_type.apply(lambda x: narrow_to_broad[x])
+        compartment_df['feature_type'] = 'functional_marker'
+        compartment_df = compartment_df[['fov', 'value', 'feature_name', 'compartment', 'cell_pop', 'feature_type']]
+        fov_data.append(compartment_df)
 
-    # create vector of False values
-    keep_vector = np.zeros(input_df.shape[0], dtype=bool)
-    for marker in keep_dict:
-        marker_keep = (input_df['cell_type'].isin(keep_dict[marker])) & (input_df['functional_marker'] == marker)
-        keep_vector = keep_vector | marker_keep
-
-    input_df = input_df[keep_vector]
-    input_df = input_df[['fov', 'value', 'metric', 'category']]
-    fov_data.append(input_df)
 
 fov_data_df = pd.concat(fov_data)
-temp_metadata = cluster_df_core[cluster_df_core.metric == 'cluster_freq'][['fov', 'Tissue_ID', 'Timepoint']]
-temp_metadata = temp_metadata.drop_duplicates()
-fov_data_df = fov_data_df.merge(temp_metadata, on='fov', how='left')
-
 fov_data_df.to_csv(os.path.join(data_dir, 'fov_features.csv'), index=False)
 
 
