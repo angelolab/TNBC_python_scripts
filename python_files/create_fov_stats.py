@@ -298,9 +298,7 @@ for cluster_name, feature_name in diversity_features:
 
 
 # compute abundance of cell types
-abundance_features = [['cluster_broad_freq', 'cluster_broad_prop'],
-                      ['meta_cluster_freq', 'meta_cluster_prop'],
-                      ['cluster_density', 'cluster_density']]
+abundance_features = [['cluster_density', 'cluster_density']]
 for cluster_name, feature_name in abundance_features:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
@@ -315,8 +313,6 @@ for cluster_name, feature_name in abundance_features:
 
 # compute functional marker positivity for different levels of granularity
 functional_features = ['cluster_freq']
-# functional_features = [['avg_per_cluster_broad', 'broad'],
-#                           ['avg_per_cluster', 'broad']]
 for functional_name in functional_features:
     input_df = functional_df_core[functional_df_core['metric'].isin([functional_name])]
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
@@ -330,6 +326,7 @@ for functional_name in functional_features:
 
 
 fov_data_df = pd.concat(fov_data)
+fov_data_df = pd.merge(fov_data_df, harmonized_metadata_df[['Tissue_ID', 'fov']], on='fov', how='left')
 fov_data_df.to_csv(os.path.join(data_dir, 'fov_features.csv'), index=False)
 
 
