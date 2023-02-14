@@ -283,7 +283,7 @@ for cluster_name, feature_name in diversity_features:
         wide_df = pd.pivot(compartment_df, index='fov', columns=['cell_type'], values='value')
         wide_df['value'] = wide_df.apply(shannon_diversity, axis=1)
         wide_df.reset_index(inplace=True)
-        wide_df['feature_name'] = feature_name + '_' + compartment
+        wide_df['feature_name'] = feature_name + '__' + compartment
         wide_df['compartment'] = compartment
 
         if cluster_name == 'cluster_broad_freq':
@@ -303,7 +303,7 @@ for cluster_name, feature_name in abundance_features:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
         compartment_df = input_df[input_df.subset == compartment]
-        compartment_df['feature_name'] = compartment_df.cell_type + '_' + feature_name + '_' + compartment
+        compartment_df['feature_name'] = compartment_df.cell_type + '__' + feature_name + '__' + compartment
         compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
         compartment_df['cell_pop'] = compartment_df.cell_type.apply(lambda x: narrow_to_broad[x])
         compartment_df['feature_type'] = cluster_name.split('_')[-1]
@@ -317,7 +317,7 @@ for functional_name in functional_features:
     input_df = functional_df_core[functional_df_core['metric'].isin([functional_name])]
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
         compartment_df = input_df[input_df.subset == compartment]
-        compartment_df['feature_name'] = compartment_df.functional_marker + '+_' + compartment_df.cell_type + '_' + compartment
+        compartment_df['feature_name'] = compartment_df.functional_marker + '+__' + compartment_df.cell_type + '__' + compartment
         compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
         compartment_df['cell_pop'] = compartment_df.cell_type.apply(lambda x: narrow_to_broad[x])
         compartment_df['feature_type'] = 'functional_marker'
