@@ -288,8 +288,11 @@ tumor_mask = cell_table['cell_cluster_broad'] == 'Cancer'
 
 cell_table['PDL1_cancer_dim_threshold'] = np.logical_and(PDL1_mask, tumor_mask)
 
+# rename single-channel PDL1
+cell_table = cell_table.rename(columns={'PDL1_threshold': 'PDL1_bright_threshold'})
+
 # set specific threshold for all PDL1+ cells
-cell_table['PDL1_combined_threshold'] = np.logical_or(cell_table['PDL1_threshold'].values, cell_table['PDL1_cancer_dim_threshold'].values)
+cell_table['PDL1_threshold'] = np.logical_or(cell_table['PDL1_bright_threshold'].values, cell_table['PDL1_cancer_dim_threshold'].values)
 
 # # define marker combinations of interest
 # combinations = [[('PD1', True), ('TCF1', True)],
@@ -332,6 +335,7 @@ cell_table_clusters.to_csv(os.path.join(data_dir, 'combined_cell_table_normalize
 
 # create consolidated cell table with only functional marker freqs
 func_cols = [col for col in cell_table.columns if '_threshold' in col]
+func_cols = [col for col in func_cols if col not in ['PDL1_cancer_dim_threshold', 'PDL1_bright_threshold']]
 cell_table_func = cell_table.loc[:, ['fov', 'label', 'cell_cluster_broad', 'cell_cluster', 'cell_meta_cluster', 'H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio'] + func_cols]
 cell_table_func.columns = [col.split('_threshold')[0] for col in cell_table_func.columns]
 cell_table_func.to_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only.csv'),
