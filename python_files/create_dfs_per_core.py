@@ -15,27 +15,30 @@ from python_files.utils import create_long_df_by_functional, create_long_df_by_c
 #
 
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
-post_dir = os.path.join(data_dir, 'post_processing')
 
 #
 # Preprocess metadata to ensure all samples are present
 #
 
 # load relevant tables
-core_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
-timepoint_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_timepoint.csv'))
-harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'harmonized_metadata.csv'))
-cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_clusters_only_kmeans_nh_mask.csv'))
-area_df = pd.read_csv(os.path.join(data_dir, 'mask_area.csv'))
+core_metadata = pd.read_csv(os.path.join(data_dir, 'metadata', 'TONIC_data_per_core.csv'))
+timepoint_metadata = pd.read_csv(os.path.join(data_dir, 'metadata', 'TONIC_data_per_timepoint.csv'))
+harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata', 'harmonized_metadata.csv'))
+cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'post_processing', 'combined_cell_table_normalized_cell_labels_updated_clusters_only.csv'))
+area_df = pd.read_csv(os.path.join(data_dir, 'post_processing', 'fov_annotation_mask_area.csv'))
+annotations_by_mask = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cell_annotation_mask.csv'))
 
-# TODO: combine individually generated cell phenotype tables together to avoid opening main df
+# merge cell-level annotations
+harmonized_annotations = annotations_by_mask
+harmonized_annotations = harmonized_annotations.rename(columns={'mask_name': 'tumor_region'})
+cell_table_clusters = cell_table_clusters.merge(harmonized_annotations, on=['fov', 'label'])
 
-# replace values in a column with other values
-replace_dict = {1: 'cancer_vim_56', 2: 'immune_other', 3: 'cancer_sma', 4: 'cd4t', 5: 'cancer_ck17',
-                6: 'CD8T', 7: 'FAP_fibro', 8: 'CD163_mac', 9: 'Bcells', 10: 'Cancer_Ecad',
-                11: 'myeloid_party', 12: 'cancer_mono_cd56', 13: 'cancer_other_other', 14: 'vim_sma_cd31'}
-cell_table_clusters['kmeans_labels'] = cell_table_clusters.kmeans_neighborhood
-cell_table_clusters['kmeans_labels'].replace(replace_dict, inplace=True)
+# # TODO: move to clustering notebook
+# replace_dict = {1: 'cancer_vim_56', 2: 'immune_other', 3: 'cancer_sma', 4: 'cd4t', 5: 'cancer_ck17',
+#                 6: 'CD8T', 7: 'FAP_fibro', 8: 'CD163_mac', 9: 'Bcells', 10: 'Cancer_Ecad',
+#                 11: 'myeloid_party', 12: 'cancer_mono_cd56', 13: 'cancer_other_other', 14: 'vim_sma_cd31'}
+# cell_table_clusters['kmeans_labels'] = cell_table_clusters.kmeans_neighborhood
+# cell_table_clusters['kmeans_labels'].replace(replace_dict, inplace=True)
 
 
 # check for FOVs present in imaged data that aren't in core metadata
@@ -56,8 +59,8 @@ cluster_df_params = [['cluster_broad_freq', 'cell_cluster_broad', True],
                      ['cluster_freq', 'cell_cluster', True],
                      ['cluster_count', 'cell_cluster', False],
                      ['meta_cluster_freq', 'cell_meta_cluster', True],
-                     ['meta_cluster_count', 'cell_meta_cluster', False],
-                     ['kmeans_freq', 'kmeans_labels', True]]
+                     ['meta_cluster_count', 'cell_meta_cluster', False]]
+                     #['kmeans_freq', 'kmeans_labels', True]]
 
 cluster_dfs = []
 for result_name, cluster_col_name, normalize in cluster_df_params:
@@ -172,13 +175,12 @@ total_df_timepoint.to_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv')
 #
 
 # load processed functional table
-cell_table_func = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated_functional_only_mask.csv'))
-kmeans_data = cell_table_clusters[['kmeans_labels', 'fov', 'label']]
-cell_table_func = cell_table_func.merge(kmeans_data, on=['fov', 'label'], how='inner')
+cell_table_func = pd.read_csv(os.path.join(data_dir, 'post_processing', 'combined_cell_table_normalized_cell_labels_updated_func_only.csv'))
+cell_table_func = cell_table_func.merge(harmonized_annotations, on=['fov', 'label'])
 
 # Columns which are not thresholded (such as ratios between markers) can only be calculated for
 # dfs looking at normalized expression, and need to be dropped when calculating counts
-count_drop_cols = ['H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio', 'kmeans_labels']
+count_drop_cols = ['H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio']  # , 'kmeans_labels']
 
 # Create list to hold parameters for each df that will be produced
 func_df_params = [['cluster_broad_count', 'cell_cluster_broad', False],
@@ -186,8 +188,8 @@ func_df_params = [['cluster_broad_count', 'cell_cluster_broad', False],
                   ['cluster_count', 'cell_cluster', False],
                   ['cluster_freq', 'cell_cluster', True],
                   ['meta_cluster_count', 'cell_meta_cluster', False],
-                  ['meta_cluster_freq', 'cell_meta_cluster', True],
-                  ['kmeans_freq', 'kmeans_labels', True]]
+                  ['meta_cluster_freq', 'cell_meta_cluster', True]]
+                  #['kmeans_freq', 'kmeans_labels', True]]
 
 func_dfs = []
 for result_name, cluster_col_name, normalize in func_df_params:
@@ -197,7 +199,7 @@ for result_name, cluster_col_name, normalize in func_df_params:
         drop_cols.extend(count_drop_cols)
 
     # remove cluster_names except for the one specified for the df
-    cluster_names = ['cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad', 'kmeans_labels']
+    cluster_names = ['cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad'] # , 'kmeans_labels']
     cluster_names.remove(cluster_col_name)
     drop_cols.extend(cluster_names)
 
@@ -233,11 +235,11 @@ metrics = [['cluster_broad_count', 'cluster_broad_freq'],
 
 for metric in metrics:
     # subset count df to include cells at the relevant clustering resolution
-    count_df = core_df_cluster[core_df_cluster.metric == metric[0]]
+    count_df = total_df[total_df.metric == metric[0]]
     count_df = count_df[count_df.subset == 'all']
 
     # subset functional df to only include functional markers at this resolution
-    func_df = core_df_func[core_df_func.metric.isin(metric)]
+    func_df = total_df_func[total_df_func.metric.isin(metric)]
 
     # for each cell type, determine which FOVs have high enough counts to be included
     for cell_type in count_df.cell_type.unique():
@@ -276,7 +278,7 @@ broad_df_include['CD45RO_CD45RB_ratio'] = double_pos
 # Cancer expression
 broad_df_include.loc['Cancer', ['HLADR', 'CD57']] = True
 
-broad_df_include.to_csv(os.path.join(post_dir, 'broad_inclusion_matrix.csv'))
+broad_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'broad_inclusion_matrix.csv'))
 
 # apply thresholds to medium level clustering
 assignment_dict_med = {'Cancer': ['Cancer', 'Cancer_EMT', 'Cancer_Other'],
@@ -317,7 +319,7 @@ med_df_include.loc[['APC'], 'IDO'] = True
 # compare to see where assignments disagree, to see if any others need to be added
 new_includes = (med_df_bin == True) & (med_df_include == False)
 
-med_df_include.to_csv(os.path.join(post_dir, 'med_inclusion_matrix.csv'))
+med_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'med_inclusion_matrix.csv'))
 
 # do the same for the fine-grained clustering
 assignment_dict_meta = {'Cancer': ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad'],
@@ -365,14 +367,14 @@ meta_df_bin = meta_df > mean_percent_positive
 # compare to see where assignments disagree
 new_includes = (meta_df_bin == True) & (meta_df_include == False)
 
-meta_df_include.to_csv(os.path.join(post_dir, 'meta_inclusion_matrix.csv'))
+meta_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'meta_inclusion_matrix.csv'))
 
 # process functional data so that only the specified cell type/marker combos are included
 
 # load matrices
-broad_df_include = pd.read_csv(os.path.join(post_dir, 'broad_inclusion_matrix.csv'), index_col=0)
-med_df_include = pd.read_csv(os.path.join(post_dir, 'med_inclusion_matrix.csv'), index_col=0)
-meta_df_include = pd.read_csv(os.path.join(post_dir, 'meta_inclusion_matrix.csv'), index_col=0)
+broad_df_include = pd.read_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_broad.csv'), index_col=0)
+med_df_include = pd.read_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_med.csv'), index_col=0)
+meta_df_include = pd.read_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_meta.csv'), index_col=0)
 
 # identify metrics and dfs that will be filtered
 filtering = [['cluster_broad_count', 'cluster_broad_freq', broad_df_include],

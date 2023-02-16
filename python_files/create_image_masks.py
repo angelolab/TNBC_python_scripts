@@ -106,7 +106,7 @@ for folder in folders[:2]:
 
 # compute the area of each mask
 area_df = utils.calculate_mask_areas(mask_dir=processed_dir, fovs=folders[:2])
-area_df.to_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data', 'mask_area.csv'), index=False)
+area_df.to_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/post_processing', 'mask_area.csv'), index=False)
 
 # create combined images for visualization
 for folder in folders[:50]:
@@ -137,7 +137,7 @@ for folder in folders[:50]:
 
 # assign cells to the correct compartment
 assignment_table = utils.assign_cells_to_mask(seg_dir=seg_dir, mask_dir=processed_dir, fovs=folders)
-assignment_table.to_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/assignment_table.csv'), index=False)
+assignment_table.to_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/post_processing/cell_annotation_mask.csv'), index=False)
 
 
 #assignment_table = pd.read_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/assignment_table.csv'))
