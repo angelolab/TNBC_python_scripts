@@ -1,6 +1,7 @@
 # script to generate summary stats for each fov
 import os
 
+import itertools
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -11,9 +12,10 @@ plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 
 # load datasets
 cluster_df_core = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
-metadata_df_core = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'))
+metadata_df_core = pd.read_csv(os.path.join(data_dir, 'metadata/TONIC_data_per_core.csv'))
 functional_df_core = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'))
-harmonized_metadata_df = pd.read_csv(os.path.join(data_dir, 'harmonized_metadata.csv'))
+harmonized_metadata_df = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
+compartment_area = pd.read_csv(os.path.join(data_dir, 'post_processing/fov_annotation_mask_area.csv'))
 
 #
 # The commented out section is from an initial version which used selected cell population
@@ -279,7 +281,7 @@ diversity_features = [['cluster_broad_freq', 'cluster_broad_diversity'],
 for cluster_name, feature_name in diversity_features:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-        compartment_df = input_df[input_df.subset == compartment]
+        compartment_df = input_df[input_df.subset == compartment].copy()
         wide_df = pd.pivot(compartment_df, index='fov', columns=['cell_type'], values='value')
         wide_df['value'] = wide_df.apply(shannon_diversity, axis=1)
         wide_df.reset_index(inplace=True)
@@ -302,7 +304,7 @@ abundance_features = [['cluster_density', 'cluster_density']]
 for cluster_name, feature_name in abundance_features:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-        compartment_df = input_df[input_df.subset == compartment]
+        compartment_df = input_df[input_df.subset == compartment].copy()
         compartment_df['feature_name'] = compartment_df.cell_type + '__' + feature_name + '__' + compartment
         compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
         compartment_df['cell_pop'] = compartment_df.cell_type.apply(lambda x: narrow_to_broad[x])
@@ -310,13 +312,64 @@ for cluster_name, feature_name in abundance_features:
         compartment_df = compartment_df[['fov', 'value', 'feature_name', 'compartment', 'cell_pop', 'feature_type']]
         fov_data.append(compartment_df)
 
+# compute ratio of broad cell type abundances
+input_df = cluster_df_core[cluster_df_core['metric'].isin(['cluster_broad_density'])]
+for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+    compartment_df = input_df[input_df.subset == compartment].copy()
+    cell_types = compartment_df.cell_type.unique()
+    for cell_type1, cell_type2 in itertools.combinations(cell_types, 2):
+        cell_type1_df = compartment_df[compartment_df.cell_type == cell_type1].copy()
+        cell_type2_df = compartment_df[compartment_df.cell_type == cell_type2].copy()
+
+        # only keep FOVS with at least one cell type over the minimum density
+        cell_type1_mask = cell_type1_df.value > 0.02
+        cell_type2_mask = cell_type2_df.value > 0.02
+        cell_mask = cell_type1_mask.values | cell_type2_mask.values
+
+        cell_type1_df = cell_type1_df[cell_mask]
+        cell_type2_df = cell_type2_df[cell_mask]
+
+        cell_type1_df['value'] = np.log2((cell_type1_df.value.values + 0.005) /
+                                         (cell_type2_df.value.values + 0.005))
+        cell_type1_df['feature_name'] = cell_type1 + '__' + cell_type2 + '__ratio__' + compartment
+        cell_type1_df['compartment'] = compartment
+        cell_type1_df['cell_pop'] = 'all'
+        cell_type1_df['feature_type'] = 'density'
+        cell_type1_df = cell_type1_df[['fov', 'value', 'feature_name', 'compartment', 'cell_pop', 'feature_type']]
+        fov_data.append(cell_type1_df)
+
+# compute ratio of specific cell type abundances
+cell_ratios = [('CD4T', 'CD8T'), ('CD4T', 'Treg'), ('CD8T', 'Treg'), ('M1_Mac', 'M2_Mac')]
+input_df = cluster_df_core[cluster_df_core.metric == 'cluster_density'].copy()
+for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+    compartment_df = input_df[input_df.subset == compartment].copy()
+    for cell_type1, cell_type2 in cell_ratios:
+        cell_type1_df = compartment_df[compartment_df.cell_type == cell_type1].copy()
+        cell_type2_df = compartment_df[compartment_df.cell_type == cell_type2].copy()
+
+        # only keep FOVS with at least one cell type over the minimum density
+        cell_type1_mask = cell_type1_df.value > 0.02
+        cell_type2_mask = cell_type2_df.value > 0.02
+        cell_mask = cell_type1_mask.values | cell_type2_mask.values
+
+        cell_type1_df = cell_type1_df[cell_mask]
+        cell_type2_df = cell_type2_df[cell_mask]
+
+        cell_type1_df['value'] = np.log2((cell_type1_df.value.values + 0.005) /
+                                         (cell_type2_df.value.values + 0.005))
+        cell_type1_df['feature_name'] = cell_type1 + '__' + cell_type2 + '__ratio__' + compartment
+        cell_type1_df['compartment'] = compartment
+        cell_type1_df['cell_pop'] = 'all'
+        cell_type1_df['feature_type'] = 'density'
+        cell_type1_df = cell_type1_df[['fov', 'value', 'feature_name', 'compartment', 'cell_pop', 'feature_type']]
+        fov_data.append(cell_type1_df)
 
 # compute functional marker positivity for different levels of granularity
 functional_features = ['cluster_freq']
 for functional_name in functional_features:
     input_df = functional_df_core[functional_df_core['metric'].isin([functional_name])]
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-        compartment_df = input_df[input_df.subset == compartment]
+        compartment_df = input_df[input_df.subset == compartment].copy()
         compartment_df['feature_name'] = compartment_df.functional_marker + '+__' + compartment_df.cell_type + '__' + compartment
         compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
         compartment_df['cell_pop'] = compartment_df.cell_type.apply(lambda x: narrow_to_broad[x])
@@ -324,40 +377,42 @@ for functional_name in functional_features:
         compartment_df = compartment_df[['fov', 'value', 'feature_name', 'compartment', 'cell_pop', 'feature_type']]
         fov_data.append(compartment_df)
 
+# compute compartment abundance and ratios
+compartments = ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border']
+for idx, compartment in enumerate(compartments):
+    compartment_df = compartment_area[compartment_area.compartment == compartment].copy()
+    total_area = compartment_area[compartment_area.compartment == 'all']
+    compartment_df['value'] = compartment_df.area.values / total_area.area.values
+    compartment_df['feature_name'] = compartment + '__proportion'
+    compartment_df['compartment'] = compartment
+    compartment_df['cell_pop'] = 'all'
+    compartment_df['feature_type'] = 'spatial'
+    compartment_df = compartment_df[['fov', 'value', 'feature_name', 'compartment', 'cell_pop', 'feature_type']]
+    fov_data.append(compartment_df)
 
+    # now look at combinations of compartments
+    if idx == 3:
+        continue
+    compartment2 = compartments[idx + 1]
+    compartment2_df = compartment_area[compartment_area.compartment == compartment2].copy()
+    compartment2_df['value'] = compartment2_df.area.values / total_area.area.values
+    compartment1_keep_mask = compartment_df.value > 0.05
+    compartment2_keep_mask = compartment2_df.value > 0.05
+    keep_mask = compartment1_keep_mask.values | compartment2_keep_mask.values
+    compartment_df = compartment_df[keep_mask]
+    compartment2_df = compartment2_df[keep_mask]
+    compartment2_df['value'] = np.log2((compartment_df.value.values + 0.01) / (compartment2_df.value.values + 0.01))
+
+    # add metadata
+    compartment2_df['feature_name'] = compartment + '__' + compartment2 + '__log2_ratio'
+    compartment2_df['compartment'] = 'all'
+    compartment2_df['cell_pop'] = 'all'
+    compartment2_df['feature_type'] = 'spatial'
+    compartment2_df = compartment2_df[['fov', 'value', 'feature_name', 'compartment', 'cell_pop', 'feature_type']]
+    fov_data.append(compartment2_df)
+
+# combine metrics together
 fov_data_df = pd.concat(fov_data)
 fov_data_df = pd.merge(fov_data_df, harmonized_metadata_df[['Tissue_ID', 'fov']], on='fov', how='left')
 fov_data_df.to_csv(os.path.join(data_dir, 'fov_features.csv'), index=False)
-
-
-# create fov_data that contains ratio of features across timepoints
-timepoint_data_df = fov_data_df.groupby(['Tissue_ID', 'metric']).agg(np.mean)
-timepoint_data_df.reset_index(inplace=True)
-
-harmonized_metadata_df = harmonized_metadata_df.drop('fov', axis=1).drop_duplicates()
-timepoint_data_df = pd.merge(timepoint_data_df, harmonized_metadata_df, on='Tissue_ID', how='left')
-timepoint_data_df = timepoint_data_df.loc[timepoint_data_df.primary_baseline == True]
-
-evolution_dfs = []
-for patient in timepoint_data_df.TONIC_ID.unique():
-    temp_df = timepoint_data_df[timepoint_data_df.TONIC_ID == patient]
-    temp_df = temp_df[temp_df.Timepoint.isin(['primary_untreated', 'baseline'])]
-    wide_df = temp_df.pivot(index='metric', columns='Timepoint', values='value')
-
-
-# create dictionary of functional markers to keep for each cell type
-lymphocyte = ['B', 'CD4T', 'CD8T', 'Immune_Other', 'NK', 'T_Other', 'Treg']
-cancer = ['Cancer', 'Cancer_EMT', 'Cancer_Other']
-monocyte = ['APC', 'M1_Mac', 'M2_Mac', 'Mono_Mac', 'Monocyte', 'Mac_Other']
-stroma = ['Fibroblast', 'Stroma', 'Endothelium']
-granulocyte = ['Mast', 'Neutrophil']
-
-keep_dict = {'CD38': ['B', 'Immune_other', 'NK', 'Endothelium'], 'CD45RB': lymphocyte, 'CD45RO': lymphocyte,
-             'CD57': lymphocyte + cancer, 'CD69': lymphocyte,
-             'GLUT1': lymphocyte + monocyte + stroma + granulocyte + cancer,
-             'HLA1': lymphocyte + monocyte + stroma + granulocyte + cancer,
-             'HLADR': lymphocyte + monocyte, 'IDO': ['APC', 'B'], 'Ki67': lymphocyte + monocyte + stroma + granulocyte + cancer,
-             'LAG3': ['B'], 'PD1': lymphocyte, 'PDL1_combined': lymphocyte + monocyte + granulocyte + cancer,
-             'TBET': lymphocyte, 'TCF1': lymphocyte, 'TIM3': lymphocyte + monocyte + granulocyte}
-
 
