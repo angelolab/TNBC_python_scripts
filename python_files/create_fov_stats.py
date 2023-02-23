@@ -280,7 +280,8 @@ diversity_features = [['cluster_broad_freq', 'cluster_broad_diversity'],
 
 for cluster_name, feature_name in diversity_features:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
-    for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+    #for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+    for compartment in ['all']:
         compartment_df = input_df[input_df.subset == compartment].copy()
         wide_df = pd.pivot(compartment_df, index='fov', columns=['cell_type'], values='value')
         wide_df['value'] = wide_df.apply(shannon_diversity, axis=1)
@@ -290,31 +291,39 @@ for cluster_name, feature_name in diversity_features:
 
         if cluster_name == 'cluster_broad_freq':
             cell_pop = 'all'
+            cell_pop_level = 'broad'
         else:
             cell_pop = cluster_name.split('_')[0]
+            cell_pop = cell_pop[0].upper() + cell_pop[1:]
+            cell_pop_level = 'broad'
 
         wide_df['cell_pop'] = cell_pop
+        wide_df['cell_pop_level'] = cell_pop_level
         wide_df['feature_type'] = 'diversity'
         wide_df = wide_df[['fov', 'value', 'feature_name', 'compartment', 'cell_pop', 'feature_type']]
         fov_data.append(wide_df)
 
 
 # compute abundance of cell types
-abundance_features = [['cluster_density', 'cluster_density']]
-for cluster_name, feature_name in abundance_features:
+abundance_features = [['cluster_density', 'cluster_density', 'med'],
+                      ['cluster_freq', 'cluster_freq', 'med']]
+for cluster_name, feature_name, cell_pop_level in abundance_features:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
-    for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+    # for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+    for compartment in ['all']:
         compartment_df = input_df[input_df.subset == compartment].copy()
         compartment_df['feature_name'] = compartment_df.cell_type + '__' + feature_name + '__' + compartment
         compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
         compartment_df['cell_pop'] = compartment_df.cell_type.apply(lambda x: narrow_to_broad[x])
+        compartment_df['cell_pop_level'] = cell_pop_level
         compartment_df['feature_type'] = cluster_name.split('_')[-1]
         compartment_df = compartment_df[['fov', 'value', 'feature_name', 'compartment', 'cell_pop', 'feature_type']]
         fov_data.append(compartment_df)
 
 # compute ratio of broad cell type abundances
 input_df = cluster_df_core[cluster_df_core['metric'].isin(['cluster_broad_density'])]
-for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+# for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+for compartment in ['all']:
     compartment_df = input_df[input_df.subset == compartment].copy()
     cell_types = compartment_df.cell_type.unique()
     for cell_type1, cell_type2 in itertools.combinations(cell_types, 2):
@@ -333,15 +342,17 @@ for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_borde
                                          (cell_type2_df.value.values + 0.005))
         cell_type1_df['feature_name'] = cell_type1 + '__' + cell_type2 + '__ratio__' + compartment
         cell_type1_df['compartment'] = compartment
-        cell_type1_df['cell_pop'] = 'all'
-        cell_type1_df['feature_type'] = 'density'
+        cell_type1_df['cell_pop'] = 'multiple'
+        cell_type1_df['cell_pop_level'] = 'broad'
+        cell_type1_df['feature_type'] = 'density_ratio'
         cell_type1_df = cell_type1_df[['fov', 'value', 'feature_name', 'compartment', 'cell_pop', 'feature_type']]
         fov_data.append(cell_type1_df)
 
 # compute ratio of specific cell type abundances
 cell_ratios = [('CD4T', 'CD8T'), ('CD4T', 'Treg'), ('CD8T', 'Treg'), ('M1_Mac', 'M2_Mac')]
 input_df = cluster_df_core[cluster_df_core.metric == 'cluster_density'].copy()
-for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+# for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+for compartment in ['all']:
     compartment_df = input_df[input_df.subset == compartment].copy()
     for cell_type1, cell_type2 in cell_ratios:
         cell_type1_df = compartment_df[compartment_df.cell_type == cell_type1].copy()
@@ -359,20 +370,23 @@ for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_borde
                                          (cell_type2_df.value.values + 0.005))
         cell_type1_df['feature_name'] = cell_type1 + '__' + cell_type2 + '__ratio__' + compartment
         cell_type1_df['compartment'] = compartment
-        cell_type1_df['cell_pop'] = 'all'
-        cell_type1_df['feature_type'] = 'density'
+        cell_type1_df['cell_pop'] = 'Immune'
+        cell_type1_df['cell_pop_level'] = 'med'
+        cell_type1_df['feature_type'] = 'density_ratio'
         cell_type1_df = cell_type1_df[['fov', 'value', 'feature_name', 'compartment', 'cell_pop', 'feature_type']]
         fov_data.append(cell_type1_df)
 
 # compute functional marker positivity for different levels of granularity
-functional_features = ['cluster_freq']
-for functional_name in functional_features:
+functional_features = [['cluster_freq', 'med']]
+for functional_name, cell_pop_level in functional_features:
     input_df = functional_df_core[functional_df_core['metric'].isin([functional_name])]
-    for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+    # for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+    for compartment in ['all']:
         compartment_df = input_df[input_df.subset == compartment].copy()
         compartment_df['feature_name'] = compartment_df.functional_marker + '+__' + compartment_df.cell_type + '__' + compartment
         compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
         compartment_df['cell_pop'] = compartment_df.cell_type.apply(lambda x: narrow_to_broad[x])
+        compartment_df['cell_pop_level'] = cell_pop_level
         compartment_df['feature_type'] = 'functional_marker'
         compartment_df = compartment_df[['fov', 'value', 'feature_name', 'compartment', 'cell_pop', 'feature_type']]
         fov_data.append(compartment_df)
@@ -386,6 +400,7 @@ for idx, compartment in enumerate(compartments):
     compartment_df['feature_name'] = compartment + '__proportion'
     compartment_df['compartment'] = compartment
     compartment_df['cell_pop'] = 'all'
+    compartment_df['cell_pop_level'] = 'broad'
     compartment_df['feature_type'] = 'spatial'
     compartment_df = compartment_df[['fov', 'value', 'feature_name', 'compartment', 'cell_pop', 'feature_type']]
     fov_data.append(compartment_df)
@@ -407,6 +422,7 @@ for idx, compartment in enumerate(compartments):
     compartment2_df['feature_name'] = compartment + '__' + compartment2 + '__log2_ratio'
     compartment2_df['compartment'] = 'all'
     compartment2_df['cell_pop'] = 'all'
+    compartment2_df['cell_pop_level'] = 'broad'
     compartment2_df['feature_type'] = 'spatial'
     compartment2_df = compartment2_df[['fov', 'value', 'feature_name', 'compartment', 'cell_pop', 'feature_type']]
     fov_data.append(compartment2_df)
@@ -414,5 +430,5 @@ for idx, compartment in enumerate(compartments):
 # combine metrics together
 fov_data_df = pd.concat(fov_data)
 fov_data_df = pd.merge(fov_data_df, harmonized_metadata_df[['Tissue_ID', 'fov']], on='fov', how='left')
-fov_data_df.to_csv(os.path.join(data_dir, 'fov_features.csv'), index=False)
+fov_data_df.to_csv(os.path.join(data_dir, 'fov_features_no_compartment.csv'), index=False)
 
