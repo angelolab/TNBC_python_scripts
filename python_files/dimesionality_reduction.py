@@ -12,7 +12,7 @@ import seaborn as sns
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 
-fov_data_df = pd.read_csv(os.path.join(data_dir, 'fov_features.csv'))
+fov_data_df = pd.read_csv(os.path.join(data_dir, 'conserved_features/fov_features_conserved.csv'))
 
 # plot clustermap
 
@@ -32,7 +32,7 @@ if timepoint:
     data_wide = fov_data_df_subset.pivot(index='Tissue_ID', columns='metric', values='value')
 else:
     # aggregate to image level
-    data_wide = fov_data_df_subset.pivot(index='fov', columns='metric', values='value')
+    data_wide = fov_data_df.pivot(index='fov', columns='feature_name', values='value')
 
 
 # replace Nan with 0
@@ -40,6 +40,10 @@ data_wide = data_wide.fillna(0)
 
 # drop columns with a sum of zero
 data_wide = data_wide.loc[:, (data_wide != 0).any(axis=0)]
+
+# check for invalid values
+data_wide = data_wide.replace([np.inf, -np.inf], np.nan)
+
 
 
 clustergrid = sns.clustermap(data_wide, z_score=1, cmap='vlag', vmin=-3, vmax=3, figsize=(20, 20))

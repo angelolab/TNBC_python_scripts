@@ -350,3 +350,29 @@ g = sns.catplot(x='ecm_cluster', y='value', data=temp_df,
                 kind='box', col='cell_type', sharey=False, col_wrap=4)
 g.savefig(os.path.join(plot_dir, 'cell_density_primary_broad.png'), dpi=300)
 plt.close()
+
+# preprocessing for simCLR
+
+image_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples'
+all_fovs = os.listdir(image_dir)
+crop_size = 256
+
+for tma in range(1, 25):
+    tma_fovs = [fov for fov in all_fovs if fov.startswith('TONIC_TMA{}_'.format(tma))]
+    all_crops = []
+    crop_ids = []
+
+    for fov in tma_fovs:
+        image_data = load_utils.load_imgs_from_tree(data_dir=image_dir, fovs=[fov],
+                                                    channels=['Collagen1', 'Fibronectin', 'FAP', 'Vim', 'SMA'])
+        # crop image data
+        for i in range(0, image_data.shape[1], crop_size):
+            for j in range(0, image_data.shape[2], crop_size):
+                crop = image_data[0, i:i + crop_size, j:j + crop_size, :]
+                all_crops.append(crop)
+                crop_ids.append(fov + '_{}_{}'.format(i, j))
+
+    all_crops = np.stack(all_crops)
+    out_file = os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/ecm/image_data_{}.npz'.format(tma))
+    np.savez_compressed(out_file, data=all_crops, crops=crop_ids)
+

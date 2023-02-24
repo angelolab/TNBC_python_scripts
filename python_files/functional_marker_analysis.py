@@ -1,4 +1,5 @@
 import os
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -6,9 +7,8 @@ data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 
 # create dataset
-core_df_cluster = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv'))
+core_df_cluster = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
 core_df_func = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core.csv'))
-
 
 # identify combinations of markers that are expressed more often than expected by chance
 functional_markers = ['Ki67','CD38','CD45RB','CD45RO','CD57','CD69','GLUT1','IDO',
