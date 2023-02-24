@@ -33,24 +33,21 @@ keep_fov_2 = fov_pairs.fov_2
 
 # annotate the feature df
 keep_fovs = pd.concat([fov_pairs.fov_1, fov_pairs.fov_2], axis=0)
-conserved_df = feature_df[feature_df.fov.isin(keep_fovs)].copy()
-conserved_df['placeholder'] = conserved_df.fov.isin(keep_fov_1).astype(int)
-conserved_df['placeholder'] = conserved_df['placeholder'].replace({0: 'fov1', 1: 'fov2'})
+paired_df = feature_df[feature_df.fov.isin(keep_fovs)].copy()
+paired_df['placeholder'] = paired_df.fov.isin(keep_fov_1).astype(int)
+paired_df['placeholder'] = paired_df['placeholder'].replace({0: 'fov1', 1: 'fov2'})
 
 # pivot the df to wide format with matching fovs
-index_cols = conserved_df.columns
+index_cols = paired_df.columns
 index_cols = index_cols.drop(['fov', 'value', 'placeholder'])
-conserved_df = conserved_df.pivot(index=index_cols, columns='placeholder', values='value')
-conserved_df = conserved_df.reset_index()
-conserved_df.to_csv(os.path.join(data_dir, 'conserved_features/paired_features.csv'), index=False)
-
-conserved_df = pd.read_csv(os.path.join(data_dir, 'conserved_features/paired_features.csv'))
+paired_df = paired_df.pivot(index=index_cols, columns='placeholder', values='value')
+paired_df = paired_df.reset_index()
 
 p_vals = []
 cors = []
 names = []
-for feature_name in conserved_df.feature_name.unique():
-    values = conserved_df[(conserved_df.feature_name == feature_name)].copy()
+for feature_name in paired_df.feature_name.unique():
+    values = paired_df[(paired_df.feature_name == feature_name)].copy()
     values.dropna(inplace=True)
     #values = values[~values.isin([np.inf, -np.inf]).any(1)]
 
@@ -60,29 +57,29 @@ for feature_name in conserved_df.feature_name.unique():
         cors.append(cor)
         names.append(feature_name)
 
-p_df = pd.DataFrame({'feature_name': names, 'p_val': p_vals, 'cor': cors})
-p_df['log_pval'] = -np.log10(p_df.p_val)
+ranked_features = pd.DataFrame({'feature_name': names, 'p_val': p_vals, 'cor': cors})
+ranked_features['log_pval'] = -np.log10(ranked_features.p_val)
 
 # combine with feature metadata
-p_df = p_df.merge(conserved_df[['feature_name', 'compartment', 'cell_pop', 'feature_type']].drop_duplicates(), on='feature_name', how='left')
-p_df.to_csv(os.path.join(data_dir, 'conserved_features/conserved_features.csv'), index=False)
+ranked_features = ranked_features.merge(paired_df[['feature_name', 'compartment', 'cell_pop', 'feature_type']].drop_duplicates(), on='feature_name', how='left')
+ranked_features.to_csv(os.path.join(data_dir, 'conserved_features/ranked_features_no_compartment.csv'), index=False)
 
-p_df = pd.read_csv(os.path.join(data_dir, 'conserved_features/conserved_features.csv'))
+ranked_features = pd.read_csv(os.path.join(data_dir, 'conserved_features/ranked_features_no_compartment.csv'))
 
-sns.scatterplot(data=p_df, x='cor', y='log_pval')
+sns.scatterplot(data=ranked_features, x='cor', y='log_pval')
 plt.savefig(os.path.join(plot_dir, 'conserved_features_volcano.png'))
 plt.close()
 
-p_df['conserved'] = (p_df.log_pval >= 6) & (p_df.cor >= 0.5)
+ranked_features['conserved'] = (ranked_features.log_pval >= 6) & (ranked_features.cor >= 0.5)
 
-p_df['highly_conserved'] = (p_df.log_pval >= 10) & (p_df.cor >= 0.7)
+ranked_features['highly_conserved'] = (ranked_features.log_pval >= 10) & (ranked_features.cor >= 0.7)
 
 # plot a specified row
-row = 571
-name = p_df.loc[row, 'feature_name']
-correlation = p_df.loc[row, 'cor']
-p_val = p_df.loc[row, 'p_val']
-values = conserved_df[(conserved_df.feature_name == name)]
+row = 121
+name = ranked_features.loc[row, 'feature_name']
+correlation = ranked_features.loc[row, 'cor']
+p_val = ranked_features.loc[row, 'p_val']
+values = paired_df[(paired_df.feature_name == name)]
 values.dropna(inplace=True)
 fig, ax = plt.subplots()
 sns.scatterplot(data=values, x='fov1', y='fov2', ax=ax)
@@ -101,17 +98,17 @@ values = values[(values.fov1 < 0.2) & (values.fov2 < 0.2)]
 feature_name = 'HLA1+__Cancer__'
 
 # find all the rows where feature_name is a substring of the feature_name
-names = p_df.feature_name[p_df.feature_name.str.contains(feature_name, regex=False)]
+names = ranked_features.feature_name[ranked_features.feature_name.str.contains(feature_name, regex=False)]
 
 # plot a combined scatterplot with each compartment as a column
 fig, ax = plt.subplots(1, len(names), figsize=(len(names) * 6, 4))
 for i, name in enumerate(names):
-    values = conserved_df[(conserved_df.feature_name == name)].copy()
+    values = paired_df[(paired_df.feature_name == name)].copy()
     values.dropna(inplace=True)
     sns.scatterplot(data=values, x='fov1', y='fov2', ax=ax[i])
     ax[i].set_title(name.split('__')[-1])
-    cor = p_df[p_df.feature_name == name].cor.values[0]
-    p_val = p_df[p_df.feature_name == name].p_val.values[0]
+    cor = ranked_features[ranked_features.feature_name == name].cor.values[0]
+    p_val = ranked_features[ranked_features.feature_name == name].p_val.values[0]
     ax[i].text(0.05, 0.95, f'cor: {cor:.2f}', transform=ax[i].transAxes, fontsize=10, verticalalignment='top')
     ax[i].text(0.55, 0.95, f'p: {p_val:.2e}', transform=ax[i].transAxes, fontsize=10, verticalalignment='top')
 
@@ -130,7 +127,7 @@ for p_idx, p_val in enumerate([3, 4, 5, 6, 7, 8, 9]):
             row = plot_subset.sample(1).iloc[0]
             feature_name = row['name']
             correlation = row['cor']
-            values = conserved_df[conserved_df.feature_name == feature_name]
+            values = paired_df[paired_df.feature_name == feature_name]
             values.dropna(inplace=True)
             sns.scatterplot(data=values, x='fov1', y='fov2', ax=ax[p_idx, c_idx])
             ax[p_idx, c_idx].set_title(f'{p_val}__{cor_val}')
@@ -168,16 +165,30 @@ plt.close()
 #                 compartment = 'both'
 #         plot_subset.loc[plot_subset.name.str.contains(feature + '__', regex=False), 'compartment'] = compartment
 
-p_df_subset = p_df[p_df.conserved]
+ranked_features_conserved = ranked_features[ranked_features.conserved]
 p_df_subset[['feature_type', 'highly_conserved']].groupby('feature_type').mean().reset_index()
 p_df_subset[['cell_pop', 'highly_conserved']].groupby('cell_pop').mean().reset_index()
 
 # save only conserved features
 feature_df_conserved = []
-for feature_name, compartment in zip(p_df_subset.feature_name, p_df_subset.compartment):
+for feature_name, compartment in zip(ranked_features_conserved.feature_name,
+                                     ranked_features_conserved.compartment):
     values = feature_df[(feature_df.feature_name == feature_name) & (feature_df.compartment == compartment)].copy()
     values.dropna(inplace=True)
     feature_df_conserved.append(values)
 
 feature_df_conserved = pd.concat(feature_df_conserved)
 feature_df_conserved.to_csv(os.path.join(data_dir, 'conserved_features/fov_features_conserved.csv'), index=False)
+
+# do the same for timepoint level features
+timepoint_df = pd.read_csv(os.path.join(data_dir, 'timepoint_features.csv'))
+
+timepoint_df_conserved = []
+for feature_name, compartment in zip(ranked_features_conserved.feature_name,
+                                     ranked_features_conserved.compartment):
+    values = timepoint_df[(timepoint_df.feature_name == feature_name) & (timepoint_df.compartment == compartment)].copy()
+    values.dropna(inplace=True)
+    timepoint_df_conserved.append(values)
+
+timepoint_df_conserved = pd.concat(timepoint_df_conserved)
+timepoint_df_conserved.to_csv(os.path.join(data_dir, 'conserved_features/timepoint_features_conserved.csv'), index=False)

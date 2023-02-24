@@ -432,3 +432,9 @@ fov_data_df = pd.concat(fov_data)
 fov_data_df = pd.merge(fov_data_df, harmonized_metadata_df[['Tissue_ID', 'fov']], on='fov', how='left')
 fov_data_df.to_csv(os.path.join(data_dir, 'fov_features_no_compartment.csv'), index=False)
 
+# create timepoint-level stats file
+grouped = fov_data_df.groupby(['Tissue_ID', 'feature_name', 'compartment', 'cell_pop', 'feature_type']).agg({'value': ['mean', 'std']})
+grouped.columns = ['mean', 'std']
+grouped = grouped.reset_index()
+
+grouped.to_csv(os.path.join(data_dir, 'timepoint_features.csv'), index=False)
