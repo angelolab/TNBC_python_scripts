@@ -10,8 +10,8 @@ from scipy.stats import spearmanr
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 
-feature_df = pd.read_csv(os.path.join(data_dir, 'fov_features_no_compartment.csv'))
-#harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'harmonized_metadata.csv'))
+feature_df = pd.read_csv(os.path.join(data_dir, 'fov_features_metae.csv'))
+harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
 
 # fov_metadata = harmonized_metadata[harmonized_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'on_nivo', 'post_induction'])]
 # fov_metadata = fov_metadata[fov_metadata.fov.isin(feature_df.fov.unique())]
@@ -62,6 +62,9 @@ ranked_features['log_pval'] = -np.log10(ranked_features.p_val)
 
 # combine with feature metadata
 ranked_features = ranked_features.merge(paired_df[['feature_name', 'compartment', 'cell_pop', 'feature_type']].drop_duplicates(), on='feature_name', how='left')
+ranked_features['conserved'] = (ranked_features.log_pval >= 6) & (ranked_features.cor >= 0.5)
+ranked_features['highly_conserved'] = (ranked_features.log_pval >= 10) & (ranked_features.cor >= 0.7)
+
 ranked_features.to_csv(os.path.join(data_dir, 'conserved_features/ranked_features_no_compartment.csv'), index=False)
 
 ranked_features = pd.read_csv(os.path.join(data_dir, 'conserved_features/ranked_features_no_compartment.csv'))
@@ -70,12 +73,76 @@ sns.scatterplot(data=ranked_features, x='cor', y='log_pval')
 plt.savefig(os.path.join(plot_dir, 'conserved_features_volcano.png'))
 plt.close()
 
-ranked_features['conserved'] = (ranked_features.log_pval >= 6) & (ranked_features.cor >= 0.5)
+# plot all compartments for each feature for density vs freq
+feature_names = ranked_features.feature_name[ranked_features.feature_type.isin(['density', 'freq'])].unique()
+feature_names = [x for x in feature_names if '__all' in x]
+feature_names = [x.split('__all')[0] for x in feature_names]
+feature_names = [x.split('_density')[0] for x in feature_names]
+feature_names = [x.split('_freq')[0] for x in feature_names]
+feature_names = list(set(feature_names))
+feature_names = [x for x in feature_names if 'ratio' not in x]
 
-ranked_features['highly_conserved'] = (ranked_features.log_pval >= 10) & (ranked_features.cor >= 0.7)
+for feature_name in feature_names:
+    feature_mask = ranked_features.feature_name.str.startswith(feature_name)
+    feature_df = ranked_features[feature_mask].copy()
+    density_names = feature_df.feature_name[feature_df.feature_name.str.contains('density')].values
+    freq_names = feature_df.feature_name[feature_df.feature_name.str.contains('freq')].values
+
+    # just plot the density
+    fig, ax = plt.subplots(1, 5, figsize=(25, 5))
+    for i, density_name in enumerate(density_names):
+        values = paired_df[(paired_df.feature_name == density_name)].copy()
+        values.dropna(inplace=True)
+        sns.scatterplot(data=values, x='fov1', y='fov2', ax=ax[i])
+        ax[i].set_title(density_name)
+        correlation, p_val = spearmanr(values.fov1, values.fov2)
+        ax[i].set_xlabel('correlation: {:.2f}'.format(correlation))
+        ax[i].set_ylabel('p_val: {:.2f}'.format(p_val))
+    plt.savefig(os.path.join(plot_dir, 'Correlation_compartment_meta_{}.png'.format(feature_name)))
+    plt.close()
+
+    # fig, ax = plt.subplots(2, 5, figsize=(25, 10))
+    # for i, density_name in enumerate(density_names):
+    #     values = paired_df[(paired_df.feature_name == density_name)].copy()
+    #     values.dropna(inplace=True)
+    #     values.fov1 = np.log10(values.fov1.values)
+    #     values.fov2 = np.log10(values.fov2.values)
+    #     sns.scatterplot(data=values, x='fov1', y='fov2', ax=ax[0, i])
+    #     ax[0, i].set_title(density_name)
+    #     correlation, p_val = spearmanr(values.fov1, values.fov2)
+    #     ax[0, i].set_xlabel('correlation: {:.2f}'.format(correlation))
+    #     ax[0, i].set_ylabel('p_val: {:.2f}'.format(p_val))
+
+    # for i, freq_name in enumerate(freq_names):
+    #     values = paired_df[(paired_df.feature_name == freq_name)].copy()
+    #     values.dropna(inplace=True)
+    #     values.fov1 = np.log10(values.fov1.values)
+    #     values.fov2 = np.log10(values.fov2.values)
+    #     sns.scatterplot(data=values, x='fov1', y='fov2', ax=ax[1, i])
+    #     ax[1, i].set_title(freq_name)
+    #     correlation, p_val = \
+    #     ranked_features[(ranked_features.feature_name == freq_name)][['cor', 'log_pval']].values[
+    #         0]
+    #     ax[1, i].set_xlabel('correlation: {:.2f}'.format(correlation))
+    #     ax[1, i].set_ylabel('p_val: {:.2f}'.format(p_val))
+
+    for i, freq_name in enumerate(density_names):
+        values = paired_df[(paired_df.feature_name == freq_name)].copy()
+        values.dropna(inplace=True)
+        sns.scatterplot(data=values, x='fov1', y='fov2', ax=ax[1, i])
+        ax[1, i].set_title(freq_name)
+        correlation, p_val = \
+        ranked_features[(ranked_features.feature_name == freq_name)][['cor', 'log_pval']].values[
+            0]
+        ax[1, i].set_xlabel('correlation: {:.2f}'.format(correlation))
+        ax[1, i].set_ylabel('p_val: {:.2f}'.format(p_val))
+
+    plt.savefig(os.path.join(plot_dir, 'Correlation_compartment_log_{}.png'.format(feature_name)))
+    plt.close()
 
 # plot a specified row
-row = 121
+row = 256
+row = np.where(ranked_features.feature_name == 'TCF1+__Cancer__all')[0][0]
 name = ranked_features.loc[row, 'feature_name']
 correlation = ranked_features.loc[row, 'cor']
 p_val = ranked_features.loc[row, 'p_val']
@@ -192,3 +259,106 @@ for feature_name, compartment in zip(ranked_features_conserved.feature_name,
 
 timepoint_df_conserved = pd.concat(timepoint_df_conserved)
 timepoint_df_conserved.to_csv(os.path.join(data_dir, 'conserved_features/timepoint_features_conserved.csv'), index=False)
+
+# look at correlation between features
+correlation_df = feature_df[feature_df.fov.isin(keep_fovs)].copy()
+correlation_df = correlation_df[correlation_df.feature_name.isin(ranked_features.feature_name)].copy()
+data_wide = correlation_df.pivot(index='fov', columns='feature_name', values='value')
+
+# create correlation matrix using spearman correlation
+corr_df = data_wide.corr(method='spearman')
+corr_df_abs = corr_df.abs()
+# corr_df = corr_df.fillna(0)
+# clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+# clustergrid.savefig(os.path.join(plot_dir, 'spearman_correlation_clustermap.png'), dpi=300)
+# plt.close()
+
+# get total correlation of each feature
+corr_df_abs[corr_df_abs < 0.5] = 0
+corr_sums = corr_df_abs.sum(axis=0)
+ranked_features['correlation_sum'] = corr_sums.values
+ranked_features['correlated_feature'] = ranked_features['correlation_sum'] > 7
+non_nans = data_wide.count(axis=0)
+sparse_features = non_nans < (len(data_wide) / 3)
+ranked_features['sparse_feature'] = sparse_features.values
+
+
+sns.catplot(data=corr_sums, x='conserve_type', y='correlation_sum', kind='swarm')
+sns.scatterplot(data=ranked_features, x='cor', y='correlation_sum', hue='correlated_feature')
+plt.savefig(os.path.join(plot_dir, 'correlation_sum_vs_cor_value_by_connection.png'))
+plt.close()
+
+
+# separately plot the highly correlated and poorly correlated features
+data_wide_corr = data_wide.iloc[:, ~data_wide.columns.isin(corr_sums.feature_name[corr_sums.binarized_sum.values])]
+corr_df = data_wide_corr.corr(method='spearman')
+corr_df_abs = corr_df.abs()
+corr_df = corr_df.fillna(0)
+clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+
+
+# get counts of each feature type for conserved vs non-conserved features
+grouped_by_feature = ranked_features[['feature_type', 'correlated_feature', 'conserved', 'sparse_feature']].groupby('feature_type').mean().reset_index()
+
+# plot as a barplot
+g = sns.barplot(data=grouped_by_feature, x='feature_type', y='conserved', color='grey')
+g.set_xticklabels(g.get_xticklabels(), rotation=90)
+g.set_xlabel('Feature Type')
+g.set_ylabel('Proportion conserved')
+g.set_title('Proportion of features conserved by feature type')
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'proportion_conserved_by_feature_type.png'))
+plt.close()
+
+# plot as a barplot
+g = sns.barplot(data=grouped_by_feature, x='feature_type', y='correlated_feature', color='grey')
+g.set_xticklabels(g.get_xticklabels(), rotation=90)
+g.set_xlabel('Feature Type')
+g.set_ylabel('Proportion correlated')
+g.set_title('Proportion of features that are correlated by feature type')
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'proportion_correlated_by_feature_type.png'))
+plt.close()
+
+# plot as a barplot
+g = sns.barplot(data=grouped_by_feature, x='feature_type', y='sparse_feature', color='grey')
+g.set_xticklabels(g.get_xticklabels(), rotation=90)
+g.set_xlabel('Feature Type')
+g.set_ylabel('Proportion sparse')
+g.set_title('Proportion of features that are sparse by feature type')
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'proportion_sparse_by_feature_type.png'))
+plt.close()
+
+grouped_by_pop = ranked_features[['cell_pop', 'correlated_feature', 'conserved', 'sparse_feature']].groupby('cell_pop').mean().reset_index()
+
+# plot as a barplot
+g = sns.barplot(data=grouped_by_pop, x='cell_pop', y='conserved', color='grey')
+g.set_xticklabels(g.get_xticklabels(), rotation=90)
+g.set_xlabel('Cell Population')
+g.set_ylabel('Proportion conserved')
+g.set_title('Proportion of features conserved by cell population')
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'proportion_conserved_by_cell_pop.png'))
+plt.close()
+
+# plot as a barplot
+g = sns.barplot(data=grouped_by_pop, x='cell_pop', y='correlated_feature', color='grey')
+g.set_xticklabels(g.get_xticklabels(), rotation=90)
+g.set_xlabel('Cell Population')
+g.set_ylabel('Proportion correlated')
+g.set_title('Proportion of features that are correlated by cell population')
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'proportion_correlated_by_cell_pop.png'))
+plt.close()
+
+# plot as a barplot
+g = sns.barplot(data=grouped_by_pop, x='cell_pop', y='sparse_feature', color='grey')
+g.set_xticklabels(g.get_xticklabels(), rotation=90)
+g.set_xlabel('Cell Population')
+g.set_ylabel('Proportion sparse')
+g.set_title('Proportion of features that are sparse by cell population')
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'proportion_sparse_by_cell_pop.png'))
+plt.close()
+

@@ -305,12 +305,11 @@ for cluster_name, feature_name in diversity_features:
 
 
 # compute abundance of cell types
-abundance_features = [['cluster_density', 'cluster_density', 'med'],
-                      ['cluster_freq', 'cluster_freq', 'med']]
+abundance_features = [['meta_cluster_density', 'meta_cluster_density', 'med']]
 for cluster_name, feature_name, cell_pop_level in abundance_features:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
-    # for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-    for compartment in ['all']:
+    for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+    # for compartment in ['all']:
         compartment_df = input_df[input_df.subset == compartment].copy()
         compartment_df['feature_name'] = compartment_df.cell_type + '__' + feature_name + '__' + compartment
         compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
@@ -377,11 +376,11 @@ for compartment in ['all']:
         fov_data.append(cell_type1_df)
 
 # compute functional marker positivity for different levels of granularity
-functional_features = [['cluster_freq', 'med']]
+functional_features = [['meta_cluster_freq', 'med']]
 for functional_name, cell_pop_level in functional_features:
     input_df = functional_df_core[functional_df_core['metric'].isin([functional_name])]
-    # for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-    for compartment in ['all']:
+    for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+    #for compartment in ['all']:
         compartment_df = input_df[input_df.subset == compartment].copy()
         compartment_df['feature_name'] = compartment_df.functional_marker + '+__' + compartment_df.cell_type + '__' + compartment
         compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
@@ -430,7 +429,7 @@ for idx, compartment in enumerate(compartments):
 # combine metrics together
 fov_data_df = pd.concat(fov_data)
 fov_data_df = pd.merge(fov_data_df, harmonized_metadata_df[['Tissue_ID', 'fov']], on='fov', how='left')
-fov_data_df.to_csv(os.path.join(data_dir, 'fov_features_no_compartment.csv'), index=False)
+fov_data_df.to_csv(os.path.join(data_dir, 'fov_features_meta.csv'), index=False)
 
 # create timepoint-level stats file
 grouped = fov_data_df.groupby(['Tissue_ID', 'feature_name', 'compartment', 'cell_pop', 'feature_type']).agg({'value': ['mean', 'std']})
