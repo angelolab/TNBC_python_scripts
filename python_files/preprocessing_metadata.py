@@ -5,6 +5,7 @@ import numpy as np
 from ark.utils.io_utils import list_folders
 
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
+metadata_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/metadata'
 
 
 #
@@ -17,8 +18,8 @@ fov_df = pd.DataFrame({'imaged_fovs': all_fovs})
 fov_df.to_csv(os.path.join(data_dir, 'imaged_fovs.csv'), index=False)
 
 # annotate acquired FOVs
-core_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_core_unprocessed.csv'))
-fov_df = pd.read_csv(os.path.join(data_dir, 'imaged_fovs.csv'))
+core_metadata = pd.read_csv(os.path.join(metadata_dir, 'TONIC_data_per_core_unprocessed.csv'))
+fov_df = pd.read_csv(os.path.join(metadata_dir, 'imaged_fovs.csv'))
 core_metadata['MIBI_data_generated'] = core_metadata['fov'].isin(fov_df.imaged_fovs)
 
 # TODO: get list of pathologist excluded FOVs
@@ -27,7 +28,7 @@ core_metadata['MIBI_data_generated'] = core_metadata['fov'].isin(fov_df.imaged_f
 # TODO: relabel tumor cells as epithelial
 
 # annotate timepoints with at least 1 valid core
-timepoint_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_timepoint_unprocessed.csv'))
+timepoint_metadata = pd.read_csv(os.path.join(metadata_dir, 'TONIC_data_per_timepoint_unprocessed.csv'))
 timepoint_grouped = core_metadata.loc[:, ['Tissue_ID', 'MIBI_data_generated']].groupby('Tissue_ID').agg(np.sum)
 include_ids = timepoint_grouped.index[(timepoint_grouped['MIBI_data_generated'] > 0)]
 timepoint_metadata['MIBI_data_generated'] = timepoint_metadata.Tissue_ID.isin(include_ids)
@@ -37,7 +38,7 @@ timepoint_metadata['MIBI_data_generated'] = timepoint_metadata.Tissue_ID.isin(in
 #
 
 # identify patients with and without neo-adjuvant chemotherapy (NAC)
-patient_metadata = pd.read_csv(os.path.join(data_dir, 'TONIC_data_per_patient_unprocessed.csv'))
+patient_metadata = pd.read_csv(os.path.join(metadata_dir, 'TONIC_data_per_patient_unprocessed.csv'))
 untreated_pts = patient_metadata.loc[patient_metadata.NAC_received_for_primary_tumor == 'No', 'TONIC_ID']
 treated_pts = patient_metadata.loc[patient_metadata.NAC_received_for_primary_tumor == 'Yes', 'TONIC_ID']
 
@@ -71,6 +72,7 @@ timepoint_metadata.loc[timepoint_metadata.Localization.isin(rare_sites), 'Locali
 
 # find the patients with baseline and on-nivo timepoints from the same location
 timepoint_sums = timepoint_metadata.loc[timepoint_metadata.Timepoint.isin(['baseline', 'on_nivo']), :]
+timepoint_sums = timepoint_sums.loc[timepoint_sums.MIBI_data_generated, :]
 
 # get the number of entries in Location_studytissue that are equal to 'A' grouped by TONIC_ID
 timepoint_sums = timepoint_sums.loc[:, ['TONIC_ID', 'Location_studytissue']].groupby('TONIC_ID').agg(lambda x: np.sum(x == 'A'))
@@ -78,9 +80,7 @@ timepoint_sums.reset_index(inplace=True)
 timepoint_sums = timepoint_sums.loc[timepoint_sums.Location_studytissue == 2, :]
 
 # include only patients with 2 counts of studytissue 'A'
-subset_metadata = timepoint_metadata.loc[timepoint_metadata.TONIC_ID.isin(timepoint_sums.TONIC_ID) &
-                                        timepoint_metadata.MIBI_data_generated, :]
-
+subset_metadata = timepoint_metadata.loc[timepoint_metadata.TONIC_ID.isin(timepoint_sums.TONIC_ID), :]
 patient_metadata['baseline_on_nivo'] = patient_metadata.TONIC_ID.isin(subset_metadata.TONIC_ID.unique())
 
 # reshape data to allow for easy boolean comparisons
@@ -122,6 +122,10 @@ np.where(np.logical_and(core_missing, imaged_cores))
 # all of the missing cores were not imaged, can be dropped
 core_metadata = core_metadata.loc[~core_missing, :]
 
+# This is the wrong tissue and should be excldued
+bad_cores = ['T20-04891']
+core_metadata = core_metadata.loc[~core_metadata.Tissue_ID.isin(bad_cores), :]
+
 # check for Tissue_IDs present in core metadata but not timepoint metadata
 timepoint_missing = ~core_metadata.Tissue_ID.isin(timepoint_metadata.Tissue_ID)
 timepoint_missing = core_metadata.Tissue_ID[timepoint_missing].unique()
@@ -140,7 +144,7 @@ core_metadata = core_metadata.loc[~core_metadata.Tissue_ID.isin(timepoint_missin
 
 
 # select relevant columns from cores
-harmonized_metadata = core_metadata[['fov', 'Tissue_ID']]
+harmonized_metadata = core_metadata[['fov', 'Tissue_ID', 'MIBI_data_generated']]
 
 # select and merge relevant columns from timepoints
 harmonized_metadata = pd.merge(harmonized_metadata, timepoint_metadata.loc[:, ['Tissue_ID', 'TONIC_ID', 'Timepoint', 'Localization']], on='Tissue_ID', how='left')
@@ -149,6 +153,8 @@ assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
 # select and merge relevant columns from patients
 harmonized_metadata = pd.merge(harmonized_metadata, patient_metadata.loc[:, ['TONIC_ID', 'baseline_on_nivo', 'primary_baseline']], on='TONIC_ID', how='left')
 assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
+
+# add information about which cores are present
 
 harmonized_metadata.to_csv(os.path.join(data_dir, 'harmonized_metadata.csv'), index=False)
 
