@@ -16,36 +16,7 @@ metadata_df_core = pd.read_csv(os.path.join(data_dir, 'metadata/TONIC_data_per_c
 functional_df_core = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'))
 harmonized_metadata_df = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
 compartment_area = pd.read_csv(os.path.join(data_dir, 'post_processing/fov_annotation_mask_area.csv'))
-
-#
-# The commented out section is from an initial version which used selected cell population
-# frequencies for plotting, picking only a subset of the relevant relationships
-#
-
-
-def compute_celltype_ratio(input_data, celltype_1, celltype_2):
-    wide_df = pd.pivot(input_data, index='fov', columns=['cell_type'], values='value')
-    wide_df.reset_index(inplace=True)
-
-    # if celltypes are lists, create columns which are a sum of individual elements
-    if isinstance(celltype_1, list):
-        wide_df['celltype_1'] = wide_df[celltype_1].sum(axis=1)
-        celltype_1 = 'celltype_1'
-
-    if isinstance(celltype_2, list):
-        wide_df['celltype_2'] = wide_df[celltype_2].sum(axis=1)
-        celltype_2 = 'celltype_2'
-
-    # replace zeros with minimum non-vero value
-    celltype_1_min = np.min(wide_df[celltype_1].array[wide_df[celltype_1] > 0])
-    celltype_2_min = np.min(wide_df[celltype_2].array[wide_df[celltype_2] > 0])
-    celltype_1_threshold = np.where(wide_df[celltype_1] > 0, wide_df[celltype_1], celltype_1_min)
-    celltype_2_threshold = np.where(wide_df[celltype_2] > 0, wide_df[celltype_2], celltype_2_min)
-
-    wide_df['value'] = np.log2(celltype_1_threshold / celltype_2_threshold)
-    wide_df = wide_df[['fov', 'value']]
-
-    return wide_df
+mixing_df = pd.read_csv(os.path.join(data_dir, 'mixing/mixing_df.csv'))
 
 
 # compute shannon diversity from list of proportions
@@ -53,10 +24,6 @@ def shannon_diversity(proportions):
     proportions = [prop for prop in proportions if prop > 0]
     return -np.sum(proportions * np.log2(proportions))
 
-
-#
-# This version of the code is for extracting features across all cell x functional marker combos
-#
 
 # create lookup table for mapping individual cell types to broader categories
 broad_to_narrow = {'Cancer': ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad', 'Cancer_SMA',
@@ -245,6 +212,19 @@ for idx, compartment in enumerate(compartments):
     compartment2_df = compartment2_df[['fov', 'value', 'feature_name', 'feature_name_unique', 'compartment', 'cell_pop',
                                        'cell_pop_level', 'feature_type']]
     fov_data.append(compartment2_df)
+
+
+# integrate mixing scores
+mixing_df['feature_name'] = mixing_df['mixing_type'] + '_mixing'
+mixing_df['feature_name_unique'] = mixing_df['mixing_type'] + '_mixing'
+mixing_df['compartment'] = 'all'
+mixing_df['cell_pop'] = 'multiple'
+mixing_df['cell_pop_level'] = 'broad'
+mixing_df['feature_type'] = 'spatial'
+mixing_df = mixing_df.rename(columns={'mixing_score': 'value'})
+mixing_df = mixing_df[['fov', 'value', 'feature_name', 'feature_name_unique', 'compartment',
+                       'cell_pop', 'cell_pop_level', 'feature_type']]
+fov_data.append(mixing_df)
 
 # combine metrics together
 fov_data_df = pd.concat(fov_data)
