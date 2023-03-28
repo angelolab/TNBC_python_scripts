@@ -26,9 +26,9 @@ from python_files import utils
 # This script is for generating the ECM assignments for image crops
 #
 
-out_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/ecm_masks'
+out_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/ecm'
 channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples'
-mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/mask_dir/individual_masks/'
+mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/mask_dir/individual_masks/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots'
 
 #
