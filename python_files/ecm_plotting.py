@@ -8,7 +8,6 @@ from sklearn.cluster import KMeans
 ecm_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/ecm'
 
 tiled_crops = pd.read_csv(os.path.join(ecm_dir, 'tiled_crops.csv'))
-tiled_crops = tiled_crops.rename(columns={'cluster': 'tile_cluster'})
 
 
 # plot distribution of clusters in each fov

@@ -9,6 +9,7 @@ import seaborn as sns
 
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
+nas_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 
 # load datasets
 cluster_df_core = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
@@ -17,6 +18,7 @@ functional_df_core = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core_
 harmonized_metadata_df = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
 compartment_area = pd.read_csv(os.path.join(data_dir, 'post_processing/fov_annotation_mask_area.csv'))
 mixing_df = pd.read_csv(os.path.join(data_dir, 'mixing/mixing_df.csv'))
+ecm_df = pd.read_csv(os.path.join(nas_dir, 'ecm/fov_cluster_counts.csv'))
 
 
 # compute shannon diversity from list of proportions
@@ -225,6 +227,31 @@ mixing_df = mixing_df.rename(columns={'mixing_score': 'value'})
 mixing_df = mixing_df[['fov', 'value', 'feature_name', 'feature_name_unique', 'compartment',
                        'cell_pop', 'cell_pop_level', 'feature_type']]
 fov_data.append(mixing_df)
+
+# add ecm proportions
+
+# add normalized columns that remove no_ecm contribution
+ecm_frac = 1 - ecm_df.No_ECM.values
+ecm_df['Cold_Coll_Norm'] = ecm_df.Cold_Coll.values / ecm_frac
+ecm_df['Hot_Coll_Norm'] = ecm_df.Hot_Coll.values / ecm_frac
+ecm_df.loc[ecm_frac == 0, ['Cold_Coll_Norm', 'Hot_Coll_Norm']] = 0
+
+for col_name in ['Cold_Coll', 'Hot_Coll', 'No_ECM', 'Cold_Coll_Norm', 'Hot_Coll_Norm']:
+    ecm_df_subset = ecm_df[['fov', col_name]]
+    ecm_df_subset = ecm_df_subset.rename(columns={col_name: 'value'})
+    ecm_df_subset['feature_name'] = col_name + '__proportion'
+    ecm_df_subset['feature_name_unique'] = col_name + '__proportion'
+    ecm_df_subset['compartment'] = 'all'
+    ecm_df_subset['cell_pop'] = 'ecm'
+    ecm_df_subset['cell_pop_level'] = 'broad'
+    ecm_df_subset['feature_type'] = 'ecm'
+    ecm_df_subset = ecm_df_subset[['fov', 'value', 'feature_name', 'feature_name_unique',
+                                   'compartment', 'cell_pop', 'cell_pop_level', 'feature_type']]
+    fov_data.append(ecm_df_subset)
+
+# add ecm proportion, excluding no_ecm category
+
+
 
 # combine metrics together
 fov_data_df = pd.concat(fov_data)

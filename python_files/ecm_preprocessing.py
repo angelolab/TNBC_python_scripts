@@ -167,14 +167,13 @@ transformed_df.loc[no_ecm_mask, 'tile_cluster'] = -1
 # generate average image for each cluster
 cluster_means = transformed_df[~no_ecm_mask].groupby('tile_cluster').mean()
 
-
 # plot the average images
 cluster_means_clustermap = sns.clustermap(cluster_means, cmap='Reds', figsize=(10, 10))
 plt.savefig(os.path.join(out_dir, 'tile_cluster_means.png'), dpi=300)
 plt.close()
 
 # save dfs
-tile_replace_dict = {0: 'Cold_Coll', 1: 'Hot_Coll', -1: 'no_ecm'}
+tile_replace_dict = {0: 'Cold_Coll', 1: 'Hot_Coll', -1: 'No_ECM'}
 
 tiled_crops['tile_cluster'] = tiled_crops['tile_cluster'].replace(tile_replace_dict)
 tiled_crops.to_csv(os.path.join(out_dir, 'tiled_crops.csv'), index=False)
