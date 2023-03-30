@@ -11,36 +11,30 @@ import skimage.measure
 from skimage import morphology
 from scipy.ndimage import gaussian_filter
 
-from ark.utils.io_utils import list_folders
+from alpineer.io_utils import list_folders
 from python_files import utils
-
-
-# for testing
-channel_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/channel_data/'
-seg_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/segmentation_masks'
-mask_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/mask_dir'
-overlay_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/overlays'
-cell_table_short = pd.read_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data', 'combined_cell_table_normalized_cell_labels_updated_clusters_only_kmeans_nh.csv'))
 
 # real paths
 channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
 seg_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
-mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/mask_dir/'
-cell_table_short = pd.read_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data', 'combined_cell_table_normalized_cell_labels_updated_clusters_only_kmeans_nh.csv'))
+mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/mask_dir/'
+post_processing_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/post_processing/'
+#cell_table_clusters = pd.read_csv(os.path.join())
 
 folders = list_folders(channel_dir)
+folders = missing_fovs
 
 # create directories to hold masks
-intermediate_dir = os.path.join(mask_dir, 'intermediate_masks_new')
+intermediate_dir = os.path.join(mask_dir, 'intermediate_masks')
 if not os.path.exists(intermediate_dir):
     os.mkdir(intermediate_dir)
 
-processed_dir = os.path.join(mask_dir, 'processed_masks')
-if not os.path.exists(processed_dir):
-    os.mkdir(processed_dir)
+individual_dir = os.path.join(mask_dir, 'individual_masks')
+if not os.path.exists(individual_dir):
+    os.mkdir(individual_dir)
 
 # loop over each FOV and generate the appropriate masks
-for folder in folders[:2]:
+for folder in folders:
     try:
         ecad = io.imread(os.path.join(channel_dir, folder, 'ECAD.tiff'))
     except:
@@ -53,14 +47,14 @@ for folder in folders[:2]:
 
     # generate cancer/stroma mask by combining segmentation mask with ECAD channel
     seg_label = io.imread(os.path.join(seg_dir, folder + '_whole_cell.tiff'))[0]
-    seg_mask = utils.create_cell_mask(seg_label, cell_table_short, folder, ['Cancer'])
+    seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'])
     cancer_mask = utils.create_cancer_boundary(ecad, seg_mask, min_mask_size=7000)
     cancer_mask = cancer_mask.astype(np.uint8)
     io.imsave(os.path.join(intermediate_folder, 'cancer_mask.png'), cancer_mask,
               check_contrast=False)
 
     # create mask for TLS
-    tls_mask = utils.create_cell_mask(seg_label, cell_table_short, folder, ['B', 'T'], sigma=4)
+    tls_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['B', 'T'], sigma=4)
     tls_label_mask = skimage.measure.label(tls_mask)
     tls_label_mask = morphology.remove_small_objects(tls_label_mask, min_size=25000)
     tls_label_mask = morphology.remove_small_holes(tls_label_mask, area_threshold=7000)
@@ -82,7 +76,7 @@ for folder in folders[:2]:
 folders = list_folders(intermediate_dir)
 
 # remove any overlapping pixels from different masks, then save individually
-for folder in folders[:2]:
+for folder in folders:
     # read in generated masks
     intermediate_folder = os.path.join(intermediate_dir, folder)
     cancer_mask = io.imread(os.path.join(intermediate_folder, 'cancer_mask.png'))
@@ -94,7 +88,7 @@ for folder in folders[:2]:
     cancer_mask[gold_mask == 1] = 0
 
     # save individual masks
-    processed_folder = os.path.join(processed_dir, folder)
+    processed_folder = os.path.join(individual_dir, folder)
     if not os.path.exists(processed_folder):
         os.mkdir(processed_folder)
 
@@ -105,8 +99,8 @@ for folder in folders[:2]:
                   check_contrast=False)
 
 # compute the area of each mask
-area_df = utils.calculate_mask_areas(mask_dir=processed_dir, fovs=folders[:2])
-area_df.to_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/post_processing', 'mask_area.csv'), index=False)
+area_df = utils.calculate_mask_areas(mask_dir=individual_dir, fovs=folders)
+area_df.to_csv(os.path.join(post_processing_dir, 'fov_annotation_mask_area.csv'), index=False)
 
 # create combined images for visualization
 for folder in folders[:50]:
@@ -136,9 +130,8 @@ for folder in folders[:50]:
 
 
 # assign cells to the correct compartment
-assignment_table = utils.assign_cells_to_mask(seg_dir=seg_dir, mask_dir=processed_dir, fovs=folders)
-assignment_table.to_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/post_processing/cell_annotation_mask.csv'), index=False)
-
+assignment_table = utils.assign_cells_to_mask(seg_dir=seg_dir, mask_dir=individual_dir, fovs=folders)
+assignment_table.to_csv(os.path.join(post_processing_dir, 'cell_annotation_mask.csv'), index=False)
 
 #assignment_table = pd.read_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/assignment_table.csv'))
 

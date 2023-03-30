@@ -26,25 +26,25 @@ core_metadata = pd.read_csv(os.path.join(data_dir, 'metadata', 'TONIC_data_per_c
 timepoint_metadata = pd.read_csv(os.path.join(data_dir, 'metadata', 'TONIC_data_per_timepoint.csv'))
 harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata', 'harmonized_metadata.csv'))
 cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'post_processing', 'combined_cell_table_normalized_cell_labels_updated_clusters_only.csv'))
+cell_table_func = pd.read_csv(os.path.join(data_dir, 'post_processing', 'combined_cell_table_normalized_cell_labels_updated_func_only.csv'))
 area_df = pd.read_csv(os.path.join(data_dir, 'post_processing', 'fov_annotation_mask_area.csv'))
 annotations_by_mask = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cell_annotation_mask.csv'))
 
 # merge cell-level annotations
 harmonized_annotations = annotations_by_mask
 harmonized_annotations = harmonized_annotations.rename(columns={'mask_name': 'tumor_region'})
-cell_table_clusters = cell_table_clusters.merge(harmonized_annotations, on=['fov', 'label'])
+assert len(harmonized_annotations) == len(cell_table_clusters)
 
-# # TODO: move to clustering notebook
-# replace_dict = {1: 'cancer_vim_56', 2: 'immune_other', 3: 'cancer_sma', 4: 'cd4t', 5: 'cancer_ck17',
-#                 6: 'CD8T', 7: 'FAP_fibro', 8: 'CD163_mac', 9: 'Bcells', 10: 'Cancer_Ecad',
-#                 11: 'myeloid_party', 12: 'cancer_mono_cd56', 13: 'cancer_other_other', 14: 'vim_sma_cd31'}
-# cell_table_clusters['kmeans_labels'] = cell_table_clusters.kmeans_neighborhood
-# cell_table_clusters['kmeans_labels'].replace(replace_dict, inplace=True)
-
+cell_table_clusters = cell_table_clusters.merge(harmonized_annotations, on=['fov', 'label'], how='left')
+cell_table_func = cell_table_func.merge(harmonized_annotations, on=['fov', 'label'], how='left')
 
 # check for FOVs present in imaged data that aren't in core metadata
 missing_fovs = cell_table_clusters.loc[~cell_table_clusters.fov.isin(core_metadata.fov), 'fov'].unique()
+
+# TONIC_TMA24_R11C2 and TONIC_TMA24_R11C3 are wrong tissue
 cell_table_clusters = cell_table_clusters.loc[~cell_table_clusters.fov.isin(missing_fovs), :]
+cell_table_func = cell_table_func.loc[~cell_table_func.fov.isin(missing_fovs), :]
+
 
 #
 # Generate counts and proportions of cell clusters per FOV
@@ -155,7 +155,9 @@ count_df = count_df.drop(columns=['area'])
 total_df = pd.concat([total_df, count_df], axis=0)
 
 # check that all metadata from core_metadata succesfully transferred over
-total_df = total_df.merge(harmonized_metadata, on='fov', how='inner')
+len_total_df = len(total_df)
+total_df = total_df.merge(harmonized_metadata, on='fov', how='left')
+assert len_total_df == len(total_df)
 
 
 # save annotated cluster counts
@@ -175,9 +177,6 @@ total_df_timepoint.to_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv')
 # Create summary dataframe with proportions and counts of different functional marker populations
 #
 
-# load processed functional table
-cell_table_func = pd.read_csv(os.path.join(data_dir, 'post_processing', 'combined_cell_table_normalized_cell_labels_updated_func_only.csv'))
-cell_table_func = cell_table_func.merge(harmonized_annotations, on=['fov', 'label'])
 
 # Columns which are not thresholded (such as ratios between markers) can only be calculated for
 # dfs looking at normalized expression, and need to be dropped when calculating counts
@@ -264,12 +263,12 @@ broad_df = broad_df[broad_df.subset == 'all']
 broad_df = broad_df[broad_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
 broad_df_agg = broad_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
 
-broad_df_agg.reset_index(inplace=True)
+broad_df_agg = broad_df_agg.reset_index()
 broad_df = broad_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
 broad_df_include = broad_df > mean_percent_positive
 
 # include for all cells
-general_markers = ['Ki67', 'HLA1', 'H3K9ac_H3K27me3_ratio']
+general_markers = ['Ki67', 'HLA1', 'Vim', 'H3K9ac_H3K27me3_ratio']
 broad_df_include[[general_markers]] = True
 
 # CD45 isoform ratios
@@ -279,7 +278,7 @@ broad_df_include['CD45RO_CD45RB_ratio'] = double_pos
 # Cancer expression
 broad_df_include.loc['Cancer', ['HLADR', 'CD57']] = True
 
-broad_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'broad_inclusion_matrix.csv'))
+broad_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_broad.csv'))
 
 # apply thresholds to medium level clustering
 assignment_dict_med = {'Cancer': ['Cancer', 'Cancer_EMT', 'Cancer_Other'],
@@ -320,7 +319,7 @@ med_df_include.loc[['APC'], 'IDO'] = True
 # compare to see where assignments disagree, to see if any others need to be added
 new_includes = (med_df_bin == True) & (med_df_include == False)
 
-med_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'med_inclusion_matrix.csv'))
+med_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_med.csv'))
 
 # do the same for the fine-grained clustering
 assignment_dict_meta = {'Cancer': ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad'],
@@ -368,7 +367,7 @@ meta_df_bin = meta_df > mean_percent_positive
 # compare to see where assignments disagree
 new_includes = (meta_df_bin == True) & (meta_df_include == False)
 
-meta_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'meta_inclusion_matrix.csv'))
+meta_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_meta.csv'))
 
 # process functional data so that only the specified cell type/marker combos are included
 
@@ -419,7 +418,6 @@ long_df = pd.melt(transformed, id_vars=['fov'], var_name='functional_marker')
 long_df['metric'] = 'total_freq'
 long_df['cell_type'] = 'all'
 long_df['subset'] = 'all'
-
 
 long_df = long_df.merge(harmonized_metadata, on='fov', how='inner')
 
