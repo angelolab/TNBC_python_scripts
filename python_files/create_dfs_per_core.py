@@ -14,7 +14,8 @@ from python_files.utils import create_long_df_by_functional, create_long_df_by_c
 # whereas a more granular clustering scheme would separate out CD4T, CD8T, Tregs, etc.
 #
 
-data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
+local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
+data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data'
 
 #
 # Preprocess metadata to ensure all samples are present
@@ -403,6 +404,29 @@ for filters in filtering:
 
         # append to list of dfs
         combo_dfs.append(func_df_cell)
+
+
+# create manual df with total functional marker positivity across all cells in an image
+func_table_small = cell_table_func.loc[:, ~cell_table_func.columns.isin(['cell_cluster', 'cell_cluster_broad', 'cell_meta_cluster', 'label', 'tumor_region'])]
+
+# group by specified columns
+grouped_table = func_table_small.groupby('fov')
+transformed = grouped_table.agg(np.mean)
+transformed.reset_index(inplace=True)
+
+# reshape to long df
+long_df = pd.melt(transformed, id_vars=['fov'], var_name='functional_marker')
+long_df['metric'] = 'total_freq'
+long_df['cell_type'] = 'all'
+long_df['subset'] = 'all'
+
+
+long_df = long_df.merge(harmonized_metadata, on='fov', how='inner')
+
+
+# append to list of dfs
+combo_dfs.append(long_df)
+
 
 # combine
 combo_df = pd.concat(combo_dfs)

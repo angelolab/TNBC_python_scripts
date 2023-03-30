@@ -82,7 +82,8 @@ for cluster_name, feature_name in diversity_features:
 
 
 # compute abundance of cell types
-abundance_features = [['cluster_density', 'cluster_density', 'med']]
+abundance_features = [['cluster_density', 'cluster_density', 'med'],
+                      ['total_cell_density', 'total_density', 'broad']]
 for cluster_name, feature_name, cell_pop_level in abundance_features:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
     #for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
@@ -91,7 +92,11 @@ for cluster_name, feature_name, cell_pop_level in abundance_features:
         compartment_df['feature_name'] = compartment_df.cell_type + '__' + feature_name
         compartment_df['feature_name_unique'] = compartment_df.cell_type + '__' + feature_name + '__' + compartment
         compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
-        compartment_df['cell_pop'] = compartment_df.cell_type.apply(lambda x: narrow_to_broad[x])
+        if cluster_name != 'total_cell_density':
+            compartment_df['cell_pop'] = compartment_df.cell_type.apply(lambda x: narrow_to_broad[x])
+        else:
+            compartment_df['cell_pop'] = 'all'
+
         compartment_df['cell_pop_level'] = cell_pop_level
         compartment_df['feature_type'] = cluster_name.split('_')[-1]
         compartment_df = compartment_df[['fov', 'value', 'feature_name', 'feature_name_unique', 'compartment', 'cell_pop',
