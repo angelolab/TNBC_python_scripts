@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 
-from ark.utils.io_utils import list_folders
+from alpineer.io_utils import list_folders
 
 data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 metadata_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/metadata'

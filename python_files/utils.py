@@ -7,8 +7,8 @@ from scipy.ndimage import gaussian_filter
 from skimage.measure import label
 import skimage.io as io
 
-from ark.utils.misc_utils import verify_in_list
-from ark.utils import io_utils, load_utils
+from alpineer.misc_utils import verify_in_list
+from alpineer import io_utils, load_utils
 from ark.segmentation import marker_quantification
 
 
