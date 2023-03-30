@@ -4,8 +4,9 @@ import numpy as np
 
 from alpineer.io_utils import list_folders
 
-data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
-metadata_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/metadata'
+local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
+data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data'
+metadata_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/metadata'
 
 
 #
@@ -134,14 +135,13 @@ print(timepoint_missing)
 # get metadata on missing cores
 core_metadata.loc[core_metadata.Tissue_ID.isin(timepoint_missing[3:]), :]
 
+# These can all be excluded
+core_metadata = core_metadata.loc[~core_metadata.Tissue_ID.isin(timepoint_missing), :]
+
 # check for Tissue_IDs present in timepoint metadata but not core metadata
 core_missing = ~timepoint_metadata.Tissue_ID.isin(core_metadata.Tissue_ID) & (timepoint_metadata.On_TMA == 'Yes')
 core_missing = timepoint_metadata.Tissue_ID[core_missing].unique()
 print(core_missing)
-
-# remove missing cores
-core_metadata = core_metadata.loc[~core_metadata.Tissue_ID.isin(timepoint_missing), :]
-
 
 # select relevant columns from cores
 harmonized_metadata = core_metadata[['fov', 'Tissue_ID', 'MIBI_data_generated']]
@@ -151,22 +151,22 @@ harmonized_metadata = pd.merge(harmonized_metadata, timepoint_metadata.loc[:, ['
 assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
 
 # select and merge relevant columns from patients
-harmonized_metadata = pd.merge(harmonized_metadata, patient_metadata.loc[:, ['TONIC_ID', 'baseline_on_nivo', 'primary_baseline']], on='TONIC_ID', how='left')
+harmonized_metadata = pd.merge(harmonized_metadata, patient_metadata.loc[:, ['TONIC_ID', 'baseline_on_nivo', 'primary_baseline']], on='TONIC_ID', how='inner')
 assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
 
-# add information about which cores are present
-
-harmonized_metadata.to_csv(os.path.join(data_dir, 'harmonized_metadata.csv'), index=False)
+# save harmonized metadata
+harmonized_metadata.to_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'), index=False)
 
 # add in the harmonized metadata
 core_metadata = pd.merge(core_metadata, harmonized_metadata, on=['fov', 'Tissue_ID'], how='left')
 
 # add in the harmonized metadata, dropping the fov column
-harmonized_metadata = harmonized_metadata.drop(['fov', 'TONIC_ID', 'Timepoint', 'Localization'], axis=1)
+# TODO: determine if we want to keep the timepoints without any image data
+harmonized_metadata = harmonized_metadata.drop(['fov', 'TONIC_ID', 'Timepoint', 'Localization', 'MIBI_data_generated'], axis=1)
 harmonized_metadata = harmonized_metadata.drop_duplicates()
 timepoint_metadata = pd.merge(timepoint_metadata, harmonized_metadata, on='Tissue_ID', how='left')
 
 # save all modified metadata sheets
-core_metadata.to_csv(os.path.join(data_dir, 'TONIC_data_per_core.csv'), index=False)
-timepoint_metadata.to_csv(os.path.join(data_dir, 'TONIC_data_per_timepoint.csv'), index=False)
-patient_metadata.to_csv(os.path.join(data_dir, 'TONIC_data_per_patient.csv'), index=False)
+core_metadata.to_csv(os.path.join(metadata_dir, 'TONIC_data_per_core.csv'), index=False)
+timepoint_metadata.to_csv(os.path.join(metadata_dir, 'TONIC_data_per_timepoint.csv'), index=False)
+patient_metadata.to_csv(os.path.join(metadata_dir, 'TONIC_data_per_patient.csv'), index=False)
