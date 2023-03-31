@@ -8,7 +8,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/mixing/'
+data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 
 # load dataset
@@ -18,7 +18,7 @@ mixing_dict = {'Cancer_Immune-homogeneous_mixing_score.csv': 'cancer_immune',
 
 mixing_dfs = []
 for filename, name in mixing_dict.items():
-    current_df = pd.read_csv(os.path.join(data_dir, filename))
+    current_df = pd.read_csv(os.path.join(data_dir, 'spatial_analysis/mixing_score', filename))
     current_df['mixing_type'] = name
     mixing_dfs.append(current_df)
 
@@ -39,5 +39,5 @@ sns.scatterplot(data=wide_df, x='cancer_stroma', y='stroma_immune')
 plt.savefig(os.path.join(plot_dir, 'stroma_immune_vs_cancer_stroma.png'))
 plt.close()
 
-mixing_df.to_csv(os.path.join(data_dir, 'mixing_df.csv'), index=False)
+mixing_df.to_csv(os.path.join(data_dir, 'spatial_analysis/mixing_score/mixing_df.csv'), index=False)
 

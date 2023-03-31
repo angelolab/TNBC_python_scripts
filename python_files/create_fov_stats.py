@@ -7,9 +7,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
+local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
-nas_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
+data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 
 # load datasets
 cluster_df_core = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
@@ -17,8 +17,8 @@ metadata_df_core = pd.read_csv(os.path.join(data_dir, 'metadata/TONIC_data_per_c
 functional_df_core = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'))
 harmonized_metadata_df = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
 compartment_area = pd.read_csv(os.path.join(data_dir, 'post_processing/fov_annotation_mask_area.csv'))
-mixing_df = pd.read_csv(os.path.join(data_dir, 'mixing/mixing_df.csv'))
-ecm_df = pd.read_csv(os.path.join(nas_dir, 'ecm/fov_cluster_counts.csv'))
+mixing_df = pd.read_csv(os.path.join(data_dir, 'spatial_analysis/mixing_score/mixing_df.csv'))
+ecm_df = pd.read_csv(os.path.join(data_dir, 'ecm/fov_cluster_counts.csv'))
 
 
 # compute shannon diversity from list of proportions
@@ -114,16 +114,26 @@ for compartment in ['all']:
         cell_type2_df = compartment_df[compartment_df.cell_type == cell_type2].copy()
 
         # only keep FOVS with at least one cell type over the minimum density
-        cell_type1_mask = cell_type1_df.value > 0.02
-        cell_type2_mask = cell_type2_df.value > 0.02
+        cell_type1_mask = cell_type1_df.value > 0.0005
+        cell_type2_mask = cell_type2_df.value > 0.0005
         cell_mask = cell_type1_mask.values | cell_type2_mask.values
 
         cell_type1_df = cell_type1_df[cell_mask]
         cell_type2_df = cell_type2_df[cell_mask]
 
-        cell_type1_df['value'] = np.log2((cell_type1_df.value.values + 0.005) /
-                                         (cell_type2_df.value.values + 0.005))
-        cell_type1_df['feature_name'] = cell_type1 + '__' + cell_type2 + '__ratio__'
+        cell_type1_df['ratio'] = np.log2(cell_type1_df.value.values /
+                                         cell_type2_df.value.values)
+
+        # replace infs from log(0) or log(1/0) with min and max values
+        valid_vals = cell_type1_df.ratio.values[~np.isinf(cell_type1_df.ratio.values)]
+        min_ratio, max_ratio = np.percentile(valid_vals, [5, 95])
+
+        cell_type1_df.loc[cell_type1_df.value == 0, 'ratio'] = min_ratio
+        cell_type1_df.loc[cell_type2_df.value.values == 0, 'ratio'] = max_ratio
+
+        cell_type1_df['value'] = cell_type1_df.ratio.values
+
+        cell_type1_df['feature_name'] = cell_type1 + '__' + cell_type2 + '__ratio'
         cell_type1_df['feature_name_unique'] = cell_type1 + '__' + cell_type2 + '__ratio__' + compartment
         cell_type1_df['compartment'] = compartment
         cell_type1_df['cell_pop'] = 'multiple'
@@ -144,16 +154,25 @@ for compartment in ['all']:
         cell_type2_df = compartment_df[compartment_df.cell_type == cell_type2].copy()
 
         # only keep FOVS with at least one cell type over the minimum density
-        cell_type1_mask = cell_type1_df.value > 0.02
-        cell_type2_mask = cell_type2_df.value > 0.02
+        cell_type1_mask = cell_type1_df.value > 0.0005
+        cell_type2_mask = cell_type2_df.value > 0.0005
         cell_mask = cell_type1_mask.values | cell_type2_mask.values
 
         cell_type1_df = cell_type1_df[cell_mask]
         cell_type2_df = cell_type2_df[cell_mask]
 
-        cell_type1_df['value'] = np.log2((cell_type1_df.value.values + 0.005) /
-                                         (cell_type2_df.value.values + 0.005))
-        cell_type1_df['feature_name'] = cell_type1 + '__' + cell_type2 + '__ratio__'
+        cell_type1_df['ratio'] = np.log2(cell_type1_df.value.values /
+                                         cell_type2_df.value.values)
+
+        # replace infs from log(0) or log(1/0) with min and max values
+        valid_vals = cell_type1_df.ratio.values[~np.isinf(cell_type1_df.ratio.values)]
+        min_ratio, max_ratio = np.percentile(valid_vals, [5, 95])
+
+        cell_type1_df.loc[cell_type1_df.value == 0, 'ratio'] = min_ratio
+        cell_type1_df.loc[cell_type2_df.value.values == 0, 'ratio'] = max_ratio
+
+        cell_type1_df['value'] = cell_type1_df.ratio.values
+        cell_type1_df['feature_name'] = cell_type1 + '__' + cell_type2 + '__ratio'
         cell_type1_df['feature_name_unique'] = cell_type1 + '__' + cell_type2 + '__ratio__' + compartment
         cell_type1_df['compartment'] = compartment
         cell_type1_df['cell_pop'] = 'Immune'
@@ -253,9 +272,6 @@ for col_name in ['Cold_Coll', 'Hot_Coll', 'No_ECM', 'Cold_Coll_Norm', 'Hot_Coll_
     ecm_df_subset = ecm_df_subset[['fov', 'value', 'feature_name', 'feature_name_unique',
                                    'compartment', 'cell_pop', 'cell_pop_level', 'feature_type']]
     fov_data.append(ecm_df_subset)
-
-# add ecm proportion, excluding no_ecm category
-
 
 
 # combine metrics together
