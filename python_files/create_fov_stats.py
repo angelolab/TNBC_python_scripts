@@ -183,7 +183,8 @@ for compartment in ['all']:
         fov_data.append(cell_type1_df)
 
 # compute functional marker positivity for different levels of granularity
-functional_features = [['cluster_freq', 'med']]
+functional_features = [['cluster_freq', 'med'],
+                       ['total_freq', 'broad']]
 for functional_name, cell_pop_level in functional_features:
     input_df = functional_df_core[functional_df_core['metric'].isin([functional_name])]
     #for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
@@ -192,7 +193,12 @@ for functional_name, cell_pop_level in functional_features:
         compartment_df['feature_name'] = compartment_df.functional_marker + '+__' + compartment_df.cell_type
         compartment_df['feature_name_unique'] = compartment_df.functional_marker + '+__' + compartment_df.cell_type + '__' + compartment
         compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
-        compartment_df['cell_pop'] = compartment_df.cell_type.apply(lambda x: narrow_to_broad[x])
+
+        if functional_name != 'total_freq':
+            compartment_df['cell_pop'] = compartment_df.cell_type.apply(lambda x: narrow_to_broad[x])
+        else:
+            compartment_df['cell_pop'] = 'all'
+
         compartment_df['cell_pop_level'] = cell_pop_level
         compartment_df['feature_type'] = 'functional_marker'
         compartment_df = compartment_df[['fov', 'value', 'feature_name','feature_name_unique','compartment', 'cell_pop',

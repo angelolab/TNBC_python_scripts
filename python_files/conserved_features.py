@@ -7,9 +7,9 @@ import seaborn as sns
 from scipy.stats import spearmanr
 
 
-
-data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
+local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
+data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 
 feature_df = pd.read_csv(os.path.join(data_dir, 'fov_features_no_compartment.csv'))
 harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
@@ -43,7 +43,7 @@ index_cols = paired_df.columns
 index_cols = index_cols.drop(['fov', 'value', 'placeholder'])
 paired_df = paired_df.pivot(index=index_cols, columns='placeholder', values='value')
 paired_df = paired_df.reset_index()
-paired_df.to_csv(os.path.join(data_dir, 'conserved_features/paired_df.csv'), index=False)
+paired_df.to_csv(os.path.join(data_dir, 'conserved_features/paired_df_no_compartment.csv'), index=False)
 
 p_vals = []
 cors = []
@@ -73,11 +73,16 @@ ranked_features = ranked_features.merge(paired_df[['feature_name', 'feature_name
 ranked_features['conserved'] = (ranked_features.log_pval >= 6) & (ranked_features.cor >= 0.5)
 ranked_features['highly_conserved'] = (ranked_features.log_pval >= 10) & (ranked_features.cor >= 0.7)
 
+# get ranking of each row by log_pval
+ranked_features['pval_rank'] = ranked_features.log_pval.rank(ascending=False)
+ranked_features['cor_rank'] = ranked_features.cor.rank(ascending=False)
+ranked_features['combined_rank'] = (ranked_features.pval_rank.values + ranked_features.cor_rank.values) / 2
+
 ranked_features.to_csv(os.path.join(data_dir, 'conserved_features/ranked_features_no_compartment.csv'), index=False)
 
 ranked_features = pd.read_csv(os.path.join(data_dir, 'conserved_features/ranked_features_no_compartment.csv'))
 
-sns.scatterplot(data=ranked_features, x='cor', y='log_pval')
+sns.scatterplot(data=ranked_features, x='cor', y='log_pval', hue='combined_rank', palette='viridis')
 plt.savefig(os.path.join(plot_dir, 'conserved_features_volcano.png'))
 plt.close()
 
@@ -192,6 +197,49 @@ for min_cor in [0.5, 0.6, 0.7, 0.8]:
         # only save the first 2 digits of the correlation
         plt.savefig(os.path.join(plot_dir, 'Correlation_compartment_{}_{}.png'.format(feature_name, str(correlation)[:4])))
         plt.close()
+
+# generate plot for best ranked features
+max_rank = 100
+plot_features = ranked_features.loc[ranked_features.combined_rank <= max_rank, :]
+
+# sort by combined rank
+plot_features.sort_values(by='combined_rank', inplace=True)
+
+for i in range(len(plot_features)):
+    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+
+    feature_name = plot_features.iloc[i].feature_name
+    values = paired_df[(paired_df.feature_name == feature_name)].copy()
+    values.dropna(inplace=True)
+
+    sns.scatterplot(data=values, x='fov1', y='fov2', ax=ax[0])
+    correlation, p_val = spearmanr(values.fov1, values.fov2)
+    ax[0].set_xlabel('untransformed')
+
+    logged_values = values.copy()
+    min_val = min(values.fov1.min(), values.fov2.min())
+    if min_val > 0:
+        increment = 0
+    elif min_val == 0:
+        increment = 0.01
+    else:
+        increment = min_val * -1.01
+    logged_values.fov1 = np.log10(values.fov1.values + increment)
+    logged_values.fov2 = np.log10(values.fov2.values + increment)
+    sns.scatterplot(data=logged_values, x='fov1', y='fov2', ax=ax[1])
+    ax[1].set_xlabel('log10 transformed')
+
+    # set title for whole figure
+    fig.suptitle(feature_name + ' correlation: {:.2f} rank: {}'.format(correlation, plot_features.iloc[i].combined_rank))
+
+    # convert int rank to string with two leading zeros
+    int_rank = int(plot_features.iloc[i].combined_rank)
+    str_rank = str(int_rank)
+    if int_rank < 10:
+        str_rank = '0' + str_rank
+
+    plt.savefig(os.path.join(plot_dir, 'Correlation_{}_{}.png'.format(str_rank, feature_name)))
+    plt.close()
 
 
 # plot a specified row
