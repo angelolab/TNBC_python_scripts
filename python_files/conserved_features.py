@@ -70,13 +70,13 @@ ranked_features['log_log_pval'] = -np.emath.logn(1000, ranked_features.p_val)
 ranked_features = ranked_features.merge(paired_df[['feature_name', 'feature_name_unique',
                                                    'compartment', 'cell_pop', 'cell_pop_level',
                                                    'feature_type']].drop_duplicates(), on='feature_name', how='left')
-ranked_features['conserved'] = (ranked_features.log_pval >= 6) & (ranked_features.cor >= 0.5)
-ranked_features['highly_conserved'] = (ranked_features.log_pval >= 10) & (ranked_features.cor >= 0.7)
 
 # get ranking of each row by log_pval
 ranked_features['pval_rank'] = ranked_features.log_pval.rank(ascending=False)
 ranked_features['cor_rank'] = ranked_features.cor.rank(ascending=False)
 ranked_features['combined_rank'] = (ranked_features.pval_rank.values + ranked_features.cor_rank.values) / 2
+ranked_features['conserved'] = ranked_features.combined_rank <= 100
+
 
 ranked_features.to_csv(os.path.join(data_dir, 'conserved_features/ranked_features_no_compartment.csv'), index=False)
 
@@ -341,7 +341,7 @@ plt.close()
 #                 compartment = 'both'
 #         plot_subset.loc[plot_subset.name.str.contains(feature + '__', regex=False), 'compartment'] = compartment
 
-ranked_features_conserved = ranked_features[ranked_features.combined_rank < 100].copy()
+ranked_features_conserved = ranked_features[ranked_features.conserved].copy()
 
 feature_df_conserved = feature_df[feature_df.feature_name.isin(ranked_features_conserved.feature_name)].copy()
 feature_df_conserved.to_csv(os.path.join(data_dir, 'conserved_features/fov_features_conserved.csv'), index=False)
@@ -389,68 +389,19 @@ corr_df = corr_df.fillna(0)
 clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
 
 
-# get counts of each feature type for conserved vs non-conserved features
-grouped_by_feature = ranked_features[['feature_type', 'correlated_feature', 'conserved', 'sparse_feature']].groupby('feature_type').mean().reset_index()
+# determine which features to summarize by
+summary_features = ['feature_type', 'cell_pop_level', 'cell_pop']
 
-# plot as a barplot
-g = sns.barplot(data=grouped_by_feature, x='feature_type', y='conserved', color='grey')
-g.set_xticklabels(g.get_xticklabels(), rotation=90)
-g.set_xlabel('Feature Type')
-g.set_ylabel('Proportion conserved')
-g.set_title('Proportion of features conserved by feature type')
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'proportion_conserved_by_feature_type.png'))
-plt.close()
+for feature in summary_features:
+    # get counts of each feature type for conserved vs non-conserved features
+    grouped = ranked_features[[feature, 'conserved']].groupby(feature).mean().reset_index()
 
-# plot as a barplot
-g = sns.barplot(data=grouped_by_feature, x='feature_type', y='correlated_feature', color='grey')
-g.set_xticklabels(g.get_xticklabels(), rotation=90)
-g.set_xlabel('Feature Type')
-g.set_ylabel('Proportion correlated')
-g.set_title('Proportion of features that are correlated by feature type')
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'proportion_correlated_by_feature_type.png'))
-plt.close()
-
-# plot as a barplot
-g = sns.barplot(data=grouped_by_feature, x='feature_type', y='sparse_feature', color='grey')
-g.set_xticklabels(g.get_xticklabels(), rotation=90)
-g.set_xlabel('Feature Type')
-g.set_ylabel('Proportion sparse')
-g.set_title('Proportion of features that are sparse by feature type')
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'proportion_sparse_by_feature_type.png'))
-plt.close()
-
-grouped_by_pop = ranked_features[['cell_pop', 'correlated_feature', 'conserved', 'sparse_feature']].groupby('cell_pop').mean().reset_index()
-
-# plot as a barplot
-g = sns.barplot(data=grouped_by_pop, x='cell_pop', y='conserved', color='grey')
-g.set_xticklabels(g.get_xticklabels(), rotation=90)
-g.set_xlabel('Cell Population')
-g.set_ylabel('Proportion conserved')
-g.set_title('Proportion of features conserved by cell population')
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'proportion_conserved_by_cell_pop.png'))
-plt.close()
-
-# plot as a barplot
-g = sns.barplot(data=grouped_by_pop, x='cell_pop', y='correlated_feature', color='grey')
-g.set_xticklabels(g.get_xticklabels(), rotation=90)
-g.set_xlabel('Cell Population')
-g.set_ylabel('Proportion correlated')
-g.set_title('Proportion of features that are correlated by cell population')
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'proportion_correlated_by_cell_pop.png'))
-plt.close()
-
-# plot as a barplot
-g = sns.barplot(data=grouped_by_pop, x='cell_pop', y='sparse_feature', color='grey')
-g.set_xticklabels(g.get_xticklabels(), rotation=90)
-g.set_xlabel('Cell Population')
-g.set_ylabel('Proportion sparse')
-g.set_title('Proportion of features that are sparse by cell population')
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'proportion_sparse_by_cell_pop.png'))
-plt.close()
-
+    # plot as a barplot
+    g = sns.barplot(data=grouped, x=feature, y='conserved', color='grey')
+    g.set_xticklabels(g.get_xticklabels(), rotation=90)
+    g.set_xlabel(feature)
+    g.set_ylabel('Proportion conserved')
+    g.set_title('Proportion conserved by {}'.format(feature))
+    plt.tight_layout()
+    plt.savefig(os.path.join(plot_dir, 'proportion_conserved_by_{}.png'.format(feature)))
+    plt.close()
