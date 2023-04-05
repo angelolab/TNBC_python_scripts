@@ -257,117 +257,117 @@ for metric in metrics:
 filtered_func_df = pd.concat(filtered_dfs)
 
 # identify combinations of markers and cell types to include in analysis based on threshold
-mean_percent_positive = 0.05
-broad_df = filtered_func_df[filtered_func_df.metric == 'cluster_broad_freq']
-broad_df = broad_df[broad_df.subset == 'all']
-broad_df = broad_df[broad_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
-broad_df_agg = broad_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
-
-broad_df_agg = broad_df_agg.reset_index()
-broad_df = broad_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
-broad_df_include = broad_df > mean_percent_positive
-
-# include for all cells
-general_markers = ['Ki67', 'HLA1', 'Vim', 'H3K9ac_H3K27me3_ratio']
-broad_df_include[[general_markers]] = True
-
-# CD45 isoform ratios
-double_pos = np.logical_and(broad_df_include['CD45RO'], broad_df_include['CD45RB'])
-broad_df_include['CD45RO_CD45RB_ratio'] = double_pos
-
-# Cancer expression
-broad_df_include.loc['Cancer', ['HLADR', 'CD57']] = True
-
-broad_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_broad.csv'))
-
-# apply thresholds to medium level clustering
-assignment_dict_med = {'Cancer': ['Cancer', 'Cancer_EMT', 'Cancer_Other'],
-                     'Mono_Mac': ['M1_Mac', 'M2_Mac', 'Mac_Other', 'Monocyte', 'APC'],
-                     'B': ['B'],
-                     'T': ['CD4T', 'CD8T', 'Treg', 'T_Other', 'Immune_Other'],
-                     'Granulocyte': ['Neutrophil', 'Mast'],
-                     'Stroma': ['Endothelium', 'Fibroblast', 'Stroma'],
-                     'NK': ['NK'],
-                     'Other': ['Other']}
-
-# get a list of all cell types
-cell_types = np.concatenate([assignment_dict_med[key] for key in assignment_dict_med.keys()])
-cell_types.sort()
-
-med_df_include = pd.DataFrame(index=cell_types, columns=broad_df.columns)
-
-for key in assignment_dict_med.keys():
-    values = assignment_dict_med[key]
-    med_df_include.loc[values] = broad_df_include.loc[key].values
-
-# check if assignment makes sense
-med_df = filtered_func_df[filtered_func_df.metric == 'cluster_freq']
-med_df = med_df[med_df.subset == 'all']
-med_df = med_df[med_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
-med_df_agg = med_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
-
-med_df_agg.reset_index(inplace=True)
-med_df = med_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
-med_df_bin = med_df > mean_percent_positive
-
-# add CD38 signal
-med_df_include.loc[['Endothelium', 'Immune_Other'], 'CD38'] = True
-
-# add IDO signal
-med_df_include.loc[['APC'], 'IDO'] = True
-
-# compare to see where assignments disagree, to see if any others need to be added
-new_includes = (med_df_bin == True) & (med_df_include == False)
-
-med_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_med.csv'))
-
-# do the same for the fine-grained clustering
-assignment_dict_meta = {'Cancer': ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad'],
-                   'Cancer_EMT': ['Cancer_SMA', 'Cancer_Vim'],
-                   'Cancer_Other': ['Cancer_Other', 'Cancer_Mono'],
-                   'M1_Mac': ['CD68'],
-                   'M2_Mac': ['CD163'],
-                   'Mac_Other': ['CD68_CD163_DP'],
-                   'Monocyte': ['CD4_Mono', 'CD14'],
-                   'APC': ['CD11c_HLADR'],
-                   'B':  ['CD20'],
-                   'Endothelium': ['CD31', 'CD31_VIM'],
-                   'Fibroblast': ['FAP', 'FAP_SMA', 'SMA'],
-                   'Stroma': ['Stroma_Collagen', 'Stroma_Fibronectin', 'VIM'],
-                   'NK': ['CD56'],
-                   'Neutrophil': ['Neutrophil'],
-                   'Mast': ['Mast'],
-                   'CD4T': ['CD4T','CD4T_HLADR'],
-                   'CD8T': ['CD8T'],
-                   'Treg': ['Treg'],
-                   'T_Other': ['CD3_DN','CD4T_CD8T_DP'],
-                   'Immune_Other': ['Immune_Other'],
-                   'Other': ['Other']}
-
-# get a list of all cell types
-cell_types = np.concatenate([assignment_dict_meta[key] for key in assignment_dict_meta.keys()])
-cell_types.sort()
-
-meta_df_include = pd.DataFrame(index=cell_types, columns=broad_df.columns)
-
-for key in assignment_dict_meta.keys():
-    values = assignment_dict_meta[key]
-    meta_df_include.loc[values] = med_df_include.loc[key].values
-
-# check if assignment makes sense
-meta_df = filtered_func_df[filtered_func_df.metric == 'meta_cluster_freq']
-meta_df = meta_df[meta_df.subset == 'all']
-meta_df = meta_df[meta_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
-meta_df_agg = meta_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
-
-meta_df_agg.reset_index(inplace=True)
-meta_df = meta_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
-meta_df_bin = meta_df > mean_percent_positive
-
-# compare to see where assignments disagree
-new_includes = (meta_df_bin == True) & (meta_df_include == False)
-
-meta_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_meta.csv'))
+# mean_percent_positive = 0.05
+# broad_df = filtered_func_df[filtered_func_df.metric == 'cluster_broad_freq']
+# broad_df = broad_df[broad_df.subset == 'all']
+# broad_df = broad_df[broad_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# broad_df_agg = broad_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+#
+# broad_df_agg = broad_df_agg.reset_index()
+# broad_df = broad_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
+# broad_df_include = broad_df > mean_percent_positive
+#
+# # include for all cells
+# general_markers = ['Ki67', 'HLA1', 'Vim', 'H3K9ac_H3K27me3_ratio']
+# broad_df_include[[general_markers]] = True
+#
+# # CD45 isoform ratios
+# double_pos = np.logical_and(broad_df_include['CD45RO'], broad_df_include['CD45RB'])
+# broad_df_include['CD45RO_CD45RB_ratio'] = double_pos
+#
+# # Cancer expression
+# broad_df_include.loc['Cancer', ['HLADR', 'CD57']] = True
+#
+# broad_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_broad.csv'))
+#
+# # apply thresholds to medium level clustering
+# assignment_dict_med = {'Cancer': ['Cancer', 'Cancer_EMT', 'Cancer_Other'],
+#                      'Mono_Mac': ['M1_Mac', 'M2_Mac', 'Mac_Other', 'Monocyte', 'APC'],
+#                      'B': ['B'],
+#                      'T': ['CD4T', 'CD8T', 'Treg', 'T_Other', 'Immune_Other'],
+#                      'Granulocyte': ['Neutrophil', 'Mast'],
+#                      'Stroma': ['Endothelium', 'Fibroblast', 'Stroma'],
+#                      'NK': ['NK'],
+#                      'Other': ['Other']}
+#
+# # get a list of all cell types
+# cell_types = np.concatenate([assignment_dict_med[key] for key in assignment_dict_med.keys()])
+# cell_types.sort()
+#
+# med_df_include = pd.DataFrame(index=cell_types, columns=broad_df.columns)
+#
+# for key in assignment_dict_med.keys():
+#     values = assignment_dict_med[key]
+#     med_df_include.loc[values] = broad_df_include.loc[key].values
+#
+# # check if assignment makes sense
+# med_df = filtered_func_df[filtered_func_df.metric == 'cluster_freq']
+# med_df = med_df[med_df.subset == 'all']
+# med_df = med_df[med_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# med_df_agg = med_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+#
+# med_df_agg.reset_index(inplace=True)
+# med_df = med_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
+# med_df_bin = med_df > mean_percent_positive
+#
+# # add CD38 signal
+# med_df_include.loc[['Endothelium', 'Immune_Other'], 'CD38'] = True
+#
+# # add IDO signal
+# med_df_include.loc[['APC'], 'IDO'] = True
+#
+# # compare to see where assignments disagree, to see if any others need to be added
+# new_includes = (med_df_bin == True) & (med_df_include == False)
+#
+# med_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_med.csv'))
+#
+# # do the same for the fine-grained clustering
+# assignment_dict_meta = {'Cancer': ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad'],
+#                    'Cancer_EMT': ['Cancer_SMA', 'Cancer_Vim'],
+#                    'Cancer_Other': ['Cancer_Other', 'Cancer_Mono'],
+#                    'M1_Mac': ['CD68'],
+#                    'M2_Mac': ['CD163'],
+#                    'Mac_Other': ['CD68_CD163_DP'],
+#                    'Monocyte': ['CD4_Mono', 'CD14'],
+#                    'APC': ['CD11c_HLADR'],
+#                    'B':  ['CD20'],
+#                    'Endothelium': ['CD31', 'CD31_VIM'],
+#                    'Fibroblast': ['FAP', 'FAP_SMA', 'SMA'],
+#                    'Stroma': ['Stroma_Collagen', 'Stroma_Fibronectin', 'VIM'],
+#                    'NK': ['CD56'],
+#                    'Neutrophil': ['Neutrophil'],
+#                    'Mast': ['Mast'],
+#                    'CD4T': ['CD4T','CD4T_HLADR'],
+#                    'CD8T': ['CD8T'],
+#                    'Treg': ['Treg'],
+#                    'T_Other': ['CD3_DN','CD4T_CD8T_DP'],
+#                    'Immune_Other': ['Immune_Other'],
+#                    'Other': ['Other']}
+#
+# # get a list of all cell types
+# cell_types = np.concatenate([assignment_dict_meta[key] for key in assignment_dict_meta.keys()])
+# cell_types.sort()
+#
+# meta_df_include = pd.DataFrame(index=cell_types, columns=broad_df.columns)
+#
+# for key in assignment_dict_meta.keys():
+#     values = assignment_dict_meta[key]
+#     meta_df_include.loc[values] = med_df_include.loc[key].values
+#
+# # check if assignment makes sense
+# meta_df = filtered_func_df[filtered_func_df.metric == 'meta_cluster_freq']
+# meta_df = meta_df[meta_df.subset == 'all']
+# meta_df = meta_df[meta_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# meta_df_agg = meta_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+#
+# meta_df_agg.reset_index(inplace=True)
+# meta_df = meta_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
+# meta_df_bin = meta_df > mean_percent_positive
+#
+# # compare to see where assignments disagree
+# new_includes = (meta_df_bin == True) & (meta_df_include == False)
+#
+# meta_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_meta.csv'))
 
 # process functional data so that only the specified cell type/marker combos are included
 
@@ -421,14 +421,11 @@ long_df['subset'] = 'all'
 
 long_df = long_df.merge(harmonized_metadata, on='fov', how='inner')
 
-
 # append to list of dfs
 combo_dfs.append(long_df)
 
-
 # combine
 combo_df = pd.concat(combo_dfs)
-
 combo_df.to_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'), index=False)
 
 

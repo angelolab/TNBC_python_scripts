@@ -364,20 +364,10 @@ valid_CD45 = np.logical_or(cell_table_full['CD45RO'].values >= CD45RO_min,
                             cell_table_full['CD45RB'].values >= CD45RB_min)
 
 # compute the ratios
-cell_table_full['H3K9ac_H3K27me3_ratio'] = np.log2(cell_table_full['H3K9ac'].values / cell_table_full['H3K27me3'].values)
-cell_table_full['CD45RO_CD45RB_ratio'] = np.log2(cell_table_full['CD45RO'].values / cell_table_full['CD45RB'].values)
-
-# set cap to use for divide by zeros
-max_H3K = np.nanpercentile(cell_table_full['H3K9ac_H3K27me3_ratio'].values, 95)
-min_H3K = np.nanpercentile(cell_table_full['H3K9ac_H3K27me3_ratio'].values, 5)
-max_CD45 = np.nanpercentile(cell_table_full['CD45RO_CD45RB_ratio'].values, 95)
-min_CD45 = np.nanpercentile(cell_table_full['CD45RO_CD45RB_ratio'].values, 5)
-
-# set divide by zero values to max
-cell_table_full.loc[cell_table_full['H3K27me3'] == 0, 'H3K9ac_H3K27me3_ratio'] = max_H3K
-cell_table_full.loc[cell_table_full['H3K9ac'] == 0, 'H3K9ac_H3K27me3_ratio'] = min_H3K
-cell_table_full.loc[cell_table_full['CD45RB'] == 0, 'CD45RO_CD45RB_ratio'] = max_CD45
-cell_table_full.loc[cell_table_full['CD45RO'] == 0, 'CD45RO_CD45RB_ratio'] = min_CD45
+cell_table_full['H3K9ac_H3K27me3_ratio'] = np.log2((cell_table_full['H3K9ac'].values + H3K9ac_min) /
+                                                   (cell_table_full['H3K27me3'].values + H3K27me3_min))
+cell_table_full['CD45RO_CD45RB_ratio'] = np.log2((cell_table_full['CD45RO'].values + CD45RO_min) /
+                                                 (cell_table_full['CD45RB'].values + CD45RB_min))
 
 # set cells with insufficient counts to nan
 cell_table_full.loc[~valid_H3K, 'H3K9ac_H3K27me3_ratio'] = np.nan

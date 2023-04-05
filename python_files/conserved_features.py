@@ -199,7 +199,7 @@ for min_cor in [0.5, 0.6, 0.7, 0.8]:
         plt.close()
 
 # generate plot for best ranked features
-max_rank = 100
+max_rank = 150
 plot_features = ranked_features.loc[ranked_features.combined_rank <= max_rank, :]
 
 # sort by combined rank
@@ -341,18 +341,7 @@ plt.close()
 #                 compartment = 'both'
 #         plot_subset.loc[plot_subset.name.str.contains(feature + '__', regex=False), 'compartment'] = compartment
 
-ranked_features_conserved = ranked_features[ranked_features.conserved]
-p_df_subset[['feature_type', 'highly_conserved']].groupby('feature_type').mean().reset_index()
-p_df_subset[['cell_pop', 'highly_conserved']].groupby('cell_pop').mean().reset_index()
-
-# save only conserved features
-# feature_df_conserved = []
-# for feature_name, compartment in zip(ranked_features_conserved.feature_name,
-#                                      ranked_features_conserved.compartment):
-#     values = feature_df[(feature_df.feature_name == feature_name) & (feature_df.compartment == compartment)].copy()
-#     values.dropna(inplace=True)
-#     feature_df_conserved.append(values)
-#feature_df_conserved = pd.concat(feature_df_conserved)
+ranked_features_conserved = ranked_features[ranked_features.combined_rank < 100].copy()
 
 feature_df_conserved = feature_df[feature_df.feature_name.isin(ranked_features_conserved.feature_name)].copy()
 feature_df_conserved.to_csv(os.path.join(data_dir, 'conserved_features/fov_features_conserved.csv'), index=False)
@@ -360,14 +349,6 @@ feature_df_conserved.to_csv(os.path.join(data_dir, 'conserved_features/fov_featu
 # do the same for timepoint level features
 timepoint_df = pd.read_csv(os.path.join(data_dir, 'timepoint_features.csv'))
 
-# timepoint_df_conserved = []
-# for feature_name, compartment in zip(ranked_features_conserved.feature_name,
-#                                      ranked_features_conserved.compartment):
-#     values = timepoint_df[(timepoint_df.feature_name == feature_name) & (timepoint_df.compartment == compartment)].copy()
-#     values.dropna(inplace=True)
-#     timepoint_df_conserved.append(values)
-#
-# timepoint_df_conserved = pd.concat(timepoint_df_conserved)
 timepoint_df_conserved = timepoint_df[timepoint_df.feature_name.isin(ranked_features_conserved.feature_name)].copy()
 timepoint_df_conserved.to_csv(os.path.join(data_dir, 'conserved_features/timepoint_features_conserved.csv'), index=False)
 

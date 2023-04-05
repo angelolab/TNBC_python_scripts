@@ -114,22 +114,17 @@ for compartment in ['all']:
         cell_type2_df = compartment_df[compartment_df.cell_type == cell_type2].copy()
 
         # only keep FOVS with at least one cell type over the minimum density
-        cell_type1_mask = cell_type1_df.value > 0.0005
-        cell_type2_mask = cell_type2_df.value > 0.0005
+        minimum_density = 0.0005
+        cell_type1_mask = cell_type1_df.value > minimum_density
+        cell_type2_mask = cell_type2_df.value > minimum_density
         cell_mask = cell_type1_mask.values | cell_type2_mask.values
 
         cell_type1_df = cell_type1_df[cell_mask]
         cell_type2_df = cell_type2_df[cell_mask]
 
-        cell_type1_df['ratio'] = np.log2(cell_type1_df.value.values /
-                                         cell_type2_df.value.values)
-
-        # replace infs from log(0) or log(1/0) with min and max values
-        valid_vals = cell_type1_df.ratio.values[~np.isinf(cell_type1_df.ratio.values)]
-        min_ratio, max_ratio = np.percentile(valid_vals, [5, 95])
-
-        cell_type1_df.loc[cell_type1_df.value == 0, 'ratio'] = min_ratio
-        cell_type1_df.loc[cell_type2_df.value.values == 0, 'ratio'] = max_ratio
+        # add minimum density to avoid log2(0)
+        cell_type1_df['ratio'] = np.log2((cell_type1_df.value.values + minimum_density) /
+                                         (cell_type2_df.value.values + minimum_density))
 
         cell_type1_df['value'] = cell_type1_df.ratio.values
 
@@ -154,22 +149,16 @@ for compartment in ['all']:
         cell_type2_df = compartment_df[compartment_df.cell_type == cell_type2].copy()
 
         # only keep FOVS with at least one cell type over the minimum density
-        cell_type1_mask = cell_type1_df.value > 0.0005
-        cell_type2_mask = cell_type2_df.value > 0.0005
+        minimum_density = 0.0005
+        cell_type1_mask = cell_type1_df.value > minimum_density
+        cell_type2_mask = cell_type2_df.value > minimum_density
         cell_mask = cell_type1_mask.values | cell_type2_mask.values
 
         cell_type1_df = cell_type1_df[cell_mask]
         cell_type2_df = cell_type2_df[cell_mask]
 
-        cell_type1_df['ratio'] = np.log2(cell_type1_df.value.values /
-                                         cell_type2_df.value.values)
-
-        # replace infs from log(0) or log(1/0) with min and max values
-        valid_vals = cell_type1_df.ratio.values[~np.isinf(cell_type1_df.ratio.values)]
-        min_ratio, max_ratio = np.percentile(valid_vals, [5, 95])
-
-        cell_type1_df.loc[cell_type1_df.value == 0, 'ratio'] = min_ratio
-        cell_type1_df.loc[cell_type2_df.value.values == 0, 'ratio'] = max_ratio
+        cell_type1_df['ratio'] = np.log2((cell_type1_df.value.values + minimum_density) /
+                                         (cell_type2_df.value.values + minimum_density))
 
         cell_type1_df['value'] = cell_type1_df.ratio.values
         cell_type1_df['feature_name'] = cell_type1 + '__' + cell_type2 + '__ratio'
@@ -227,12 +216,15 @@ for idx, compartment in enumerate(compartments):
     compartment2 = compartments[idx + 1]
     compartment2_df = compartment_area[compartment_area.compartment == compartment2].copy()
     compartment2_df['value'] = compartment2_df.area.values / total_area.area.values
-    compartment1_keep_mask = compartment_df.value > 0.05
-    compartment2_keep_mask = compartment2_df.value > 0.05
+
+    minimum_abundance = 0.01
+    compartment1_keep_mask = compartment_df.value > minimum_abundance
+    compartment2_keep_mask = compartment2_df.value > minimum_abundance
     keep_mask = compartment1_keep_mask.values | compartment2_keep_mask.values
     compartment_df = compartment_df[keep_mask]
     compartment2_df = compartment2_df[keep_mask]
-    compartment2_df['value'] = np.log2((compartment_df.value.values + 0.01) / (compartment2_df.value.values + 0.01))
+    compartment2_df['value'] = np.log2((compartment_df.value.values + minimum_abundance) /
+                                       (compartment2_df.value.values + minimum_abundance))
 
     # add metadata
     compartment2_df['feature_name'] = compartment + '__' + compartment2 + '__log2_ratio'
