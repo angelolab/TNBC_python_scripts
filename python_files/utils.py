@@ -11,6 +11,51 @@ from alpineer.misc_utils import verify_in_list
 from alpineer import io_utils, load_utils
 from ark.segmentation import marker_quantification
 
+from scipy.stats import spearmanr
+from scipy.stats import ttest_ind
+
+
+def find_conserved_features(paired_df, sample_name_1, sample_name_2, min_samples=20):
+    """Given a df with paired features, find features that are conserved between two samples.
+
+    Args:
+        paired_df (pd.DataFrame): df with paired features
+        sample_name_1 (str): name of sample 1
+        sample_name_2 (str): name of sample 2
+        min_samples (int): minimum number of samples to calculate correlation
+    """
+
+    # set up placeholders
+    p_vals = []
+    cors = []
+    names = []
+
+    # loop over each feature in the df
+    for feature_name in paired_df.feature_name.unique():
+
+        # if either sample is missing a feature, skip that comparison
+        values = paired_df[(paired_df.feature_name == feature_name)].copy()
+        values.dropna(inplace=True)
+
+        # remove rows where both values are 0
+        zero_mask = (values[sample_name_1] == 0) & (values[sample_name_2] == 0)
+        values = values[~zero_mask]
+
+        if len(values) > min_samples:
+            cor, p_val = spearmanr(values[sample_name_1], values[sample_name_2])
+            p_vals.append(p_val)
+            cors.append(cor)
+            names.append(feature_name)
+
+    ranked_features = pd.DataFrame({'feature_name': names, 'p_val': p_vals, 'cor': cors})
+    ranked_features['log_pval'] = -np.log10(ranked_features.p_val)
+
+    # get ranking of each row by log_pval
+    ranked_features['pval_rank'] = ranked_features.log_pval.rank(ascending=False)
+    ranked_features['cor_rank'] = ranked_features.cor.rank(ascending=False)
+    ranked_features['combined_rank'] = (ranked_features.pval_rank.values + ranked_features.cor_rank.values) / 2
+
+    return ranked_features
 
 
 def cluster_df_helper(cell_table, cluster_col_name, result_name, normalize=False):

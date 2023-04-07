@@ -6,6 +6,7 @@ import pandas as pd
 import seaborn as sns
 from scipy.stats import spearmanr
 
+from python_files.utils import find_conserved_features
 
 local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
@@ -13,6 +14,9 @@ data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 
 feature_df = pd.read_csv(os.path.join(data_dir, 'fov_features_no_compartment.csv'))
 harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
+
+
+
 
 # fov_metadata = harmonized_metadata[harmonized_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'on_nivo', 'post_induction'])]
 # fov_metadata = fov_metadata[fov_metadata.fov.isin(feature_df.fov.unique())]
@@ -40,44 +44,25 @@ paired_df['placeholder'] = paired_df['placeholder'].replace({0: 'fov1', 1: 'fov2
 
 # pivot the df to wide format with matching fovs
 index_cols = paired_df.columns
-index_cols = index_cols.drop(['fov', 'value', 'placeholder'])
-paired_df = paired_df.pivot(index=index_cols, columns='placeholder', values='value')
+index_cols = index_cols.drop(['fov', 'raw_value', 'normalized_value', 'placeholder'])
+paired_df = paired_df.pivot(index=index_cols, columns='placeholder', values=['raw_value', 'normalized_value'])
 paired_df = paired_df.reset_index()
+
+# clean up columns
+paired_df.columns = ['_'.join(col).strip() for col in paired_df.columns.values]
+paired_df.columns = [x[:-1] if x.endswith('_') else x for x in paired_df.columns]
+
 paired_df.to_csv(os.path.join(data_dir, 'conserved_features/paired_df_no_compartment.csv'), index=False)
 
-p_vals = []
-cors = []
-names = []
-for feature_name in paired_df.feature_name.unique():
-    values = paired_df[(paired_df.feature_name == feature_name)].copy()
-    values.dropna(inplace=True)
 
-    # remove rows where both values are 0
-    zero_mask = (values.fov1 == 0) & (values.fov2 == 0)
-    values = values[~zero_mask]
-
-    if len(values) > 20:
-        cor, p_val = spearmanr(values.fov1, values.fov2)
-        p_vals.append(p_val)
-        cors.append(cor)
-        names.append(feature_name)
-
-ranked_features = pd.DataFrame({'feature_name': names, 'p_val': p_vals, 'cor': cors})
-ranked_features['log_pval'] = -np.log10(ranked_features.p_val)
-ranked_features['log_log_pval'] = -np.emath.logn(1000, ranked_features.p_val)
+ranked_features = find_conserved_features(paired_df=paired_df, sample_name_1='raw_value_fov1',
+                                          sample_name_2='raw_value_fov2', min_samples=20)
 
 # combine with feature metadata
 ranked_features = ranked_features.merge(paired_df[['feature_name', 'feature_name_unique',
                                                    'compartment', 'cell_pop', 'cell_pop_level',
                                                    'feature_type']].drop_duplicates(), on='feature_name', how='left')
-
-# get ranking of each row by log_pval
-ranked_features['pval_rank'] = ranked_features.log_pval.rank(ascending=False)
-ranked_features['cor_rank'] = ranked_features.cor.rank(ascending=False)
-ranked_features['combined_rank'] = (ranked_features.pval_rank.values + ranked_features.cor_rank.values) / 2
 ranked_features['conserved'] = ranked_features.combined_rank <= 100
-
-
 ranked_features.to_csv(os.path.join(data_dir, 'conserved_features/ranked_features_no_compartment.csv'), index=False)
 
 ranked_features = pd.read_csv(os.path.join(data_dir, 'conserved_features/ranked_features_no_compartment.csv'))
@@ -200,33 +185,33 @@ for min_cor in [0.5, 0.6, 0.7, 0.8]:
 
 # generate plot for best ranked features
 max_rank = 150
-plot_features = ranked_features.loc[ranked_features.combined_rank <= max_rank, :]
+plot_features = ranked_features1.loc[ranked_features1.combined_rank <= max_rank, :]
 
 # sort by combined rank
 plot_features.sort_values(by='combined_rank', inplace=True)
 
-for i in range(len(plot_features)):
+for i in range(len(plot_features))[10:]:
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
 
     feature_name = plot_features.iloc[i].feature_name
     values = paired_df[(paired_df.feature_name == feature_name)].copy()
     values.dropna(inplace=True)
 
-    sns.scatterplot(data=values, x='fov1', y='fov2', ax=ax[0])
-    correlation, p_val = spearmanr(values.fov1, values.fov2)
+    sns.scatterplot(data=values, x='normalized_value_fov1', y='normalized_value_fov2', ax=ax[0])
+    correlation, p_val = spearmanr(values.normalized_value_fov1, values.normalized_value_fov2)
     ax[0].set_xlabel('untransformed')
 
     logged_values = values.copy()
-    min_val = min(values.fov1.min(), values.fov2.min())
+    min_val = min(values.normalized_value_fov1.min(), values.normalized_value_fov2.min())
     if min_val > 0:
         increment = 0
     elif min_val == 0:
         increment = 0.01
     else:
         increment = min_val * -1.01
-    logged_values.fov1 = np.log10(values.fov1.values + increment)
-    logged_values.fov2 = np.log10(values.fov2.values + increment)
-    sns.scatterplot(data=logged_values, x='fov1', y='fov2', ax=ax[1])
+    logged_values.normalized_value_fov1 = np.log10(values.normalized_value_fov1.values + increment)
+    logged_values.normalized_value_fov2 = np.log10(values.normalized_value_fov2.values + increment)
+    sns.scatterplot(data=logged_values, x='normalized_value_fov1', y='normalized_value_fov2', ax=ax[1])
     ax[1].set_xlabel('log10 transformed')
 
     # set title for whole figure
@@ -240,6 +225,17 @@ for i in range(len(plot_features)):
 
     plt.savefig(os.path.join(plot_dir, 'Correlation_{}_{}.png'.format(str_rank, feature_name)))
     plt.close()
+
+
+# figure out average change in rank
+for i in range(len(plot_features)):
+    current_feature = plot_features.iloc[i].feature_name
+    old_rank = ranked_features.loc[ranked_features.feature_name == current_feature, 'combined_rank'].values[0]
+    new_rank = plot_features.iloc[i].combined_rank
+
+    if abs(old_rank - new_rank) > 10:
+        print(current_feature, old_rank, new_rank)
+
 
 
 # plot a specified row
@@ -341,16 +337,6 @@ plt.close()
 #                 compartment = 'both'
 #         plot_subset.loc[plot_subset.name.str.contains(feature + '__', regex=False), 'compartment'] = compartment
 
-ranked_features_conserved = ranked_features[ranked_features.conserved].copy()
-
-feature_df_conserved = feature_df[feature_df.feature_name.isin(ranked_features_conserved.feature_name)].copy()
-feature_df_conserved.to_csv(os.path.join(data_dir, 'conserved_features/fov_features_conserved.csv'), index=False)
-
-# do the same for timepoint level features
-timepoint_df = pd.read_csv(os.path.join(data_dir, 'timepoint_features.csv'))
-
-timepoint_df_conserved = timepoint_df[timepoint_df.feature_name.isin(ranked_features_conserved.feature_name)].copy()
-timepoint_df_conserved.to_csv(os.path.join(data_dir, 'conserved_features/timepoint_features_conserved.csv'), index=False)
 
 # look at correlation between features
 correlation_df = feature_df[feature_df.fov.isin(keep_fovs)].copy()

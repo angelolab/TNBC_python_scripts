@@ -272,15 +272,32 @@ for col_name in ['Cold_Coll', 'Hot_Coll', 'No_ECM', 'Cold_Coll_Norm', 'Hot_Coll_
     fov_data.append(ecm_df_subset)
 
 
-# combine metrics together
+# compute z-scores for each feature
 fov_data_df = pd.concat(fov_data)
+fov_data_df = fov_data_df.rename(columns={'value': 'raw_value'})
+fov_data_wide = fov_data_df.pivot(index='fov', columns='feature_name_unique', values='raw_value')
+zscore_df = (fov_data_wide - fov_data_wide.mean()) / fov_data_wide.std()
+
+# add z-scores to fov_data_df
+zscore_df = zscore_df.reset_index()
+zscore_df_long = pd.melt(zscore_df, id_vars='fov', var_name='feature_name_unique', value_name='normalized_value')
+fov_data_df = pd.merge(fov_data_df, zscore_df_long, on=['fov', 'feature_name_unique'], how='left')
+
+# add metadata
 fov_data_df = pd.merge(fov_data_df, harmonized_metadata_df[['Tissue_ID', 'fov']], on='fov', how='left')
+
+# rearrange columns
+fov_data_df = fov_data_df[['Tissue_ID', 'fov', 'raw_value', 'normalized_value', 'feature_name', 'feature_name_unique',
+                            'compartment', 'cell_pop', 'cell_pop_level', 'feature_type']]
+
 fov_data_df.to_csv(os.path.join(data_dir, 'fov_features_no_compartment.csv'), index=False)
+
 
 # create timepoint-level stats file
 grouped = fov_data_df.groupby(['Tissue_ID', 'feature_name', 'feature_name_unique', 'compartment', 'cell_pop',
-                               'cell_pop_level', 'feature_type']).agg({'value': ['mean', 'std']})
-grouped.columns = ['mean', 'std']
+                               'cell_pop_level', 'feature_type']).agg({'value': ['mean', 'std'],
+                                                                       'value_zscore': ['mean', 'std']})
+grouped.columns = ['raw_mean', 'raw_std', 'normalized_mean', 'normalized_std']
 grouped = grouped.reset_index()
 
 grouped.to_csv(os.path.join(data_dir, 'timepoint_features_no_compartment.csv'), index=False)

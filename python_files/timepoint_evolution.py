@@ -7,13 +7,16 @@ import seaborn as sns
 
 from scipy.stats import spearmanr
 
-data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
+from python_files.utils import find_conserved_features
+
+local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
+data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 
 
 # combine overlays together into a single image for easier viewing of what changes are happening over time
 cluster_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay'
-plot_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/baseline_nivo_overlay'
+overlay_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/baseline_nivo_overlay'
 harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
 
 #patients = harmonized_metadata.loc[harmonized_metadata.primary_baseline == True, 'TONIC_ID'].unique()
@@ -46,7 +49,7 @@ for patient in patients:
             print('No baseline image for {}'.format(patient))
 
     plt.tight_layout()
-    plt.savefig(os.path.join(plot_dir, 'TONIC_{}.png'.format(patient)), dpi=300)
+    plt.savefig(os.path.join(overlay_dir, 'TONIC_{}.png'.format(patient)), dpi=300)
     plt.close()
 
 # identify features that are conserved over time
@@ -177,3 +180,74 @@ g.set(ylim=(0, 30))
 g.savefig(os.path.join(plot_dir, 'randomized_distances_primary_met.png'))
 plt.close()
 
+# generate heatmap and volcano plot with differences between timepoints
+timepoint_features = pd.read_csv(os.path.join(data_dir, 'timepoint_features_no_compartment.csv'))
+timepoint_features = timepoint_features.merge(harmonized_metadata[['Tissue_ID', 'Timepoint', 'Localization']].drop_duplicates(), on='Tissue_ID', how='left')
+
+
+def compute_timepoint_enrichment(feature_df, timepoint_1, timepoint_2):
+    """Compute enrichment of a feature between two timepoints.
+
+    Args:
+        feature_df (pd.DataFrame): dataframe containing features
+        timepoint_1 (list): list of timepoints to compare to timepoint_2
+        timepoint_2 (list): list of timepoints to compare to timepoint_1
+    """
+    # get unique features
+    features = feature_df.feature_name.unique()
+
+    feature_names = []
+    timepoint_1_means = []
+    timepoint_1_norm_means = []
+    timepoint_2_means = []
+    timepoint_2_norm_means = []
+    log_pvals = []
+
+    analysis_df = timepoint_features.loc[(timepoint_features.Timepoint.isin(timepoint_1 + timepoint_2)), :]
+
+    for feature_name in features:
+        values = analysis_df.loc[(analysis_df.feature_name == feature_name), :]
+        tp_1_vals = values.loc[values.Timepoint.isin(timepoint_1), 'raw_mean'].values
+        tp_1_norm_vals = values.loc[values.Timepoint.isin(timepoint_1), 'normalized_mean'].values
+        tp_2_vals = values.loc[values.Timepoint.isin(timepoint_2), 'raw_mean'].values
+        tp_2_norm_vals = values.loc[values.Timepoint.isin(timepoint_2), 'normalized_mean'].values
+        timepoint_1_means.append(tp_1_vals.mean())
+        timepoint_1_norm_means.append(tp_1_norm_vals.mean())
+        timepoint_2_means.append(tp_2_vals.mean())
+        timepoint_2_norm_means.append(tp_2_norm_vals.mean())
+
+        # compute t-test for difference between timepoints
+        t, p = ttest_ind(tp_1_norm_vals, tp_2_norm_vals)
+        log_pvals.append(-np.log10(p))
+
+    means_df = pd.DataFrame({'timepoint_1_mean': timepoint_1_means,
+                             'timepoint_1_norm_mean': timepoint_1_norm_means,
+                             'timepoint_2_mean': timepoint_2_means,
+                             'timepoint_2_norm_mean': timepoint_2_norm_means,
+                             'log_pval': log_pvals}, index=features)
+    # calculate difference
+    means_df['mean_diff'] = means_df.timepoint_1_norm_mean.values - means_df.timepoint_2_norm_mean.values
+
+    return means_df
+
+
+means_df = compute_timepoint_enrichment(timepoint_features, ['primary_untreated'], ['baseline'])
+#means_df['fold_change'] = means_df.timepoint_1_mean.values / means_df.timepoint_2_mean.values
+#means_df['log_fold_change'] = np.log2(means_df.fold_change.values)
+# timepoint1_sign = np.sign(means_df.timepoint_1_mean.values)
+# timepoint2_sign = np.sign(means_df.timepoint_2_mean.values)
+# double_neg = (timepoint1_sign == -1) & (timepoint2_sign == -1)
+# means_df.loc[double_neg, 'log_fold_change'] = -1 * means_df.loc[double_neg, 'log_fold_change']
+
+
+
+sns.clustermap(means_df, cmap='RdBu_r', center=0, col_cluster=False)
+
+sns.scatterplot(data=means_df, x='mean_diff', y='log_pval', hue='log_pval', palette='RdBu_r')
+plt.savefig(os.path.join(plot_dir, 'volcano_plot_primary_baseline.png'))
+plt.close()
+
+means_df_filtered = means_df.loc[(means_df.log_pval > 2) & (np.abs(means_df.mean_diff) > 0.3), :]
+
+means_df_filtered = means_df_filtered.sort_values('mean_diff', ascending=False)
+means_df_filtered.to_csv(os.path.join(plot_dir, 'primary_baseline_log2fc_features.csv'))
