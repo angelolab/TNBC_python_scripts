@@ -171,6 +171,40 @@ for compartment in ['all']:
                                        'cell_pop_level',  'feature_type']]
         fov_data.append(cell_type1_df)
 
+
+# compute proportion of cells in a given cell type
+cell_groups = {'Cancer': ['Cancer', 'Cancer_EMT', 'Cancer_Other'],
+               'Mono_Mac': ['M1_Mac', 'M2_Mac', 'Mac_Other', 'Monocyte', 'APC'],
+               'T': ['CD4T', 'CD8T', 'Treg', 'T_Other'],
+               'Granulocyte': ['Neutrophil', 'Mast'],
+               'Stroma': ['Fibroblast', 'Stroma']}
+input_df = cluster_df_core[cluster_df_core.metric == 'cluster_density'].copy()
+
+
+for compartment in ['all']:
+    compartment_df = input_df[input_df.subset == compartment].copy()
+    for broad_cell_type, cell_types in cell_groups.items():
+        # get the total for all cell types
+        cell_type_df = compartment_df[compartment_df.cell_type.isin(cell_types)].copy()
+        grouped_df = cell_type_df[['fov', 'value']].groupby('fov').sum().reset_index()
+        grouped_df.columns = ['fov', 'fov_sum']
+
+        # normalize each cell type by the total
+        cell_type_df = cell_type_df.merge(grouped_df, on='fov')
+        cell_type_df['value'] = cell_type_df.value / cell_type_df.fov_sum
+
+        cell_type_df['feature_name'] = cell_type_df.cell_type + '__' + broad_cell_type + '__proportion'
+        cell_type_df['feature_name_unique'] = cell_type_df.cell_type + '__' + broad_cell_type + '__proportion__' + compartment
+        cell_type_df['compartment'] = compartment
+        cell_type_df['cell_pop'] = broad_cell_type
+        cell_type_df['cell_pop_level'] = 'med'
+        cell_type_df['feature_type'] = 'density_proportion'
+        cell_type_df = cell_type_df[['fov', 'value', 'feature_name', 'feature_name_unique', 'compartment', 'cell_pop',
+                                     'cell_pop_level', 'feature_type']]
+        fov_data.append(cell_type_df)
+
+
+
 # compute functional marker positivity for different levels of granularity
 functional_features = [['cluster_freq', 'med'],
                        ['total_freq', 'broad']]
