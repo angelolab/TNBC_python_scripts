@@ -178,9 +178,8 @@ cell_groups = {'Cancer': ['Cancer', 'Cancer_EMT', 'Cancer_Other'],
                'T': ['CD4T', 'CD8T', 'Treg', 'T_Other'],
                'Granulocyte': ['Neutrophil', 'Mast'],
                'Stroma': ['Fibroblast', 'Stroma']}
+
 input_df = cluster_df_core[cluster_df_core.metric == 'cluster_density'].copy()
-
-
 for compartment in ['all']:
     compartment_df = input_df[input_df.subset == compartment].copy()
     for broad_cell_type, cell_types in cell_groups.items():
@@ -202,7 +201,6 @@ for compartment in ['all']:
         cell_type_df = cell_type_df[['fov', 'value', 'feature_name', 'feature_name_unique', 'compartment', 'cell_pop',
                                      'cell_pop_level', 'feature_type']]
         fov_data.append(cell_type_df)
-
 
 
 # compute functional marker positivity for different levels of granularity
@@ -329,8 +327,8 @@ fov_data_df.to_csv(os.path.join(data_dir, 'fov_features_no_compartment.csv'), in
 
 # create timepoint-level stats file
 grouped = fov_data_df.groupby(['Tissue_ID', 'feature_name', 'feature_name_unique', 'compartment', 'cell_pop',
-                               'cell_pop_level', 'feature_type']).agg({'value': ['mean', 'std'],
-                                                                       'value_zscore': ['mean', 'std']})
+                               'cell_pop_level', 'feature_type']).agg({'raw_value': ['mean', 'std'],
+                                                                       'normalized_value': ['mean', 'std']})
 grouped.columns = ['raw_mean', 'raw_std', 'normalized_mean', 'normalized_std']
 grouped = grouped.reset_index()
 
