@@ -166,29 +166,34 @@ fov_distances = generate_grouped_distances(sample='fov', group_by='Tissue_ID')
 fov_distances_random = generate_grouped_distances(sample='fov', group_by='Tissue_ID_random')
 
 # evaluate difference in similarity between paired and unpaired fovs
-include_features = ranked_features.feature_name_unique[ranked_features.combined_rank < 450].values
-fov_df_subset = fov_df_subset.loc[fov_df_subset.feature_name_unique.isin(include_features), :]
+include_features = ranked_features.feature_name_unique[ranked_features.combined_rank > 250].values
+fov_df_subset = fov_df.loc[fov_df.feature_name_unique.isin(include_features), :]
 
-paired_distances = []
-for row in range(len(fov_pairs)):
-    fov_1, fov_2 = fov_pairs.iloc[row, :2].values
+fov_distances_subset = generate_grouped_distances(sample='fov', group_by='Tissue_ID',
+                                                    data_df=fov_df_subset)
 
-    fov_df_subset = fov_df.loc[fov_df.fov.isin([fov_1, fov_2]), :]
-    wide_df = pd.pivot(fov_df_subset, index='feature_name_unique', columns='fov', values='normalized_value')
 
-    paired_distances.append(compute_euclidian_distance(wide_df))
 
-randomized_distances = []
-fov_pairs['fov_random'] = fov_pairs.fov_2
-fov_pairs.fov_random = fov_pairs.fov_random.sample(frac=1).values
+plot_df = pd.DataFrame({'paired_distances': fov_distances['distance'].values,
+                        'randomized_distances': fov_distances_random['distance'].values,
+                        'subset_distances': fov_distances_subset['distance'].values})
 
-for row in range(len(fov_pairs)):
-    fov_1, fov_3 = fov_pairs.iloc[row, [0, 2]].values
+g = sns.catplot(plot_df, kind='box', order=['subset_distances', 'paired_distances', 'randomized_distances'])
+g.set(ylim=(0, 2))
 
-    fov_df_subset = fov_df.loc[fov_df.fov.isin([fov_1, fov_3]), :]
-    fov_df_subset = fov_df_subset.loc[fov_df_subset.feature_name_unique.isin(include_features), :]
-    wide_df = pd.pivot(fov_df_subset, index='feature_name_unique', columns='fov', values='normalized_value')
+timepoint_distances = generate_grouped_distances(sample='Tissue_ID', group_by='TONIC_ID',
+                                                    data_df=timepoint_df)
 
-    randomized_distances.append(compute_euclidian_distance(wide_df))
+timepoint_distances_random = generate_grouped_distances(sample='Tissue_ID', group_by='TONIC_ID_random',
+                                                    data_df=timepoint_df)
+
+plot_df1 = pd.DataFrame({'timepoint_distances': timepoint_distances['distance'].values,
+                        'timepoint_distances_random': timepoint_distances_random['distance'].values})
+
+g = sns.catplot(plot_df1, kind='strip')
+g.set(ylim=(0, 2))
+
+
+# TODO: change plotting to long df so everything can go in same plot
 
 
