@@ -9,50 +9,46 @@ import itertools
 # this file contains code for summarizing the data on an individual core level
 
 
-def compute_pairwise_distances(input_df, metadata_names, metadata_values):
+def compute_euclidian_distance(input_df):
+    # remove rows with any nans
+    output_df = input_df.dropna(axis=0)
+
+    # unit normalize each column
+    output_df = output_df.apply(lambda x: (x / np.linalg.norm(x)), axis=0)
+
+    # compute euclidian distance
+    dist = np.linalg.norm(output_df.values[:, :1] - output_df.values[:, 1:])
+
+    return dist
+
+
+def compute_pairwise_distances(input_df, metadata_name):
     distances = []
     for col_1, col_2 in itertools.combinations(input_df.columns, 2):
-        distances.append(np.linalg.norm(input_df[col_1].array - input_df[col_2].array))
+        subset_df = input_df[[col_1, col_2]]
+        distances.append(compute_euclidian_distance(subset_df))
 
     # create dataframe with distances and metadata
-    return_df = pd.DataFrame({'distance': [np.mean(distances)]})
-
-    for name, value in zip(metadata_names, metadata_values):
-        return_df[name] = value
+    return_df = pd.DataFrame({'distance': [np.mean(distances)],
+                              'metadata': [metadata_name]})
 
     return return_df
 
 
-def compute_pairwise_distances_by_element(input_df):
-    distances = []
-    elements = []
-    for element in input_df.index:
-        current_df = input_df.loc[[element], :]
-        for col_1, col_2 in itertools.combinations(current_df.columns, 2):
-            current_distances = np.linalg.norm(current_df[col_1].array - current_df[col_2].array)
-            distances.append(np.mean(current_distances))
-            elements.append(element)
-
-    return distances, elements
 
 
-def compute_distances_between_groups(df_1, df_2):
-    distances = []
-    for col_1, col_2 in itertools.product(df_1.columns, df_2.columns):
-        distances.append(np.linalg.norm(df_1[col_1].array - df_2[col_2].array))
 
-    return np.mean(distances)
-
-
-data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
+local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
+data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 
 # load dataset
-core_df_cluster = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
-timepoint_df_cluster = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv'))
-core_df_func = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core.csv'))
-
-
+fov_df = pd.read_csv(os.path.join(data_dir, 'fov_features_no_compartment.csv'))
+timepoint_df = pd.read_csv(os.path.join(data_dir, 'timepoint_features_no_compartment.csv'))
+ranked_features = pd.read_csv(os.path.join(data_dir, 'conserved_features/ranked_features_no_compartment.csv'))
+fov_pairs = pd.read_csv(os.path.join(data_dir, 'conserved_features/fov_pairs.csv'))
+harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
+harmonized_metadata = harmonized_metadata.loc[harmonized_metadata.MIBI_data_generated, :]
 #
 # Evaluate heterogeneity of cell clusters prevalence across cores
 #
@@ -146,29 +142,53 @@ def compute_difference_in_cell_prev(core_df, timepoint_df, metric):
     return distances_df_combined
 
 
-metric = 'cluster_freq'
-for subset in core_df_cluster.subset.unique():
-    plot_df_core = core_df_cluster[core_df_cluster.subset == subset]
-    plot_df_timepoint = timepoint_df_cluster[timepoint_df_cluster.subset == subset]
-
-    distances_df_new = compute_difference_in_cell_prev(core_df=plot_df_core, timepoint_df=plot_df_timepoint, metric=metric)
-    #distances_df_new = compute_difference_in_cell_prev(core_df=pca_df, timepoint_df=pca_df_timepoint_annot, metric='immune_PCA')
-
-    g = sns.boxplot(x=distances_df_new.metric.values, y=distances_df_new.distance.values, order=['Same timepoints',  'Same patients', 'Different patients'])
-
-    # set y axis height
-    g.set_ylim(0, 1)
-    plt.title("Variation in cell prevalence in {} across {}".format(metric, subset))
-    #plt.title("Variation in cluster_freq distance")
-    #plt.xticks(rotation=90)
-
-    sns.despine()
-    plt.tight_layout()
-    plt.savefig(os.path.join(plot_dir, 'Heterogeneity_of_{}_within_{}.png'.format(metric, subset)), dpi=300)
-    plt.close()
+harmonized_metadata['Tissue_ID_random'] = harmonized_metadata['Tissue_ID'].sample(frac=1).values
+harmonized_metadata['TONIC_ID_random'] = harmonized_metadata['TONIC_ID'].sample(frac=1).values
 
 
+def generate_grouped_distances(sample='fov', group_by='Tissue_ID',
+                               harmonized_metadata=harmonized_metadata, data_df=fov_df):
+    grouped_distances = []
+    grouped = harmonized_metadata[[group_by, sample]].groupby(group_by)
+    value = 'normalized_value' if sample == 'fov' else 'normalized_mean'
+    for group_name, group_members in grouped:
+        if len(group_members) > 1:
+            group_df = data_df.loc[data_df[sample].isin(group_members[sample].values), :]
+            wide_df = pd.pivot(group_df, index='feature_name_unique', columns=sample, values=value)
+            grouped_distances.append(compute_pairwise_distances(input_df=wide_df,
+                                                                metadata_name=group_name))
+    grouped_distances = pd.concat(grouped_distances)
 
-grouped = distances_df_new.groupby(['metric'])
-grouped.agg(np.mean)
+    return grouped_distances
+
+
+fov_distances = generate_grouped_distances(sample='fov', group_by='Tissue_ID')
+fov_distances_random = generate_grouped_distances(sample='fov', group_by='Tissue_ID_random')
+
+# evaluate difference in similarity between paired and unpaired fovs
+include_features = ranked_features.feature_name_unique[ranked_features.combined_rank < 450].values
+fov_df_subset = fov_df_subset.loc[fov_df_subset.feature_name_unique.isin(include_features), :]
+
+paired_distances = []
+for row in range(len(fov_pairs)):
+    fov_1, fov_2 = fov_pairs.iloc[row, :2].values
+
+    fov_df_subset = fov_df.loc[fov_df.fov.isin([fov_1, fov_2]), :]
+    wide_df = pd.pivot(fov_df_subset, index='feature_name_unique', columns='fov', values='normalized_value')
+
+    paired_distances.append(compute_euclidian_distance(wide_df))
+
+randomized_distances = []
+fov_pairs['fov_random'] = fov_pairs.fov_2
+fov_pairs.fov_random = fov_pairs.fov_random.sample(frac=1).values
+
+for row in range(len(fov_pairs)):
+    fov_1, fov_3 = fov_pairs.iloc[row, [0, 2]].values
+
+    fov_df_subset = fov_df.loc[fov_df.fov.isin([fov_1, fov_3]), :]
+    fov_df_subset = fov_df_subset.loc[fov_df_subset.feature_name_unique.isin(include_features), :]
+    wide_df = pd.pivot(fov_df_subset, index='feature_name_unique', columns='fov', values='normalized_value')
+
+    randomized_distances.append(compute_euclidian_distance(wide_df))
+
 

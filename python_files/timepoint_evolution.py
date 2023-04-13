@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from scipy.stats import spearmanr
+from scipy.stats import spearmanr, ttest_ind
 
 from python_files.utils import find_conserved_features
 
@@ -185,7 +185,8 @@ timepoint_features = pd.read_csv(os.path.join(data_dir, 'timepoint_features_no_c
 timepoint_features = timepoint_features.merge(harmonized_metadata[['Tissue_ID', 'Timepoint', 'Localization']].drop_duplicates(), on='Tissue_ID', how='left')
 
 
-def compute_timepoint_enrichment(feature_df, timepoint_1, timepoint_2):
+def compute_timepoint_enrichment(feature_df, timepoint_1_name, timepoint_1_list,
+                                 timepoint_2_name, timepoint_2_list,):
     """Compute enrichment of a feature between two timepoints.
 
     Args:
@@ -203,14 +204,14 @@ def compute_timepoint_enrichment(feature_df, timepoint_1, timepoint_2):
     timepoint_2_norm_means = []
     log_pvals = []
 
-    analysis_df = timepoint_features.loc[(timepoint_features.Timepoint.isin(timepoint_1 + timepoint_2)), :]
+    analysis_df = timepoint_features.loc[(timepoint_features.Timepoint.isin(timepoint_1_list + timepoint_2_list)), :]
 
     for feature_name in features:
         values = analysis_df.loc[(analysis_df.feature_name == feature_name), :]
-        tp_1_vals = values.loc[values.Timepoint.isin(timepoint_1), 'raw_mean'].values
-        tp_1_norm_vals = values.loc[values.Timepoint.isin(timepoint_1), 'normalized_mean'].values
-        tp_2_vals = values.loc[values.Timepoint.isin(timepoint_2), 'raw_mean'].values
-        tp_2_norm_vals = values.loc[values.Timepoint.isin(timepoint_2), 'normalized_mean'].values
+        tp_1_vals = values.loc[values.Timepoint.isin(timepoint_1_list), 'raw_mean'].values
+        tp_1_norm_vals = values.loc[values.Timepoint.isin(timepoint_1_list), 'normalized_mean'].values
+        tp_2_vals = values.loc[values.Timepoint.isin(timepoint_2_list), 'raw_mean'].values
+        tp_2_norm_vals = values.loc[values.Timepoint.isin(timepoint_2_list), 'normalized_mean'].values
         timepoint_1_means.append(tp_1_vals.mean())
         timepoint_1_norm_means.append(tp_1_norm_vals.mean())
         timepoint_2_means.append(tp_2_vals.mean())
@@ -220,34 +221,54 @@ def compute_timepoint_enrichment(feature_df, timepoint_1, timepoint_2):
         t, p = ttest_ind(tp_1_norm_vals, tp_2_norm_vals)
         log_pvals.append(-np.log10(p))
 
-    means_df = pd.DataFrame({'timepoint_1_mean': timepoint_1_means,
-                             'timepoint_1_norm_mean': timepoint_1_norm_means,
-                             'timepoint_2_mean': timepoint_2_means,
-                             'timepoint_2_norm_mean': timepoint_2_norm_means,
+    means_df = pd.DataFrame({timepoint_1_name + '_mean': timepoint_1_means,
+                             timepoint_2_name + '_mean': timepoint_2_means,
+                             timepoint_1_name + '_norm_mean': timepoint_1_norm_means,
+                             timepoint_2_name + '_norm_mean': timepoint_2_norm_means,
                              'log_pval': log_pvals}, index=features)
     # calculate difference
-    means_df['mean_diff'] = means_df.timepoint_1_norm_mean.values - means_df.timepoint_2_norm_mean.values
+    means_df['mean_diff'] = means_df[timepoint_1_name + '_norm_mean'].values - means_df[timepoint_2_name + '_norm_mean'].values
 
     return means_df
 
 
-means_df = compute_timepoint_enrichment(timepoint_features, ['primary_untreated'], ['baseline'])
+means_df = compute_timepoint_enrichment(feature_df=timepoint_features, timepoint_1_name='primary_untreated',
+                                        timepoint_1_list=['primary_untreated'], timepoint_2_name='baseline_met',
+                                        timepoint_2_list=['baseline'])
+means_df = means_df.reset_index().rename(columns={'index': 'feature_name'})
 #means_df['fold_change'] = means_df.timepoint_1_mean.values / means_df.timepoint_2_mean.values
 #means_df['log_fold_change'] = np.log2(means_df.fold_change.values)
 # timepoint1_sign = np.sign(means_df.timepoint_1_mean.values)
 # timepoint2_sign = np.sign(means_df.timepoint_2_mean.values)
 # double_neg = (timepoint1_sign == -1) & (timepoint2_sign == -1)
 # means_df.loc[double_neg, 'log_fold_change'] = -1 * means_df.loc[double_neg, 'log_fold_change']
+ranked_features = pd.read_csv(os.path.join(data_dir, 'conserved_features/ranked_features_no_compartment.csv'))
+
+means_df = means_df.merge(ranked_features[['feature_name', 'combined_rank', 'conserved']], on='feature_name', how='left')
 
 
-
-sns.clustermap(means_df, cmap='RdBu_r', center=0, col_cluster=False)
-
-sns.scatterplot(data=means_df, x='mean_diff', y='log_pval', hue='log_pval', palette='RdBu_r')
-plt.savefig(os.path.join(plot_dir, 'volcano_plot_primary_baseline.png'))
+sns.clustermap(means_df_filtered[['primary_untreated_norm_mean', 'baseline_met_norm_mean']], cmap='RdBu_r', center=0, col_cluster=False)
+plt.savefig(os.path.join(plot_dir, 'clustermap_primary_baseline.png'))
 plt.close()
+
+sns.scatterplot(data=means_df, x='mean_diff', y='log_pval', hue='conserved', palette='Reds')
+plt.savefig(os.path.join(plot_dir, 'volcano_plot_primary_baseline_conserved.png'))
+plt.close()
+
+
+
 
 means_df_filtered = means_df.loc[(means_df.log_pval > 2) & (np.abs(means_df.mean_diff) > 0.3), :]
 
 means_df_filtered = means_df_filtered.sort_values('mean_diff', ascending=False)
 means_df_filtered.to_csv(os.path.join(plot_dir, 'primary_baseline_log2fc_features.csv'))
+
+for idx, feature in enumerate(means_df_filtered.index):
+    feature_subset = timepoint_features.loc[(timepoint_features.feature_name == feature), :]
+    feature_subset = feature_subset.loc[(feature_subset.Timepoint.isin(['primary_untreated', 'baseline'])), :]
+
+    g = sns.catplot(data=feature_subset, x='Timepoint', y='raw_mean', kind='strip')
+    # add a title
+    g.fig.suptitle(feature)
+    g.savefig(os.path.join(plot_dir, 'primary_baseline_{}_{}.png'.format(idx, feature)))
+    plt.close()
