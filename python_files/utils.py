@@ -46,6 +46,10 @@ def find_conserved_features(paired_df, sample_name_1, sample_name_2, min_samples
             p_vals.append(p_val)
             cors.append(cor)
             names.append(feature_name)
+        else:
+            p_vals.append(np.nan)
+            cors.append(np.nan)
+            names.append(feature_name)
 
     ranked_features = pd.DataFrame({'feature_name': names, 'p_val': p_vals, 'cor': cors})
     ranked_features['log_pval'] = -np.log10(ranked_features.p_val)

@@ -52,8 +52,18 @@ paired_df.columns = [x[:-1] if x.endswith('_') else x for x in paired_df.columns
 paired_df.to_csv(os.path.join(data_dir, 'conserved_features/paired_df_no_compartment.csv'), index=False)
 
 # rank features based on correlation
-ranked_features = find_conserved_features(paired_df=paired_df, sample_name_1='raw_value_fov1',
-                                          sample_name_2='raw_value_fov2', min_samples=20)
+timepoints = [['primary_untreated', 'primary', 'biopsy'], ['baseline', 'post_induction', 'on_nivo', 'metastasis']]
+all_ranked_features = []
+for timepoint in timepoints:
+    valid_tissue_ids = harmonized_metadata[harmonized_metadata.Timepoint.isin(timepoint)].Tissue_ID.unique()
+    valid_paired_df = paired_df[paired_df.Tissue_ID.isin(valid_tissue_ids)].copy()
+    valid_ranked_features = find_conserved_features(paired_df=valid_paired_df, sample_name_1='raw_value_fov1',
+                                              sample_name_2='raw_value_fov2', min_samples=20)
+
+    valid_ranked_features['timepoint'] = timepoint[0]
+    all_ranked_features.append(valid_ranked_features)
+
+ranked_features = pd.concat(all_ranked_features, axis=0)
 
 # combine with feature metadata
 ranked_features = ranked_features.merge(paired_df[['feature_name', 'feature_name_unique',
