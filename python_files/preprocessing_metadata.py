@@ -40,18 +40,18 @@ timepoint_metadata['MIBI_data_generated'] = timepoint_metadata.Tissue_ID.isin(in
 
 # identify patients with and without neo-adjuvant chemotherapy (NAC)
 patient_metadata = pd.read_csv(os.path.join(metadata_dir, 'TONIC_data_per_patient_unprocessed.csv'))
-untreated_pts = patient_metadata.loc[patient_metadata.NAC_received_for_primary_tumor == 'No', 'TONIC_ID']
-treated_pts = patient_metadata.loc[patient_metadata.NAC_received_for_primary_tumor == 'Yes', 'TONIC_ID']
+untreated_pts = patient_metadata.loc[patient_metadata.NAC_received_for_primary_tumor == 'No', 'Patient_ID']
+treated_pts = patient_metadata.loc[patient_metadata.NAC_received_for_primary_tumor == 'Yes', 'Patient_ID']
 
 # designate biopsy as untreated for NAC patients, primary as untreated for patients without NAC
 timepoint_metadata['Timepoint_broad'] = timepoint_metadata.Timepoint
-timepoint_metadata.loc[(timepoint_metadata.TONIC_ID.isin(untreated_pts)) & (timepoint_metadata.Timepoint == 'primary') & timepoint_metadata.MIBI_data_generated, 'Timepoint'] = 'primary_untreated'
-timepoint_metadata.loc[(timepoint_metadata.TONIC_ID.isin(treated_pts)) & (timepoint_metadata.Timepoint == 'biopsy') & timepoint_metadata.MIBI_data_generated, 'Timepoint'] = 'primary_untreated'
+timepoint_metadata.loc[(timepoint_metadata.Patient_ID.isin(untreated_pts)) & (timepoint_metadata.Timepoint == 'primary') & timepoint_metadata.MIBI_data_generated, 'Timepoint'] = 'primary_untreated'
+timepoint_metadata.loc[(timepoint_metadata.Patient_ID.isin(treated_pts)) & (timepoint_metadata.Timepoint == 'biopsy') & timepoint_metadata.MIBI_data_generated, 'Timepoint'] = 'primary_untreated'
 
 # some patients without NAC only have a biopsy sample available; we need to identify those patients
-assigned_pts = timepoint_metadata.loc[timepoint_metadata.Timepoint == 'primary_untreated', 'TONIC_ID'].unique()
+assigned_pts = timepoint_metadata.loc[timepoint_metadata.Timepoint == 'primary_untreated', 'Patient_ID'].unique()
 unassigned_untreated_pts = set(untreated_pts).difference(set(assigned_pts))
-timepoint_metadata.loc[(timepoint_metadata.TONIC_ID.isin(unassigned_untreated_pts)) &
+timepoint_metadata.loc[(timepoint_metadata.Patient_ID.isin(unassigned_untreated_pts)) &
                        (timepoint_metadata.Timepoint == 'biopsy') &
                         timepoint_metadata.MIBI_data_generated, 'Timepoint'] = 'primary_untreated'
 
@@ -60,11 +60,12 @@ timepoint_metadata.loc[(timepoint_metadata.TONIC_ID.isin(unassigned_untreated_pt
 #
 
 # get rare metastatic sites per patient
-metastatic_sites = timepoint_metadata.loc[timepoint_metadata.Timepoint.isin(['baseline', 'post_induction', 'on_nivo']), 'Localization'].value_counts()
-rare_sites = metastatic_sites[4:].index
+site_counts = timepoint_metadata.Localization.value_counts()
+rare_sites = site_counts[7:].index
+rare_sites = rare_sites.append(pd.Index(['Unknown']))
 
 # consolidate rare sites into 'other' label
-timepoint_metadata['Localization_broad'] = timepoint_metadata.Localization
+timepoint_metadata['Localization_detailed'] = timepoint_metadata.Localization
 timepoint_metadata.loc[timepoint_metadata.Localization.isin(rare_sites), 'Localization'] = 'Other'
 
 #
@@ -75,24 +76,24 @@ timepoint_metadata.loc[timepoint_metadata.Localization.isin(rare_sites), 'Locali
 timepoint_sums = timepoint_metadata.loc[timepoint_metadata.Timepoint.isin(['baseline', 'on_nivo']), :]
 timepoint_sums = timepoint_sums.loc[timepoint_sums.MIBI_data_generated, :]
 
-# get the number of entries in Location_studytissue that are equal to 'A' grouped by TONIC_ID
-timepoint_sums = timepoint_sums.loc[:, ['TONIC_ID', 'Location_studytissue']].groupby('TONIC_ID').agg(lambda x: np.sum(x == 'A'))
+# get the number of entries in Location_studytissue that are equal to 'A' grouped by Patient_ID
+timepoint_sums = timepoint_sums.loc[:, ['Patient_ID', 'Location_studytissue']].groupby('Patient_ID').agg(lambda x: np.sum(x == 'A'))
 timepoint_sums.reset_index(inplace=True)
 timepoint_sums = timepoint_sums.loc[timepoint_sums.Location_studytissue == 2, :]
 
 # include only patients with 2 counts of studytissue 'A'
-subset_metadata = timepoint_metadata.loc[timepoint_metadata.TONIC_ID.isin(timepoint_sums.TONIC_ID), :]
-patient_metadata['baseline_on_nivo'] = patient_metadata.TONIC_ID.isin(subset_metadata.TONIC_ID.unique())
+subset_metadata = timepoint_metadata.loc[timepoint_metadata.Patient_ID.isin(timepoint_sums.Patient_ID), :]
+patient_metadata['baseline_on_nivo'] = patient_metadata.Patient_ID.isin(subset_metadata.Patient_ID.unique())
 
 # reshape data to allow for easy boolean comparisons
 subset_metadata = timepoint_metadata.loc[timepoint_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
 subset_metadata = subset_metadata.loc[subset_metadata.MIBI_data_generated, :]
-metadata_wide = pd.pivot(subset_metadata, index='TONIC_ID', columns='Timepoint', values='Tissue_ID')
+metadata_wide = pd.pivot(subset_metadata, index='Patient_ID', columns='Timepoint', values='Tissue_ID')
 
 # patients with both a primary and baseline sample
 primary_baseline = metadata_wide.index[np.logical_and(~metadata_wide.primary_untreated.isnull(),
                                                       ~metadata_wide.baseline.isnull())]
-patient_metadata['primary_baseline'] = patient_metadata.TONIC_ID.isin(primary_baseline)
+patient_metadata['primary_baseline'] = patient_metadata.Patient_ID.isin(primary_baseline)
 
 # This doesn't take into account tissue location: TBD what we do with this
 # # patients with both a baseline and induction sample
@@ -147,11 +148,11 @@ print(core_missing)
 harmonized_metadata = core_metadata[['fov', 'Tissue_ID', 'MIBI_data_generated']]
 
 # select and merge relevant columns from timepoints
-harmonized_metadata = pd.merge(harmonized_metadata, timepoint_metadata.loc[:, ['Tissue_ID', 'TONIC_ID', 'Timepoint', 'Localization']], on='Tissue_ID', how='left')
+harmonized_metadata = pd.merge(harmonized_metadata, timepoint_metadata.loc[:, ['Tissue_ID', 'Patient_ID', 'Timepoint', 'Localization']], on='Tissue_ID', how='left')
 assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
 
 # select and merge relevant columns from patients
-harmonized_metadata = pd.merge(harmonized_metadata, patient_metadata.loc[:, ['TONIC_ID', 'baseline_on_nivo', 'primary_baseline']], on='TONIC_ID', how='inner')
+harmonized_metadata = pd.merge(harmonized_metadata, patient_metadata.loc[:, ['Patient_ID', 'baseline_on_nivo', 'primary_baseline']], on='Patient_ID', how='inner')
 assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
 
 # save harmonized metadata
@@ -162,7 +163,7 @@ core_metadata = pd.merge(core_metadata, harmonized_metadata, on=['fov', 'Tissue_
 
 # add in the harmonized metadata, dropping the fov column
 # TODO: determine if we want to keep the timepoints without any image data
-harmonized_metadata = harmonized_metadata.drop(['fov', 'TONIC_ID', 'Timepoint', 'Localization', 'MIBI_data_generated'], axis=1)
+harmonized_metadata = harmonized_metadata.drop(['fov', 'Patient_ID', 'Timepoint', 'Localization', 'MIBI_data_generated'], axis=1)
 harmonized_metadata = harmonized_metadata.drop_duplicates()
 timepoint_metadata = pd.merge(timepoint_metadata, harmonized_metadata, on='Tissue_ID', how='left')
 
