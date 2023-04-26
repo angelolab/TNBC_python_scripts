@@ -12,6 +12,11 @@ local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 
+
+#
+# Preprocess the data to be in paired format
+#
+
 feature_df = pd.read_csv(os.path.join(data_dir, 'fov_features_no_compartment.csv'))
 harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
 
@@ -51,16 +56,38 @@ paired_df.columns = [x[:-1] if x.endswith('_') else x for x in paired_df.columns
 
 paired_df.to_csv(os.path.join(data_dir, 'conserved_features/paired_df_no_compartment.csv'), index=False)
 
-# rank features based on correlation
-timepoints = [['primary_untreated', 'primary', 'biopsy'], ['baseline', 'post_induction', 'on_nivo', 'metastasis']]
-all_ranked_features = []
-for timepoint in timepoints:
-    valid_tissue_ids = harmonized_metadata[harmonized_metadata.Timepoint.isin(timepoint)].Tissue_ID.unique()
-    valid_paired_df = paired_df[paired_df.Tissue_ID.isin(valid_tissue_ids)].copy()
-    valid_ranked_features = find_conserved_features(paired_df=valid_paired_df, sample_name_1='raw_value_fov1',
-                                              sample_name_2='raw_value_fov2', min_samples=20)
+#
+# Using preprocessed features, find conserved features
+#
 
-    valid_ranked_features['timepoint'] = timepoint[0]
+paired_df = pd.read_csv(os.path.join(data_dir, 'conserved_features/paired_df_no_compartment.csv'))
+
+# rank features based on correlation
+timepoints = [{'timepoints': ['primary_untreated', 'primary', 'biopsy'],
+               'timepoint_name': 'primary',
+               'tissue': ['Other']},
+              {'timepoints': ['baseline', 'post_induction', 'on_nivo', 'metastasis'],
+               'timepoint_name': 'met_ln',
+               'tissue': ['Lymphnode']},
+              {'timepoints': ['baseline', 'post_induction', 'on_nivo', 'metastasis'],
+               'timepoint_name': 'met_other',
+                'tissue': ['Other', 'Liver', 'Unknown', 'Skin', 'Bone', 'Gut', 'Bladder', 'Oesafageal']},
+              {'timepoints': ['all'],
+               'timepoint_name': 'all'}]
+all_ranked_features = []
+for timepoint_df in timepoints:
+    current_timepoints = timepoint_df['timepoints']
+    if current_timepoints == ['all']:
+        valid_paired_df = paired_df.copy()
+    else:
+        valid_tissue_ids = harmonized_metadata[harmonized_metadata.Timepoint.isin(current_timepoints)].Tissue_ID.unique()
+        valid_tissue_ids2 = harmonized_metadata[harmonized_metadata.Localization.isin(timepoint_df['tissue'])].Tissue_ID.unique()
+        valid_tissue_ids = np.intersect1d(valid_tissue_ids, valid_tissue_ids2)
+        valid_paired_df = paired_df[paired_df.Tissue_ID.isin(valid_tissue_ids)].copy()
+    valid_ranked_features = find_conserved_features(paired_df=valid_paired_df, sample_name_1='raw_value_fov1',
+                                              sample_name_2='raw_value_fov2', min_samples=10)
+
+    valid_ranked_features['timepoint'] = timepoint_df['timepoint_name']
     all_ranked_features.append(valid_ranked_features)
 
 ranked_features = pd.concat(all_ranked_features, axis=0)
@@ -69,6 +96,26 @@ ranked_features = pd.concat(all_ranked_features, axis=0)
 ranked_features = ranked_features.merge(paired_df[['feature_name', 'feature_name_unique',
                                                    'compartment', 'cell_pop', 'cell_pop_level',
                                                    'feature_type']].drop_duplicates(), on='feature_name', how='left')
+
+# compare ranking among timepoints
+wide_ranked_features = ranked_features.pivot(index='feature_name', columns='timepoint', values='combined_rank')
+sns.heatmap(wide_ranked_features)
+plt.savefig(os.path.join(plot_dir, 'conserved_features_heatmap.png'))
+plt.close()
+
+sns.scatterplot(data=wide_ranked_features, x='primary', y='all')
+plt.savefig(os.path.join(plot_dir, 'conserved_features_primary_vs_all.png'))
+plt.close()
+sns.scatterplot(data=wide_ranked_features, x='met_ln', y='all')
+plt.savefig(os.path.join(plot_dir, 'conserved_features_met_ln_vs_all.png'))
+plt.close()
+sns.scatterplot(data=wide_ranked_features, x='met_other', y='all')
+plt.savefig(os.path.join(plot_dir, 'conserved_features_met_other_vs_all.png'))
+plt.close()
+
+
+
+
 ranked_features['conserved'] = ranked_features.combined_rank <= 100
 ranked_features.to_csv(os.path.join(data_dir, 'conserved_features/ranked_features_no_compartment.csv'), index=False)
 
@@ -82,18 +129,20 @@ plt.close()
 # generate plot for best ranked features
 max_rank = 150
 plot_features = ranked_features.loc[ranked_features.combined_rank <= max_rank, :]
-
+plot_features = means_df_filtered.feature_name[-6:].values
 # sort by combined rank
 plot_features.sort_values(by='combined_rank', inplace=True)
 
 for i in range(len(plot_features))[10:]:
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
 
-    feature_name = plot_features.iloc[i].feature_name
+    #feature_name = plot_features.iloc[i].feature_name
+    feature_name = plot_features[i]
     values = paired_df[(paired_df.feature_name == feature_name)].copy()
     values.dropna(inplace=True)
 
-    sns.scatterplot(data=values, x='normalized_value_fov1', y='normalized_value_fov2', ax=ax[0])
+    #sns.scatterplot(data=values, x='normalized_value_fov1', y='normalized_value_fov2', ax=ax[0])
+    sns.scatterplot(data=values, x='raw_value_fov1', y='raw_value_fov2', ax=ax[0])
     correlation, p_val = spearmanr(values.normalized_value_fov1, values.normalized_value_fov2)
     ax[0].set_xlabel('untransformed')
 
