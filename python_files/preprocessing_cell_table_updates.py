@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import os
+from itertools import combinations
 
 from ark.phenotyping.post_cluster_utils import plot_hist_thresholds, create_mantis_project
 from alpineer.io_utils import list_folders
@@ -326,27 +327,12 @@ cell_table_full = cell_table_full.rename(columns={'PDL1_threshold': 'PDL1_bright
 cell_table_full['PDL1_threshold'] = np.logical_or(cell_table_full['PDL1_bright_threshold'].values,
                                                   cell_table_full['PDL1_cancer_dim_threshold'].values)
 
-# # define marker combinations of interest
-# combinations = [[('PD1', True), ('TCF1', True)],
-#                 [('PD1', True), ('TIM3', True)],
-#                 [('PD1', True), ('CD69', True)],
-#                 [('PDL1', True), ('TIM3', True)],
-#                 [('TBET', True), ('TCF1', True)],
-#                 [('TBET', True), ('CD69', True)],
-#                 [('CD45RO', True), ('CD69', True)]
-#                 ]
-#
-# for combo in combinations:
-#     first_marker, first_bool = combo[0]
-#     base_mask = cell_table[first_marker].array
-#     if not first_bool:
-#         base_mask = ~base_mask
-#     for marker, bool in combo[1:]:
-#         base_mask = np.logical_and(base_mask, cell_table[marker].array)
-#         if not bool:
-#             base_mask = ~base_mask
-#     name = '_'.join([tuple[0] for tuple in combo]) + '_threshold'
-#     cell_table[name] = base_mask
+# pairwise marker thresholding
+functional_markers = [x[0] for x in threshold_list]
+for marker1, marker2 in combinations(functional_markers, 2):
+    cell_table_full[marker1 + '__' + marker2 + '_threshold'] = np.logical_and(cell_table_full[marker1 + '_threshold'],
+                                                                              cell_table_full[marker2 + '_threshold'])
+
 
 # create ratios of relevant markers
 

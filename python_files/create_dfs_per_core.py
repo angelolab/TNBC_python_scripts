@@ -218,7 +218,8 @@ total_df_func = pd.concat(func_dfs, axis=0)
 total_df_func = total_df_func.merge(harmonized_metadata, on='fov', how='inner')
 
 # save combined df
-total_df_func.to_csv(os.path.join(data_dir, 'functional_df_per_core.csv'), index=False)
+#total_df_func.to_csv(os.path.join(data_dir, 'functional_df_per_core.csv'), index=False)
+total_df_func.to_csv('/Users/noahgreenwald/Downloads/functional_df_per_core.csv', index=False)
 
 
 #
@@ -404,9 +405,96 @@ for filters in filtering:
         # append to list of dfs
         combo_dfs.append(func_df_cell)
 
+# do the same thing for double positive cells
+
+# # identify combinations of markers and cell types to include in analysis based on threshold
+# dp_markers = cell_table_func.columns.values
+# dp_markers = [x for x in dp_markers if '__' in x]
+# mean_percent_positive_dp = 0.05
+# broad_df_dp = filtered_func_df[filtered_func_df.metric == 'cluster_broad_freq']
+# broad_df_dp = broad_df_dp[broad_df_dp.subset == 'all']
+# broad_df_dp = broad_df_dp[broad_df_dp.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# broad_df_dp = broad_df_dp[broad_df_dp.functional_marker.isin(dp_markers)]
+# broad_df_dp_agg = broad_df_dp[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+#
+# broad_df_dp_agg = broad_df_dp_agg.reset_index()
+# broad_df_dp = broad_df_dp_agg.pivot(index='cell_type', columns='functional_marker', values='value')
+# broad_df_dp_include = broad_df_dp > mean_percent_positive_dp
+#
+# # include Ki67 in combination with everything else
+# general_markers = [x for x in dp_markers if 'Ki67' in x]
+# broad_df_dp_include[[general_markers]] = True
+#
+# broad_df_dp_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_broad_dp.csv'))
+#
+# # do the same for medium-level clustering
+# med_df = filtered_func_df[filtered_func_df.metric == 'cluster_freq']
+# med_df = med_df[med_df.subset == 'all']
+# med_df = med_df[med_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# med_df = med_df[med_df.functional_marker.isin(dp_markers)]
+# med_df_agg = med_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+#
+# # create matrix of cell types and markers
+# med_df_agg = med_df_agg.reset_index()
+# med_df = med_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
+# med_df_include = med_df > mean_percent_positive_dp
+#
+# # include Ki67 in combination with everything else
+# med_df_include[[general_markers]] = True
+# med_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_med_dp.csv'))
+#
+#
+# # do the same for finest-level clustering
+# meta_df = filtered_func_df[filtered_func_df.metric == 'meta_cluster_freq']
+# meta_df = meta_df[meta_df.subset == 'all']
+# meta_df = meta_df[meta_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# meta_df = meta_df[meta_df.functional_marker.isin(dp_markers)]
+# meta_df_agg = meta_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+#
+# # create matrix of cell types and markers
+# meta_df_agg = meta_df_agg.reset_index()
+# meta_df = meta_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
+# meta_df_include = meta_df > mean_percent_positive_dp
+#
+# # include Ki67 in combination with everything else
+# meta_df_include[[general_markers]] = True
+# meta_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_meta_dp.csv'))
+
+# load inclusion matrices
+broad_df_include_dp = pd.read_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_broad_dp.csv'), index_col=0)
+med_df_include_dp = pd.read_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_med_dp.csv'), index_col=0)
+meta_df_include_dp = pd.read_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_meta_dp.csv'), index_col=0)
+
+# identify metrics and dfs that will be filtered
+filtering = [['cluster_broad_count', 'cluster_broad_freq', broad_df_include_dp],
+           ['cluster_count', 'cluster_freq', med_df_include_dp],
+           ['meta_cluster_count', 'meta_cluster_freq', meta_df_include_dp]]
+
+for filters in filtering:
+    # get variables
+    metric_names = filters[:2]
+    metric_df = filters[2]
+
+    # subset functional df to only include functional markers at this resolution
+    func_df = filtered_func_df[filtered_func_df.metric.isin(metric_names)]
+
+    # loop over each cell type, and get the corresponding markers
+    for cell_type in metric_df.index:
+        markers = metric_df.columns[metric_df.loc[cell_type] == True]
+
+        # subset functional df to only include this cell type
+        func_df_cell = func_df[func_df.cell_type == cell_type]
+
+        # subset functional df to only include markers for this cell type
+        func_df_cell = func_df_cell[func_df_cell.functional_marker.isin(markers)]
+
+        # append to list of dfs
+        combo_dfs.append(func_df_cell)
+
 
 # create manual df with total functional marker positivity across all cells in an image
 func_table_small = cell_table_func.loc[:, ~cell_table_func.columns.isin(['cell_cluster', 'cell_cluster_broad', 'cell_meta_cluster', 'label', 'tumor_region'])]
+func_table_small = func_table_small.loc[:, ~func_table_small.columns.isin(dp_markers)]
 
 # group by specified columns
 grouped_table = func_table_small.groupby('fov')
@@ -426,8 +514,8 @@ combo_dfs.append(long_df)
 
 # combine
 combo_df = pd.concat(combo_dfs)
-combo_df.to_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'), index=False)
-
+#combo_df.to_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'), index=False)
+combo_df.to_csv(os.path.join('/Users/noahgreenwald/Downloads/functional_df_per_core_filtered.csv'), index=False)
 
 # create version aggregated by timepoint
 total_df_grouped_func = total_df_func.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric', 'subset'])
@@ -446,6 +534,8 @@ combo_df_timepoint_func = combo_df_timepoint_func.merge(harmonized_metadata.drop
 
 # save timepoint df
 combo_df_timepoint_func.to_csv(os.path.join(data_dir, 'functional_df_per_timepoint_filtered.csv'), index=False)
+
+# TODO: deduplicate functional marker double positive cells
 
 
 # # create histogram of number of cells per cluster per image
