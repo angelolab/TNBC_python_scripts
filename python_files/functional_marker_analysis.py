@@ -1,4 +1,6 @@
 import os
+
+import natsort
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -90,16 +92,17 @@ plt.close()
 
 
 # check correlation between single positive and double positive cells
-working_df = combo_df.loc[combo_df.subset == 'all', :]
+working_df = deduped_df.loc[deduped_df.subset == 'all', :]
 working_df = working_df.loc[working_df.metric == 'cluster_freq', :]
 all_markers = working_df.functional_marker.unique()
 dp_markers = [x for x in all_markers if '__' in x]
+dp_markers = natsort.natsorted(dp_markers)
 cell_types = working_df.cell_type.unique()
 
 correlation_df = pd.DataFrame(index=cell_types, columns=dp_markers)
 for marker in dp_markers:
     for cell_type in cell_types:
-        current_df = working_df_subset.loc[working_df_subset.cell_type == cell_type, :]
+        current_df = working_df.loc[working_df.cell_type == cell_type, :]
 
         if marker not in current_df.functional_marker.unique():
             continue
@@ -119,11 +122,27 @@ for marker in dp_markers:
 correlation_df = correlation_df.astype(float)
 
 # set figure size
-fig, ax = plt.subplots(figsize=(30, 10))
+fig, ax = plt.subplots(figsize=(20, 10))
 sns.heatmap(correlation_df, cmap='Reds', vmin=0, vmax=1)
 plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Functional_marker_expected_actual_correlation_heatmap.png'), dpi=300)
 plt.close()
+
+
+# plot correlation between individual pairs of features
+marker = 'PD1__TIM3'
+cell_type = 'CD4T'
+
+current_df = working_df.loc[working_df.cell_type == cell_type, :]
+marker_1, marker_2 = marker.split('__')
+current_df = current_df.loc[current_df.functional_marker.isin([marker, marker_1, marker_2]), :]
+
+current_df_wide = current_df.pivot(index='fov', columns='functional_marker', values='value')
+current_df_wide['expected'] = current_df_wide[marker_1] * current_df_wide[marker_2]
+sns.scatterplot(x='expected', y=marker, data=current_df_wide)
+plt.savefig(os.path.join(plot_dir, 'CD4T_TIM3_PD1_DP_expected_correlation.png'), dpi=300)
+plt.close()
+
 
 # generate correlation matrix between all features
 working_df['feature_name'] = working_df['cell_type'] + '__' + working_df['functional_marker']
