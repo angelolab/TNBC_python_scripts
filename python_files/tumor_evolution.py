@@ -9,166 +9,171 @@ import itertools
 # this file contains code for summarizing the data on an individual core level
 
 
-def compute_pairwise_distances(input_df, metadata_names, metadata_values):
-    distances = []
+def compute_euclidian_distance(input_df):
+    # remove rows with any nans
+    output_df = input_df.dropna(axis=0)
+
+    # unit normalize each column
+    output_df = output_df.apply(lambda x: (x / np.linalg.norm(x)), axis=0)
+
+    # compute euclidian distance
+    dist = np.linalg.norm(output_df.values[:, :1] - output_df.values[:, 1:])
+
+    return dist
+
+def compute_spearmanr(input_df):
+    # remove rows with any nans
+    output_df = input_df.dropna(axis=0)
+
+    # compute spearmanr
+    rho, pval = spearmanr(output_df.values[:, :1], output_df.values[:, 1:])
+
+    return rho
+
+
+def compute_pairwise_distances(input_df, metadata_name):
+    euc_distances = []
+    spearmanr_distances = []
     for col_1, col_2 in itertools.combinations(input_df.columns, 2):
-        distances.append(np.linalg.norm(input_df[col_1].array - input_df[col_2].array))
+        subset_df = input_df[[col_1, col_2]]
+        euc_distances.append(compute_euclidian_distance(subset_df))
+        spearmanr_distances.append(compute_spearmanr(subset_df))
 
     # create dataframe with distances and metadata
-    return_df = pd.DataFrame({'distance': [np.mean(distances)]})
-
-    for name, value in zip(metadata_names, metadata_values):
-        return_df[name] = value
+    return_df = pd.DataFrame({'euc_distance': [np.mean(euc_distances)],
+                                'spearmanr_distance': [np.mean(spearmanr_distances)],
+                              'metadata': [metadata_name]})
 
     return return_df
 
 
-def compute_pairwise_distances_by_element(input_df):
-    distances = []
-    elements = []
-    for element in input_df.index:
-        current_df = input_df.loc[[element], :]
-        for col_1, col_2 in itertools.combinations(current_df.columns, 2):
-            current_distances = np.linalg.norm(current_df[col_1].array - current_df[col_2].array)
-            distances.append(np.mean(current_distances))
-            elements.append(element)
+def generate_grouped_distances(sample, group_by, harmonized_metadata, data_df):
+    grouped_distances = []
+    grouped = harmonized_metadata[[group_by, sample]].groupby(group_by)
+    value = 'normalized_value' if sample == 'fov' else 'normalized_mean'
+    for group_name, group_members in grouped:
+        if len(group_members) > 1:
+            group_df = data_df.loc[data_df[sample].isin(group_members[sample].values), :]
+            wide_df = pd.pivot(group_df, index='feature_name_unique', columns=sample, values=value)
+            grouped_distances.append(compute_pairwise_distances(input_df=wide_df,
+                                                                metadata_name=group_name))
+    grouped_distances = pd.concat(grouped_distances)
 
-    return distances, elements
-
-
-def compute_distances_between_groups(df_1, df_2):
-    distances = []
-    for col_1, col_2 in itertools.product(df_1.columns, df_2.columns):
-        distances.append(np.linalg.norm(df_1[col_1].array - df_2[col_2].array))
-
-    return np.mean(distances)
+    return grouped_distances
 
 
-data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
+local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
+data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 
 # load dataset
-core_df_cluster = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
-timepoint_df_cluster = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv'))
-core_df_func = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core.csv'))
+fov_df = pd.read_csv(os.path.join(data_dir, 'fov_features_no_compartment.csv'))
+timepoint_df = pd.read_csv(os.path.join(data_dir, 'timepoint_features_no_compartment.csv'))
+ranked_features = pd.read_csv(os.path.join(data_dir, 'conserved_features/ranked_features_no_compartment.csv'))
+fov_pairs = pd.read_csv(os.path.join(data_dir, 'conserved_features/fov_pairs.csv'))
+harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
+harmonized_metadata = harmonized_metadata.loc[harmonized_metadata.MIBI_data_generated, :]
+
+# add randomized categories
+harmonized_metadata['Tissue_ID_random'] = harmonized_metadata['Tissue_ID'].sample(frac=1).values
+harmonized_metadata['TONIC_ID_random'] = harmonized_metadata['TONIC_ID'].sample(frac=1).values
 
 
+# compute distances
+fov_distances = generate_grouped_distances(sample='fov', group_by='Tissue_ID', harmonized_metadata=harmonized_metadata,
+                                           data_df=fov_df)
+fov_distances['type'] = 'paired_fovs'
+fov_distances_random = generate_grouped_distances(sample='fov', group_by='Tissue_ID_random',
+                                                  harmonized_metadata=harmonized_metadata, data_df=fov_df)
+fov_distances_random['type'] = 'randomized_fovs'
+
+timepoint_distances = generate_grouped_distances(sample='Tissue_ID', group_by='TONIC_ID',
+                                                 data_df=timepoint_df, harmonized_metadata=harmonized_metadata)
+timepoint_distances['type'] = 'paired_timepoints'
+
+timepoint_distances_random = generate_grouped_distances(sample='Tissue_ID', group_by='TONIC_ID_random',
+                                                        data_df=timepoint_df, harmonized_metadata=harmonized_metadata)
+timepoint_distances_random['type'] = 'randomized_timepoints'
+
+combined_distances = pd.concat([fov_distances, fov_distances_random, timepoint_distances, timepoint_distances_random])
+
+
+g = sns.catplot(combined_distances, x='type', y='distance', kind='box', height=5, aspect=2, color='grey',
+                order=['paired_fovs', 'paired_timepoints', 'randomized_fovs', 'randomized_timepoints'])
+g.set(ylim=(0, 2))
+g.fig.suptitle('Pairwise distances samples')
+g.savefig(os.path.join(plot_dir, 'pairwise_distances_samples.png'), dpi=300, bbox_inches='tight')
+plt.close()
+
+
+# calculate distance using different features
+worst_150 = ranked_features.feature_name_unique[ranked_features.combined_rank > 250].values
+best_150 = ranked_features.feature_name_unique[ranked_features.combined_rank < 150].values
+best_25 = ranked_features.feature_name_unique[ranked_features.combined_rank < 25].values
+best_75 = ranked_features.feature_name_unique[ranked_features.combined_rank < 75].values
+
+worst_150_subset = fov_df.loc[fov_df.feature_name_unique.isin(worst_150), :]
+best_150_subset = fov_df.loc[fov_df.feature_name_unique.isin(best_150), :]
+best_25_subset = fov_df.loc[fov_df.feature_name_unique.isin(best_25), :]
+best_75_subset = fov_df.loc[fov_df.feature_name_unique.isin(best_75), :]
+
+
+worst_150_distances = generate_grouped_distances(sample='fov', group_by='Tissue_ID',
+                                                    data_df=worst_150_subset, harmonized_metadata=harmonized_metadata)
+worst_150_distances['type'] = 'worst_150'
+
+best_150_distances = generate_grouped_distances(sample='fov', group_by='Tissue_ID',
+                                                    data_df=best_150_subset, harmonized_metadata=harmonized_metadata)
+best_150_distances['type'] = 'best_150'
+
+best_25_distances = generate_grouped_distances(sample='fov', group_by='Tissue_ID',
+                                                    data_df=best_25_subset, harmonized_metadata=harmonized_metadata)
+best_25_distances['type'] = 'best_25'
+
+
+best_75_distances = generate_grouped_distances(sample='fov', group_by='Tissue_ID',
+                                                    data_df=best_75_subset, harmonized_metadata=harmonized_metadata)
+best_75_distances['type'] = 'best_75'
+
+cutoff_distances = pd.concat([fov_distances, worst_150_distances, best_150_distances, fov_distances_random,
+                              best_25_distances, best_75_distances])
+
+g = sns.catplot(cutoff_distances, x='type', y='distance', kind='box', height=5, aspect=2, color='grey',
+                order=['best_25', 'best_75', 'best_150', 'paired_fovs', 'worst_150', 'randomized_fovs'])
+g.set(ylim=(0, 2))
+g.fig.suptitle('Pairwise distances across FOVs based on feature set')
+g.savefig(os.path.join(plot_dir, 'pairwise_distances_cutoffs.png'), dpi=300, bbox_inches='tight')
+plt.close()
+
+# get characteristics of FOVs with most divergence from one another
+# fov_distances.rename(columns={'metadata': 'Tissue_ID'}, inplace=True)
+# fov_distances = pd.merge(fov_distances, harmonized_metadata[['TONIC_ID', 'Tissue_ID', 'Timepoint']].drop_duplicates(), on='Tissue_ID')
 #
-# Evaluate heterogeneity of cell clusters prevalence across cores
-#
-
-# TODO: investigate how tcell_Freq same timepoint dots can be greater than 1
-def compute_difference_in_cell_prev(core_df, timepoint_df, metric):
-    """Computes the difference in cell prevalances across timepoints"""
-
-    # subset provided DFs
-    timepoints = ['primary_untreated', 'baseline', 'post_induction', 'on_nivo']
-    timepoints = ['primary_untreated', 'baseline']
-    core_df_plot = core_df.loc[core_df.Timepoint.isin(timepoints), :]
-    timepoint_df_plot = timepoint_df.loc[timepoint_df.Timepoint.isin(timepoints), :]
-
-    core_df_plot = core_df_plot.loc[core_df_plot.metric == metric, :]
-    timepoint_df_plot = timepoint_df_plot.loc[timepoint_df_plot.metric == metric, :]
-
-    # compute distances between replicate cores from same patient and timepoint
-    grouped = core_df_plot.groupby(['Tissue_ID', 'Timepoint'])
-    distances_df_core = []
-
-    for name, group in grouped:
-        wide_df = pd.pivot(group, index='cell_type', columns='fov', values='value')
-        if wide_df.shape[1] > 1:
-            distances_df_core.append(compute_pairwise_distances(input_df=wide_df,
-                                                           metadata_names=['Tissue_ID', 'Timepoint'],
-                                                           metadata_values=name))
-
-    # compute distances between cores for each timepoint from random patients
-    # plot_df_timepoints = main_df.loc[main_df.metric == metric, :]
-    # grouped_shuffle_timepoint = plot_df_timepoints.groupby(['Timepoint'])
-    # distances_df_shuffle_timepoint = []
-    # for name, group in grouped_shuffle_timepoint:
-    #     # fov_names = group.fov.unique()
-    #     fov_names = group.Tissue_ID.unique()
-    #     np.random.shuffle(fov_names)
-    #
-    #     # select 3 FOVs at a time within each timepoint
-    #     batch_size = 3
-    #     for batch_start in range(0, len(group), batch_size):
-    #         # subset df to just include selected FOVs
-    #         # batch_df = group.loc[group.fov.isin(fov_names[batch_start: batch_start + batch_size]), :]
-    #         batch_df = group.loc[group.Tissue_ID.isin(fov_names[batch_start: batch_start + batch_size]), :]
-    #
-    #         wide_df = pd.pivot(batch_df, index='cell_type', columns='Tissue_ID', values='mean')
-    #         if wide_df.shape[1] > 1:
-    #             distances_df_shuffle_timepoint.append(compute_pairwise_distances(input_df=wide_df,
-    #                                                                              metadata_names=['Tissue_ID', 'Timepoint'],
-    #                                                                              metadata_values=['NA'] + [name]))
-
-    # compute distances between cores fully randomized
-    distances_df_shuffle = []
-    fov_names = timepoint_df_plot.Tissue_ID.unique()
-    np.random.shuffle(fov_names)
-
-    # select 3 FOVs at a time within each timepoint
-    batch_size = 3
-    for batch_start in range(0, len(timepoint_df_plot), batch_size):
-        # subset df to just include selected FOVs
-        batch_df = timepoint_df_plot.loc[timepoint_df_plot.Tissue_ID.isin(fov_names[batch_start: batch_start + batch_size]), :]
-        wide_df = pd.pivot(batch_df, index='cell_type', columns='Tissue_ID', values='mean')
-        if wide_df.shape[1] > 1:
-            distances_df_shuffle.append(compute_pairwise_distances(input_df=wide_df,
-                                                                   metadata_names=['Tissue_ID','Timepoint'],
-                                                                   metadata_values=['NA', 'NA']))
-
-    # compute distances between cores within patients across timepoints
-    grouped_shuffle_patient = timepoint_df_plot.groupby(['TONIC_ID'])
-    distances_df_shuffle_patient = []
-    for name, group in grouped_shuffle_patient:
-        print(name)
-        wide_df = pd.pivot(group, index='cell_type', columns='Tissue_ID', values='mean')
-        if wide_df.shape[1] > 1:
-            distances_df_shuffle_patient.append(compute_pairwise_distances(input_df=wide_df,
-                                                                 metadata_names=['Tissue_ID',
-                                                                                 'Timepoint'],
-                                                                 metadata_values=['NA', 'NA']))
-
-    # plot distances between cores for each timepoint
-    distances_df_shuffle_patient = pd.concat(distances_df_shuffle_patient)
-    distances_df_shuffle_patient['metric'] = 'Same patients'
-
-    distances_df_shuffle = pd.concat(distances_df_shuffle)
-    distances_df_shuffle['metric'] = 'Different patients'
-
-    distances_df_core = pd.concat(distances_df_core)
-    distances_df_core['metric'] = 'Same timepoints'
-
-    distances_df_combined = pd.concat([distances_df_shuffle, distances_df_core, distances_df_shuffle_patient])
-
-    return distances_df_combined
+fov_distances = fov_distances.sort_values(by=['euc_distance'], ascending=False)
 
 
-metric = 'cluster_freq'
-for subset in core_df_cluster.subset.unique():
-    plot_df_core = core_df_cluster[core_df_cluster.subset == subset]
-    plot_df_timepoint = timepoint_df_cluster[timepoint_df_cluster.subset == subset]
+# compare different timepoints together
+timepoint_pairs = [['primary_untreated', 'baseline'], ['baseline', 'on_nivo'], ['baseline', 'post_induction'],
+                   ['post_induction', 'on_nivo']]
+# TODO: subset for eahc pair, compute distances, then summarize
+timepoint_list = []
+for pair in timepoint_pairs:
+    current_df = timepoint_df.loc[timepoint_df.Timepoint.isin(pair), :]
+timepoint_distances = generate_grouped_distances(sample='Tissue_ID', group_by='TONIC_ID',
+                                                    data_df=timepoint_df)
+timepoint_distances['type'] = 'paired_timepoints'
 
-    distances_df_new = compute_difference_in_cell_prev(core_df=plot_df_core, timepoint_df=plot_df_timepoint, metric=metric)
-    #distances_df_new = compute_difference_in_cell_prev(core_df=pca_df, timepoint_df=pca_df_timepoint_annot, metric='immune_PCA')
+timepoint_distances_random = generate_grouped_distances(sample='Tissue_ID', group_by='TONIC_ID_random',
+                                                    data_df=timepoint_df)
+timepoint_distances_random['type'] = 'randomized_timepoints'
 
-    g = sns.boxplot(x=distances_df_new.metric.values, y=distances_df_new.distance.values, order=['Same timepoints',  'Same patients', 'Different patients'])
-
-    # set y axis height
-    g.set_ylim(0, 1)
-    plt.title("Variation in cell prevalence in {} across {}".format(metric, subset))
-    #plt.title("Variation in cluster_freq distance")
-    #plt.xticks(rotation=90)
-
-    sns.despine()
-    plt.tight_layout()
-    plt.savefig(os.path.join(plot_dir, 'Heterogeneity_of_{}_within_{}.png'.format(metric, subset)), dpi=300)
-    plt.close()
+combined_distances = pd.concat([fov_distances, fov_distances_random, timepoint_distances, timepoint_distances_random])
 
 
-
-grouped = distances_df_new.groupby(['metric'])
-grouped.agg(np.mean)
+g = sns.catplot(combined_distances, x='type', y='distance', kind='box', height=5, aspect=2, color='grey',
+                order=['paired_fovs', 'paired_timepoints', 'randomized_fovs', 'randomized_timepoints'])
+g.set(ylim=(0, 2))
+g.fig.suptitle('Pairwise distances samples')
+g.savefig(os.path.join(plot_dir, 'pairwise_distances_samples.png'), dpi=300, bbox_inches='tight')
+plt.close()
 

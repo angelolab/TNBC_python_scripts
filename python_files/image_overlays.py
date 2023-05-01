@@ -10,12 +10,14 @@ from skimage.measure import block_reduce
 from matplotlib import cm
 from matplotlib import colors
 
-from ark.utils import io_utils, data_utils
+from alpineer import io_utils
 from skimage.segmentation import find_boundaries
 
 
 # get FOVs of size 2048 x 2048
-image_dir = '/Volumes/Big_Boy/TONIC_Cohort/image_data/samples/'
+image_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
+plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/figures/overlays/'
+
 folders = io_utils.list_folders(image_dir)
 
 keep_folders = []
@@ -24,6 +26,11 @@ for folder in folders:
     test_img = io.imread(os.path.join(image_dir, folder, 'CD3.tiff'))
     if test_img.shape[0] == 2048:
         keep_folders.append(folder)
+np.random.shuffle(keep_folders)
+
+folder_df = pd.DataFrame(keep_folders, columns=['folder_name'])
+folder_df.to_csv(os.path.join(plot_dir, 'composite_folder_names.csv'))
+
 
 output_img = np.zeros((5120, 10240))
 
@@ -31,7 +38,6 @@ output_img = np.zeros((5120, 10240))
 image_num = 0
 channel_name = 'ECAD.tiff'
 
-np.random.shuffle(keep_folders)
 for col_num in range(40):
     for row_num in range(20):
         img = io.imread(os.path.join(image_dir, keep_folders[image_num], channel_name))
@@ -40,7 +46,7 @@ for col_num in range(40):
         image_num += 1
 
 output_img = output_img / np.max(output_img)
-io.imsave('/Users/noahgreenwald/Downloads/ECAD.tiff', output_img)
+io.imsave(os.path.join(plot_dir, channel_name), output_img)
 
 
 

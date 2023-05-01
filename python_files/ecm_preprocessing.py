@@ -26,9 +26,9 @@ from python_files import utils
 # This script is for generating the ECM assignments for image crops
 #
 
-out_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/ecm_masks'
+out_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/ecm'
 channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples'
-mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/mask_dir/individual_masks/'
+mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/mask_dir/individual_masks/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots'
 
 #
@@ -124,7 +124,7 @@ for fov in all_fovs[0:1]:
               check_contrast=False)
 
 # generate crop sums
-channels = ['Collagen1', 'Fibronectin', 'FAP', 'Vim']
+channels = ['Collagen1', 'Fibronectin', 'FAP']
 crop_size = 256
 tiled_crops = utils.generate_crop_sum_dfs(channel_dir=channel_dir,
                                           mask_dir=mask_dir,
@@ -137,7 +137,7 @@ tiled_crops = utils.normalize_by_ecm_area(crop_sums=tiled_crops, crop_size=crop_
 
 # create a pipeline for normalization and clustering the data
 kmeans_pipe = make_pipeline(preprocessing.PowerTransformer(method='yeo-johnson', standardize=True),
-                            KMeans(n_clusters=4, random_state=0))
+                            KMeans(n_clusters=2, random_state=0))
 
 # select subset of data to train on
 no_ecm_mask = tiled_crops.ecm_fraction < 0.1
@@ -148,52 +148,43 @@ train_data = train_data.loc[:, channels]
 kmeans_pipe.fit(train_data.values)
 
 # save the trained pipeline
-pickle.dump(kmeans_pipe, open(os.path.join(plot_dir, 'kmeans_pipe.pkl'), 'wb'))
+pickle.dump(kmeans_pipe, open(os.path.join(out_dir, 'tile_classification_kmeans_pipe.pkl'), 'wb'))
 
 
 # load the model
-kmeans_pipe = pickle.load(open(os.path.join(plot_dir, 'kmeans_pipe_new.pkl'), 'rb'))
+kmeans_pipe = pickle.load(open(os.path.join(plot_dir, 'tile_classification_kmeans_pipe.pkl'), 'rb'))
 
 kmeans_preds = kmeans_pipe.predict(tiled_crops[channels].values)
 
 # get the transformed intermediate data
 transformed_data = kmeans_pipe.named_steps['powertransformer'].transform(tiled_crops[channels].values)
 transformed_df = pd.DataFrame(transformed_data, columns=channels)
-transformed_df['cluster'] = kmeans_preds
-tiled_crops['cluster'] = kmeans_preds
-tiled_crops.loc[no_ecm_mask, 'cluster'] = -1
-transformed_df.loc[no_ecm_mask, 'cluster'] = -1
+transformed_df['tile_cluster'] = kmeans_preds
+tiled_crops['tile_cluster'] = kmeans_preds
+tiled_crops.loc[no_ecm_mask, 'tile_cluster'] = -1
+transformed_df.loc[no_ecm_mask, 'tile_cluster'] = -1
 
 # generate average image for each cluster
-cluster_means = transformed_df[~no_ecm_mask].groupby('cluster').mean()
-
+cluster_means = transformed_df[~no_ecm_mask].groupby('tile_cluster').mean()
 
 # plot the average images
 cluster_means_clustermap = sns.clustermap(cluster_means, cmap='Reds', figsize=(10, 10))
-plt.savefig(os.path.join(plot_dir, 'cluster_means.png'), dpi=300)
-plt.close()
-
-# plot distribution of clusters in each fov
-cluster_counts = tiled_crops.groupby('fov').value_counts(['cluster'])
-cluster_counts = cluster_counts.reset_index()
-cluster_counts.columns = ['fov', 'cluster', 'count']
-cluster_counts = cluster_counts.pivot(index='fov', columns='cluster', values='count')
-cluster_counts = cluster_counts.fillna(0)
-cluster_counts = cluster_counts.apply(lambda x: x / x.sum(), axis=1)
-
-# plot the cluster counts
-cluster_counts_clustermap = sns.clustermap(cluster_counts, cmap='Reds', figsize=(10, 10))
-plt.savefig(os.path.join(plot_dir, 'cluster_fov_counts.png'), dpi=300)
+plt.savefig(os.path.join(out_dir, 'tile_cluster_means.png'), dpi=300)
 plt.close()
 
 # save dfs
-tiled_crops.to_csv(os.path.join(data_dir, 'tiled_crops.csv'), index=False)
+tile_replace_dict = {0: 'Cold_Coll', 1: 'Hot_Coll', -1: 'No_ECM'}
+
+tiled_crops['tile_cluster'] = tiled_crops['tile_cluster'].replace(tile_replace_dict)
+tiled_crops.to_csv(os.path.join(out_dir, 'tiled_crops.csv'), index=False)
 
 
 # create a stitched image with example images from each cluster
 channels = cluster_means.columns[cluster_means_clustermap.dendrogram_col.reordered_ind]
-n_examples = 20
+n_examples = 30
 for cluster in tiled_crops.cluster.unique():
+    if cluster == -1:
+        continue
     cluster_data = tiled_crops[(~no_ecm_mask) & (tiled_crops.cluster == cluster)]
     cluster_data = cluster_data.sample(n=n_examples, random_state=0)
 
@@ -216,7 +207,7 @@ for cluster in tiled_crops.cluster.unique():
         img_subset = img[row_start:row_start + crop_size, col_start:col_start + crop_size]
         stitched_img[i * crop_size:(i + 1) * crop_size, -crop_size:] = img_subset
 
-    io.imsave(os.path.join(plot_dir, 'cluster_' + str(cluster) + '.tiff'), stitched_img.astype('float32'),
+    io.imsave(os.path.join(out_dir, 'cluster_' + str(cluster) + '.tiff'), stitched_img.astype('float32'),
                 check_contrast=False)
 
 
@@ -247,109 +238,26 @@ replace_dict = {0: 'Hot_Coll', 1: 'Fibro_Coll', 2: 'VIM_Fibro', 3: 'Cold_Coll',
                 -1: 'no_ecm'}
 
 cell_crops['ecm_cluster'] = cell_crops['ecm_cluster'].replace(replace_dict)
-cell_crops.to_csv(os.path.join(data_dir, 'cell_crops.csv'), index=False)
-
-
-# group cells in each FOV according to their ECM cluster
-plot_cell_crops = cell_crops[['fov', 'id', 'ecm_cluster']]
-plot_cell_crops = plot_cell_crops.rename(columns={'id': 'label'})
-
-cell_table_clusters = pd.merge(cell_table_clusters, plot_cell_crops[['fov', 'label', 'ecm_cluster']],
-                                 on=['fov', 'label'], how='left')
-
-grouped_ecm_region = cell_table_clusters[['fov', 'ecm_cluster', 'cell_cluster_broad']].groupby(['fov', 'ecm_cluster']).value_counts(normalize=True)
-grouped_ecm_region = grouped_ecm_region.unstack(level='cell_cluster_broad', fill_value=0).stack()
-
-grouped_ecm_region = grouped_ecm_region.reset_index()
-grouped_ecm_region.columns = ['fov',  'ecm_cluster', 'cell_cluster','count']
-
-
-# plot the distribution of cell clusters in each ECM cluster
-g = sns.FacetGrid(grouped_ecm_region, col='cell_cluster', col_wrap=3, hue='ecm_cluster',
-                  palette=['Black'], sharey=False, aspect=2.5)
-g.map(sns.violinplot, 'ecm_cluster', 'count',
-      order=['Hot_Coll', 'VIM_Fibro', 'Fibro_Coll',
-       'Cold_Coll', 'no_ecm'])
-
+cell_crops.to_csv(os.path.join(out_dir, 'cell_crops.csv'), index=False)
 
 # QC clustering results
 
 # generate image with each crop set to the value of the cluster its assigned to
-metadata_df = pd.read_csv(os.path.join('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/20230116/ecm_normalized_distribution/metadata_df.csv'))
+metadata_df = pd.read_csv(os.path.join(out_dir, 'metadata_df.csv'))
 img = 'TONIC_TMA20_R5C3'
 cluster_crop_img = np.zeros((2048, 2048))
 
 metadata_subset = tiled_crops[tiled_crops.fov == img]
 for row_crop, col_crop, cluster in zip(metadata_subset.row_coord, metadata_subset.col_coord, metadata_subset.cluster):
+    if cluster == 'no_ecm':
+        cluster = 0
+    elif cluster == 'Hot_Coll':
+        cluster = 1
+    elif cluster == 'Cold_Coll':
+        cluster = 2
     cluster_crop_img[row_crop:row_crop + crop_size, col_crop:col_crop + crop_size] = int(cluster)
 
 io.imshow(cluster_crop_img)
-
-
-# correlate ECM subtypes with patient data using hierarchically clustered heatmap as index
-test_fov = 'TONIC_TMA22_R7C1'
-test_fov_idx = np.where(cluster_counts.index == test_fov)[0][0]
-
-stop_idx = np.where(cluster_counts_clustermap.dendrogram_row.reordered_ind == test_fov_idx)[0][0]
-
-cluster_counts_subset = cluster_counts.iloc[cluster_counts_clustermap.dendrogram_row.reordered_ind[:stop_idx + 1], :]
-
-test_fov_2 = 'TONIC_TMA21_R9C5'
-test_fov_idx_2 = np.where(cluster_counts.index == test_fov_2)[0][0]
-
-stop_idx_2 = np.where(cluster_counts_clustermap.dendrogram_row.reordered_ind == test_fov_idx_2)[0][0]
-
-cluster_counts_subset_2 = cluster_counts.iloc[cluster_counts_clustermap.dendrogram_row.reordered_ind[stop_idx:stop_idx_2 + 1], :]
-
-cluster_counts_subset_3 = cluster_counts.iloc[cluster_counts_clustermap.dendrogram_row.reordered_ind[stop_idx_2:], :]
-
-harmonized_metadata['ecm_cluster'] = 'inflamed'
-harmonized_metadata.loc[harmonized_metadata.fov.isin(cluster_counts_subset.index), 'ecm_cluster'] = 'no_ecm'
-harmonized_metadata.loc[harmonized_metadata.fov.isin(cluster_counts_subset_2.index), 'ecm_cluster'] = 'cold_collagen'
-
-# plot the distribution of ECM subtypes in each patient by localization
-g = sns.catplot(y='Localization', hue='ecm_cluster', data=harmonized_metadata,
-                kind='count')
-g.savefig(os.path.join(plot_dir, 'ecm_subtype_distribution.png'), dpi=300)
-plt.close()
-
-# plot marker expression in each ECM subtype
-plot_df = core_df_func.merge(harmonized_metadata[['fov', 'ecm_cluster']], on='fov', how='left')
-plot_df = plot_df[plot_df.Timepoint == 'primary_untreated']
-
-# look at all fibroblasts
-temp_df = plot_df[plot_df.subset == 'all']
-temp_df = temp_df[temp_df.metric == 'cluster_broad_freq']
-temp_df = temp_df[temp_df.cell_type == 'Stroma']
-temp_df = temp_df[temp_df.functional_marker.isin(['PDL1', 'TIM3', 'IDO', 'HLADR', 'GLUT1'])]
-
-g = sns.catplot(x='ecm_cluster', y='value', data=temp_df,
-                kind='strip', col='functional_marker', sharey=False)
-g.savefig(os.path.join(plot_dir, 'fibroblast_functional_status_by_ecm.png'), dpi=300)
-plt.close()
-
-# look at M2 macrophages
-temp_df = plot_df[plot_df.subset == 'all']
-temp_df = temp_df[temp_df.metric == 'cluster_freq']
-temp_df = temp_df[temp_df.cell_type == 'M1_Mac']
-temp_df = temp_df[temp_df.functional_marker.isin(['PDL1', 'TIM3', 'IDO', 'HLADR', 'GLUT1'])]
-
-g = sns.catplot(x='ecm_cluster', y='value', data=temp_df,
-                kind='box', col='functional_marker', sharey=False)
-g.savefig(os.path.join(plot_dir, 'm1_mac_functional_status_by_ecm.png'), dpi=300)
-plt.close()
-
-# look at cell densities
-plot_df = core_df_cluster.merge(harmonized_metadata[['fov', 'ecm_cluster']], on='fov', how='left')
-plot_df = plot_df[plot_df.Timepoint == 'primary_untreated']
-
-temp_df = plot_df[plot_df.subset == 'all']
-temp_df = temp_df[temp_df.metric == 'cluster_broad_density']
-
-g = sns.catplot(x='ecm_cluster', y='value', data=temp_df,
-                kind='box', col='cell_type', sharey=False, col_wrap=4)
-g.savefig(os.path.join(plot_dir, 'cell_density_primary_broad.png'), dpi=300)
-plt.close()
 
 # preprocessing for simCLR
 

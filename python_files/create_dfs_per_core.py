@@ -3,6 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+from scipy.stats import spearmanr
 
 from python_files.utils import create_long_df_by_functional, create_long_df_by_cluster
 
@@ -14,7 +15,8 @@ from python_files.utils import create_long_df_by_functional, create_long_df_by_c
 # whereas a more granular clustering scheme would separate out CD4T, CD8T, Tregs, etc.
 #
 
-data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
+local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
+data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data'
 
 #
 # Preprocess metadata to ensure all samples are present
@@ -25,25 +27,25 @@ core_metadata = pd.read_csv(os.path.join(data_dir, 'metadata', 'TONIC_data_per_c
 timepoint_metadata = pd.read_csv(os.path.join(data_dir, 'metadata', 'TONIC_data_per_timepoint.csv'))
 harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata', 'harmonized_metadata.csv'))
 cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'post_processing', 'combined_cell_table_normalized_cell_labels_updated_clusters_only.csv'))
+cell_table_func = pd.read_csv(os.path.join(data_dir, 'post_processing', 'combined_cell_table_normalized_cell_labels_updated_func_only.csv'))
 area_df = pd.read_csv(os.path.join(data_dir, 'post_processing', 'fov_annotation_mask_area.csv'))
 annotations_by_mask = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cell_annotation_mask.csv'))
 
 # merge cell-level annotations
 harmonized_annotations = annotations_by_mask
 harmonized_annotations = harmonized_annotations.rename(columns={'mask_name': 'tumor_region'})
-cell_table_clusters = cell_table_clusters.merge(harmonized_annotations, on=['fov', 'label'])
+assert len(harmonized_annotations) == len(cell_table_clusters)
 
-# # TODO: move to clustering notebook
-# replace_dict = {1: 'cancer_vim_56', 2: 'immune_other', 3: 'cancer_sma', 4: 'cd4t', 5: 'cancer_ck17',
-#                 6: 'CD8T', 7: 'FAP_fibro', 8: 'CD163_mac', 9: 'Bcells', 10: 'Cancer_Ecad',
-#                 11: 'myeloid_party', 12: 'cancer_mono_cd56', 13: 'cancer_other_other', 14: 'vim_sma_cd31'}
-# cell_table_clusters['kmeans_labels'] = cell_table_clusters.kmeans_neighborhood
-# cell_table_clusters['kmeans_labels'].replace(replace_dict, inplace=True)
-
+cell_table_clusters = cell_table_clusters.merge(harmonized_annotations, on=['fov', 'label'], how='left')
+cell_table_func = cell_table_func.merge(harmonized_annotations, on=['fov', 'label'], how='left')
 
 # check for FOVs present in imaged data that aren't in core metadata
 missing_fovs = cell_table_clusters.loc[~cell_table_clusters.fov.isin(core_metadata.fov), 'fov'].unique()
+
+# TONIC_TMA24_R11C2 and TONIC_TMA24_R11C3 are wrong tissue
 cell_table_clusters = cell_table_clusters.loc[~cell_table_clusters.fov.isin(missing_fovs), :]
+cell_table_func = cell_table_func.loc[~cell_table_func.fov.isin(missing_fovs), :]
+
 
 #
 # Generate counts and proportions of cell clusters per FOV
@@ -154,7 +156,9 @@ count_df = count_df.drop(columns=['area'])
 total_df = pd.concat([total_df, count_df], axis=0)
 
 # check that all metadata from core_metadata succesfully transferred over
-total_df = total_df.merge(harmonized_metadata, on='fov', how='inner')
+len_total_df = len(total_df)
+total_df = total_df.merge(harmonized_metadata, on='fov', how='left')
+assert len_total_df == len(total_df)
 
 
 # save annotated cluster counts
@@ -174,9 +178,6 @@ total_df_timepoint.to_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv')
 # Create summary dataframe with proportions and counts of different functional marker populations
 #
 
-# load processed functional table
-cell_table_func = pd.read_csv(os.path.join(data_dir, 'post_processing', 'combined_cell_table_normalized_cell_labels_updated_func_only.csv'))
-cell_table_func = cell_table_func.merge(harmonized_annotations, on=['fov', 'label'])
 
 # Columns which are not thresholded (such as ratios between markers) can only be calculated for
 # dfs looking at normalized expression, and need to be dropped when calculating counts
@@ -218,7 +219,8 @@ total_df_func = pd.concat(func_dfs, axis=0)
 total_df_func = total_df_func.merge(harmonized_metadata, on='fov', how='inner')
 
 # save combined df
-total_df_func.to_csv(os.path.join(data_dir, 'functional_df_per_core.csv'), index=False)
+#total_df_func.to_csv(os.path.join(data_dir, 'functional_df_per_core.csv'), index=False)
+total_df_func.to_csv('/Users/noahgreenwald/Downloads/functional_df_per_core.csv', index=False)
 
 
 #
@@ -226,6 +228,7 @@ total_df_func.to_csv(os.path.join(data_dir, 'functional_df_per_core.csv'), index
 #
 
 # filter functional markers to only include FOVs with at least the specified number of cells
+total_df = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
 min_cells = 5
 
 filtered_dfs = []
@@ -257,117 +260,117 @@ for metric in metrics:
 filtered_func_df = pd.concat(filtered_dfs)
 
 # identify combinations of markers and cell types to include in analysis based on threshold
-mean_percent_positive = 0.05
-broad_df = filtered_func_df[filtered_func_df.metric == 'cluster_broad_freq']
-broad_df = broad_df[broad_df.subset == 'all']
-broad_df = broad_df[broad_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
-broad_df_agg = broad_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
-
-broad_df_agg.reset_index(inplace=True)
-broad_df = broad_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
-broad_df_include = broad_df > mean_percent_positive
-
-# include for all cells
-general_markers = ['Ki67', 'HLA1', 'H3K9ac_H3K27me3_ratio']
-broad_df_include[[general_markers]] = True
-
-# CD45 isoform ratios
-double_pos = np.logical_and(broad_df_include['CD45RO'], broad_df_include['CD45RB'])
-broad_df_include['CD45RO_CD45RB_ratio'] = double_pos
-
-# Cancer expression
-broad_df_include.loc['Cancer', ['HLADR', 'CD57']] = True
-
-broad_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'broad_inclusion_matrix.csv'))
-
-# apply thresholds to medium level clustering
-assignment_dict_med = {'Cancer': ['Cancer', 'Cancer_EMT', 'Cancer_Other'],
-                     'Mono_Mac': ['M1_Mac', 'M2_Mac', 'Mac_Other', 'Monocyte', 'APC'],
-                     'B': ['B'],
-                     'T': ['CD4T', 'CD8T', 'Treg', 'T_Other', 'Immune_Other'],
-                     'Granulocyte': ['Neutrophil', 'Mast'],
-                     'Stroma': ['Endothelium', 'Fibroblast', 'Stroma'],
-                     'NK': ['NK'],
-                     'Other': ['Other']}
-
-# get a list of all cell types
-cell_types = np.concatenate([assignment_dict_med[key] for key in assignment_dict_med.keys()])
-cell_types.sort()
-
-med_df_include = pd.DataFrame(index=cell_types, columns=broad_df.columns)
-
-for key in assignment_dict_med.keys():
-    values = assignment_dict_med[key]
-    med_df_include.loc[values] = broad_df_include.loc[key].values
-
-# check if assignment makes sense
-med_df = filtered_func_df[filtered_func_df.metric == 'cluster_freq']
-med_df = med_df[med_df.subset == 'all']
-med_df = med_df[med_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
-med_df_agg = med_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
-
-med_df_agg.reset_index(inplace=True)
-med_df = med_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
-med_df_bin = med_df > mean_percent_positive
-
-# add CD38 signal
-med_df_include.loc[['Endothelium', 'Immune_Other'], 'CD38'] = True
-
-# add IDO signal
-med_df_include.loc[['APC'], 'IDO'] = True
-
-# compare to see where assignments disagree, to see if any others need to be added
-new_includes = (med_df_bin == True) & (med_df_include == False)
-
-med_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'med_inclusion_matrix.csv'))
-
-# do the same for the fine-grained clustering
-assignment_dict_meta = {'Cancer': ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad'],
-                   'Cancer_EMT': ['Cancer_SMA', 'Cancer_Vim'],
-                   'Cancer_Other': ['Cancer_Other', 'Cancer_Mono'],
-                   'M1_Mac': ['CD68'],
-                   'M2_Mac': ['CD163'],
-                   'Mac_Other': ['CD68_CD163_DP'],
-                   'Monocyte': ['CD4_Mono', 'CD14'],
-                   'APC': ['CD11c_HLADR'],
-                   'B':  ['CD20'],
-                   'Endothelium': ['CD31', 'CD31_VIM'],
-                   'Fibroblast': ['FAP', 'FAP_SMA', 'SMA'],
-                   'Stroma': ['Stroma_Collagen', 'Stroma_Fibronectin', 'VIM'],
-                   'NK': ['CD56'],
-                   'Neutrophil': ['Neutrophil'],
-                   'Mast': ['Mast'],
-                   'CD4T': ['CD4T','CD4T_HLADR'],
-                   'CD8T': ['CD8T'],
-                   'Treg': ['Treg'],
-                   'T_Other': ['CD3_DN','CD4T_CD8T_DP'],
-                   'Immune_Other': ['Immune_Other'],
-                   'Other': ['Other']}
-
-# get a list of all cell types
-cell_types = np.concatenate([assignment_dict_meta[key] for key in assignment_dict_meta.keys()])
-cell_types.sort()
-
-meta_df_include = pd.DataFrame(index=cell_types, columns=broad_df.columns)
-
-for key in assignment_dict_meta.keys():
-    values = assignment_dict_meta[key]
-    meta_df_include.loc[values] = med_df_include.loc[key].values
-
-# check if assignment makes sense
-meta_df = filtered_func_df[filtered_func_df.metric == 'meta_cluster_freq']
-meta_df = meta_df[meta_df.subset == 'all']
-meta_df = meta_df[meta_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
-meta_df_agg = meta_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
-
-meta_df_agg.reset_index(inplace=True)
-meta_df = meta_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
-meta_df_bin = meta_df > mean_percent_positive
-
-# compare to see where assignments disagree
-new_includes = (meta_df_bin == True) & (meta_df_include == False)
-
-meta_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'meta_inclusion_matrix.csv'))
+# mean_percent_positive = 0.05
+# broad_df = filtered_func_df[filtered_func_df.metric == 'cluster_broad_freq']
+# broad_df = broad_df[broad_df.subset == 'all']
+# broad_df = broad_df[broad_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# broad_df_agg = broad_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+#
+# broad_df_agg = broad_df_agg.reset_index()
+# broad_df = broad_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
+# broad_df_include = broad_df > mean_percent_positive
+#
+# # include for all cells
+# general_markers = ['Ki67', 'HLA1', 'Vim', 'H3K9ac_H3K27me3_ratio']
+# broad_df_include[[general_markers]] = True
+#
+# # CD45 isoform ratios
+# double_pos = np.logical_and(broad_df_include['CD45RO'], broad_df_include['CD45RB'])
+# broad_df_include['CD45RO_CD45RB_ratio'] = double_pos
+#
+# # Cancer expression
+# broad_df_include.loc['Cancer', ['HLADR', 'CD57']] = True
+#
+# broad_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_broad.csv'))
+#
+# # apply thresholds to medium level clustering
+# assignment_dict_med = {'Cancer': ['Cancer', 'Cancer_EMT', 'Cancer_Other'],
+#                      'Mono_Mac': ['M1_Mac', 'M2_Mac', 'Mac_Other', 'Monocyte', 'APC'],
+#                      'B': ['B'],
+#                      'T': ['CD4T', 'CD8T', 'Treg', 'T_Other', 'Immune_Other'],
+#                      'Granulocyte': ['Neutrophil', 'Mast'],
+#                      'Stroma': ['Endothelium', 'Fibroblast', 'Stroma'],
+#                      'NK': ['NK'],
+#                      'Other': ['Other']}
+#
+# # get a list of all cell types
+# cell_types = np.concatenate([assignment_dict_med[key] for key in assignment_dict_med.keys()])
+# cell_types.sort()
+#
+# med_df_include = pd.DataFrame(index=cell_types, columns=broad_df.columns)
+#
+# for key in assignment_dict_med.keys():
+#     values = assignment_dict_med[key]
+#     med_df_include.loc[values] = broad_df_include.loc[key].values
+#
+# # check if assignment makes sense
+# med_df = filtered_func_df[filtered_func_df.metric == 'cluster_freq']
+# med_df = med_df[med_df.subset == 'all']
+# med_df = med_df[med_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# med_df_agg = med_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+#
+# med_df_agg.reset_index(inplace=True)
+# med_df = med_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
+# med_df_bin = med_df > mean_percent_positive
+#
+# # add CD38 signal
+# med_df_include.loc[['Endothelium', 'Immune_Other'], 'CD38'] = True
+#
+# # add IDO signal
+# med_df_include.loc[['APC'], 'IDO'] = True
+#
+# # compare to see where assignments disagree, to see if any others need to be added
+# new_includes = (med_df_bin == True) & (med_df_include == False)
+#
+# med_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_med.csv'))
+#
+# # do the same for the fine-grained clustering
+# assignment_dict_meta = {'Cancer': ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad'],
+#                    'Cancer_EMT': ['Cancer_SMA', 'Cancer_Vim'],
+#                    'Cancer_Other': ['Cancer_Other', 'Cancer_Mono'],
+#                    'M1_Mac': ['CD68'],
+#                    'M2_Mac': ['CD163'],
+#                    'Mac_Other': ['CD68_CD163_DP'],
+#                    'Monocyte': ['CD4_Mono', 'CD14'],
+#                    'APC': ['CD11c_HLADR'],
+#                    'B':  ['CD20'],
+#                    'Endothelium': ['CD31', 'CD31_VIM'],
+#                    'Fibroblast': ['FAP', 'FAP_SMA', 'SMA'],
+#                    'Stroma': ['Stroma_Collagen', 'Stroma_Fibronectin', 'VIM'],
+#                    'NK': ['CD56'],
+#                    'Neutrophil': ['Neutrophil'],
+#                    'Mast': ['Mast'],
+#                    'CD4T': ['CD4T','CD4T_HLADR'],
+#                    'CD8T': ['CD8T'],
+#                    'Treg': ['Treg'],
+#                    'T_Other': ['CD3_DN','CD4T_CD8T_DP'],
+#                    'Immune_Other': ['Immune_Other'],
+#                    'Other': ['Other']}
+#
+# # get a list of all cell types
+# cell_types = np.concatenate([assignment_dict_meta[key] for key in assignment_dict_meta.keys()])
+# cell_types.sort()
+#
+# meta_df_include = pd.DataFrame(index=cell_types, columns=broad_df.columns)
+#
+# for key in assignment_dict_meta.keys():
+#     values = assignment_dict_meta[key]
+#     meta_df_include.loc[values] = med_df_include.loc[key].values
+#
+# # check if assignment makes sense
+# meta_df = filtered_func_df[filtered_func_df.metric == 'meta_cluster_freq']
+# meta_df = meta_df[meta_df.subset == 'all']
+# meta_df = meta_df[meta_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# meta_df_agg = meta_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+#
+# meta_df_agg.reset_index(inplace=True)
+# meta_df = meta_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
+# meta_df_bin = meta_df > mean_percent_positive
+#
+# # compare to see where assignments disagree
+# new_includes = (meta_df_bin == True) & (meta_df_include == False)
+#
+# meta_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_meta.csv'))
 
 # process functional data so that only the specified cell type/marker combos are included
 
@@ -404,11 +407,119 @@ for filters in filtering:
         # append to list of dfs
         combo_dfs.append(func_df_cell)
 
+# do the same thing for double positive cells
+
+# # identify combinations of markers and cell types to include in analysis based on threshold
+# dp_markers = cell_table_func.columns.values
+# dp_markers = [x for x in dp_markers if '__' in x]
+# mean_percent_positive_dp = 0.05
+# broad_df_dp = filtered_func_df[filtered_func_df.metric == 'cluster_broad_freq']
+# broad_df_dp = broad_df_dp[broad_df_dp.subset == 'all']
+# broad_df_dp = broad_df_dp[broad_df_dp.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# broad_df_dp = broad_df_dp[broad_df_dp.functional_marker.isin(dp_markers)]
+# broad_df_dp_agg = broad_df_dp[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+#
+# broad_df_dp_agg = broad_df_dp_agg.reset_index()
+# broad_df_dp = broad_df_dp_agg.pivot(index='cell_type', columns='functional_marker', values='value')
+# broad_df_dp_include = broad_df_dp > mean_percent_positive_dp
+#
+# # # include Ki67 in combination with everything else
+# # general_markers = [x for x in dp_markers if 'Ki67' in x]
+# # broad_df_dp_include[[general_markers]] = True
+#
+# broad_df_dp_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_broad_dp.csv'))
+#
+# # do the same for medium-level clustering
+# med_df = filtered_func_df[filtered_func_df.metric == 'cluster_freq']
+# med_df = med_df[med_df.subset == 'all']
+# med_df = med_df[med_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# med_df = med_df[med_df.functional_marker.isin(dp_markers)]
+# med_df_agg = med_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+#
+# # create matrix of cell types and markers
+# med_df_agg = med_df_agg.reset_index()
+# med_df = med_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
+# med_df_include = med_df > mean_percent_positive_dp
+#
+# # # include Ki67 in combination with everything else
+# # med_df_include[[general_markers]] = True
+#
+# med_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_med_dp.csv'))
+#
+#
+# # do the same for finest-level clustering
+# meta_df = filtered_func_df[filtered_func_df.metric == 'meta_cluster_freq']
+# meta_df = meta_df[meta_df.subset == 'all']
+# meta_df = meta_df[meta_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# meta_df = meta_df[meta_df.functional_marker.isin(dp_markers)]
+# meta_df_agg = meta_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+#
+# # create matrix of cell types and markers
+# meta_df_agg = meta_df_agg.reset_index()
+# meta_df = meta_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
+# meta_df_include = meta_df > mean_percent_positive_dp
+#
+# # # include Ki67 in combination with everything else
+# # meta_df_include[[general_markers]] = True
+#
+# meta_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_meta_dp.csv'))
+
+# load inclusion matrices
+broad_df_include_dp = pd.read_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_broad_dp.csv'), index_col=0)
+med_df_include_dp = pd.read_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_med_dp.csv'), index_col=0)
+meta_df_include_dp = pd.read_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_meta_dp.csv'), index_col=0)
+
+# identify metrics and dfs that will be filtered
+filtering = [['cluster_broad_count', 'cluster_broad_freq', broad_df_include_dp],
+           ['cluster_count', 'cluster_freq', med_df_include_dp],
+           ['meta_cluster_count', 'meta_cluster_freq', meta_df_include_dp]]
+
+for filters in filtering:
+    # get variables
+    metric_names = filters[:2]
+    metric_df = filters[2]
+
+    # subset functional df to only include functional markers at this resolution
+    func_df = filtered_func_df[filtered_func_df.metric.isin(metric_names)]
+
+    # loop over each cell type, and get the corresponding markers
+    for cell_type in metric_df.index:
+        markers = metric_df.columns[metric_df.loc[cell_type] == True]
+
+        # subset functional df to only include this cell type
+        func_df_cell = func_df[func_df.cell_type == cell_type]
+
+        # subset functional df to only include markers for this cell type
+        func_df_cell = func_df_cell[func_df_cell.functional_marker.isin(markers)]
+
+        # append to list of dfs
+        combo_dfs.append(func_df_cell)
+
+
+# create manual df with total functional marker positivity across all cells in an image
+func_table_small = cell_table_func.loc[:, ~cell_table_func.columns.isin(['cell_cluster', 'cell_cluster_broad', 'cell_meta_cluster', 'label', 'tumor_region'])]
+func_table_small = func_table_small.loc[:, ~func_table_small.columns.isin(dp_markers)]
+
+# group by specified columns
+grouped_table = func_table_small.groupby('fov')
+transformed = grouped_table.agg(np.mean)
+transformed.reset_index(inplace=True)
+
+# reshape to long df
+long_df = pd.melt(transformed, id_vars=['fov'], var_name='functional_marker')
+long_df['metric'] = 'total_freq'
+long_df['cell_type'] = 'all'
+long_df['subset'] = 'all'
+
+long_df = long_df.merge(harmonized_metadata, on='fov', how='inner')
+
+# append to list of dfs
+combo_dfs.append(long_df)
+
 # combine
 combo_df = pd.concat(combo_dfs)
-
-combo_df.to_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'), index=False)
-
+#combo_df.to_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'), index=False)
+combo_df.to_csv(os.path.join('/Users/noahgreenwald/Downloads/functional_df_per_core_filtered.csv'), index=False)
 
 # create version aggregated by timepoint
 total_df_grouped_func = total_df_func.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric', 'subset'])
@@ -428,6 +539,75 @@ combo_df_timepoint_func = combo_df_timepoint_func.merge(harmonized_metadata.drop
 # save timepoint df
 combo_df_timepoint_func.to_csv(os.path.join(data_dir, 'functional_df_per_timepoint_filtered.csv'), index=False)
 
+
+#
+# Remove double positive functional markers that are highly correlated with single positive scores
+#
+
+dedup_dfs = []
+
+cluster_resolution = [['cluster_broad_freq', 'cluster_broad_count'],
+           ['cluster_freq', 'cluster_count'],
+           ['meta_cluster_freq', 'meta_cluster_count']]
+
+all_markers = combo_df.functional_marker.unique()
+dp_markers = [x for x in all_markers if '__' in x]
+
+for cluster in cluster_resolution:
+
+    # subset functional df to only include functional markers at this resolution
+    func_df = combo_df[combo_df.metric.isin(cluster)]
+
+    # add unique identifier for cell + marker combo
+    func_df['feature_name'] = func_df['cell_type'] + '__' + func_df['functional_marker']
+
+    # subset the df further to look at just frequency and just one compartment
+    func_df_subset = func_df[func_df.metric == cluster[0]]
+    func_df_subset = func_df_subset[func_df_subset.subset == 'all']
+
+    # loop over each cell type, and each double positive functional marker
+    exclude_markers = []
+    cell_types = func_df_subset.cell_type.unique()
+    for cell_type in cell_types:
+        for marker in dp_markers:
+            # get the two markers that make up the double positive marker
+            marker_1, marker_2 = marker.split('__')
+
+            # subset to only include this cell type and these markers
+            current_df = func_df_subset.loc[func_df_subset.cell_type == cell_type, :]
+            current_df = current_df.loc[current_df.functional_marker.isin([marker, marker_1, marker_2]), :]
+
+            # these markers are not present in this cell type
+            if len(current_df) == 0:
+                continue
+
+            # this double positive marker is not present in this cell type
+            if marker not in current_df.functional_marker.unique():
+                continue
+
+            current_df_wide = current_df.pivot(index='fov', columns='functional_marker', values='value')
+
+            # the double positive marker is present, but both single positives are not; exclude it
+            if len(current_df_wide.columns) != 3:
+                exclude_markers.append(marker)
+                continue
+
+            corr_1, _ = spearmanr(current_df_wide[marker_1].values, current_df_wide[marker].values)
+            corr_2, _ = spearmanr(current_df_wide[marker_2].values, current_df_wide[marker].values)
+
+            if (corr_1 > 0.8) | (corr_2 > 0.8):
+                exclude_markers.append(cell_type + '__' + marker)
+
+    # remove double positive markers that are highly correlated with single positive scores
+    func_df = func_df[~func_df.feature_name.isin(exclude_markers)]
+    dedup_dfs.append(func_df)
+
+deduped_df = pd.concat(dedup_dfs)
+deduped_df = deduped_df.drop('feature_name', axis=1)
+
+# save deduped df
+deduped_df.to_csv(os.path.join(data_dir, 'functional_df_per_core_filtered_deduped.csv'), index=False)
+deduped_df.to_csv(os.path.join('/Users/noahgreenwald/Downloads/functional_df_per_core_filtered_deduped.csv'), index=False)
 
 # # create histogram of number of cells per cluster per image
 # plot_df = total_df[total_df['metric'] == 'cluster_count']
