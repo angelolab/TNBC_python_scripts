@@ -133,16 +133,17 @@ plot_features = means_df_filtered.feature_name[-6:].values
 # sort by combined rank
 plot_features.sort_values(by='combined_rank', inplace=True)
 
-for i in range(len(plot_features))[10:]:
+for i in range(len(plot_features)):
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
 
-    #feature_name = plot_features.iloc[i].feature_name
-    feature_name = plot_features[i]
+    feature_name = plot_features.iloc[i].feature_name
+    #feature_name = plot_features[i]
     values = paired_df[(paired_df.feature_name == feature_name)].copy()
     values.dropna(inplace=True)
 
     #sns.scatterplot(data=values, x='normalized_value_fov1', y='normalized_value_fov2', ax=ax[0])
-    sns.scatterplot(data=values, x='raw_value_fov1', y='raw_value_fov2', ax=ax[0])
+    #sns.scatterplot(data=values, x='raw_value_fov1', y='raw_value_fov2', ax=ax[0])
+    sns.scatterplot(data=values, x='value_fov1', y='value_fov2', ax=ax[0])
     correlation, p_val = spearmanr(values.normalized_value_fov1, values.normalized_value_fov2)
     ax[0].set_xlabel('untransformed')
 

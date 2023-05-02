@@ -14,10 +14,14 @@ data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 # load datasets
 genomics_features = pd.read_csv(os.path.join(data_dir, 'genomics/2022-10-04_molecular_summary_table.txt'), sep='\t')
 genomics_features = genomics_features.rename(columns={'Individual.ID': 'Patient_ID', 'timepoint': 'Timepoint'})
-image_features = pd.read_csv(os.path.join(data_dir, 'timepoint_features_no_compartment.csv'))
-harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
-image_features = image_features.merge(harmonized_metadata[['Patient_ID', 'Timepoint', 'Tissue_ID']].drop_duplicates(), on=['Tissue_ID'], how='left')
+#image_features = pd.read_csv(os.path.join(data_dir, 'timepoint_features_no_compartment.csv'))
+image_features = pd.read_csv(os.path.join(data_dir, 'pca_data_df_grouped.csv'))
 
+harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
+#image_features = image_features.merge(harmonized_metadata[['Patient_ID', 'Timepoint', 'Tissue_ID']].drop_duplicates(), on=['Tissue_ID'], how='left')
+
+drop_idx = genomics_features['Experiment.System.ID'].isna()
+genomics_features = genomics_features[~drop_idx]
 genomics_features['subclonal_clonal_ratio'] = genomics_features['SUBCLONAL'] / genomics_features['CLONAL']
 
 binarize_muts = ['PIK3CA_SNV', 'TP53_SNV', 'PTEN_SNV', 'RB1_SNV']
@@ -25,19 +29,23 @@ binarize_muts = ['PIK3CA_SNV', 'TP53_SNV', 'PTEN_SNV', 'RB1_SNV']
 for mut in binarize_muts:
     genomics_features[mut + '_bin'] = (~genomics_features[mut].isna()).astype(int)
 
-# identify features to use for correlations
-genomics_include = ['purity', 'ploidy', 'fga', 'wgd', 'frac_loh', 'missense_count', 'IC10_rna', 'IC10_rna_cna', 'PAM50', 'IntClust', 'HBMR_norm', 'subclonal_clonal_ratio'] + [mut + '_bin' for mut in binarize_muts]
+# simplify categorical features
+#np.unique(genomics_features[cat_cols[4]].values, return_counts=True)
+keep_dict = {'IC10_rna': [4, 10], 'IC10_rna_cna': [4., 10.], 'PAM50': ['Basal', 'Her2'], 'IntClust': ['ic10', 'ic4']}
+
+for col in keep_dict.keys():
+    genomics_features[col + '_simplified'] = genomics_features[col].apply(lambda x: x if x in keep_dict[col] else 'Other')
 
 # convert categorical to categorical type
-cat_cols = ['wgd', 'IC10_rna', 'IC10_rna_cna', 'PAM50', 'IntClust']
+cat_cols = ['wgd', 'IC10_rna_simplified', 'IC10_rna_cna_simplified', 'PAM50_simplified', 'IntClust_simplified']
 
 for col in cat_cols:
     genomics_features[col] = genomics_features[col].astype('category')
 
-genomics_subset = genomics_features[['Patient_ID', 'Timepoint'] + genomics_include]
+# identify features to use for correlations
+genomics_include = ['purity', 'ploidy', 'fga', 'wgd', 'frac_loh', 'missense_count', 'IC10_rna_simplified', 'IC10_rna_cna_simplified', 'PAM50_simplified', 'IntClust_simplified', 'HBMR_norm', 'subclonal_clonal_ratio'] + [mut + '_bin' for mut in binarize_muts]
 
-drop_idx = genomics_subset.purity.isna()
-genomics_subset = genomics_subset[~drop_idx]
+genomics_subset = genomics_features[['Patient_ID', 'Timepoint'] + genomics_include]
 
 # preprocess data for primary timepoint
 image_features_primary = image_features[image_features.Timepoint == 'baseline']
@@ -49,15 +57,15 @@ image_features_primary = image_features_primary[image_features_primary.Patient_I
 
 genomics_feature_primary = pd.get_dummies(genomics_feature_primary, columns=cat_cols, drop_first=True)
 
-# check for columns with only a single value
-single_value_cols = []
-for col in genomics_feature_primary.columns:
-    if len(genomics_feature_primary[col].unique()) == 1:
-        single_value_cols.append(col)
+# # check for columns with only a single value
+# single_value_cols = []
+# for col in genomics_feature_primary.columns:
+#     if len(genomics_feature_primary[col].unique()) == 1:
+#         single_value_cols.append(col)
+#
+# genomics_feature_primary = genomics_feature_primary.drop(columns=single_value_cols)
 
-genomics_feature_primary = genomics_feature_primary.drop(columns=single_value_cols)
-
-image_features_wide = image_features_primary.pivot(index='Patient_ID', columns='feature_name_unique', values='raw_mean')
+image_features_wide = image_features_primary.pivot(index='Patient_ID', columns='feature_name', values='mean')
 image_features_wide = image_features_wide.reset_index()
 np.all(image_features_wide['Patient_ID'].values == genomics_feature_primary['Patient_ID'].values)
 
