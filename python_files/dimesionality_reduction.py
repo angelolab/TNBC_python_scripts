@@ -179,6 +179,44 @@ clustergrid.savefig(os.path.join(plot_dir, 'high_PC2_FOVs.png'), dpi=300)
 plt.close()
 
 
+# NMF clustering of features
+from sklearn.decomposition import NMF
+from sklearn.preprocessing import StandardScaler
+
+# replace Nans with mean
+data_wide_filled = data_wide.fillna(data_wide.mean())
+
+# scale data
+data_wide_filled = data_wide_filled.apply(lambda x: (x - np.min(x)) / (np.max(x) - np.min(x)), axis=0)
+
+# create NMF object
+nmf = NMF(n_components=10)
+
+# fit NMF
+nmf.fit(data_wide_filled)
+
+# transform data
+nmf_data = nmf.transform(data_wide_filled)
+
+nmf_data_df = pd.DataFrame(nmf_data, index=data_wide.index,
+                            columns=['PC1', 'PC2', 'PC3', 'PC4', 'PC5',
+                                        'PC6', 'PC7', 'PC8', 'PC9', 'PC10'])
+
+sns.clustermap(nmf_data_df, cmap='Reds', figsize=(20, 20), vmin=0, vmax=1)
+
+nmf_data_df = nmf_data_df.melt(value_vars=['PC1', 'PC2', 'PC3', 'PC4', 'PC5',
+                                        'PC6', 'PC7', 'PC8', 'PC9', 'PC10'],
+                                    var_name='feature_name', value_name='value', ignore_index=False).reset_index()
+nmf_data_df = nmf_data_df.merge(harmonized_metadata[['Tissue_ID', 'Patient_ID', 'Timepoint', 'fov']], on='fov', how='left')
+nmf_data_df.to_csv(os.path.join(data_dir, 'nmf_data_df.csv'), index=False)
+
+nmf_data_df_grouped = nmf_data_df.groupby(['Tissue_ID', 'feature_name', 'Timepoint', 'Patient_ID'])
+nmf_data_df_grouped = nmf_data_df_grouped['value'].agg([np.mean, np.std])
+nmf_data_df_grouped = nmf_data_df_grouped.reset_index()
+nmf_data_df_grouped.to_csv(os.path.join(data_dir, 'nmf_data_df_grouped.csv'), index=False)
+
+
+
 # look at correlation between selected subsets of features
 # plot correlations between features
 keep_cols = ['Cancer_CD56_meta_cluster_prop','Cancer_CK17_meta_cluster_prop',

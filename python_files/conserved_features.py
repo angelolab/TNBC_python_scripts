@@ -141,9 +141,9 @@ for i in range(len(plot_features)):
     values = paired_df[(paired_df.feature_name == feature_name)].copy()
     values.dropna(inplace=True)
 
-    #sns.scatterplot(data=values, x='normalized_value_fov1', y='normalized_value_fov2', ax=ax[0])
+    sns.scatterplot(data=values, x='normalized_value_fov1', y='normalized_value_fov2', ax=ax[0])
     #sns.scatterplot(data=values, x='raw_value_fov1', y='raw_value_fov2', ax=ax[0])
-    sns.scatterplot(data=values, x='value_fov1', y='value_fov2', ax=ax[0])
+    #sns.scatterplot(data=values, x='value_fov1', y='value_fov2', ax=ax[0])
     correlation, p_val = spearmanr(values.normalized_value_fov1, values.normalized_value_fov2)
     ax[0].set_xlabel('untransformed')
 
