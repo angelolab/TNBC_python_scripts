@@ -72,49 +72,32 @@ timepoint_metadata.loc[timepoint_metadata.Localization.isin(rare_sites), 'Locali
 # Identify patients with specific combinations of timepoints present
 #
 
-# find the patients with baseline and on-nivo timepoints from the same location
-timepoint_sums = timepoint_metadata.loc[timepoint_metadata.Timepoint.isin(['baseline', 'on_nivo']), :]
-timepoint_sums = timepoint_sums.loc[timepoint_sums.MIBI_data_generated, :]
-
-# get the number of entries in Location_studytissue that are equal to 'A' grouped by Patient_ID
-timepoint_sums = timepoint_sums.loc[:, ['Patient_ID', 'Location_studytissue']].groupby('Patient_ID').agg(lambda x: np.sum(x == 'A'))
-timepoint_sums.reset_index(inplace=True)
-timepoint_sums = timepoint_sums.loc[timepoint_sums.Location_studytissue == 2, :]
-
-# include only patients with 2 counts of studytissue 'A'
-subset_metadata = timepoint_metadata.loc[timepoint_metadata.Patient_ID.isin(timepoint_sums.Patient_ID), :]
-patient_metadata['baseline_on_nivo'] = patient_metadata.Patient_ID.isin(subset_metadata.Patient_ID.unique())
-
 # reshape data to allow for easy boolean comparisons
 subset_metadata = timepoint_metadata.loc[timepoint_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
 subset_metadata = subset_metadata.loc[subset_metadata.MIBI_data_generated, :]
 metadata_wide = pd.pivot(subset_metadata, index='Patient_ID', columns='Timepoint', values='Tissue_ID')
 
-# patients with both a primary and baseline sample
-primary_baseline = metadata_wide.index[np.logical_and(~metadata_wide.primary_untreated.isnull(),
-                                                      ~metadata_wide.baseline.isnull())]
-patient_metadata['primary_baseline'] = patient_metadata.Patient_ID.isin(primary_baseline)
+# add studytissue to primary tumors to identify patients with missing data
+subset_metadata.loc[subset_metadata.Timepoint == 'primary_untreated', 'Location_studytissue'] = 'A'
+metadata_wide = pd.pivot(subset_metadata, index='Patient_ID', columns='Timepoint', values='Location_studytissue')
 
-# This doesn't take into account tissue location: TBD what we do with this
-# # patients with both a baseline and induction sample
-# baseline_induction = metadata_wide.index[np.logical_and(~metadata_wide.baseline.isnull(),
-#                                                         ~metadata_wide.post_induction.isnull())]
-# patient_metadata['baseline_induction'] = patient_metadata.Study_ID.isin(baseline_induction)
-#
-# # patients with both a baseline and nivo sample
-# baseline_nivo = metadata_wide.index[np.logical_and(~metadata_wide.baseline.isnull(),
-#                                                         ~metadata_wide.on_nivo.isnull())]
-# patient_metadata['baseline_nivo'] = patient_metadata.Study_ID.isin(baseline_nivo)
-#
-# # patients with a baseline, induction, and nivo sample
-# baseline_induction_nivo = metadata_wide.index[np.logical_and(~metadata_wide.baseline.isnull(),
-#                                                              np.logical_and(~metadata_wide.post_induction.isnull(),
-#                                                                             ~metadata_wide.on_nivo.isnull()))]
-# patient_metadata['baseline_induction_nivo'] = patient_metadata.Study_ID.isin(baseline_induction_nivo)
+# primary baseline comparison requires any tissue present in either
+current_wide = metadata_wide.loc[:, ['primary_untreated', 'baseline']]
+current_wide = current_wide.dropna(axis=0)
 
-#
-# create harmonized metadata sheet that has all relevant information for analyses
-#
+patient_metadata['primary__baseline'] = patient_metadata.Patient_ID.isin(current_wide.index)
+
+# other comparisons require tissue from the same location
+comparison_pairs = [['baseline', 'post_induction'], ['baseline', 'on_nivo'], ['post_induction', 'on_nivo']]
+
+# loop through pairs, find patients with matching tissue, add to patient_metadata
+for pair in comparison_pairs:
+    current_wide = metadata_wide.loc[:, pair]
+    current_wide = current_wide.dropna(axis=0)
+    current_wide = current_wide.loc[current_wide[pair[0]] == current_wide[pair[1]], :]
+
+    patient_metadata['__'.join(pair)] = patient_metadata.Patient_ID.isin(current_wide.index)
+
 
 # handle NAs in Tissue_ID
 core_missing = core_metadata.Tissue_ID.isnull()
@@ -152,7 +135,7 @@ harmonized_metadata = pd.merge(harmonized_metadata, timepoint_metadata.loc[:, ['
 assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
 
 # select and merge relevant columns from patients
-harmonized_metadata = pd.merge(harmonized_metadata, patient_metadata.loc[:, ['Patient_ID', 'baseline_on_nivo', 'primary_baseline']], on='Patient_ID', how='inner')
+harmonized_metadata = pd.merge(harmonized_metadata, patient_metadata.loc[:, ['Patient_ID', 'primary__baseline', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']], on='Patient_ID', how='inner')
 assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
 
 # save harmonized metadata
