@@ -18,6 +18,11 @@ data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 cluster_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay'
 overlay_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/baseline_nivo_overlay'
 harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
+patient_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/TONIC_data_per_patient.csv'))
+patient_metadata = patient_metadata.loc[~patient_metadata.MIBI_evolution_set.isna(), :]
+patient_metadata['iRECIST_response'] = 'non-responders'
+patient_metadata.loc[(patient_metadata.BOR_iRECIST.isin(['iCR', 'iPR', 'iSD'])), 'iRECIST_response'] = 'responders'
+
 
 #patients = harmonized_metadata.loc[harmonized_metadata.primary_baseline == True, 'TONIC_ID'].unique()
 patients = harmonized_metadata.loc[harmonized_metadata.baseline_on_nivo == True, 'TONIC_ID'].unique()
@@ -182,7 +187,8 @@ plt.close()
 
 # generate heatmap and volcano plot with differences between timepoints
 timepoint_features = pd.read_csv(os.path.join(data_dir, 'timepoint_features_no_compartment.csv'))
-timepoint_features = timepoint_features.merge(harmonized_metadata[['Tissue_ID', 'Timepoint', 'Localization', 'primary_baseline', 'Patient_ID']].drop_duplicates(), on='Tissue_ID', how='left')
+timepoint_features = timepoint_features.merge(harmonized_metadata[['Tissue_ID', 'Timepoint', 'Localization', 'Patient_ID']].drop_duplicates(), on='Tissue_ID', how='left')
+timepoint_features = timepoint_features.merge(patient_metadata[['Patient_ID', 'iRECIST_response']].drop_duplicates(), on='Patient_ID', how='left')
 
 fov_features = pd.read_csv(os.path.join(data_dir, 'fov_features_no_compartment.csv'))
 fov_features = fov_features.merge(harmonized_metadata[['Tissue_ID', 'Timepoint', 'Localization', 'primary_baseline', 'Patient_ID']].drop_duplicates(), on='Tissue_ID', how='left')
@@ -292,6 +298,126 @@ def compute_paired_timepoint_enrichment(feature_df, timepoint_1_name, timepoint_
     return means_df
 
 
+
+def compare_timepoints(feature_df, timepoint_1_name, timepoint_1_list, timepoint_2_name,
+                       timepoint_2_list, paired=None, feature_suff='mean'):
+    """Compute enrichment of a feature between two timepoints.
+
+    Args:
+        feature_df (pd.DataFrame): dataframe containing features
+        timepoint_1 (list): list of timepoints to compare to timepoint_2
+        timepoint_2 (list): list of timepoints to compare to timepoint_1
+    """
+    # get unique features
+    features = feature_df.feature_name.unique()
+
+    feature_names = []
+    timepoint_1_means = []
+    timepoint_1_norm_means = []
+    timepoint_2_means = []
+    timepoint_2_norm_means = []
+    log_pvals = []
+
+    analysis_df = feature_df.loc[(feature_df.Timepoint.isin(timepoint_1_list + timepoint_2_list)), :]
+
+    # subset to only include paired samples
+    if paired is not None:
+        analysis_df = analysis_df.loc[analysis_df[paired], :]
+
+    for feature_name in features:
+        values = analysis_df.loc[(analysis_df.feature_name == feature_name), :]
+
+        # only keep samples with both timepoints
+        if paired is not None:
+            values_norm = values.pivot(index='Patient_ID', columns='Timepoint',
+                                       values='normalized_mean')
+            values_raw = values.pivot(index='Patient_ID', columns='Timepoint', values='raw_mean')
+            values_norm = values_norm.dropna()
+            values_raw = values_raw.dropna()
+            tp_1_vals = values_raw[timepoint_1_name].values
+            tp_1_norm_vals = values_norm[timepoint_1_name].values
+            tp_2_vals = values_raw[timepoint_2_name].values
+            tp_2_norm_vals = values_norm[timepoint_2_name].values
+        else:
+            tp_1_vals = values.loc[
+                values.Timepoint.isin(timepoint_1_list), 'raw_' + feature_suff].values
+            tp_1_norm_vals = values.loc[
+                values.Timepoint.isin(timepoint_1_list), 'normalized_' + feature_suff].values
+            tp_2_vals = values.loc[
+                values.Timepoint.isin(timepoint_2_list), 'raw_' + feature_suff].values
+            tp_2_norm_vals = values.loc[
+                values.Timepoint.isin(timepoint_2_list), 'normalized_' + feature_suff].values
+        timepoint_1_means.append(tp_1_vals.mean())
+        timepoint_1_norm_means.append(tp_1_norm_vals.mean())
+        timepoint_2_means.append(tp_2_vals.mean())
+        timepoint_2_norm_means.append(tp_2_norm_vals.mean())
+
+        # compute t-test for difference between timepoints
+        if paired is not None:
+            t, p = ttest_rel(tp_1_norm_vals, tp_2_norm_vals)
+        else:
+            t, p = ttest_ind(tp_1_norm_vals, tp_2_norm_vals)
+
+        log_pvals.append(-np.log10(p))
+
+    means_df = pd.DataFrame({timepoint_1_name + '_mean': timepoint_1_means,
+                             timepoint_2_name + '_mean': timepoint_2_means,
+                             timepoint_1_name + '_norm_mean': timepoint_1_norm_means,
+                             timepoint_2_name + '_norm_mean': timepoint_2_norm_means,
+                             'log_pval': log_pvals}, index=features)
+    # calculate difference
+    means_df['mean_diff'] = means_df[timepoint_1_name + '_norm_mean'].values - means_df[timepoint_2_name + '_norm_mean'].values
+    means_df = means_df.reset_index().rename(columns={'index': 'feature_name'})
+
+    return means_df
+
+
+def compare_populations(feature_df, pop_col, pop_1, pop_2, timepoints, feature_suff='mean'):
+    """Compute enrichment of a feature between two timepoints.
+
+    Args:
+        feature_df (pd.DataFrame): dataframe containing features
+
+    """
+    # get unique features
+    features = feature_df.feature_name.unique()
+
+    feature_names = []
+    pop_1_means = []
+    pop_1_norm_means = []
+    pop_2_means = []
+    pop_2_norm_means = []
+    log_pvals = []
+
+    analysis_df = feature_df.loc[(feature_df.Timepoint.isin(timepoints)), :]
+
+    for feature_name in features:
+        values = analysis_df.loc[(analysis_df.feature_name == feature_name), :]
+        pop_1_vals = values.loc[values[pop_col] == pop_1, 'raw_' + feature_suff].values
+        pop_1_norm_vals = values.loc[values[pop_col] == pop_1, 'normalized_' + feature_suff].values
+        pop_2_vals = values.loc[values[pop_col] == pop_2, 'raw_' + feature_suff].values
+        pop_2_norm_vals = values.loc[values[pop_col] == pop_2, 'normalized_' + feature_suff].values
+        pop_1_means.append(pop_1_vals.mean())
+        pop_1_norm_means.append(pop_1_norm_vals.mean())
+        pop_2_means.append(pop_2_vals.mean())
+        pop_2_norm_means.append(pop_2_norm_vals.mean())
+
+        # compute t-test for difference between timepoints
+        t, p = ttest_ind(pop_1_norm_vals, pop_2_norm_vals)
+        log_pvals.append(-np.log10(p))
+
+    means_df = pd.DataFrame({pop_1 + '_mean': pop_1_means,
+                             pop_2 + '_mean': pop_2_means,
+                             pop_1 + '_norm_mean': pop_1_norm_means,
+                             pop_2 + '_norm_mean': pop_2_norm_means,
+                             'log_pval': log_pvals}, index=features)
+    # calculate difference
+    means_df['mean_diff'] = means_df[pop_1 + '_norm_mean'].values - means_df[pop_2 + '_norm_mean'].values
+    means_df = means_df.reset_index().rename(columns={'index': 'feature_name'})
+
+    return means_df
+
+
 all_dfs = []
 for name in ['all', 'ln_met', 'other_met']:
     if name == 'all':
@@ -339,6 +465,15 @@ means_df_paired = compute_paired_timepoint_enrichment(feature_df=timepoint_featu
                                                       timepoint_1_name='primary_untreated',
                                                         timepoint_2_name='baseline',
                                                         paired_name='primary_baseline')
+
+
+means_df_unpaired = compute_timepoint_enrichment(feature_df=timepoint_features, timepoint_1_name='primary_untreated',
+                                            timepoint_1_list=['primary_untreated'], timepoint_2_name='baseline_met',
+                                            timepoint_2_list=['baseline'])
+
+
+
+
 means_df_paired['comparison'] = 'paired'
 means_df_paired = means_df_paired.reset_index().rename(columns={'index': 'feature_name'})
 means_df['comparison'] = 'unpaired'
@@ -382,3 +517,126 @@ for idx, feature in enumerate(means_df_filtered.feature_name[-6:]):
     g.fig.suptitle(feature)
     g.savefig(os.path.join(plot_dir, 'primary_baseline_{}_{}.png'.format(idx, feature)))
     plt.close()
+
+
+# look at nivo response
+means_df = compute_timepoint_enrichment(feature_df=timepoint_features, timepoint_1_name='baseline',
+                                            timepoint_1_list=['baseline'], timepoint_2_name='nivo',
+                                            timepoint_2_list=['on_nivo'])
+
+def summarize_timepoint_enrichment(input_df, feature_df, timepoints, output_dir, pval_thresh=2, diff_thresh=0.3):
+    """Generate a summary of the timepoint enrichment results"""
+
+    input_df_filtered = input_df.loc[(input_df.log_pval > pval_thresh) & (np.abs(input_df.mean_diff) > diff_thresh), :]
+
+    input_df_filtered = input_df_filtered.sort_values('mean_diff', ascending=False)
+
+    # plot the results
+    for idx, feature in enumerate(input_df_filtered.feature_name):
+        feature_subset = feature_df.loc[(feature_df.feature_name == feature), :]
+        feature_subset = feature_subset.loc[(feature_subset.Timepoint.isin(timepoints)), :]
+
+        g = sns.catplot(data=feature_subset, x='Timepoint', y='raw_mean', kind='strip')
+        g.fig.suptitle(feature)
+        g.savefig(os.path.join(output_dir, 'Evolution_{}_{}.png'.format(idx, feature)))
+        plt.close()
+
+
+def summarize_population_enrichment(input_df, feature_df, timepoints, pop_col, output_dir, pval_thresh=2, diff_thresh=0.3):
+    """Generate a summary of the timepoint enrichment results"""
+
+    input_df_filtered = input_df.loc[(input_df.log_pval > pval_thresh) & (np.abs(input_df.mean_diff) > diff_thresh), :]
+
+    input_df_filtered = input_df_filtered.sort_values('mean_diff', ascending=False)
+
+    # plot the results
+    for idx, feature in enumerate(input_df_filtered.feature_name):
+        feature_subset = feature_df.loc[(feature_df.feature_name == feature), :]
+        feature_subset = feature_subset.loc[(feature_subset.Timepoint.isin(timepoints)), :]
+
+        g = sns.catplot(data=feature_subset, x=pop_col, y='raw_value', kind='strip')
+        g.fig.suptitle(feature)
+        g.savefig(os.path.join(output_dir, 'Evolution_{}_{}.png'.format(idx, feature)))
+        plt.close()
+
+    sns.catplot(data=input_df_filtered, x='mean_diff', y='feature_name', kind='bar', color='grey')
+    plt.savefig(os.path.join(output_dir, 'Evolution_summary.png'))
+    plt.close()
+
+
+summarize_timepoint_enrichment(input_df=means_df, feature_df=timepoint_features, timepoints=['baseline', 'on_nivo'],
+                                 pval_thresh=2, diff_thresh=0.3, output_dir=plot_dir + '/baseline_nivo_evolution')
+
+
+
+responder_change_df = compute_timepoint_enrichment(feature_df=timepoint_features.loc[timepoint_features.Patient_ID.isin(responders), :], timepoint_1_name='baseline',
+                                            timepoint_1_list=['baseline'], timepoint_2_name='nivo',
+                                            timepoint_2_list=['on_nivo'])
+
+summarize_timepoint_enrichment(input_df=responder_change_df, feature_df=timepoint_features.loc[timepoint_features.Patient_ID.isin(responders), :], timepoints=['baseline', 'on_nivo'],
+                                    pval_thresh=2, diff_thresh=0.3, output_dir=plot_dir + '/baseline_nivo_evolution_responders')
+
+# loop over different populations
+pop_df_means = pd.DataFrame({'feature_name': timepoint_features.feature_name.unique()})
+keep_rows = []
+for population in ['primary_untreated', 'baseline', 'post_induction', 'on_nivo']:
+    population_df = compare_populations(feature_df=timepoint_features, pop_col='iRECIST_response', timepoints=[population],
+                                        pop_1='responders', pop_2='non-responders')
+    pval_thresh = 2
+    diff_thresh = 0.3
+    population_df_filtered = population_df.loc[(population_df.log_pval > pval_thresh) & (np.abs(population_df.mean_diff) > diff_thresh), :]
+    keep_rows.extend(population_df_filtered.feature_name.tolist())
+
+    # current_plot_dir = os.path.join(plot_dir, 'new_{}_responders_nonresponders'.format(population))
+    # if not os.path.exists(current_plot_dir):
+    #     os.makedirs(current_plot_dir)
+    # summarize_population_enrichment(input_df=population_df, feature_df=timepoint_features, timepoints=[population],
+    #                                 pop_col='iRECIST_response', output_dir=current_plot_dir)
+
+    population_df = population_df.rename(columns={'mean_diff': (population)})
+    pop_df_means = pop_df_means.merge(population_df.loc[:, ['feature_name', population]], on='feature_name', how='left')
+
+pop_df_means = pop_df_means.loc[pop_df_means.feature_name.isin(keep_rows), :]
+pop_df_means = pop_df_means.set_index('feature_name')
+pop_df_means = pop_df_means.fillna(0)
+
+# make clustermap 20 x 10
+g = sns.clustermap(pop_df_means, cmap='RdBu_r', vmin=-2, vmax=2)
+plt.savefig(os.path.join(plot_dir, 'clustermap_responders_nonresponders.png'))
+plt.close()
+
+
+# look at evolution
+
+evolution_df = pd.read_csv(os.path.join(data_dir, 'evolution/evolution_df.csv'))
+evolution_df = evolution_df.merge(harmonized_metadata[['Timepoint', 'Localization', 'Patient_ID']].drop_duplicates(), on='Patient_ID', how='left')
+evolution_df = evolution_df.merge(patient_metadata[['Patient_ID', 'iRECIST_response']].drop_duplicates(), on='Patient_ID', how='left')
+
+for comparison in ['primary__baseline', 'baseline__post_induction',
+       'baseline__on_nivo', 'post_induction__on_nivo']:
+    pop_1, pop_2 = comparison.split('__')
+    if pop_1 == 'primary':
+        pop_1 = 'primary_untreated'
+
+    # subset to the comparison
+    input_df = evolution_df.loc[evolution_df.comparison == comparison, :]
+    input_df = input_df.loc[input_df.Timepoint.isin([pop_1, pop_2]), :]
+
+
+    population_df = compare_populations(feature_df=input_df, pop_col='iRECIST_response', timepoints=[pop_1, pop_2],
+                                            pop_1='responders', pop_2='non-responders', feature_suff='value')
+
+    current_plot_dir = os.path.join(plot_dir, 'evolution_{}_responders_nonresponders'.format(comparison))
+    if not os.path.exists(current_plot_dir):
+        os.makedirs(current_plot_dir)
+    summarize_population_enrichment(input_df=population_df, feature_df=input_df, timepoints=[pop_1, pop_2],
+                                    pop_col='iRECIST_response', output_dir=current_plot_dir)
+
+
+# plot evolution of features
+example_df = pd.DataFrame({'timepoint': ['baseline', 'baseline', 'baseline', 'nivo', 'nivo', 'nivo'],
+                           'value': [0.1, 0.2, 0.3, 0.2, 0.3, 0.4],
+                           'patient': ['A', 'B', 'C', 'A', 'B', 'C']})
+
+# create connected dotplot between timepoints by patient
+sns.lineplot(data=example_df, x='timepoint', y='value', units='patient', estimator=None, color='grey', alpha=0.5, marker='o')
