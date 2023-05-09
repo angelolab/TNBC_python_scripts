@@ -532,8 +532,7 @@ combo_dfs.append(long_df)
 
 # combine
 combo_df = pd.concat(combo_dfs)
-#combo_df.to_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'), index=False)
-combo_df.to_csv(os.path.join('/Users/noahgreenwald/Downloads/functional_df_per_core_filtered.csv'), index=False)
+combo_df.to_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'), index=False)
 
 # create version of filtered df aggregated by timepoint
 combo_df_grouped_func = combo_df.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric', 'subset'])
@@ -600,19 +599,19 @@ for cluster in cluster_resolution:
             corr_1, _ = spearmanr(current_df_wide[marker_1].values, current_df_wide[marker].values)
             corr_2, _ = spearmanr(current_df_wide[marker_2].values, current_df_wide[marker].values)
 
-            if (corr_1 > 0.8) | (corr_2 > 0.8):
+            if (corr_1 > 0.7) | (corr_2 > 0.7):
                 exclude_markers.append(cell_type + '__' + marker)
 
     # remove double positive markers that are highly correlated with single positive scores
     func_df = func_df[~func_df.feature_name.isin(exclude_markers)]
     dedup_dfs.append(func_df)
 
+dedup_dfs.append(long_df)
 deduped_df = pd.concat(dedup_dfs)
 deduped_df = deduped_df.drop('feature_name', axis=1)
 
 # save deduped df
 deduped_df.to_csv(os.path.join(data_dir, 'functional_df_per_core_filtered_deduped.csv'), index=False)
-deduped_df.to_csv(os.path.join('/Users/noahgreenwald/Downloads/functional_df_per_core_filtered_deduped.csv'), index=False)
 
 # create version aggregated by timepoint
 deduped_df_grouped = deduped_df.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric', 'subset'])

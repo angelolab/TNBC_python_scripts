@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from scipy.stats import spearmanr
+
 
 local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
@@ -14,7 +16,7 @@ data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 # load datasets
 cluster_df_core = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
 metadata_df_core = pd.read_csv(os.path.join(data_dir, 'metadata/TONIC_data_per_core.csv'))
-functional_df_core = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'))
+functional_df_core = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core_filtered_deduped.csv'))
 harmonized_metadata_df = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
 compartment_area = pd.read_csv(os.path.join(data_dir, 'post_processing/fov_annotation_mask_area.csv'))
 mixing_df = pd.read_csv(os.path.join(data_dir, 'spatial_analysis/mixing_score/mixing_df.csv'))
@@ -375,13 +377,23 @@ for feature_name in feature_names:
 
     for compartment in compartments:
         corr, _ = spearmanr(fov_data_wide['all'].values, fov_data_wide[compartment].values, nan_policy='omit')
-        print(feature_name, compartment, corr)
-        if corr > 0.8:
+        if corr > 0.7:
             exclude_list.append(feature_name + '__' + compartment)
 
 
-
 fov_data_df_filtered = fov_data_df.loc[~fov_data_df.feature_name_unique.isin(exclude_list), :]
+fov_data_df_filtered.to_csv(os.path.join(data_dir, 'fov_features_filtered.csv'), index=False)
+
+# group by timepoint
+grouped = fov_data_df_filtered.groupby(['Tissue_ID', 'feature_name', 'feature_name_unique', 'compartment', 'cell_pop',
+                                 'cell_pop_level', 'feature_type']).agg({'raw_value': ['mean', 'std'],
+                                                                            'normalized_value': ['mean', 'std']})
+
+grouped.columns = ['raw_mean', 'raw_std', 'normalized_mean', 'normalized_std']
+grouped = grouped.reset_index()
+
+grouped.to_csv(os.path.join(data_dir, 'timepoint_features_filtered.csv'), index=False)
+
 
 ## plot correlations once excluded features removed
 fov_data_wide = fov_data_df_filtered.pivot(index='fov', columns='feature_name_unique', values='normalized_value')
@@ -400,7 +412,9 @@ plt.close()
 # get names of features from clustergrid
 feature_names = clustergrid.data2d.columns
 
-clustergrid_small = sns.clustermap(corr_df.loc[feature_names[240:280], feature_names[240:280]], cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+start_idx = 680
+end_idx = 720
+clustergrid_small = sns.clustermap(corr_df.loc[feature_names[start_idx:end_idx], feature_names[start_idx:end_idx]], cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
 clustergrid_small.savefig(os.path.join(plot_dir, 'spearman_correlation_dp_functional_markers_clustermap_small_3.png'), dpi=300)
 plt.close()
 
