@@ -587,11 +587,11 @@ for population in ['primary_untreated', 'baseline', 'post_induction', 'on_nivo']
     population_df_filtered = population_df.loc[(population_df.log_pval > pval_thresh) & (np.abs(population_df.mean_diff) > diff_thresh), :]
     keep_rows.extend(population_df_filtered.feature_name.tolist())
 
-    # current_plot_dir = os.path.join(plot_dir, 'new_{}_responders_nonresponders'.format(population))
-    # if not os.path.exists(current_plot_dir):
-    #     os.makedirs(current_plot_dir)
-    # summarize_population_enrichment(input_df=population_df, feature_df=timepoint_features, timepoints=[population],
-    #                                 pop_col='iRECIST_response', output_dir=current_plot_dir)
+    current_plot_dir = os.path.join(plot_dir, 'new_{}_responders_nonresponders'.format(population))
+    if not os.path.exists(current_plot_dir):
+        os.makedirs(current_plot_dir)
+    summarize_population_enrichment(input_df=population_df, feature_df=timepoint_features, timepoints=[population],
+                                    pop_col='iRECIST_response', output_dir=current_plot_dir)
 
     population_df = population_df.rename(columns={'mean_diff': (population)})
     pop_df_means = pop_df_means.merge(population_df.loc[:, ['feature_name', population]], on='feature_name', how='left')
@@ -609,9 +609,10 @@ plt.close()
 # look at evolution
 
 evolution_df = pd.read_csv(os.path.join(data_dir, 'evolution/evolution_df.csv'))
-evolution_df = evolution_df.merge(harmonized_metadata[['Timepoint', 'Localization', 'Patient_ID']].drop_duplicates(), on='Patient_ID', how='left')
 evolution_df = evolution_df.merge(patient_metadata[['Patient_ID', 'iRECIST_response']].drop_duplicates(), on='Patient_ID', how='left')
 
+change_df_means = pd.DataFrame({'feature_name': evolution_df.feature_name.unique()})
+keep_rows = []
 for comparison in ['primary__baseline', 'baseline__post_induction',
        'baseline__on_nivo', 'post_induction__on_nivo']:
     pop_1, pop_2 = comparison.split('__')
@@ -620,11 +621,15 @@ for comparison in ['primary__baseline', 'baseline__post_induction',
 
     # subset to the comparison
     input_df = evolution_df.loc[evolution_df.comparison == comparison, :]
-    input_df = input_df.loc[input_df.Timepoint.isin([pop_1, pop_2]), :]
-
+    input_df['Timepoint'] = pop_1
 
     population_df = compare_populations(feature_df=input_df, pop_col='iRECIST_response', timepoints=[pop_1, pop_2],
                                             pop_1='responders', pop_2='non-responders', feature_suff='value')
+
+    pval_thresh = 2
+    diff_thresh = 0.3
+    population_df_filtered = population_df.loc[(population_df.log_pval > pval_thresh) & (np.abs(population_df.mean_diff) > diff_thresh), :]
+    keep_rows.extend(population_df_filtered.feature_name.tolist())
 
     current_plot_dir = os.path.join(plot_dir, 'evolution_{}_responders_nonresponders'.format(comparison))
     if not os.path.exists(current_plot_dir):
@@ -632,11 +637,50 @@ for comparison in ['primary__baseline', 'baseline__post_induction',
     summarize_population_enrichment(input_df=population_df, feature_df=input_df, timepoints=[pop_1, pop_2],
                                     pop_col='iRECIST_response', output_dir=current_plot_dir)
 
+    population_df = population_df.rename(columns={'mean_diff': (comparison)})
+    change_df_means = change_df_means.merge(population_df.loc[:, ['feature_name', comparison]], on='feature_name', how='left')
 
-# plot evolution of features
-example_df = pd.DataFrame({'timepoint': ['baseline', 'baseline', 'baseline', 'nivo', 'nivo', 'nivo'],
-                           'value': [0.1, 0.2, 0.3, 0.2, 0.3, 0.4],
-                           'patient': ['A', 'B', 'C', 'A', 'B', 'C']})
+
+change_df_means = change_df_means.loc[change_df_means.feature_name.isin(keep_rows), :]
+change_df_means = change_df_means.set_index('feature_name')
+change_df_means = change_df_means.fillna(0)
+
+# make clustermap 20 x 10
+g = sns.clustermap(change_df_means, cmap='RdBu_r', vmin=-2, vmax=2)
+
 
 # create connected dotplot between timepoints by patient
-sns.lineplot(data=example_df, x='timepoint', y='value', units='patient', estimator=None, color='grey', alpha=0.5, marker='o')
+feature_name = 'Ki67+__CD4T'
+timepoint_1 = 'baseline'
+timepoint_2 = 'on_nivo'
+timepoint_3 = 'on_nivo'
+
+pats = harmonized_metadata.loc[harmonized_metadata.baseline__on_nivo, 'Patient_ID'].unique().tolist()
+#pats2 = harmonized_metadata.loc[harmonized_metadata.baseline__on_nivo, 'Patient_ID'].unique().tolist()
+#pats = list(set(pats) & set(pats2))
+
+plot_df = timepoint_features.loc[(timepoint_features.feature_name == feature_name) &
+                                    (timepoint_features.Timepoint.isin([timepoint_1, timepoint_2, timepoint_3]) &
+                                     timepoint_features.Patient_ID.isin(pats)), :]
+plot_df_1 = plot_df.loc[plot_df.iRECIST_response != 'responders', :]
+plot_df_2 = plot_df.loc[plot_df.iRECIST_response == 'responders', :]
+fig, ax = plt.subplots(1, 3, figsize=(15, 10))
+sns.lineplot(data=plot_df_1, x='Timepoint', y='raw_mean', units='Patient_ID', estimator=None, color='grey', alpha=0.5, marker='o', ax=ax[0])
+sns.lineplot(data=plot_df_2, x='Timepoint', y='raw_mean', units='Patient_ID', estimator=None, color='grey', alpha=0.5, marker='o', ax=ax[1])
+sns.lineplot(data=plot_df, x='Timepoint', y='raw_mean', units='Patient_ID',  hue='iRECIST_response', estimator=None, alpha=0.5, marker='o', ax=ax[2])
+
+# add responder and non-responder titles
+ax[0].set_title('non-responders')
+ax[1].set_title('responders')
+ax[2].set_title('combined')
+
+
+
+test = evolution_df.loc[(evolution_df.feature_name == feature_name) &
+                        (evolution_df.comparison == timepoint_1 + '__' + timepoint_2), :]
+
+test_2 = test.loc[test.iRECIST_response == 'responders', :]
+
+plot_df_missing = timepoint_features.loc[(timepoint_features.feature_name == feature_name) &
+                                         (timepoint_features.Timepoint.isin([timepoint_1, timepoint_2, timepoint_3])) &
+                                         (timepoint_features.Patient_ID == 75), :]

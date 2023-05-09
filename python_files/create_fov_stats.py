@@ -55,8 +55,8 @@ diversity_features = [['cluster_broad_freq', 'cluster_broad_diversity'],
 
 for cluster_name, feature_name in diversity_features:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
-    #for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-    for compartment in ['all']:
+    for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+    #for compartment in ['all']:
         compartment_df = input_df[input_df.subset == compartment].copy()
         wide_df = pd.pivot(compartment_df, index='fov', columns=['cell_type'], values='value')
         wide_df['value'] = wide_df.apply(shannon_diversity, axis=1)
@@ -86,8 +86,8 @@ abundance_features = [['cluster_density', 'cluster_density', 'med'],
                       ['total_cell_density', 'total_density', 'broad']]
 for cluster_name, feature_name, cell_pop_level in abundance_features:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
-    #for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-    for compartment in ['all']:
+    for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+    #for compartment in ['all']:
         compartment_df = input_df[input_df.subset == compartment].copy()
         compartment_df['feature_name'] = compartment_df.cell_type + '__' + feature_name
         compartment_df['feature_name_unique'] = compartment_df.cell_type + '__' + feature_name + '__' + compartment
@@ -105,8 +105,8 @@ for cluster_name, feature_name, cell_pop_level in abundance_features:
 
 # compute ratio of broad cell type abundances
 input_df = cluster_df_core[cluster_df_core['metric'].isin(['cluster_broad_density'])]
-# for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-for compartment in ['all']:
+for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+#for compartment in ['all']:
     compartment_df = input_df[input_df.subset == compartment].copy()
     cell_types = compartment_df.cell_type.unique()
     for cell_type1, cell_type2 in itertools.combinations(cell_types, 2):
@@ -141,8 +141,8 @@ for compartment in ['all']:
 # compute ratio of specific cell type abundances
 cell_ratios = [('CD4T', 'CD8T'), ('CD4T', 'Treg'), ('CD8T', 'Treg'), ('M1_Mac', 'M2_Mac')]
 input_df = cluster_df_core[cluster_df_core.metric == 'cluster_density'].copy()
-# for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-for compartment in ['all']:
+for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+#for compartment in ['all']:
     compartment_df = input_df[input_df.subset == compartment].copy()
     for cell_type1, cell_type2 in cell_ratios:
         cell_type1_df = compartment_df[compartment_df.cell_type == cell_type1].copy()
@@ -180,7 +180,8 @@ cell_groups = {'Cancer': ['Cancer', 'Cancer_EMT', 'Cancer_Other'],
                'Stroma': ['Fibroblast', 'Stroma']}
 
 input_df = cluster_df_core[cluster_df_core.metric == 'cluster_density'].copy()
-for compartment in ['all']:
+for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+#for compartment in ['all']:
     compartment_df = input_df[input_df.subset == compartment].copy()
     for broad_cell_type, cell_types in cell_groups.items():
         # get the total for all cell types
@@ -208,8 +209,8 @@ functional_features = [['cluster_freq', 'med'],
                        ['total_freq', 'broad']]
 for functional_name, cell_pop_level in functional_features:
     input_df = functional_df_core[functional_df_core['metric'].isin([functional_name])]
-    #for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-    for compartment in ['all']:
+    for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+    #for compartment in ['all']:
         compartment_df = input_df[input_df.subset == compartment].copy()
         compartment_df['feature_name'] = compartment_df.functional_marker + '+__' + compartment_df.cell_type
         compartment_df['feature_name_unique'] = compartment_df.functional_marker + '+__' + compartment_df.cell_type + '__' + compartment
@@ -322,7 +323,7 @@ fov_data_df = pd.merge(fov_data_df, harmonized_metadata_df[['Tissue_ID', 'fov']]
 fov_data_df = fov_data_df[['Tissue_ID', 'fov', 'raw_value', 'normalized_value', 'feature_name', 'feature_name_unique',
                             'compartment', 'cell_pop', 'cell_pop_level', 'feature_type']]
 
-fov_data_df.to_csv(os.path.join(data_dir, 'fov_features_no_compartment.csv'), index=False)
+fov_data_df.to_csv(os.path.join(data_dir, 'fov_features.csv'), index=False)
 
 
 # create timepoint-level stats file
@@ -332,4 +333,76 @@ grouped = fov_data_df.groupby(['Tissue_ID', 'feature_name', 'feature_name_unique
 grouped.columns = ['raw_mean', 'raw_std', 'normalized_mean', 'normalized_std']
 grouped = grouped.reset_index()
 
-grouped.to_csv(os.path.join(data_dir, 'timepoint_features_no_compartment.csv'), index=False)
+grouped.to_csv(os.path.join(data_dir, 'timepoint_features.csv'), index=False)
+
+#
+# filter FOV features based on correlation in compartments
+#
+
+fov_data_df = pd.read_csv(os.path.join(data_dir, 'fov_features.csv'))
+
+# filter out features that are highly correlated in compartments
+feature_names = fov_data_df.feature_name.unique()
+exclude_list = []
+
+# set minimum number of FOVs for compartment feature
+min_fovs = 30
+
+for feature_name in feature_names:
+    fov_data_feature = fov_data_df.loc[fov_data_df.feature_name == feature_name, :]
+
+    # get the compartments present for this feature
+    compartments = fov_data_feature.compartment.unique()
+
+    # if only one compartment, skip
+    if len(compartments) == 1:
+        continue
+
+    fov_data_wide = fov_data_feature.pivot(index='fov', columns='compartment', values='raw_value')
+
+    # filter out features that are nans or mostly zeros
+    for compartment in compartments:
+        nan_count = fov_data_wide[compartment].isna().sum()
+        zero_count = (fov_data_wide[compartment] == 0).sum()
+
+        if len(fov_data_wide) - nan_count - zero_count < min_fovs:
+            exclude_list.append(feature_name + '__' + compartment)
+            fov_data_wide = fov_data_wide.drop(columns=compartment)
+
+    # compute correlations
+    compartments = fov_data_wide.columns
+    compartments = compartments[compartments != 'all']
+
+    for compartment in compartments:
+        corr, _ = spearmanr(fov_data_wide['all'].values, fov_data_wide[compartment].values, nan_policy='omit')
+        print(feature_name, compartment, corr)
+        if corr > 0.8:
+            exclude_list.append(feature_name + '__' + compartment)
+
+
+
+fov_data_df_filtered = fov_data_df.loc[~fov_data_df.feature_name_unique.isin(exclude_list), :]
+
+## plot correlations once excluded features removed
+fov_data_wide = fov_data_df_filtered.pivot(index='fov', columns='feature_name_unique', values='normalized_value')
+
+#working_df_wide = working_df_wide.loc[:, working_df_wide.columns.str.contains('HLA1')]
+corr_df = fov_data_wide.corr(method='spearman')
+
+# replace Nans
+corr_df = corr_df.fillna(0)
+
+
+clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+clustergrid.savefig(os.path.join(plot_dir, 'spearman_correlation_dp_functional_markers_clustermap.png'), dpi=300)
+plt.close()
+
+# get names of features from clustergrid
+feature_names = clustergrid.data2d.columns
+
+clustergrid_small = sns.clustermap(corr_df.loc[feature_names[240:280], feature_names[240:280]], cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+clustergrid_small.savefig(os.path.join(plot_dir, 'spearman_correlation_dp_functional_markers_clustermap_small_3.png'), dpi=300)
+plt.close()
+
+
+

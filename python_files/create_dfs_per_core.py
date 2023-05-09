@@ -219,9 +219,17 @@ total_df_func = pd.concat(func_dfs, axis=0)
 total_df_func = total_df_func.merge(harmonized_metadata, on='fov', how='inner')
 
 # save combined df
-#total_df_func.to_csv(os.path.join(data_dir, 'functional_df_per_core.csv'), index=False)
-total_df_func.to_csv('/Users/noahgreenwald/Downloads/functional_df_per_core.csv', index=False)
+total_df_func.to_csv(os.path.join(data_dir, 'functional_df_per_core.csv'), index=False)
+#total_df_func.to_csv('/Users/noahgreenwald/Downloads/functional_df_per_core.csv', index=False)
 
+# create version aggregated by timepoint
+total_df_grouped_func = total_df_func.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric', 'subset'])
+total_df_timepoint_func = total_df_grouped_func['value'].agg([np.mean, np.std])
+total_df_timepoint_func.reset_index(inplace=True)
+total_df_timepoint_func = total_df_timepoint_func.merge(harmonized_metadata.drop('fov', axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+total_df_timepoint_func.to_csv(os.path.join(data_dir, 'functional_df_per_timepoint.csv'), index=False)
 
 #
 # Filter functional markers
@@ -238,30 +246,34 @@ metrics = [['cluster_broad_count', 'cluster_broad_freq'],
 
 for metric in metrics:
     # subset count df to include cells at the relevant clustering resolution
-    count_df = total_df[total_df.metric == metric[0]]
-    count_df = count_df[count_df.subset == 'all']
+    for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+        count_df = total_df[total_df.metric == metric[0]]
+        count_df = count_df[count_df.subset == compartment]
 
-    # subset functional df to only include functional markers at this resolution
-    func_df = total_df_func[total_df_func.metric.isin(metric)]
+        # subset functional df to only include functional markers at this resolution
+        func_df = total_df_func[total_df_func.metric.isin(metric)]
+        func_df = func_df[func_df.subset == compartment]
 
-    # for each cell type, determine which FOVs have high enough counts to be included
-    for cell_type in count_df.cell_type.unique():
-        keep_df = count_df[count_df.cell_type == cell_type]
-        keep_df = keep_df[keep_df.value >= min_cells]
-        keep_fovs = keep_df.fov.unique()
+        # for each cell type, determine which FOVs have high enough counts to be included
+        for cell_type in count_df.cell_type.unique():
+            keep_df = count_df[count_df.cell_type == cell_type]
+            keep_df = keep_df[keep_df.value >= min_cells]
+            keep_fovs = keep_df.fov.unique()
 
-        # subset functional df to only include FOVs with high enough counts
-        keep_markers = func_df[func_df.cell_type == cell_type]
-        keep_markers = keep_markers[keep_markers.fov.isin(keep_fovs)]
+            # subset functional df to only include FOVs with high enough counts
+            keep_markers = func_df[func_df.cell_type == cell_type]
+            keep_markers = keep_markers[keep_markers.fov.isin(keep_fovs)]
 
-        # append to list of filtered dfs
-        filtered_dfs.append(keep_markers)
+            # append to list of filtered dfs
+            filtered_dfs.append(keep_markers)
 
 filtered_func_df = pd.concat(filtered_dfs)
 
 # identify combinations of markers and cell types to include in analysis based on threshold
 # mean_percent_positive = 0.05
+# sp_markers = [x for x in filtered_func_df.functional_marker.unique() if '__' not in x]
 # broad_df = filtered_func_df[filtered_func_df.metric == 'cluster_broad_freq']
+# broad_df = broad_df[broad_df.functional_marker.isin(sp_markers)]
 # broad_df = broad_df[broad_df.subset == 'all']
 # broad_df = broad_df[broad_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
 # broad_df_agg = broad_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
@@ -513,6 +525,8 @@ long_df['subset'] = 'all'
 
 long_df = long_df.merge(harmonized_metadata, on='fov', how='inner')
 
+long_df.to_csv(os.path.join(data_dir, 'post_processing/total_func_per_core.csv'), index=False)
+
 # append to list of dfs
 combo_dfs.append(long_df)
 
@@ -520,15 +534,6 @@ combo_dfs.append(long_df)
 combo_df = pd.concat(combo_dfs)
 #combo_df.to_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'), index=False)
 combo_df.to_csv(os.path.join('/Users/noahgreenwald/Downloads/functional_df_per_core_filtered.csv'), index=False)
-
-# create version aggregated by timepoint
-total_df_grouped_func = total_df_func.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric', 'subset'])
-total_df_timepoint_func = total_df_grouped_func['value'].agg([np.mean, np.std])
-total_df_timepoint_func.reset_index(inplace=True)
-total_df_timepoint_func = total_df_timepoint_func.merge(harmonized_metadata.drop('fov', axis=1).drop_duplicates(), on='Tissue_ID')
-
-# save timepoint df
-total_df_timepoint_func.to_csv(os.path.join(data_dir, 'functional_df_per_timepoint.csv'), index=False)
 
 # create version of filtered df aggregated by timepoint
 combo_df_grouped_func = combo_df.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric', 'subset'])
@@ -608,6 +613,16 @@ deduped_df = deduped_df.drop('feature_name', axis=1)
 # save deduped df
 deduped_df.to_csv(os.path.join(data_dir, 'functional_df_per_core_filtered_deduped.csv'), index=False)
 deduped_df.to_csv(os.path.join('/Users/noahgreenwald/Downloads/functional_df_per_core_filtered_deduped.csv'), index=False)
+
+# create version aggregated by timepoint
+deduped_df_grouped = deduped_df.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric', 'subset'])
+deduped_df_timepoint = deduped_df_grouped['value'].agg([np.mean, np.std])
+deduped_df_timepoint.reset_index(inplace=True)
+deduped_df_timepoint = deduped_df_timepoint.merge(harmonized_metadata.drop('fov', axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+deduped_df_timepoint.to_csv(os.path.join(data_dir, 'functional_df_per_timepoint_filtered_deduped.csv'), index=False)
+
 
 # # create histogram of number of cells per cluster per image
 # plot_df = total_df[total_df['metric'] == 'cluster_count']
