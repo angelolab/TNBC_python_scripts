@@ -11,8 +11,10 @@ from alpineer.misc_utils import verify_in_list
 from alpineer import io_utils, load_utils
 from ark.segmentation import marker_quantification
 
-from scipy.stats import spearmanr
-from scipy.stats import ttest_ind
+from scipy.stats import spearmanr, ttest_ind, ttest_rel
+
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 def find_conserved_features(paired_df, sample_name_1, sample_name_2, min_samples=20):
@@ -572,3 +574,204 @@ def normalize_by_ecm_area(crop_sums, crop_size, channels):
     crop_sums.loc[:, channels] = crop_sums.loc[:, channels].div(crop_sums['ecm_fraction'], axis=0)
 
     return crop_sums
+
+
+def compare_timepoints(feature_df, timepoint_1_name, timepoint_1_list, timepoint_2_name,
+                       timepoint_2_list, paired=None, feature_suff='mean'):
+    """Compute change in a feature across two timepoints.
+
+    Args:
+        feature_df (pd.DataFrame): dataframe containing features
+        timepoint_1_name (str): overall name to give for the first timepoint
+        timepoint_1_list (list): list of specific timepoints to include in the first group
+        timepoint_2_name (str): overall name to give for the second timepoint
+        timepoint_2_list (list): list of specific timepoints to include in the second group
+        paired (str): column name to use for paired samples
+        feature_suff (str): suffix to add to feature name
+    """
+    # get unique features
+    features = feature_df.feature_name.unique()
+
+    feature_names = []
+    timepoint_1_means = []
+    timepoint_1_norm_means = []
+    timepoint_2_means = []
+    timepoint_2_norm_means = []
+    log_pvals = []
+
+    analysis_df = feature_df.loc[(feature_df.Timepoint.isin(timepoint_1_list + timepoint_2_list)), :]
+
+    # subset to only include paired samples
+    if paired is not None:
+        analysis_df = analysis_df.loc[analysis_df[paired], :]
+        if len(timepoint_1_list) != 1 or len(timepoint_2_list) != 1:
+            raise ValueError('Paired samples only works with one timepoint per group.')
+
+    # loop through each feature separately
+    for feature_name in features:
+        values = analysis_df.loc[(analysis_df.feature_name == feature_name), :]
+
+        # only keep samples with both timepoints
+        if paired is not None:
+            values_norm = values.pivot(index='Patient_ID', columns='Timepoint',
+                                       values='normalized_mean')
+            values_raw = values.pivot(index='Patient_ID', columns='Timepoint', values='raw_mean')
+            values_norm = values_norm.dropna()
+            values_raw = values_raw.dropna()
+
+            # get the columns corresponding to each timepoint
+            tp_1_vals = values_raw[timepoint_1_list[0]].values
+            tp_1_norm_vals = values_norm[timepoint_1_list[0]].values
+            tp_2_vals = values_raw[timepoint_2_list[0]].values
+            tp_2_norm_vals = values_norm[timepoint_2_list[0]].values
+
+        # for unpaired, just subset to the timepoints of interest
+        else:
+            tp_1_vals = values.loc[
+                values.Timepoint.isin(timepoint_1_list), 'raw_' + feature_suff].values
+            tp_1_norm_vals = values.loc[
+                values.Timepoint.isin(timepoint_1_list), 'normalized_' + feature_suff].values
+            tp_2_vals = values.loc[
+                values.Timepoint.isin(timepoint_2_list), 'raw_' + feature_suff].values
+            tp_2_norm_vals = values.loc[
+                values.Timepoint.isin(timepoint_2_list), 'normalized_' + feature_suff].values
+        timepoint_1_means.append(tp_1_vals.mean())
+        timepoint_1_norm_means.append(tp_1_norm_vals.mean())
+        timepoint_2_means.append(tp_2_vals.mean())
+        timepoint_2_norm_means.append(tp_2_norm_vals.mean())
+
+        # compute t-test for difference between timepoints
+        if paired is not None:
+            t, p = ttest_rel(tp_1_norm_vals, tp_2_norm_vals)
+        else:
+            t, p = ttest_ind(tp_1_norm_vals, tp_2_norm_vals)
+
+        log_pvals.append(-np.log10(p))
+
+    # construct final df
+    means_df = pd.DataFrame({timepoint_1_name + '_mean': timepoint_1_means,
+                             timepoint_2_name + '_mean': timepoint_2_means,
+                             timepoint_1_name + '_norm_mean': timepoint_1_norm_means,
+                             timepoint_2_name + '_norm_mean': timepoint_2_norm_means,
+                             'log_pval': log_pvals}, index=features)
+    # calculate difference between timepoint 2 and timepoint 1
+    means_df['mean_diff'] = means_df[timepoint_2_name + '_norm_mean'].values - means_df[timepoint_1_name + '_norm_mean'].values
+    means_df = means_df.reset_index().rename(columns={'index': 'feature_name'})
+
+    return means_df
+
+
+def compare_populations(feature_df, pop_col, pop_1, pop_2, timepoints, feature_suff='mean'):
+    """Compare difference in a feature between two populations.
+
+    Args:
+        feature_df (pd.DataFrame): dataframe containing features
+        pop_col (str): column name containing population information
+        pop_1 (str): name of the first population
+        pop_2 (str): name of the second population
+        timepoints (list): list of timepoints to include
+        feature_suff (str): suffix to add to feature name
+    """
+    # get unique features
+    features = feature_df.feature_name.unique()
+
+    feature_names = []
+    pop_1_means = []
+    pop_1_norm_means = []
+    pop_2_means = []
+    pop_2_norm_means = []
+    log_pvals = []
+
+    analysis_df = feature_df.loc[(feature_df.Timepoint.isin(timepoints)), :]
+
+    for feature_name in features:
+        values = analysis_df.loc[(analysis_df.feature_name == feature_name), :]
+        pop_1_vals = values.loc[values[pop_col] == pop_1, 'raw_' + feature_suff].values
+        pop_1_norm_vals = values.loc[values[pop_col] == pop_1, 'normalized_' + feature_suff].values
+        pop_2_vals = values.loc[values[pop_col] == pop_2, 'raw_' + feature_suff].values
+        pop_2_norm_vals = values.loc[values[pop_col] == pop_2, 'normalized_' + feature_suff].values
+        pop_1_means.append(pop_1_vals.mean())
+        pop_1_norm_means.append(pop_1_norm_vals.mean())
+        pop_2_means.append(pop_2_vals.mean())
+        pop_2_norm_means.append(pop_2_norm_vals.mean())
+
+        # compute t-test for difference between timepoints
+        t, p = ttest_ind(pop_1_norm_vals, pop_2_norm_vals)
+        log_pvals.append(-np.log10(p))
+
+    means_df = pd.DataFrame({pop_1 + '_mean': pop_1_means,
+                             pop_2 + '_mean': pop_2_means,
+                             pop_1 + '_norm_mean': pop_1_norm_means,
+                             pop_2 + '_norm_mean': pop_2_norm_means,
+                             'log_pval': log_pvals}, index=features)
+    # calculate difference
+    means_df['mean_diff'] = means_df[pop_2 + '_norm_mean'].values - means_df[pop_1 + '_norm_mean'].values
+    means_df = means_df.reset_index().rename(columns={'index': 'feature_name'})
+
+    return means_df
+
+
+def summarize_timepoint_enrichment(input_df, feature_df, timepoints, output_dir, pval_thresh=2,
+                                   diff_thresh=0.3, plot_type='strip'):
+    """Generate a summary of the timepoint enrichment results
+
+    Args:
+        input_df (pd.DataFrame): dataframe containing timepoint enrichment results
+        feature_df (pd.DataFrame): dataframe containing feature information
+        timepoints (list): list of timepoints to include
+        output_dir (str): path to output directory
+        pval_thresh (float): threshold for p-value
+        diff_thresh (float): threshold for difference between timepoints
+    """
+
+    input_df_filtered = input_df.loc[(input_df.log_pval > pval_thresh) & (np.abs(input_df.mean_diff) > diff_thresh), :]
+
+    input_df_filtered = input_df_filtered.sort_values('mean_diff', ascending=False)
+
+    # plot the results
+    for idx, feature in enumerate(input_df_filtered.feature_name):
+        feature_subset = feature_df.loc[(feature_df.feature_name == feature), :]
+        feature_subset = feature_subset.loc[(feature_subset.Timepoint.isin(timepoints)), :]
+
+        g = sns.catplot(data=feature_subset, x='Timepoint', y='raw_mean', kind=plot_type, color='grey')
+        g.fig.suptitle(feature)
+        g.savefig(os.path.join(output_dir, 'Evolution_{}_{}.png'.format(idx, feature)))
+        plt.close()
+
+    sns.catplot(data=input_df_filtered, x='mean_diff', y='feature_name', kind='bar', color='grey')
+    plt.savefig(os.path.join(output_dir, 'Timepoint_summary.png'))
+    plt.close()
+
+
+def summarize_population_enrichment(input_df, feature_df, timepoints, pop_col, output_dir, pval_thresh=2, diff_thresh=0.3,
+                                    plot_type='strip'):
+    """Generate a summary of the population enrichment results
+
+    Args:
+        input_df (pd.DataFrame): dataframe containing population enrichment results
+        feature_df (pd.DataFrame): dataframe containing feature information
+        timepoints (list): list of timepoints to include
+        pop_col (str): column name containing population information
+        output_dir (str): path to output directory
+        pval_thresh (float): threshold for p-value
+        diff_thresh (float): threshold for difference between timepoints
+    """
+
+    input_df_filtered = input_df.loc[(input_df.log_pval > pval_thresh) & (np.abs(input_df.mean_diff) > diff_thresh), :]
+
+    input_df_filtered = input_df_filtered.sort_values('mean_diff', ascending=False)
+
+    # plot the results
+    for idx, feature in enumerate(input_df_filtered.feature_name):
+        feature_subset = feature_df.loc[(feature_df.feature_name == feature), :]
+        feature_subset = feature_subset.loc[(feature_subset.Timepoint.isin(timepoints)), :]
+
+        g = sns.catplot(data=feature_subset, x=pop_col, y='raw_mean', kind=plot_type)
+        g.fig.suptitle(feature)
+        g.savefig(os.path.join(output_dir, 'Evolution_{}_{}.png'.format(idx, feature)))
+        plt.close()
+
+    sns.catplot(data=input_df_filtered, x='mean_diff', y='feature_name', kind='bar', color='grey')
+    plt.savefig(os.path.join(output_dir, 'Evolution_summary.png'))
+    plt.close()
+

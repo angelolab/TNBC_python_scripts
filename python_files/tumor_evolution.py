@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import itertools
+from scipy.stats import spearmanr
 
 # this file contains code for summarizing the data on an individual core level
 
@@ -177,3 +178,20 @@ g.fig.suptitle('Pairwise distances samples')
 g.savefig(os.path.join(plot_dir, 'pairwise_distances_samples.png'), dpi=300, bbox_inches='tight')
 plt.close()
 
+
+# evaluate correlates of intra-sample heterogeneity
+fov_distances = fov_distances.rename(columns={'metadata': 'Tissue_ID'})
+fov_distances = fov_distances.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint', 'Localization']].drop_duplicates(),
+                                    on='Tissue_ID')
+
+g = sns.catplot(fov_distances, x='Localization', y='euc_distance', kind='box', color='grey')
+g.set_xticklabels(rotation=90)
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'localization_heterogeneity.png'), dpi=300, bbox_inches='tight')
+plt.close()
+
+g = sns.catplot(fov_distances, x='Timepoint', y='euc_distance', kind='box', color='grey')
+g.set_xticklabels(rotation=90)
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'timepoint_heterogeneity.png'), dpi=300, bbox_inches='tight')
+plt.close()
