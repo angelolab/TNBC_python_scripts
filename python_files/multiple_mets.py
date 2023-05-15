@@ -52,3 +52,23 @@ plt.close()
 
 
 # for patients with many mets, perform heirarchical clustering to see if mets cluster together
+# reshape data to allow for easy boolean comparisons
+exclude_timepoints = ['lymphnode_neg', 'biopsy','lymphnode_pos','lymphnode', 'metastasis', 'on_nivo_1_cycle', 'local_recurrence', 'progression']
+subset_metadata = timepoint_metadata.loc[~timepoint_metadata.Timepoint.isin(exclude_timepoints), :]
+subset_metadata = subset_metadata.loc[subset_metadata.MIBI_data_generated, :]
+
+subset_metadata = subset_metadata.sort_values(by=['Patient_ID', 'Timepoint'])
+
+metadata_wide = pd.pivot(subset_metadata, index='Patient_ID', columns='Timepoint', values='Tissue_ID')
+metadata_wide['valid_vals'] = metadata_wide.apply(lambda x: np.sum(~x.isna()), axis=1)
+metadata_wide = metadata_wide[metadata_wide.valid_vals > 5]
+
+
+for patient in metadata_wide.index:
+    timepoint_features_patient = timepoint_features.loc[timepoint_features.Patient_ID == patient, :]
+    timepoint_features_patient = timepoint_features_patient.loc[~timepoint_features_patient.Timepoint.isin(exclude_timepoints), :]
+    timepoint_features_patient = pd.pivot(timepoint_features_patient, index='feature_name_unique', columns='Timepoint', values='normalized_mean')
+    timepoint_features_patient = timepoint_features_patient.fillna(0)
+    sns.clustermap(timepoint_features_patient, cmap='viridis', vmin=-2, vmax=2)
+    plt.savefig(os.path.join(plot_dir, 'clustermap_multiple_mets' + str(patient) + '.png'))
+    plt.close()
