@@ -68,6 +68,16 @@ rare_sites = rare_sites.append(pd.Index(['Unknown']))
 timepoint_metadata['Localization_detailed'] = timepoint_metadata.Localization
 timepoint_metadata.loc[timepoint_metadata.Localization.isin(rare_sites), 'Localization'] = 'Other'
 
+# Relabel metastasis to have a unique value for each patient
+met_pats = timepoint_metadata.loc[timepoint_metadata.Timepoint == 'metastasis', 'Patient_ID'].unique()
+
+for pat in met_pats:
+    pat_subset = timepoint_metadata.loc[timepoint_metadata.Patient_ID == pat, :]
+    pat_subset = pat_subset.loc[(pat_subset.Timepoint == 'metastasis') &
+                                (pat_subset.MIBI_data_generated), :]
+    for i in range(pat_subset.shape[0]):
+        timepoint_metadata.loc[pat_subset.index[i], 'Timepoint'] = 'metastasis_' + str(i+1)
+
 #
 # Identify patients with specific combinations of timepoints present
 #
