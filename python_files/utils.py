@@ -33,10 +33,10 @@ def find_conserved_features(paired_df, sample_name_1, sample_name_2, min_samples
     names = []
 
     # loop over each feature in the df
-    for feature_name in paired_df.feature_name.unique():
+    for feature_name in paired_df.feature_name_unique.unique():
 
         # if either sample is missing a feature, skip that comparison
-        values = paired_df[(paired_df.feature_name == feature_name)].copy()
+        values = paired_df[(paired_df.feature_name_unique == feature_name)].copy()
         values.dropna(inplace=True)
 
         # remove rows where both values are 0
@@ -53,13 +53,18 @@ def find_conserved_features(paired_df, sample_name_1, sample_name_2, min_samples
             cors.append(np.nan)
             names.append(feature_name)
 
-    ranked_features = pd.DataFrame({'feature_name': names, 'p_val': p_vals, 'cor': cors})
+    ranked_features = pd.DataFrame({'feature_name_unique': names, 'p_val': p_vals, 'cor': cors})
     ranked_features['log_pval'] = -np.log10(ranked_features.p_val)
 
     # get ranking of each row by log_pval
     ranked_features['pval_rank'] = ranked_features.log_pval.rank(ascending=False)
     ranked_features['cor_rank'] = ranked_features.cor.rank(ascending=False)
     ranked_features['combined_rank'] = (ranked_features.pval_rank.values + ranked_features.cor_rank.values) / 2
+
+    # generate consistency score
+    max_rank = len(~ranked_features.cor.isna())
+    normalized_rank = ranked_features.combined_rank / max_rank
+    ranked_features['consistency_score'] = 1 - normalized_rank
 
     return ranked_features
 
