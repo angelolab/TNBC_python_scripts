@@ -144,14 +144,14 @@ plt.close()
 
 # plot a specified row
 row = 25
-row = np.where(ranked_features.feature_name == 'TCF1+__Cancer__all')[0][0]
-name = ranked_features.loc[row, 'feature_name']
+row = np.where(ranked_features.feature_name_unique == 'cancer_diversity__all')[0][0]
+name = ranked_features.loc[row, 'feature_name_unique']
 correlation = ranked_features.loc[row, 'cor']
 p_val = ranked_features.loc[row, 'p_val']
-values = paired_df[(paired_df.feature_name == name)]
+values = paired_df[(paired_df.feature_name_unique == name)]
 values.dropna(inplace=True)
 fig, ax = plt.subplots()
-sns.scatterplot(data=values, x='fov1', y='fov2', ax=ax)
+sns.scatterplot(data=values, x='normalized_value_fov1', y='normalized_value_fov2', ax=ax)
 ax.text(0.05, 0.95, f'cor: {correlation:.2f}', transform=ax.transAxes, fontsize=10,
            verticalalignment='top')
 ax.text(0.65, 0.95, f'p: {p_val:.2e}', transform=ax.transAxes, fontsize=10,

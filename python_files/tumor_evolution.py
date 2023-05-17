@@ -48,6 +48,24 @@ def compute_pairwise_distances(input_df, metadata_name):
     return return_df
 
 
+def compute_pairwise_differences(input_df, metadata_name):
+    col_differences = []
+
+    for col_1, col_2 in itertools.combinations(input_df.columns, 2):
+        subset_df = input_df[[col_1, col_2]]
+        col_differences.append(np.abs(subset_df[col_1] - subset_df[col_2]))
+
+    # combine differences into a single dataframe
+    col_differences = pd.concat(col_differences, axis=1)
+    col_means = col_differences.mean(axis=1)
+
+    # create dataframe with distances and metadata
+    return_df = pd.DataFrame({'col_mean': col_means,
+                                'metadata': metadata_name})
+
+    return return_df
+
+
 def generate_grouped_distances(sample, group_by, harmonized_metadata, data_df):
     grouped_distances = []
     grouped = harmonized_metadata[[group_by, sample]].groupby(group_by)
@@ -61,6 +79,26 @@ def generate_grouped_distances(sample, group_by, harmonized_metadata, data_df):
     grouped_distances = pd.concat(grouped_distances)
 
     return grouped_distances
+
+
+def generate_grouped_differences(sample, group_by, harmonized_metadata, data_df):
+    grouped_differences = []
+    grouped = harmonized_metadata[[group_by, sample]].groupby(group_by)
+    value = 'normalized_value' if sample == 'fov' else 'normalized_mean'
+
+    for group_name, group_members in grouped:
+        if len(group_members) > 1:
+            group_df = data_df.loc[data_df[sample].isin(group_members[sample].values), :]
+            wide_df = pd.pivot(group_df, index='feature_name_unique', columns=sample, values=value)
+            grouped_differences.append(compute_pairwise_differences(input_df=wide_df,
+                                                                    metadata_name=group_name))
+
+    grouped_differences = pd.concat(grouped_differences)
+
+    return grouped_differences
+
+
+
 
 
 local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
@@ -82,7 +120,10 @@ harmonized_metadata['TONIC_ID_random'] = harmonized_metadata['TONIC_ID'].sample(
 
 # compute distances
 fov_distances = generate_grouped_distances(sample='fov', group_by='Tissue_ID', harmonized_metadata=harmonized_metadata,
-                                           data_df=fov_df)
+                                           data_df=feature_df)
+
+
+
 fov_distances['type'] = 'paired_fovs'
 fov_distances_random = generate_grouped_distances(sample='fov', group_by='Tissue_ID_random',
                                                   harmonized_metadata=harmonized_metadata, data_df=fov_df)
@@ -195,3 +236,52 @@ g.set_xticklabels(rotation=90)
 plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'timepoint_heterogeneity.png'), dpi=300, bbox_inches='tight')
 plt.close()
+
+
+# compare differences between paired FOVs
+fov_differences = generate_grouped_differences(sample='fov', group_by='Tissue_ID', harmonized_metadata=harmonized_metadata,
+                                           data_df=feature_df)
+fov_differences = fov_differences.reset_index()
+fov_differences_wide = pd.pivot(fov_differences, index='feature_name_unique', columns='metadata', values='col_mean')
+
+fov_differences_wide['nan_count'] = fov_differences_wide.isna().sum(axis=1)
+fov_differences_wide = fov_differences_wide.loc[fov_differences_wide.nan_count < 150, :]
+
+fov_differences_wide['total'] = fov_differences_wide.mean(axis=1)
+fov_differences_wide = fov_differences_wide.reset_index()
+
+
+# compare consistency ranking with mean difference
+combined_data = pd.merge(ranked_features[['feature_name_unique', 'consistency_score']], fov_differences_wide[['total', 'feature_name_unique']], on='feature_name_unique')
+sns.scatterplot(data=combined_data, x='consistency_score', y='total')
+
+subset = combined_data.loc[(combined_data.consistency_score > 0.8) & (combined_data.total > 1.25) , :]
+
+fov_distances['ranking'] = fov_distances['euc_distance'].rank(ascending=True)
+fov_distances['ranking'] /= fov_distances['ranking'].max()
+
+fov_distances['distance_cat'] = 'med'
+fov_distances.loc[fov_distances.ranking > 0.8, 'distance_cat'] = 'high'
+fov_distances.loc[fov_distances.ranking < 0.2, 'distance_cat'] = 'low'
+
+fov_differences.rename(columns={'metadata': 'Tissue_ID'}, inplace=True)
+
+fov_differences = fov_differences.merge(fov_distances[['Tissue_ID', 'distance_cat']], on='Tissue_ID')
+
+# get the average differences across each distance_cat for each feature
+fov_differences_grouped = fov_differences.groupby(['feature_name_unique', 'distance_cat']).mean().reset_index()
+fov_differences_grouped_wide = pd.pivot(fov_differences_grouped, index='feature_name_unique', columns='distance_cat', values='col_mean')
+
+fov_differences_grouped_wide['diff'] = fov_differences_grouped_wide['high'] - fov_differences_grouped_wide['low']
+
+fov_differences_grouped_wide.sort_values(by='diff', ascending=False, inplace=True)
+
+# plot histogram of differences in each category
+fig, ax = plt.subplots(1,3, figsize=(10, 5))
+sns.histplot(data=fov_differences_grouped_wide, x='low', ax=ax[0], color='grey', bins=50, binrange=(0, 1.5))
+sns.histplot(data=fov_differences_grouped_wide, x='med', ax=ax[1], color='grey', bins=50,  binrange=(0, 1.5))
+sns.histplot(data=fov_differences_grouped_wide, x='high', ax=ax[2], color='grey', bins=50, binrange=(0, 1.5))
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'difference_histograms_by_fov_category.png'), dpi=300, bbox_inches='tight')
+plt.close()
+
