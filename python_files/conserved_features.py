@@ -77,7 +77,7 @@ plot_features = ranked_features.loc[ranked_features.consistency_score >= min_sco
 # sort by combined rank
 plot_features.sort_values(by='consistency_score', inplace=True, ascending=False)
 
-for i in range(len(plot_features))[:20]:
+for i in range(len(plot_features)):
     feature_name = plot_features.iloc[i].feature_name_unique
     feature_score = plot_features.iloc[i].consistency_score
     values = paired_df[(paired_df.feature_name_unique == feature_name)].copy()
