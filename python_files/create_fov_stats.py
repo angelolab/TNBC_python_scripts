@@ -229,6 +229,30 @@ for functional_name, cell_pop_level in functional_features:
                                          'cell_pop_level', 'feature_type']]
         fov_data.append(compartment_df)
 
+# compute morphology features for different levels of granularity
+morphology_features = [['cluster_freq', 'med'],
+                          ['total_freq', 'broad']]
+
+for morphology_name, cell_pop_level in morphology_features:
+    input_df = deduped_morph_df[deduped_morph_df['metric'].isin([morphology_name])]
+    #for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
+    for compartment in ['all']:
+        compartment_df = input_df[input_df.subset == compartment].copy()
+        compartment_df['feature_name'] = compartment_df.morphology_feature + '__' + compartment_df.cell_type
+        compartment_df['feature_name_unique'] = compartment_df.morphology_feature + '__' + compartment_df.cell_type + '__' + compartment
+        compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
+
+        if morphology_name != 'total_freq':
+            compartment_df['cell_pop'] = compartment_df.cell_type.apply(lambda x: narrow_to_broad[x])
+        else:
+            compartment_df['cell_pop'] = 'all'
+
+        compartment_df['cell_pop_level'] = cell_pop_level
+        compartment_df['feature_type'] = 'morphology'
+        compartment_df = compartment_df[['fov', 'value', 'feature_name','feature_name_unique','compartment', 'cell_pop',
+                                         'cell_pop_level', 'feature_type']]
+        fov_data.append(compartment_df)
+
 # compute compartment abundance and ratios
 compartments = ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border']
 for idx, compartment in enumerate(compartments):
@@ -325,7 +349,7 @@ fov_data_df = pd.merge(fov_data_df, harmonized_metadata_df[['Tissue_ID', 'fov']]
 fov_data_df = fov_data_df[['Tissue_ID', 'fov', 'raw_value', 'normalized_value', 'feature_name', 'feature_name_unique',
                             'compartment', 'cell_pop', 'cell_pop_level', 'feature_type']]
 
-fov_data_df.to_csv(os.path.join(data_dir, 'fov_features.csv'), index=False)
+fov_data_df.to_csv(os.path.join(data_dir, 'fov_features_morphology.csv'), index=False)
 
 
 # create timepoint-level stats file
@@ -412,8 +436,8 @@ plt.close()
 # get names of features from clustergrid
 feature_names = clustergrid.data2d.columns
 
-start_idx = 680
-end_idx = 720
+start_idx = 240
+end_idx = 280
 clustergrid_small = sns.clustermap(corr_df.loc[feature_names[start_idx:end_idx], feature_names[start_idx:end_idx]], cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
 clustergrid_small.savefig(os.path.join(plot_dir, 'spearman_correlation_dp_functional_markers_clustermap_small_3.png'), dpi=300)
 plt.close()
