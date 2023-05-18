@@ -215,13 +215,6 @@ removed_pops = ['noise','CD8_CD8Tdim', 'noise_cd45_pos', 'CD45', 'ecad_hladr', '
 
 assert np.all(np.isin(removed_pops, cell_table['cell_meta_cluster'].unique()) == False)
 
-fovs = list_folders('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/mantis')
-
-
-create_mantis_project(cell_table, fovs=fovs, seg_dir='/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/segmentation_masks',
-                      pop_col='cell_meta_cluster', mask_dir='/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/masks',
-                      image_dir='/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/mantis',
-                      mantis_dir='/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/example_output/mantis')
 
 # generate consistent names for clusters: Tumor -> Cancer, and capitalize all names for plotting
 replacements = [('tumor_other', 'Cancer_Other'),
@@ -302,45 +295,55 @@ cell_table_full['cell_meta_cluster'] = cell_table['cell_meta_cluster']
 cell_table_full['cell_cluster'] = cell_table['cell_cluster']
 cell_table_full['cell_cluster_broad'] = cell_table['cell_cluster_broad']
 
+# save updated cell table
+cell_table_full.to_csv(os.path.join(data_dir, cell_table_name + '_updated.csv'), index=False)
+
+#
 # functional marker thresholding
+#
+
+# create df to hold thresholded values
+cell_table_func = cell_table_full[['fov', 'label', 'cell_cluster_broad', 'cell_cluster', 'cell_meta_cluster']].copy()
 
 threshold_list = [['Ki67', 0.002], ['CD38', 0.004], ['CD45RB', 0.001], ['CD45RO', 0.002],
                   ['CD57', 0.002], ['CD69', 0.002], ['GLUT1', 0.002], ['IDO', 0.001],
                   ['LAG3', 0.002], ['PD1', 0.0005], ['PDL1', 0.001],
                   ['HLA1', 0.001], ['HLADR', 0.001], ['TBET', 0.0015], ['TCF1', 0.001],
-                  ['TIM3', 0.001], ['Vim', 0.002]]
+                  ['TIM3', 0.001], ['Vim', 0.002], ['Fe', 0.1]]
 
 for marker, threshold in threshold_list:
-    cell_table_full[marker + '_threshold'] = cell_table_full[marker].values >= threshold
+    cell_table_func[marker] = cell_table_full[marker].values >= threshold
 
 
 # set specific threshold for PDL1+ dim tumor cells
 PDL1_mask = np.logical_and(cell_table_full['PDL1'].values >= 0.0005, cell_table_full['PDL1'].values < 0.001)
 tumor_mask = cell_table_full['cell_cluster_broad'] == 'Cancer'
+PDL1_cancer_dim_threshold = np.logical_and(PDL1_mask, tumor_mask)
 
-cell_table_full['PDL1_cancer_dim_threshold'] = np.logical_and(PDL1_mask, tumor_mask)
-
-# rename single-channel PDL1
-cell_table_full = cell_table_full.rename(columns={'PDL1_threshold': 'PDL1_bright_threshold'})
-
-# set specific threshold for all PDL1+ cells
-cell_table_full['PDL1_threshold'] = np.logical_or(cell_table_full['PDL1_bright_threshold'].values,
-                                                  cell_table_full['PDL1_cancer_dim_threshold'].values)
-
-# pairwise marker thresholding
-functional_markers = [x[0] for x in threshold_list]
-for marker1, marker2 in combinations(functional_markers, 2):
-    cell_table_full[marker1 + '__' + marker2 + '_threshold'] = np.logical_and(cell_table_full[marker1 + '_threshold'],
-                                                                              cell_table_full[marker2 + '_threshold'])
+# set threshold for all PDL1+ cells
+cell_table_func['PDL1'] = np.logical_or(cell_table_func['PDL1'].values, PDL1_cancer_dim_threshold)
 
 
 # create ratios of relevant markers
 
-# first define minimum values for each marker
-H3K9ac_min = np.percentile(cell_table_full['H3K9ac'].values[cell_table_full['H3K9ac'].values > 0], 5)
-H3K27me3_min = np.percentile(cell_table_full['H3K27me3'].values[cell_table_full['H3K27me3'].values > 0], 5)
-CD45RO_min = np.percentile(cell_table_full['CD45RO'].values[cell_table_full['CD45RO'].values > 0], 5)
-CD45RB_min = np.percentile(cell_table_full['CD45RB'].values[cell_table_full['CD45RB'].values > 0], 5)
+# # first define minimum values for each marker
+# H3K9ac_min = np.percentile(cell_table_full['H3K9ac'].values[cell_table_full['H3K9ac'].values > 0], 5)
+# H3K27me3_min = np.percentile(cell_table_full['H3K27me3'].values[cell_table_full['H3K27me3'].values > 0], 5)
+# CD45RO_min = np.percentile(cell_table_full['CD45RO'].values[cell_table_full['CD45RO'].values > 0], 5)
+# CD45RB_min = np.percentile(cell_table_full['CD45RB'].values[cell_table_full['CD45RB'].values > 0], 5)
+#
+# # save parameters
+# marker_min_df = pd.DataFrame({'H3K9ac': H3K9ac_min, 'H3K27me3': H3K27me3_min,
+#                               'CD45RO': CD45RO_min, 'CD45RB': CD45RB_min}, index=[0])
+# marker_min_df.to_csv(os.path.join(data_dir, 'marker_min_df.csv'))
+
+# load parameters
+marker_min_df = pd.read_csv(os.path.join(data_dir, 'marker_min_df.csv'), index_col=0)
+
+H3K9ac_min = marker_min_df['H3K9ac'].values[0]
+H3K27me3_min = marker_min_df['H3K27me3'].values[0]
+CD45RO_min = marker_min_df['CD45RO'].values[0]
+CD45RB_min = marker_min_df['CD45RB'].values[0]
 
 # create masks for cells to include
 valid_H3K = np.logical_or(cell_table_full['H3K9ac'].values >= H3K9ac_min,
@@ -350,59 +353,45 @@ valid_CD45 = np.logical_or(cell_table_full['CD45RO'].values >= CD45RO_min,
                             cell_table_full['CD45RB'].values >= CD45RB_min)
 
 # compute the ratios
-cell_table_full['H3K9ac_H3K27me3_ratio'] = np.log2((cell_table_full['H3K9ac'].values + H3K9ac_min) /
+cell_table_func['H3K9ac_H3K27me3_ratio'] = np.log2((cell_table_full['H3K9ac'].values + H3K9ac_min) /
                                                    (cell_table_full['H3K27me3'].values + H3K27me3_min))
-cell_table_full['CD45RO_CD45RB_ratio'] = np.log2((cell_table_full['CD45RO'].values + CD45RO_min) /
+cell_table_func['CD45RO_CD45RB_ratio'] = np.log2((cell_table_full['CD45RO'].values + CD45RO_min) /
                                                  (cell_table_full['CD45RB'].values + CD45RB_min))
 
 # set cells with insufficient counts to nan
-cell_table_full.loc[~valid_H3K, 'H3K9ac_H3K27me3_ratio'] = np.nan
-cell_table_full.loc[~valid_CD45, 'CD45RO_CD45RB_ratio'] = np.nan
+cell_table_func.loc[~valid_H3K, 'H3K9ac_H3K27me3_ratio'] = np.nan
+cell_table_func.loc[~valid_CD45, 'CD45RO_CD45RB_ratio'] = np.nan
 
-# save parameters
-marker_min_df = pd.DataFrame({'H3K9ac': H3K9ac_min, 'H3K27me3': H3K27me3_min,
-                              'CD45RO': CD45RO_min, 'CD45RB': CD45RB_min,
-                              'max_H3K': max_H3K, 'max_CD45': max_CD45}, index=[0])
-marker_min_df.to_csv(os.path.join(data_dir, 'marker_min_df.csv'))
+cell_table_func.to_csv(os.path.join(data_dir, 'cell_table_func_single_positive.csv'), index=False)
 
+# pairwise marker thresholding
+functional_markers = [x[0] for x in threshold_list]
+for marker1, marker2 in combinations(functional_markers, 2):
+    cell_table_func[marker1 + '__' + marker2] = np.logical_and(cell_table_func[marker1],
+                                                               cell_table_func[marker2])
 
-cell_table_full.to_csv(os.path.join(data_dir, cell_table_name + '_updated.csv'), index=False)
-cell_table_full = pd.read_csv(os.path.join(data_dir, cell_table_name + '_updated.csv'))
+cell_table_func.to_csv(os.path.join(data_dir, 'cell_table_func_all.csv'), index=False)
 
-
-#
-# Create consolidated version of cell table with populations of interest for fast processing
-#
 
 # create consolidated cell table with only cell populations
 cell_table_clusters = cell_table_full.loc[:, ['fov', 'label', 'cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad']]
-cell_table_clusters.to_csv(os.path.join(data_dir, cell_table_name + '_updated_clusters_only.csv'),
-                           index=False)
+cell_table_clusters.to_csv(os.path.join(data_dir, 'cell_table_clusters.csv'), index=False)
 
-# create consolidated cell table with only functional marker freqs
-func_cols = [col for col in cell_table_full.columns if '_threshold' in col]
-func_cols = [col for col in func_cols if col not in ['PDL1_cancer_dim_threshold', 'PDL1_bright_threshold']]
-cell_table_func = cell_table_full.loc[:, ['fov', 'label', 'cell_cluster_broad', 'cell_cluster', 'cell_meta_cluster', 'H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio'] + func_cols]
-cell_table_func.columns = [col.split('_threshold')[0] for col in cell_table_func.columns]
-cell_table_func.to_csv(os.path.join(data_dir, cell_table_name + '_updated_func_only.csv'),
-                       index=False)
+# create consolidated cell table with only morphology information
+morph_features = ['area', 'centroid_dif', 'convex_area', 'convex_hull_resid', 'eccentricity',
+                  'equivalent_diameter', 'major_axis_equiv_diam_ratio', 'major_axis_length',
+                  'minor_axis_length', 'num_concavities', 'perim_square_over_area', 'perimeter']
 
-# mike_table = cell_table.loc[:, ['fov', 'label', 'cell_cluster_broad', 'cell_cluster', 'cell_meta_cluster', 'H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio'] + chans + func_cols]
-# chans = ['PDL1', 'HLA1', 'CD4', 'CD8', 'H3K9ac', 'H3K27me3', 'ECAD', 'CK17', 'Vim']
-# mike_table = pd.merge(mike_table, harmonized_metadata, on='fov', how='left')
-# mike_table.to_csv(os.path.join(data_dir, 'combined_cell_table_only_mike.csv'), index=False)
+morph_features_nuc = [x + '_nuclear' for x in morph_features]
 
+morph_features = morph_features + morph_features_nuc + ['nc_ratio']
 
+cell_table_morph = cell_table_full.loc[:, ['fov', 'label', 'cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad'] + morph_features]
+cell_table_morph.to_csv(os.path.join(data_dir, 'cell_table_morph.csv'), index=False)
 
+# create consolidated cell table with only marker counts
+marker_list = cell_table_full.columns[:84]
+marker_list = [x for x in marker_list if '_nuclear' not in x]
+cell_table_counts = cell_table_full.loc[:, ['fov', 'label', 'cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad'] + marker_list]
 
-
-# determine number of cells per image
-cell_counts = cell_table.groupby('fov').count()['label'].reset_index()
-
-# sort by number of cells
-cell_counts = cell_counts.sort_values('label', ascending=True)
-
-# create histogram of number of cells per image
-sns.histplot(cell_counts.loc[cell_counts.label < 5000, 'label'], bins=50)
-
-io.imshow(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples', 'TONIC_TMA9_R8C2/H3K27me3.tiff'))
+cell_table_counts.to_csv(os.path.join(data_dir, 'cell_table_counts.csv'), index=False)
