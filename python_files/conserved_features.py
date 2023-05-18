@@ -70,6 +70,14 @@ ranked_features = ranked_features.merge(paired_df[['feature_name', 'feature_name
                                                    'compartment', 'cell_pop', 'cell_pop_level',
                                                    'feature_type']].drop_duplicates(), on='feature_name_unique', how='left')
 
+ranked_features.to_csv(os.path.join(data_dir, 'conserved_features/ranked_features.csv'), index=False)
+
+# summary plot
+sns.scatterplot(data=ranked_features, x='cor', y='log_pval', hue='consistency_score', palette='Greys')
+plt.savefig(os.path.join(plot_dir, 'Consistency_conserved_features_volcano.png'))
+plt.close()
+
+
 # generate plot for best ranked features
 min_score = 0.85
 plot_features = ranked_features.loc[ranked_features.consistency_score >= min_score, :]
@@ -139,12 +147,12 @@ fig, ax = plt.subplots(figsize=(10, 5))
 g = sns.barplot(data=plot_features.iloc[:20, :], x='consistency_score', y='feature_name_unique', ax=ax,
             color='lightblue')
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'conserved_features/consistency_scores.png'))
+plt.savefig(os.path.join(plot_dir, 'Consistency_scores_per_feature.png'))
 plt.close()
 
 # plot a specified row
 row = 25
-row = np.where(ranked_features.feature_name_unique == 'cancer_diversity__all')[0][0]
+row = np.where(ranked_features.feature_name_unique == 'CD69+__Treg')[0][0]
 name = ranked_features.loc[row, 'feature_name_unique']
 correlation = ranked_features.loc[row, 'cor']
 p_val = ranked_features.loc[row, 'p_val']
@@ -189,7 +197,7 @@ for feature in summary_features:
     g.set_ylabel('Average consistency score')
     g.set_title('Average consistency by {}'.format(feature))
     plt.tight_layout()
-    plt.savefig(os.path.join(plot_dir, 'conserved_features_average_score_by_{}.png'.format(feature)))
+    plt.savefig(os.path.join(plot_dir, 'Consistency_average_score_by_{}.png'.format(feature)))
     plt.close()
 
 
@@ -210,7 +218,7 @@ g.set_xlabel('Functional marker')
 g.set_ylabel('Average consistency score')
 g.set_title('Average consistency by functional marker')
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'conserved_features_average_score_by_functional_marker.png'))
+plt.savefig(os.path.join(plot_dir, 'Consistency_average_score_by_functional_marker.png'))
 plt.close()
 
 # create overlays of specific features
@@ -337,16 +345,4 @@ plt.savefig(os.path.join(plot_dir, 'conserved_features_met_ln_vs_all.png'))
 plt.close()
 sns.scatterplot(data=wide_ranked_features, x='met_other', y='all')
 plt.savefig(os.path.join(plot_dir, 'conserved_features_met_other_vs_all.png'))
-plt.close()
-
-
-
-
-ranked_features['conserved'] = ranked_features.combined_rank <= 100
-ranked_features.to_csv(os.path.join(data_dir, 'conserved_features/ranked_features_no_compartment.csv'), index=False)
-
-ranked_features = pd.read_csv(os.path.join(data_dir, 'conserved_features/ranked_features_no_compartment.csv'))
-
-sns.scatterplot(data=ranked_features, x='cor', y='log_pval', hue='combined_rank', palette='viridis')
-plt.savefig(os.path.join(plot_dir, 'conserved_features_volcano.png'))
 plt.close()
