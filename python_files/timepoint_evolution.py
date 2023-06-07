@@ -15,10 +15,6 @@ plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 
 harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
-patient_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/TONIC_data_per_patient.csv'))
-patient_metadata = patient_metadata.loc[~patient_metadata.MIBI_evolution_set.isna(), :]
-patient_metadata['iRECIST_response'] = 'non-responders'
-patient_metadata.loc[(patient_metadata.BOR_iRECIST.isin(['iCR', 'iPR', 'iSD'])), 'iRECIST_response'] = 'responders'
 
 # # combine overlays together into a single image for easier viewing of what changes are happening over time
 # cluster_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay'
@@ -58,7 +54,7 @@ patient_metadata.loc[(patient_metadata.BOR_iRECIST.isin(['iCR', 'iPR', 'iSD'])),
 #     plt.close()
 
 # identify features that are conserved from primary to met
-timepoint_features = pd.read_csv(os.path.join(data_dir, 'timepoint_features_no_compartment.csv'))
+timepoint_features = pd.read_csv(os.path.join(data_dir, 'timepoint_features_filtered.csv'))
 timepoint_features = timepoint_features.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint', 'primary__baseline']].drop_duplicates(), on='Tissue_ID')
 
 feature_subset = timepoint_features.loc[(timepoint_features.primary__baseline) & (timepoint_features.Timepoint.isin(['primary_untreated', 'baseline'])), :]

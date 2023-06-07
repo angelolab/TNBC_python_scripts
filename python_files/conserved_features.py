@@ -150,9 +150,13 @@ plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Consistency_scores_per_feature.png'))
 plt.close()
 
+
+poor_ranks = ranked_features.loc[ranked_features.consistency_score < 0.5, :]
+poor_ranks = poor_ranks.loc[(poor_ranks.compartment == 'all') & (poor_ranks.feature_type != 'functional_marker'), :]
+
 # plot a specified row
 row = 25
-row = np.where(ranked_features.feature_name_unique == 'CD69+__Treg')[0][0]
+row = np.where(ranked_features.feature_name_unique == 'stroma_immune_mixing')[0][0]
 name = ranked_features.loc[row, 'feature_name_unique']
 correlation = ranked_features.loc[row, 'cor']
 p_val = ranked_features.loc[row, 'p_val']
@@ -221,8 +225,21 @@ plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Consistency_average_score_by_functional_marker.png'))
 plt.close()
 
+
+# look at abundance in top 10% of features
+ranked_features['top_feature'] = ranked_features.consistency_score.values > 0.9
+enriched_features = utils.compute_feature_enrichment(feature_df=ranked_features, inclusion_col='top_feature', analysis_col='feature_type')
+
+
+# plot as a barplot
+sns.catplot(data=enriched_features, x='log2_ratio', y='feature_type', kind='bar', color='grey')
+plt.xlabel('Log2 ratio of proportion of top features')
+plt.savefig(os.path.join(plot_dir, 'top_feature_consistency_enrichment.png'))
+plt.close()
+
+
 # create overlays of specific features
-feature_name = 'H3K9ac_H3K27me3_ratio+__all__all'
+feature_name = 'H3K9ac_H3K27me3_ratio+__all'
 paired_df.loc[(paired_df.feature_name_unique == feature_name) & (paired_df.normalized_value_fov1 < -2) & (paired_df.normalized_value_fov2 < -2), ]
 id = 'T16-00774'
 
@@ -299,37 +316,44 @@ for fov in [fov_1, fov_2]:
 # compare ranking based on subsets of the data
 timepoints = [{'timepoints': ['primary_untreated', 'primary', 'biopsy'],
                'timepoint_name': 'primary',
-               'tissue': ['Other']},
+               'tissue': ['all']},
               {'timepoints': ['baseline', 'post_induction', 'on_nivo', 'metastasis'],
                'timepoint_name': 'met_ln',
                'tissue': ['Lymphnode']},
               {'timepoints': ['baseline', 'post_induction', 'on_nivo', 'metastasis'],
                'timepoint_name': 'met_other',
                 'tissue': ['Other', 'Liver', 'Unknown', 'Skin', 'Bone', 'Gut', 'Bladder', 'Oesafageal']},
+              {'timepoints': ['baseline', 'post_induction', 'on_nivo', 'metastasis'],
+               'timepoint_name': 'all_mets',
+                'tissue': ['all']},
               {'timepoints': ['all'],
                'timepoint_name': 'all'}]
-all_ranked_features = []
+
+# get ranked features
+combined_ranked_features = ranked_features.copy()
 for timepoint_df in timepoints:
     current_timepoints = timepoint_df['timepoints']
     if current_timepoints == ['all']:
         valid_paired_df = paired_df.copy()
     else:
         valid_tissue_ids = harmonized_metadata[harmonized_metadata.Timepoint.isin(current_timepoints)].Tissue_ID.unique()
-        valid_tissue_ids2 = harmonized_metadata[harmonized_metadata.Localization.isin(timepoint_df['tissue'])].Tissue_ID.unique()
-        valid_tissue_ids = np.intersect1d(valid_tissue_ids, valid_tissue_ids2)
+        tissues = timepoint_df['tissue']
+        if tissues != ['all']:
+            valid_tissue_ids2 = harmonized_metadata[harmonized_metadata.Localization.isin(tissues)].Tissue_ID.unique()
+            valid_tissue_ids = np.intersect1d(valid_tissue_ids, valid_tissue_ids2)
         valid_paired_df = paired_df[paired_df.Tissue_ID.isin(valid_tissue_ids)].copy()
     valid_ranked_features = utils.find_conserved_features(paired_df=valid_paired_df, sample_name_1='raw_value_fov1',
                                               sample_name_2='raw_value_fov2', min_samples=10)
+    valid_ranked_features = valid_ranked_features.rename(columns={'consistency_score': 'consistency_score_{}'.format(timepoint_df['timepoint_name'])})
+    combined_ranked_features = combined_ranked_features.merge(valid_ranked_features[['feature_name_unique', 'consistency_score_{}'.format(timepoint_df['timepoint_name'])]],
+                                                                on='feature_name_unique', how='left')
 
-    valid_ranked_features['timepoint'] = timepoint_df['timepoint_name']
-    all_ranked_features.append(valid_ranked_features)
+# look at correlation between selected features
+for pair in [['primary', 'all_mets'], ['met_ln', 'met_other'], ['primary', 'all'], ['all_mets', 'all']]:
+    sns.scatterplot(data=combined_ranked_features, x='consistency_score_{}'.format(pair[0]), y='consistency_score_{}'.format(pair[1]))
+    plt.savefig(os.path.join(plot_dir, 'consistency_score_correlation_{}_{}.png'.format(pair[0], pair[1])))
+    plt.close()
 
-ranked_features = pd.concat(all_ranked_features, axis=0)
-
-# combine with feature metadata
-ranked_features = ranked_features.merge(paired_df[['feature_name', 'feature_name_unique',
-                                                   'compartment', 'cell_pop', 'cell_pop_level',
-                                                   'feature_type']].drop_duplicates(), on='feature_name', how='left')
 
 # compare ranking among timepoints
 wide_ranked_features = ranked_features.pivot(index='feature_name', columns='timepoint', values='combined_rank')

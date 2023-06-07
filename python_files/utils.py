@@ -595,7 +595,7 @@ def compare_timepoints(feature_df, timepoint_1_name, timepoint_1_list, timepoint
         feature_suff (str): suffix to add to feature name
     """
     # get unique features
-    features = feature_df.feature_name.unique()
+    features = feature_df.feature_name_unique.unique()
 
     feature_names = []
     timepoint_1_means = []
@@ -613,8 +613,8 @@ def compare_timepoints(feature_df, timepoint_1_name, timepoint_1_list, timepoint
             raise ValueError('Paired samples only works with one timepoint per group.')
 
     # loop through each feature separately
-    for feature_name in features:
-        values = analysis_df.loc[(analysis_df.feature_name == feature_name), :]
+    for feature_name_unique in features:
+        values = analysis_df.loc[(analysis_df.feature_name_unique == feature_name_unique), :]
 
         # only keep samples with both timepoints
         if paired is not None:
@@ -624,11 +624,16 @@ def compare_timepoints(feature_df, timepoint_1_name, timepoint_1_list, timepoint
             values_norm = values_norm.dropna()
             values_raw = values_raw.dropna()
 
+            # if there are no paired samples, set to nan
+            if values_raw.shape[1] != 2:
+                tp_1_vals, tp_1_norm_vals = np.array(np.nan), np.array(np.nan)
+                tp_2_vals, tp_2_norm_vals = np.array(np.nan), np.array(np.nan)
             # get the columns corresponding to each timepoint
-            tp_1_vals = values_raw[timepoint_1_list[0]].values
-            tp_1_norm_vals = values_norm[timepoint_1_list[0]].values
-            tp_2_vals = values_raw[timepoint_2_list[0]].values
-            tp_2_norm_vals = values_norm[timepoint_2_list[0]].values
+            else:
+                tp_1_vals = values_raw[timepoint_1_list[0]].values
+                tp_1_norm_vals = values_norm[timepoint_1_list[0]].values
+                tp_2_vals = values_raw[timepoint_2_list[0]].values
+                tp_2_norm_vals = values_norm[timepoint_2_list[0]].values
 
         # for unpaired, just subset to the timepoints of interest
         else:
@@ -661,7 +666,7 @@ def compare_timepoints(feature_df, timepoint_1_name, timepoint_1_list, timepoint
                              'log_pval': log_pvals}, index=features)
     # calculate difference between timepoint 2 and timepoint 1
     means_df['mean_diff'] = means_df[timepoint_2_name + '_norm_mean'].values - means_df[timepoint_1_name + '_norm_mean'].values
-    means_df = means_df.reset_index().rename(columns={'index': 'feature_name'})
+    means_df = means_df.reset_index().rename(columns={'index': 'feature_name_unique'})
 
     return means_df
 
@@ -734,8 +739,8 @@ def summarize_timepoint_enrichment(input_df, feature_df, timepoints, output_dir,
     input_df_filtered = input_df_filtered.sort_values('mean_diff', ascending=False)
 
     # plot the results
-    for idx, feature in enumerate(input_df_filtered.feature_name):
-        feature_subset = feature_df.loc[(feature_df.feature_name == feature), :]
+    for idx, feature in enumerate(input_df_filtered.feature_name_unique):
+        feature_subset = feature_df.loc[(feature_df.feature_name_unique == feature), :]
         feature_subset = feature_subset.loc[(feature_subset.Timepoint.isin(timepoints)), :]
 
         g = sns.catplot(data=feature_subset, x='Timepoint', y='raw_mean', kind=plot_type, color='grey')
@@ -743,7 +748,7 @@ def summarize_timepoint_enrichment(input_df, feature_df, timepoints, output_dir,
         g.savefig(os.path.join(output_dir, 'Evolution_{}_{}.png'.format(idx, feature)))
         plt.close()
 
-    sns.catplot(data=input_df_filtered, x='mean_diff', y='feature_name', kind='bar', color='grey')
+    sns.catplot(data=input_df_filtered, x='mean_diff', y='feature_name_unique', kind='bar', color='grey')
     plt.savefig(os.path.join(output_dir, 'Timepoint_summary.png'))
     plt.close()
 
@@ -765,6 +770,7 @@ def summarize_population_enrichment(input_df, feature_df, timepoints, pop_col, o
     input_df_filtered = input_df.loc[(input_df.log_pval > pval_thresh) & (np.abs(input_df.mean_diff) > diff_thresh), :]
 
     input_df_filtered = input_df_filtered.sort_values('mean_diff', ascending=False)
+    print(input_df_filtered)
 
     # plot the results
     for idx, feature in enumerate(input_df_filtered.feature_name):
@@ -780,3 +786,30 @@ def summarize_population_enrichment(input_df, feature_df, timepoints, pop_col, o
     plt.savefig(os.path.join(output_dir, 'Evolution_summary.png'))
     plt.close()
 
+
+def compute_feature_enrichment(feature_df, inclusion_col, analysis_col):
+    """Compute the enrichment of a set of included features from all features
+
+    Args:
+        feature_df (pd.DataFrame): DataFrame with features and inclusion column
+        inclusion_col (str): Column with boolean values indicating inclusion
+        analysis_col (str): Column to group by for analysis
+
+    Returns:
+        feature_props (pd.DataFrame): DataFrame with feature proportions
+    """
+    # aggregate based on analysis column
+    feature_props = feature_df[[inclusion_col, analysis_col]].groupby([inclusion_col, analysis_col]).size().reset_index()
+    feature_props = feature_props.pivot(index=analysis_col, columns=inclusion_col, values=0)
+
+    # identify the fraction of features that are included
+    selected_frac = np.sum(feature_df[inclusion_col]) / len(feature_df)
+
+    # compute absolute and relative proportions
+    feature_props['prop'] = feature_props[True] / (feature_props[True] + feature_props[False])
+    feature_props['log2_ratio'] = np.log2(feature_props['prop'] / selected_frac)
+
+    feature_props.reset_index(inplace=True)
+    feature_props.sort_values(by='log2_ratio', inplace=True, ascending=False)
+
+    return feature_props
