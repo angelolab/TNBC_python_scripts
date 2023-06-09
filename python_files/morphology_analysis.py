@@ -80,3 +80,25 @@ corr_df = df_wide.corr(method='spearman')
 clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
 clustergrid.savefig(os.path.join(plot_dir, 'morphology/morph_correlation_cell_subset_cancer.png'), dpi=300)
 plt.close()
+
+
+# look at images that are high for each feature to assess quality
+feature_name = 'area__Stroma'
+data_subset = feature_df.loc[feature_df.feature_name_unique == feature_name, :]
+data_subset.sort_values(by='raw_value', ascending=False, inplace=True)
+
+out_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/morphology_extremes'
+plot_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay'
+
+for i in range(1, 10):
+    fov_low = data_subset.iloc[-i, :].fov
+    fov_high = data_subset.iloc[i, :].fov
+
+    low_path = os.path.join(plot_dir, fov_low + '.png')
+    low_save_path = os.path.join(out_dir, 'low_{}.png'.format(i))
+    shutil.copyfile(low_path, low_save_path)
+
+    high_path = os.path.join(plot_dir, fov_high + '.png')
+    high_save_path = os.path.join(out_dir, 'high_{}.png'.format(i))
+    shutil.copyfile(high_path, high_save_path)
+

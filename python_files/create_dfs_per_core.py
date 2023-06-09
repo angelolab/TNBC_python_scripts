@@ -747,8 +747,18 @@ block3 = ['eccentricity', 'major_axis_equiv_diam_ratio']
 block4 = ['eccentricity_nuclear', 'major_axis_equiv_diam_ratio_nuclear', 'perim_square_over_area_nuclear']
 
 deduped_morph_df = filtered_morph_df.loc[~filtered_morph_df.morphology_feature.isin(block1[1:] + block2[1:] + block3[1:] + block4[1:]), :]
+
+# only keep complex morphology features for cancer cells, remove everything except area and nc for others
+cancer_clusters = ['Cancer', 'Cancer_EMT', 'Cancer_Other', 'Cancer_CD56', 'Cancer_CK17',
+                   'Cancer_Ecad', 'Cancer_Mono', 'Cancer_SMA', 'Cancer_Vim']
+basic_morph_features = ['area', 'area_nuclear', 'nc_ratio']
+
+deduped_morph_df = deduped_morph_df.loc[~(~(deduped_morph_df.cell_type.isin(cancer_clusters)) & ~(deduped_morph_df.morphology_feature.isin(basic_morph_features))), :]
+
+# saved deduped
 deduped_morph_df.to_csv(os.path.join(data_dir, 'morph_df_per_core_filtered_deduped.csv'), index=False)
 
-
+# same for timepoints
 deduped_morph_df_timepoint = filtered_morph_df_timepoint.loc[~filtered_morph_df_timepoint.morphology_feature.isin(block1[1:] + block2[1:] + block3[1:] + block4[1:]), :]
+deduped_morph_df_timepoint = deduped_morph_df_timepoint.loc[~(~(deduped_morph_df_timepoint.cell_type.isin(cancer_clusters)) & ~(deduped_morph_df_timepoint.morphology_feature.isin(basic_morph_features))), :]
 deduped_morph_df_timepoint.to_csv(os.path.join(data_dir, 'morph_df_per_timepoint_filtered_deduped.csv'), index=False)
