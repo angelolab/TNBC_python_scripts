@@ -11,7 +11,7 @@ from alpineer.misc_utils import verify_in_list
 from alpineer import io_utils, load_utils
 from ark.segmentation import marker_quantification
 
-from scipy.stats import spearmanr, ttest_ind, ttest_rel
+from scipy.stats import spearmanr, ttest_ind, ttest_rel, wilcoxon, mannwhitneyu
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -625,7 +625,7 @@ def compare_timepoints(feature_df, timepoint_1_name, timepoint_1_list, timepoint
             values_raw = values_raw.dropna()
 
             # if there are no paired samples, set to nan
-            if values_raw.shape[1] != 2:
+            if values_raw.shape[1] != 2 or len(values_raw) == 0:
                 tp_1_vals, tp_1_norm_vals = np.array(np.nan), np.array(np.nan)
                 tp_2_vals, tp_2_norm_vals = np.array(np.nan), np.array(np.nan)
             # get the columns corresponding to each timepoint
@@ -652,9 +652,12 @@ def compare_timepoints(feature_df, timepoint_1_name, timepoint_1_list, timepoint
 
         # compute t-test for difference between timepoints
         if paired is not None:
-            t, p = ttest_rel(tp_1_norm_vals, tp_2_norm_vals)
+            if np.all(tp_1_norm_vals - tp_2_norm_vals == 0):
+                t, p = np.nan, np.nan
+            else:
+                t, p = wilcoxon(tp_1_norm_vals, tp_2_norm_vals)
         else:
-            t, p = ttest_ind(tp_1_norm_vals, tp_2_norm_vals)
+            t, p = mannwhitneyu(tp_1_norm_vals, tp_2_norm_vals)
 
         log_pvals.append(-np.log10(p))
 
@@ -683,7 +686,7 @@ def compare_populations(feature_df, pop_col, pop_1, pop_2, timepoints, feature_s
         feature_suff (str): suffix to add to feature name
     """
     # get unique features
-    features = feature_df.feature_name.unique()
+    features = feature_df.feature_name_unique.unique()
 
     feature_names = []
     pop_1_means = []
@@ -695,7 +698,7 @@ def compare_populations(feature_df, pop_col, pop_1, pop_2, timepoints, feature_s
     analysis_df = feature_df.loc[(feature_df.Timepoint.isin(timepoints)), :]
 
     for feature_name in features:
-        values = analysis_df.loc[(analysis_df.feature_name == feature_name), :]
+        values = analysis_df.loc[(analysis_df.feature_name_unique == feature_name), :]
         pop_1_vals = values.loc[values[pop_col] == pop_1, 'raw_' + feature_suff].values
         pop_1_norm_vals = values.loc[values[pop_col] == pop_1, 'normalized_' + feature_suff].values
         pop_2_vals = values.loc[values[pop_col] == pop_2, 'raw_' + feature_suff].values
@@ -716,7 +719,7 @@ def compare_populations(feature_df, pop_col, pop_1, pop_2, timepoints, feature_s
                              'log_pval': log_pvals}, index=features)
     # calculate difference
     means_df['mean_diff'] = means_df[pop_2 + '_norm_mean'].values - means_df[pop_1 + '_norm_mean'].values
-    means_df = means_df.reset_index().rename(columns={'index': 'feature_name'})
+    means_df = means_df.reset_index().rename(columns={'index': 'feature_name_unique'})
 
     return means_df
 
@@ -773,8 +776,8 @@ def summarize_population_enrichment(input_df, feature_df, timepoints, pop_col, o
     print(input_df_filtered)
 
     # plot the results
-    for idx, feature in enumerate(input_df_filtered.feature_name):
-        feature_subset = feature_df.loc[(feature_df.feature_name == feature), :]
+    for idx, feature in enumerate(input_df_filtered.feature_name_unique):
+        feature_subset = feature_df.loc[(feature_df.feature_name_unique == feature), :]
         feature_subset = feature_subset.loc[(feature_subset.Timepoint.isin(timepoints)), :]
 
         g = sns.catplot(data=feature_subset, x=pop_col, y='raw_mean', kind=plot_type)
@@ -782,7 +785,7 @@ def summarize_population_enrichment(input_df, feature_df, timepoints, pop_col, o
         g.savefig(os.path.join(output_dir, 'Evolution_{}_{}.png'.format(idx, feature)))
         plt.close()
 
-    sns.catplot(data=input_df_filtered, x='mean_diff', y='feature_name', kind='bar', color='grey')
+    sns.catplot(data=input_df_filtered, x='mean_diff', y='feature_name_unique', kind='bar', color='grey')
     plt.savefig(os.path.join(output_dir, 'Evolution_summary.png'))
     plt.close()
 
