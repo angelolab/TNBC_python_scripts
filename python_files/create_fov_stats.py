@@ -288,7 +288,7 @@ for morphology_name, cell_pop_level in morphology_features:
         fov_data.append(compartment_df)
 
 # compute compartment abundance and ratios
-compartments = ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border']
+compartments = ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'tls', 't_agg']
 for idx, compartment in enumerate(compartments):
     compartment_df = compartment_area[compartment_area.compartment == compartment].copy()
     total_area = compartment_area[compartment_area.compartment == 'all']
@@ -303,8 +303,8 @@ for idx, compartment in enumerate(compartments):
                                      'cell_pop_level', 'feature_type']]
     fov_data.append(compartment_df)
 
-    # now look at combinations of compartments
-    if idx == 3:
+    # now look at combinations of compartments, except for rare ones
+    if idx > 2:
         continue
     compartment2 = compartments[idx + 1]
     compartment2_df = compartment_area[compartment_area.compartment == compartment2].copy()

@@ -168,7 +168,11 @@ for folder in folders[:20]:
 
 
 # assign cells to the correct compartment
+all_assignment_table = pd.DataFrame()
 for i in range(0, 1400, 200):
-    assignment_table = utils.assign_cells_to_mask(seg_dir=seg_dir, mask_dir=individual_dir, fovs=folders[i:i+200])
-    assignment_table.to_csv(os.path.join(post_processing_dir, 'cell_annotation_mask_{}'.format(i)), index=False)
+    # assignment_table = utils.assign_cells_to_mask(seg_dir=seg_dir, mask_dir=individual_dir, fovs=folders[i:i+200])
+    # assignment_table.to_csv(os.path.join(post_processing_dir, 'cell_annotation_mask_{}'.format(i)), index=False)
+    assignment_table = pd.read_csv(os.path.join(post_processing_dir, 'cell_annotation_mask_{}'.format(i)))
+    all_assignment_table = pd.concat([all_assignment_table, assignment_table])
 
+all_assignment_table.to_csv(os.path.join(post_processing_dir, 'cell_annotation_mask.csv'), index=False)

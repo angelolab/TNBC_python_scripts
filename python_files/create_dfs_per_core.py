@@ -31,6 +31,7 @@ cell_table_func = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cell_ta
 cell_table_morph = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cell_table_morph.csv'))
 area_df = pd.read_csv(os.path.join(data_dir, 'post_processing', 'fov_annotation_mask_area.csv'))
 annotations_by_mask = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cell_annotation_mask.csv'))
+fiber_df = pd.read_csv(os.path.join(data_dir, 'fiber_segmentation_processed_data', 'fiber_object_table.csv'))
 
 # merge cell-level annotations
 harmonized_annotations = annotations_by_mask
@@ -65,7 +66,6 @@ cluster_df_params = [['cluster_broad_freq', 'cell_cluster_broad', True],
                      ['cluster_count', 'cell_cluster', False],
                      ['meta_cluster_freq', 'cell_meta_cluster', True],
                      ['meta_cluster_count', 'cell_meta_cluster', False]]
-                     #['kmeans_freq', 'kmeans_labels', True]]
 
 cluster_dfs = []
 for result_name, cluster_col_name, normalize in cluster_df_params:
@@ -184,7 +184,7 @@ total_df_timepoint.to_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv')
 
 # Columns which are not thresholded (such as ratios between markers) can only be calculated for
 # dfs looking at normalized expression, and need to be dropped when calculating counts
-count_drop_cols = ['H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio']  # , 'kmeans_labels']
+count_drop_cols = ['H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio']
 
 # Create list to hold parameters for each df that will be produced
 func_df_params = [['cluster_broad_count', 'cell_cluster_broad', False],
@@ -193,7 +193,7 @@ func_df_params = [['cluster_broad_count', 'cell_cluster_broad', False],
                   ['cluster_freq', 'cell_cluster', True],
                   ['meta_cluster_count', 'cell_meta_cluster', False],
                   ['meta_cluster_freq', 'cell_meta_cluster', True]]
-                  #['kmeans_freq', 'kmeans_labels', True]]
+
 
 func_dfs = []
 for result_name, cluster_col_name, normalize in func_df_params:
@@ -762,3 +762,16 @@ deduped_morph_df.to_csv(os.path.join(data_dir, 'morph_df_per_core_filtered_dedup
 deduped_morph_df_timepoint = filtered_morph_df_timepoint.loc[~filtered_morph_df_timepoint.morphology_feature.isin(block1[1:] + block2[1:] + block3[1:] + block4[1:]), :]
 deduped_morph_df_timepoint = deduped_morph_df_timepoint.loc[~(~(deduped_morph_df_timepoint.cell_type.isin(cancer_clusters)) & ~(deduped_morph_df_timepoint.morphology_feature.isin(basic_morph_features))), :]
 deduped_morph_df_timepoint.to_csv(os.path.join(data_dir, 'morph_df_per_timepoint_filtered_deduped.csv'), index=False)
+
+# fiber objects summary
+
+
+
+
+
+
+
+long_df = pd.melt(transformed, id_vars=['fov'], var_name='morphology_feature')
+long_df['metric'] = 'total_freq'
+long_df['cell_type'] = 'all'
+long_df['subset'] = 'all'
