@@ -645,6 +645,12 @@ def compare_timepoints(feature_df, timepoint_1_name, timepoint_1_list, timepoint
                 values.Timepoint.isin(timepoint_2_list), 'raw_' + feature_suff].values
             tp_2_norm_vals = values.loc[
                 values.Timepoint.isin(timepoint_2_list), 'normalized_' + feature_suff].values
+
+            # if either timepoint is missing, set to nan
+            if len(tp_1_vals) == 0 or len(tp_2_vals) == 0:
+                tp_1_vals, tp_1_norm_vals = np.array(np.nan), np.array(np.nan)
+                tp_2_vals, tp_2_norm_vals = np.array(np.nan), np.array(np.nan)
+
         timepoint_1_means.append(tp_1_vals.mean())
         timepoint_1_norm_means.append(tp_1_norm_vals.mean())
         timepoint_2_means.append(tp_2_vals.mean())
