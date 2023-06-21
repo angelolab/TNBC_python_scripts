@@ -868,6 +868,33 @@ filtered_diversity_df_timepoint = filtered_diversity_df_timepoint.merge(harmoniz
 filtered_diversity_df_timepoint.to_csv(os.path.join(data_dir, 'diversity_df_per_timepoint_filtered.csv'), index=False)
 
 
+# investigate correlation between diversity scores
+fov_data = filtered_diversity_df.copy()
+fov_data['feature_name_unique'] = fov_data['cell_type'] + '_' + fov_data['diversity_feature']
+fov_data = fov_data.loc[(fov_data.subset == 'all') & (fov_data.metric == 'cluster_freq')]
+fov_data = fov_data.loc[fov_data.diversity_feature != 'diversity_cell_meta_cluster']
+fov_data_wide = fov_data.pivot(index='fov', columns='feature_name_unique', values='value')
+
+corr_df = fov_data_wide.corr(method='spearman')
+
+# replace Nans
+corr_df = corr_df.fillna(0)
+clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+
+# save deduped df that excludes cell meta cluster
+deduped_diversity_df = filtered_diversity_df.loc[filtered_diversity_df.diversity_feature != 'diversity_cell_meta_cluster']
+deduped_diversity_df.to_csv(os.path.join(data_dir, 'diversity_df_per_core_filtered_deduped.csv'), index=False)
+
+# create version aggregated by timepoint
+deduped_diversity_df_grouped = deduped_diversity_df.groupby(['Tissue_ID', 'cell_type', 'diversity_feature', 'metric', 'subset'])
+deduped_diversity_df_timepoint = deduped_diversity_df_grouped['value'].agg([np.mean, np.std])
+deduped_diversity_df_timepoint.reset_index(inplace=True)
+deduped_diversity_df_timepoint = deduped_diversity_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+deduped_diversity_df_timepoint.to_csv(os.path.join(data_dir, 'diversity_df_per_timepoint_filtered_deduped.csv'), index=False)
+
+
 # process linear distance dfs
 distance_dfs = []
 
@@ -942,3 +969,64 @@ filtered_distance_df_timepoint = filtered_distance_df_timepoint.merge(harmonized
 # save timepoint df
 filtered_distance_df_timepoint.to_csv(os.path.join(data_dir, 'distance_df_per_timepoint_filtered.csv'), index=False)
 
+
+# remove distances that are correlated with abundance of cell type
+
+# load data
+total_df = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
+density_df = total_df.loc[(total_df.metric == 'cluster_broad_density') & (total_df.subset == 'all')]
+filtered_distance_df = filtered_distance_df.loc[(filtered_distance_df.metric == 'cluster_broad_freq') & (filtered_distance_df.subset == 'all')]
+
+# remove images without tumor cells
+density_df = density_df.loc[density_df.Timepoint != 'lymphnode_neg', :]
+filtered_distance_df = filtered_distance_df.loc[filtered_distance_df.fov.isin(density_df.fov.unique())]
+cell_types = filtered_distance_df.cell_type.unique()
+
+# calculate which pairings to keep
+keep_cells, keep_features = [], []
+
+for cell_type in cell_types:
+    density_subset = density_df.loc[density_df.cell_type == cell_type]
+    distance_subset = filtered_distance_df.loc[filtered_distance_df.linear_distance == cell_type]
+    distance_wide = distance_subset.pivot(index='fov', columns='cell_type', values='value')
+    distance_wide.reset_index(inplace=True)
+    distance_wide = pd.merge(distance_wide, density_subset[['fov', 'value']], on='fov', how='inner')
+
+    # get correlations
+    corr_df = distance_wide.corr(method='spearman')
+
+    # determine which features to keep
+    corr_vals = corr_df.loc['value', :].abs()
+    corr_vals = corr_vals[corr_vals < 0.8]
+
+    # add to list of features to keep
+    keep_cells.extend(corr_vals.index)
+    keep_features.extend([cell_type] * len(corr_vals.index))
+
+keep_df = pd.DataFrame({'cell_type': keep_cells, 'feature_name': keep_features})
+
+keep_df.to_csv(os.path.join(data_dir, 'distance_df_keep_features.csv'), index=False)
+
+# filter distance df to only include features with low correlation with abundance
+
+deduped_dfs = []
+for cell_type in keep_df.cell_type.unique():
+    keep_features = keep_df.loc[keep_df.cell_type == cell_type, 'feature_name'].unique()
+    if len(keep_features) > 0:
+        keep_df_subset = filtered_distance_df.loc[filtered_distance_df.cell_type == cell_type]
+        keep_df_subset = keep_df_subset.loc[keep_df_subset.linear_distance.isin(keep_features)]
+        deduped_dfs.append(keep_df_subset)
+
+deduped_distance_df = pd.concat(deduped_dfs)
+
+# save filtered df
+deduped_distance_df.to_csv(os.path.join(data_dir, 'distance_df_per_core_deduped.csv'), index=False)
+
+# create version aggregated by timepoint
+deduped_distance_df_grouped = deduped_distance_df.groupby(['Tissue_ID', 'cell_type', 'linear_distance', 'metric', 'subset'])
+deduped_distance_df_timepoint = deduped_distance_df_grouped['value'].agg([np.mean, np.std])
+deduped_distance_df_timepoint.reset_index(inplace=True)
+deduped_distance_df_timepoint = deduped_distance_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+deduped_distance_df_timepoint.to_csv(os.path.join(data_dir, 'distance_df_per_timepoint_deduped.csv'), index=False)
