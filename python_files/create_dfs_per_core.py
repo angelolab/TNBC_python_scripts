@@ -35,6 +35,7 @@ cell_table_distances_broad = pd.read_csv(os.path.join(data_dir, 'spatial_analysi
 area_df = pd.read_csv(os.path.join(data_dir, 'post_processing', 'fov_annotation_mask_area.csv'))
 annotations_by_mask = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cell_annotation_mask.csv'))
 fiber_df = pd.read_csv(os.path.join(data_dir, 'fiber_segmentation_processed_data', 'fiber_object_table.csv'))
+fiber_tile_df = pd.read_csv(os.path.join(data_dir, 'fiber_segmentation_processed_data/tile_stats_512', 'fiber_stats_table-tile_512.csv'))
 
 # merge cell-level annotations
 harmonized_annotations = annotations_by_mask
@@ -58,6 +59,8 @@ cell_table_morph = cell_table_morph.loc[~cell_table_morph.fov.isin(missing_fovs)
 cell_table_diversity = cell_table_diversity.loc[~cell_table_diversity.fov.isin(missing_fovs), :]
 cell_table_distances = cell_table_distances.loc[~cell_table_distances.fov.isin(missing_fovs), :]
 cell_table_distances_broad = cell_table_distances_broad.loc[~cell_table_distances_broad.fov.isin(missing_fovs), :]
+fiber_df = fiber_df.loc[~fiber_df.fov.isin(missing_fovs), :]
+fiber_tile_df = fiber_tile_df.loc[~fiber_tile_df.fov.isin(missing_fovs), :]
 
 #
 # Generate counts and proportions of cell clusters per FOV
@@ -1030,3 +1033,51 @@ deduped_distance_df_timepoint = deduped_distance_df_timepoint.merge(harmonized_m
 
 # save timepoint df
 deduped_distance_df_timepoint.to_csv(os.path.join(data_dir, 'distance_df_per_timepoint_deduped.csv'), index=False)
+
+
+# fiber analysis
+fiber_df = fiber_df.loc[:, ~fiber_df.columns.isin(['label', 'centroid-0', 'centroid-1'])]
+
+fiber_df = fiber_df.merge(harmonized_metadata[['Tissue_ID', 'fov']], on=['fov'], how='left')
+
+fiber_df_means = fiber_df.groupby(['Tissue_ID', 'fov']).agg(np.mean)
+fiber_df_means.reset_index(inplace=True)
+
+fiber_df_long = pd.melt(fiber_df_means, id_vars=['Tissue_ID', 'fov'], var_name='fiber_metric', value_name='value')
+fiber_df_long['fiber_metric'] = 'fiber_' + fiber_df_long['fiber_metric']
+
+fiber_df_long.to_csv(os.path.join(data_dir, 'fiber_df_per_core.csv'), index=False)
+
+# create version aggregated by timepoint
+fiber_df_grouped = fiber_df_long.groupby(['Tissue_ID', 'fiber_metric'])
+fiber_df_timepoint = fiber_df_grouped['value'].agg([np.mean, np.std])
+fiber_df_timepoint.reset_index(inplace=True)
+fiber_df_timepoint = fiber_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+fiber_df_timepoint.to_csv(os.path.join(data_dir, 'fiber_df_per_timepoint.csv'), index=False)
+
+# for tiles, get max per image
+fiber_tile_df = fiber_tile_df.dropna()
+fiber_tile_df = fiber_tile_df.loc[:, ~fiber_tile_df.columns.isin(['pixel_density', 'tile_y', 'tile_x'])]
+fiber_tile_df.columns = fiber_tile_df.columns.str.replace('avg_', '')
+fiber_tile_df.columns = fiber_tile_df.columns.str.replace('fiber_', '')
+fiber_tile_df = fiber_tile_df.merge(harmonized_metadata[['Tissue_ID', 'fov']], on=['fov'], how='left')
+
+# group by fov
+fiber_tile_df_means = fiber_tile_df.groupby(['Tissue_ID', 'fov']).agg(np.max)
+fiber_tile_df_means.reset_index(inplace=True)
+
+fiber_tile_df_long = pd.melt(fiber_tile_df_means, id_vars=['Tissue_ID', 'fov'], var_name='fiber_metric', value_name='value')
+fiber_tile_df_long['fiber_metric'] = 'max_fiber_' + fiber_tile_df_long['fiber_metric']
+
+fiber_tile_df_long.to_csv(os.path.join(data_dir, 'fiber_df_per_tile.csv'), index=False)
+
+# create version aggregated by timepoint
+fiber_tile_df_grouped = fiber_tile_df_long.groupby(['Tissue_ID', 'fiber_metric'])
+fiber_tile_df_timepoint = fiber_tile_df_grouped['value'].agg([np.mean, np.std])
+fiber_tile_df_timepoint.reset_index(inplace=True)
+fiber_tile_df_timepoint = fiber_tile_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+fiber_tile_df_timepoint.to_csv(os.path.join(data_dir, 'fiber_df_per_tile_timepoint.csv'), index=False)

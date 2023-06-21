@@ -23,7 +23,9 @@ functional_df_core = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core_
 morph_df_core = pd.read_csv(os.path.join(data_dir, 'morph_df_per_core_filtered_deduped.csv'))
 mixing_df = pd.read_csv(os.path.join(data_dir, 'spatial_analysis/mixing_score/cell_cluster_broad/formatted_scores.csv'))
 diversity_df = pd.read_csv(os.path.join(data_dir, 'diversity_df_per_core_filtered_deduped.csv'))
-distance_df = pd.read_csv(os.path.join(data_dir, 'distance_df_per_core_filtered.csv'))
+distance_df = pd.read_csv(os.path.join(data_dir, 'distance_df_per_core_deduped.csv'))
+fiber_df = pd.read_csv(os.path.join(data_dir, 'fiber_df_per_core.csv'))
+fiber_tile_df = pd.read_csv(os.path.join(data_dir, 'fiber_df_per_tile.csv'))
 ecm_df = pd.read_csv(os.path.join(data_dir, 'ecm/fov_cluster_counts.csv'))
 ecm_clusters = pd.read_csv(os.path.join('/Volumes/Shared/Noah Greenwald/ecm_pixel_clustering/fov_pixel_cluster_counts.csv'))
 
@@ -464,6 +466,30 @@ ecm_clusters = ecm_clusters[['fov', 'value', 'feature_name', 'feature_name_uniqu
                                 'compartment', 'cell_pop', 'cell_pop_level', 'feature_type']]
 
 fov_data.append(ecm_clusters)
+
+# add fiber stats
+fiber_df = fiber_df.rename(columns={'fiber_metric': 'feature_name'})
+fiber_df['feature_name_unique'] = fiber_df['feature_name']
+fiber_df['compartment'] = 'all'
+fiber_df['cell_pop'] = 'ecm'
+fiber_df['cell_pop_level'] = 'broad'
+fiber_df['feature_type'] = 'ecm'
+fiber_df = fiber_df[['fov', 'value', 'feature_name', 'feature_name_unique',
+                        'compartment', 'cell_pop', 'cell_pop_level', 'feature_type']]
+fov_data.append(fiber_df)
+
+# add fiber tile stats
+fiber_tile_df = fiber_tile_df.rename(columns={'fiber_metric': 'feature_name'})
+fiber_tile_df['feature_name_unique'] = fiber_tile_df['feature_name']
+fiber_tile_df['compartment'] = 'all'
+fiber_tile_df['cell_pop'] = 'ecm'
+fiber_tile_df['cell_pop_level'] = 'broad'
+fiber_tile_df['feature_type'] = 'ecm'
+fiber_tile_df = fiber_tile_df[['fov', 'value', 'feature_name', 'feature_name_unique',
+                        'compartment', 'cell_pop', 'cell_pop_level', 'feature_type']]
+fov_data.append(fiber_tile_df)
+
+
 
 # compute z-scores for each feature
 fov_data_df = pd.concat(fov_data)
