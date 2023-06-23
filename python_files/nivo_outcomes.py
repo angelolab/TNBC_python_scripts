@@ -21,20 +21,20 @@ patient_metadata = patient_metadata.loc[~patient_metadata.MIBI_evolution_set.isn
 patient_metadata['iRECIST_response'] = 'non-responders'
 patient_metadata.loc[(patient_metadata.BOR_iRECIST.isin(['iCR', 'iPR', 'iSD'])), 'iRECIST_response'] = 'responders'
 
-timepoint_features = pd.read_csv(os.path.join(data_dir, 'timepoint_features_no_compartment.csv'))
-func_df_timepoint = pd.read_csv(os.path.join(data_dir, 'functional_df_per_timepoint_filtered_deduped.csv'))
-func_df_timepoint = func_df_timepoint.loc[(func_df_timepoint.cell_type == 'Mono_Mac') & (func_df_timepoint.subset == 'all') &
-                                          (func_df_timepoint.functional_marker == 'PDL1') & (func_df_timepoint.metric == 'cluster_broad_freq') &
-                                          (func_df_timepoint.MIBI_data_generated), :]
-# add total mono_mac PDL1 expression to df
-func_df_timepoint['feature_name'] = 'Mono_Mac__PDL1+'
-func_df_timepoint['feature_name_unique'] = 'Mono_Mac__PDL1+'
-func_df_timepoint['compartment'] = 'all'
-func_df_timepoint['cell_pop_level'] = 'broad'
-func_df_timepoint['feature_type'] = 'functional_marker'
-func_df_timepoint = func_df_timepoint.rename(columns={'mean': 'raw_mean', 'std': 'raw_std', 'cell_type': 'cell_pop'})
-
-timepoint_features = timepoint_features.append(func_df_timepoint[['Tissue_ID', 'feature_name', 'feature_name_unique', 'compartment', 'cell_pop_level', 'feature_type', 'raw_mean', 'raw_std']])
+timepoint_features = pd.read_csv(os.path.join(data_dir, 'timepoint_features_filtered.csv'))
+# func_df_timepoint = pd.read_csv(os.path.join(data_dir, 'functional_df_per_timepoint_filtered_deduped.csv'))
+# func_df_timepoint = func_df_timepoint.loc[(func_df_timepoint.cell_type == 'Mono_Mac') & (func_df_timepoint.subset == 'all') &
+#                                           (func_df_timepoint.functional_marker == 'PDL1') & (func_df_timepoint.metric == 'cluster_broad_freq') &
+#                                           (func_df_timepoint.MIBI_data_generated), :]
+# # add total mono_mac PDL1 expression to df
+# func_df_timepoint['feature_name'] = 'Mono_Mac__PDL1+'
+# func_df_timepoint['feature_name_unique'] = 'Mono_Mac__PDL1+'
+# func_df_timepoint['compartment'] = 'all'
+# func_df_timepoint['cell_pop_level'] = 'broad'
+# func_df_timepoint['feature_type'] = 'functional_marker'
+# func_df_timepoint = func_df_timepoint.rename(columns={'mean': 'raw_mean', 'std': 'raw_std', 'cell_type': 'cell_pop'})
+#
+# timepoint_features = timepoint_features.append(func_df_timepoint[['Tissue_ID', 'feature_name', 'feature_name_unique', 'compartment', 'cell_pop_level', 'feature_type', 'raw_mean', 'raw_std']])
 timepoint_features = timepoint_features.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint', 'primary__baseline',
                                                                    'baseline__on_nivo', 'baseline__post_induction', 'post_induction__on_nivo']].drop_duplicates(), on='Tissue_ID')
 timepoint_features = timepoint_features.merge(patient_metadata[['Patient_ID', 'iRECIST_response']].drop_duplicates(), on='Patient_ID', how='left')
@@ -69,17 +69,17 @@ for population in ['primary_untreated', 'baseline', 'post_induction', 'on_nivo']
     population_df_filtered = population_df.loc[(population_df.log_pval > pval_thresh) & (np.abs(population_df.mean_diff) > diff_thresh), :]
     keep_rows.extend(population_df_filtered.feature_name_unique.tolist())
 
-    # current_plot_dir = os.path.join(plot_dir, 'responders_nonresponders_timepoint_{}'.format(population))
-    # if not os.path.exists(current_plot_dir):
-    #     os.makedirs(current_plot_dir)
-    # summarize_population_enrichment(input_df=population_df, feature_df=timepoint_features, timepoints=[population],
-    #                                 pop_col='iRECIST_response', output_dir=current_plot_dir)
+    current_plot_dir = os.path.join(plot_dir, 'responders_nonresponders_timepoint_{}'.format(population))
+    if not os.path.exists(current_plot_dir):
+        os.makedirs(current_plot_dir)
+    summarize_population_enrichment(input_df=population_df, feature_df=timepoint_features, timepoints=[population],
+                                    pop_col='iRECIST_response', output_dir=current_plot_dir)
 
     population_df = population_df.rename(columns={'mean_diff': (population)})
     pop_df_means = pop_df_means.merge(population_df.loc[:, ['feature_name_unique', population]], on=['feature_name_unique'], how='left')
 
-pop_df_means = pop_df_means.loc[pop_df_means.feature_name.isin(keep_rows), :]
-pop_df_means = pop_df_means.set_index('feature_name')
+pop_df_means = pop_df_means.loc[pop_df_means.feature_name_unique.isin(keep_rows), :]
+pop_df_means = pop_df_means.set_index('feature_name_unique')
 pop_df_means = pop_df_means.fillna(0)
 
 # make clustermap 20 x 10

@@ -16,7 +16,7 @@ metadata_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/metadata'
 # get list of acquired FOVs
 all_fovs = list_folders('/Volumes/Big_Boy/TONIC_Cohort/image_data/samples')
 fov_df = pd.DataFrame({'imaged_fovs': all_fovs})
-fov_df.to_csv(os.path.join(data_dir, 'imaged_fovs.csv'), index=False)
+fov_df.to_csv(os.path.join(metadata_dir, 'imaged_fovs.csv'), index=False)
 
 # annotate acquired FOVs
 core_metadata = pd.read_csv(os.path.join(metadata_dir, 'TONIC_data_per_core_unprocessed.csv'))

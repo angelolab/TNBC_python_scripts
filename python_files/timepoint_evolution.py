@@ -72,7 +72,7 @@ paired_df.columns = [x[:-1] if x.endswith('_') else x for x in paired_df.columns
 ranked_features = find_conserved_features(paired_df=paired_df, sample_name_1='raw_mean_primary_untreated',
                                               sample_name_2='raw_mean_baseline', min_samples=10)
 # combine with feature metadata
-ranked_features = ranked_features.merge(paired_df[['feature_name', 'compartment', 'cell_pop', 'feature_type']].drop_duplicates(), on='feature_name', how='left')
+ranked_features = ranked_features.merge(paired_df[['feature_name_unique', 'compartment', 'cell_pop', 'feature_type']].drop_duplicates(), on='feature_name_unique', how='left')
 
 sns.scatterplot(data=ranked_features, x='cor', y='log_pval')
 plt.savefig(os.path.join(plot_dir, 'conserved_features_volcano.png'))
@@ -81,37 +81,37 @@ plt.close()
 
 
 # generate plot for best ranked features
-max_rank = 30
-plot_features = ranked_features.loc[ranked_features.combined_rank <= max_rank, :]
+min_score = 0.8
+plot_features = ranked_features.loc[ranked_features.consistency_score >= min_score, :]
 # sort by combined rank
 plot_features.sort_values(by='combined_rank', inplace=True)
 
-for i in range(len(plot_features)):
-    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+for i in range(len(plot_features))[:30]:
+    fig, ax = plt.subplots(figsize=(10, 10))
 
-    feature_name = plot_features.iloc[i].feature_name
+    feature_name = plot_features.iloc[i].feature_name_unique
     #feature_name = plot_features[i]
-    values = paired_df[(paired_df.feature_name == feature_name)].copy()
+    values = paired_df[(paired_df.feature_name_unique == feature_name)].copy()
     values.dropna(inplace=True)
 
-    sns.scatterplot(data=values, x='primary_untreated', y='baseline', ax=ax[0])
+    sns.scatterplot(data=values, x='raw_mean_primary_untreated', y='raw_mean_baseline', ax=ax)
     #sns.scatterplot(data=values, x='raw_value_fov1', y='raw_value_fov2', ax=ax[0])
     #sns.scatterplot(data=values, x='value_fov1', y='value_fov2', ax=ax[0])
-    correlation, p_val = spearmanr(values.primary_untreated, values.baseline)
-    ax[0].set_xlabel('untransformed')
+    correlation, p_val = spearmanr(values.raw_mean_primary_untreated, values.raw_mean_baseline)
+    #ax.set_xlabel('untransformed')
 
-    logged_values = values.copy()
-    min_val = min(values.primary_untreated.min(), values.baseline.min())
-    if min_val > 0:
-        increment = 0
-    elif min_val == 0:
-        increment = 0.01
-    else:
-        increment = min_val * -1.01
-    logged_values.normalized_value_fov1 = np.log10(values.primary_untreated.values + increment)
-    logged_values.normalized_value_fov2 = np.log10(values.baseline.values + increment)
-    sns.scatterplot(data=logged_values, x='primary_untreated', y='baseline', ax=ax[1])
-    ax[1].set_xlabel('log10 transformed')
+    # logged_values = values.copy()
+    # min_val = min(values.primary_untreated.min(), values.baseline.min())
+    # if min_val > 0:
+    #     increment = 0
+    # elif min_val == 0:
+    #     increment = 0.01
+    # else:
+    #     increment = min_val * -1.01
+    # logged_values.normalized_value_fov1 = np.log10(values.primary_untreated.values + increment)
+    # logged_values.normalized_value_fov2 = np.log10(values.baseline.values + increment)
+    # sns.scatterplot(data=logged_values, x='primary_untreated', y='baseline', ax=ax[1])
+    # ax[1].set_xlabel('log10 transformed')
 
     # set title for whole figure
     fig.suptitle(feature_name + ' correlation: {:.2f} rank: {}'.format(correlation, plot_features.iloc[i].combined_rank))

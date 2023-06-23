@@ -330,12 +330,12 @@ input_df = distance_df[distance_df['metric'].isin(['cluster_broad_freq'])]
 for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'tls', 'tagg', 'all']:
 #for compartment in ['all']:
     compartment_df = input_df[input_df.subset == compartment].copy()
-    compartment_df['feature_name'] = compartment_df.distance_feature + '__' + compartment_df.cell_type
+    compartment_df['feature_name'] = compartment_df.linear_distance + '__' + compartment_df.cell_type
 
     if compartment == 'all':
-        compartment_df['feature_name_unique'] = compartment_df.distance_feature + '__' + compartment_df.cell_type
+        compartment_df['feature_name_unique'] = compartment_df.cell_type + '__distance_to__' + compartment_df.linear_distance
     else:
-        compartment_df[ 'feature_name_unique'] = compartment_df.distance_feature + '__' + compartment_df.cell_type + '__' + compartment
+        compartment_df[ 'feature_name_unique'] = compartment_df.cell_type + '__distance_to__' + compartment_df.linear_distance + '__' + compartment
 
     compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
 
@@ -348,7 +348,7 @@ for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_borde
     fov_data.append(compartment_df)
 
 # compute compartment abundance and ratios
-compartments = ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'tls', 't_agg']
+compartments = ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'tls', 'tagg']
 for idx, compartment in enumerate(compartments):
     compartment_df = compartment_area[compartment_area.compartment == compartment].copy()
     total_area = compartment_area[compartment_area.compartment == 'all']

@@ -395,3 +395,113 @@ marker_list = [x for x in marker_list if '_nuclear' not in x]
 cell_table_counts = cell_table_full.loc[:, ['fov', 'label', 'cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad'] + marker_list]
 
 cell_table_counts.to_csv(os.path.join(data_dir, 'cell_table_counts.csv'), index=False)
+
+
+# Update labels for mislabeled FOVs
+original_labels = [
+ 'TONIC_TMA1_R1C2',
+ 'TONIC_TMA1_R1C3',
+ 'TONIC_TMA1_R4C1',
+ 'TONIC_TMA1_R4C2',
+ 'TONIC_TMA1_R4C3',
+ 'TONIC_TMA1_R5C1',
+ 'TONIC_TMA1_R5C2',
+ 'TONIC_TMA1_R5C3',
+ 'TONIC_TMA1_R5C4',
+ 'TONIC_TMA1_R5C5',
+ 'TONIC_TMA1_R6C1',
+ 'TONIC_TMA1_R6C2',
+ 'TONIC_TMA1_R6C3',
+ 'TONIC_TMA1_R7C2',
+ 'TONIC_TMA1_R7C3',
+ 'TONIC_TMA1_R7C4',
+ 'TONIC_TMA1_R7C5',
+ 'TONIC_TMA1_R7C6',
+ 'TONIC_TMA1_R8C1',
+ 'TONIC_TMA1_R8C3',
+ 'TONIC_TMA1_R8C4',
+ 'TONIC_TMA1_R8C5',
+ 'TONIC_TMA1_R10C2',
+ 'TONIC_TMA1_R10C3']
+
+# each row is increased by 3
+new_labels = [
+    'TONIC_TMA1_R4C2',
+    'TONIC_TMA1_R4C3',
+    'TONIC_TMA1_R7C1',
+    'TONIC_TMA1_R7C2',
+    'TONIC_TMA1_R7C3',
+    'TONIC_TMA1_R8C1',
+    'TONIC_TMA1_R8C2',
+    'TONIC_TMA1_R8C3',
+    'TONIC_TMA1_R8C4',
+    'TONIC_TMA1_R8C5',
+    'TONIC_TMA1_R9C1',
+    'TONIC_TMA1_R9C2',
+    'TONIC_TMA1_R9C3',
+    'TONIC_TMA1_R10C2',
+    'TONIC_TMA1_R10C3',
+    'TONIC_TMA1_R10C4',
+    'TONIC_TMA1_R10C5',
+    'TONIC_TMA1_R10C6',
+    'TONIC_TMA1_R11C1',
+    'TONIC_TMA1_R11C3',
+    'TONIC_TMA1_R11C4',
+    'TONIC_TMA1_R11C5',
+    'TONIC_TMA1_R13C2',
+    'TONIC_TMA1_R13C3']
+
+# rename image folders. Go in reverse order to avoid overwriting
+image_dir = os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples')
+
+for original_label, new_label in zip(original_labels[::-1], new_labels[::-1]):
+    os.rename(os.path.join(image_dir, original_label), os.path.join(image_dir, new_label))
+
+# update cell table
+cell_table_full = pd.read_csv(os.path.join(data_dir, cell_table_name + '_updated.csv'))
+
+for original_label, new_label in zip(original_labels[::-1], new_labels[::-1]):
+    cell_table_full.loc[cell_table_full['fov'] == original_label, 'fov'] = new_label
+
+cell_table_full.to_csv(os.path.join(data_dir, cell_table_name + '_updated.csv'), index=False)
+
+
+# update csv files
+csv_files = ['/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/post_processing/cell_annotation_mask.csv',
+             '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/post_processing/fov_annotation_mask_area.csv',
+             '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/ecm/ecm_fraction_fov.csv',
+             '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/fiber_segmentation_processed_data/fiber_object_table.csv',
+             '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/fiber_segmentation_processed_data/fiber_stats_table.csv',
+             '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/fiber_segmentation_processed_data/tile_stats_512/fiber_stats_table-tile_512.csv',
+             '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/spatial_analysis/neighborhood_mats/neighborhood_counts-cell_cluster_broad_radius50.csv',
+             '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/spatial_analysis/neighborhood_mats/neighborhood_counts-cell_cluster_radius50.csv',
+             '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/spatial_analysis/neighborhood_mats/neighborhood_counts-cell_meta_cluster_radius50.csv',
+             '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/spatial_analysis/neighborhood_mats/neighborhood_freqs-cell_cluster_broad_radius50.csv',
+             '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/spatial_analysis/neighborhood_mats/neighborhood_freqs-cell_cluster_radius50.csv',
+             '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/spatial_analysis/neighborhood_mats/neighborhood_freqs-cell_meta_cluster_radius50.csv',
+             '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/spatial_analysis/cell_neighbor_analysis/cell_cluster_broad_avg_dists-nearest_1.csv',
+             '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/spatial_analysis/cell_neighbor_analysis/cell_cluster_broad_avg_dists-nearest_3.csv',
+             '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/spatial_analysis/cell_neighbor_analysis/cell_cluster_broad_avg_dists-nearest_5.csv',
+             '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/spatial_analysis/cell_neighbor_analysis/neighborhood_diversity_radius50.csv',
+             '/Volumes/Shared/Noah Greenwald/ecm_pixel_clustering/fov_pixel_cluster_counts.csv',
+             '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/ecm/fov_cluster_counts.csv',
+             '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/spatial_analysis/mixing_score/cell_cluster_broad/homogeneous_mixing_scores.csv',]
+
+for file in csv_files:
+    df = pd.read_csv(file)
+    for original_label, new_label in zip(original_labels[::-1], new_labels[::-1]):
+        df.loc[df['fov'] == original_label, 'fov'] = new_label
+    df.to_csv(file, index=False)
+
+
+# update folders
+folders = ['/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/ecm/masks',
+           '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/fiber_segmentation_processed_data/tile_stats_512',
+           '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/mask_dir/individual_masks',
+           '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/mask_dir/intermediate_masks',
+           ]
+
+# update images
+'/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/fiber_segmentation_processed_data/tile_tiffs'
+
+'/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/spatial_analysis/dist_mats'
