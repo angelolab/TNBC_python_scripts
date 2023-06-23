@@ -2,16 +2,16 @@ import pandas as pd
 import os
 import numpy as np
 
-TMA_dir = '/Users/noahgreenwald/Downloads/TMA_QC_v2'
+TMA_dir = '/Users/noahgreenwald/Downloads/TMA_QC_v3'
 
-TMA = 'HUF'
+TMA = 'peru'
 
 tma_map = pd.read_csv(os.path.join(TMA_dir, TMA + '_map.csv'), header=None)
 tma_cores = pd.read_csv(os.path.join(TMA_dir, TMA + '_cores.csv'))
 tma_blocks = pd.read_csv(os.path.join(TMA_dir, TMA + '_blocks.csv'))
 tma_metadata = pd.read_csv(os.path.join(TMA_dir, TMA + '_metadata.csv'))
 tma_metadata['random_id'] = np.arange(len(tma_metadata))
-tma_metadata_long = pd.melt(tma_metadata, id_vars=['random_id'], value_vars=['Diagnosis block', 'Surgery block', 'Relapse block'])
+tma_metadata_long = pd.melt(tma_metadata, id_vars=['random_id'], value_vars=['Block'])
 
 # check that all blocks present in the map are found in the cores sheet
 tma_map_long = [tma_map.iloc[:, i].astype('str') for i in range(tma_map.shape[1])]
@@ -38,6 +38,7 @@ mismatched_block_patient = []
 for patient in tma_blocks.Patient_ID.unique():
       block_ids = tma_blocks[tma_blocks.Patient_ID == patient].Tissue_ID.values
       block_ids = [x for x in block_ids if str(x) != 'nan']
+      block_ids.sort()
       metadata_pat_id = tma_metadata_long[tma_metadata_long.value == block_ids[0]].random_id.values
       if len(metadata_pat_id) == 0:
             mismatched_block_patient.append(patient)
@@ -45,6 +46,7 @@ for patient in tma_blocks.Patient_ID.unique():
 
       metadata_block_ids = tma_metadata_long[tma_metadata_long.random_id == metadata_pat_id[0]].value.values
       metadata_block_ids = [x for x in metadata_block_ids if str(x) != 'nan']
+      metadata_block_ids.sort()
       if not np.array_equal(block_ids, metadata_block_ids):
             mismatched_block_patient.append(patient)
 

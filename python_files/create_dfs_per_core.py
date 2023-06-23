@@ -26,10 +26,16 @@ data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data'
 core_metadata = pd.read_csv(os.path.join(data_dir, 'metadata', 'TONIC_data_per_core.csv'))
 timepoint_metadata = pd.read_csv(os.path.join(data_dir, 'metadata', 'TONIC_data_per_timepoint.csv'))
 harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata', 'harmonized_metadata.csv'))
-cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'post_processing', 'combined_cell_table_normalized_cell_labels_updated_clusters_only.csv'))
-cell_table_func = pd.read_csv(os.path.join(data_dir, 'post_processing', 'combined_cell_table_normalized_cell_labels_updated_func_only.csv'))
+cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cell_table_clusters.csv'))
+cell_table_func = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cell_table_func_all.csv'))
+cell_table_morph = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cell_table_morph.csv'))
+cell_table_diversity = pd.read_csv(os.path.join(data_dir, 'spatial_analysis/cell_neighbor_analysis/neighborhood_diversity_radius50.csv'))
+cell_table_distances = pd.read_csv(os.path.join(data_dir, 'spatial_analysis/cell_neighbor_analysis/cell_cluster_avg_dists-nearest_5.csv'))
+cell_table_distances_broad = pd.read_csv(os.path.join(data_dir, 'spatial_analysis/cell_neighbor_analysis/cell_cluster_broad_avg_dists-nearest_5.csv'))
 area_df = pd.read_csv(os.path.join(data_dir, 'post_processing', 'fov_annotation_mask_area.csv'))
 annotations_by_mask = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cell_annotation_mask.csv'))
+fiber_df = pd.read_csv(os.path.join(data_dir, 'fiber_segmentation_processed_data', 'fiber_object_table.csv'))
+fiber_tile_df = pd.read_csv(os.path.join(data_dir, 'fiber_segmentation_processed_data/tile_stats_512', 'fiber_stats_table-tile_512.csv'))
 
 # merge cell-level annotations
 harmonized_annotations = annotations_by_mask
@@ -38,6 +44,10 @@ assert len(harmonized_annotations) == len(cell_table_clusters)
 
 cell_table_clusters = cell_table_clusters.merge(harmonized_annotations, on=['fov', 'label'], how='left')
 cell_table_func = cell_table_func.merge(harmonized_annotations, on=['fov', 'label'], how='left')
+cell_table_morph = cell_table_morph.merge(harmonized_annotations, on=['fov', 'label'], how='left')
+cell_table_diversity = cell_table_diversity.merge(harmonized_annotations, on=['fov', 'label'], how='left')
+cell_table_distances = cell_table_distances.merge(harmonized_annotations, on=['fov', 'label'], how='left')
+cell_table_distances_broad = cell_table_distances_broad.merge(harmonized_annotations, on=['fov', 'label'], how='left')
 
 # check for FOVs present in imaged data that aren't in core metadata
 missing_fovs = cell_table_clusters.loc[~cell_table_clusters.fov.isin(core_metadata.fov), 'fov'].unique()
@@ -45,7 +55,12 @@ missing_fovs = cell_table_clusters.loc[~cell_table_clusters.fov.isin(core_metada
 # TONIC_TMA24_R11C2 and TONIC_TMA24_R11C3 are wrong tissue
 cell_table_clusters = cell_table_clusters.loc[~cell_table_clusters.fov.isin(missing_fovs), :]
 cell_table_func = cell_table_func.loc[~cell_table_func.fov.isin(missing_fovs), :]
-
+cell_table_morph = cell_table_morph.loc[~cell_table_morph.fov.isin(missing_fovs), :]
+cell_table_diversity = cell_table_diversity.loc[~cell_table_diversity.fov.isin(missing_fovs), :]
+cell_table_distances = cell_table_distances.loc[~cell_table_distances.fov.isin(missing_fovs), :]
+cell_table_distances_broad = cell_table_distances_broad.loc[~cell_table_distances_broad.fov.isin(missing_fovs), :]
+fiber_df = fiber_df.loc[~fiber_df.fov.isin(missing_fovs), :]
+fiber_tile_df = fiber_tile_df.loc[~fiber_tile_df.fov.isin(missing_fovs), :]
 
 #
 # Generate counts and proportions of cell clusters per FOV
@@ -62,7 +77,6 @@ cluster_df_params = [['cluster_broad_freq', 'cell_cluster_broad', True],
                      ['cluster_count', 'cell_cluster', False],
                      ['meta_cluster_freq', 'cell_meta_cluster', True],
                      ['meta_cluster_count', 'cell_meta_cluster', False]]
-                     #['kmeans_freq', 'kmeans_labels', True]]
 
 cluster_dfs = []
 for result_name, cluster_col_name, normalize in cluster_df_params:
@@ -168,7 +182,7 @@ total_df.to_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'), index=False)
 total_df_grouped = total_df.groupby(['Tissue_ID', 'cell_type', 'metric', 'subset'])
 total_df_timepoint = total_df_grouped['value'].agg([np.mean, np.std])
 total_df_timepoint.reset_index(inplace=True)
-total_df_timepoint = total_df_timepoint.merge(harmonized_metadata.drop('fov', axis=1).drop_duplicates(), on='Tissue_ID')
+total_df_timepoint = total_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
 
 # save timepoint df
 total_df_timepoint.to_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv'), index=False)
@@ -181,7 +195,7 @@ total_df_timepoint.to_csv(os.path.join(data_dir, 'cluster_df_per_timepoint.csv')
 
 # Columns which are not thresholded (such as ratios between markers) can only be calculated for
 # dfs looking at normalized expression, and need to be dropped when calculating counts
-count_drop_cols = ['H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio']  # , 'kmeans_labels']
+count_drop_cols = ['H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio']
 
 # Create list to hold parameters for each df that will be produced
 func_df_params = [['cluster_broad_count', 'cell_cluster_broad', False],
@@ -190,7 +204,7 @@ func_df_params = [['cluster_broad_count', 'cell_cluster_broad', False],
                   ['cluster_freq', 'cell_cluster', True],
                   ['meta_cluster_count', 'cell_meta_cluster', False],
                   ['meta_cluster_freq', 'cell_meta_cluster', True]]
-                  #['kmeans_freq', 'kmeans_labels', True]]
+
 
 func_dfs = []
 for result_name, cluster_col_name, normalize in func_df_params:
@@ -214,14 +228,19 @@ for result_name, cluster_col_name, normalize in func_df_params:
 
 # create combined df
 total_df_func = pd.concat(func_dfs, axis=0)
-
-# check that all metadata from core_metadata succesfully transferred over
 total_df_func = total_df_func.merge(harmonized_metadata, on='fov', how='inner')
 
 # save combined df
-#total_df_func.to_csv(os.path.join(data_dir, 'functional_df_per_core.csv'), index=False)
-total_df_func.to_csv('/Users/noahgreenwald/Downloads/functional_df_per_core.csv', index=False)
+total_df_func.to_csv(os.path.join(data_dir, 'functional_df_per_core.csv'), index=False)
 
+# create version aggregated by timepoint
+total_df_grouped_func = total_df_func.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric', 'subset'])
+total_df_timepoint_func = total_df_grouped_func['value'].agg([np.mean, np.std])
+total_df_timepoint_func.reset_index(inplace=True)
+total_df_timepoint_func = total_df_timepoint_func.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+total_df_timepoint_func.to_csv(os.path.join(data_dir, 'functional_df_per_timepoint.csv'), index=False)
 
 #
 # Filter functional markers
@@ -238,30 +257,35 @@ metrics = [['cluster_broad_count', 'cluster_broad_freq'],
 
 for metric in metrics:
     # subset count df to include cells at the relevant clustering resolution
-    count_df = total_df[total_df.metric == metric[0]]
-    count_df = count_df[count_df.subset == 'all']
+    for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border',
+                        'tls', 'tagg', 'all']:
+        count_df = total_df[total_df.metric == metric[0]]
+        count_df = count_df[count_df.subset == compartment]
 
-    # subset functional df to only include functional markers at this resolution
-    func_df = total_df_func[total_df_func.metric.isin(metric)]
+        # subset functional df to only include functional markers at this resolution
+        func_df = total_df_func[total_df_func.metric.isin(metric)]
+        func_df = func_df[func_df.subset == compartment]
 
-    # for each cell type, determine which FOVs have high enough counts to be included
-    for cell_type in count_df.cell_type.unique():
-        keep_df = count_df[count_df.cell_type == cell_type]
-        keep_df = keep_df[keep_df.value >= min_cells]
-        keep_fovs = keep_df.fov.unique()
+        # for each cell type, determine which FOVs have high enough counts to be included
+        for cell_type in count_df.cell_type.unique():
+            keep_df = count_df[count_df.cell_type == cell_type]
+            keep_df = keep_df[keep_df.value >= min_cells]
+            keep_fovs = keep_df.fov.unique()
 
-        # subset functional df to only include FOVs with high enough counts
-        keep_markers = func_df[func_df.cell_type == cell_type]
-        keep_markers = keep_markers[keep_markers.fov.isin(keep_fovs)]
+            # subset functional df to only include FOVs with high enough counts
+            keep_markers = func_df[func_df.cell_type == cell_type]
+            keep_markers = keep_markers[keep_markers.fov.isin(keep_fovs)]
 
-        # append to list of filtered dfs
-        filtered_dfs.append(keep_markers)
+            # append to list of filtered dfs
+            filtered_dfs.append(keep_markers)
 
 filtered_func_df = pd.concat(filtered_dfs)
 
-# identify combinations of markers and cell types to include in analysis based on threshold
+# # identify combinations of markers and cell types to include in analysis based on threshold
 # mean_percent_positive = 0.05
+# sp_markers = [x for x in filtered_func_df.functional_marker.unique() if '__' not in x]
 # broad_df = filtered_func_df[filtered_func_df.metric == 'cluster_broad_freq']
+# broad_df = broad_df[broad_df.functional_marker.isin(sp_markers)]
 # broad_df = broad_df[broad_df.subset == 'all']
 # broad_df = broad_df[broad_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
 # broad_df_agg = broad_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
@@ -305,6 +329,7 @@ filtered_func_df = pd.concat(filtered_dfs)
 #
 # # check if assignment makes sense
 # med_df = filtered_func_df[filtered_func_df.metric == 'cluster_freq']
+# med_df = med_df[med_df.functional_marker.isin(sp_markers)]
 # med_df = med_df[med_df.subset == 'all']
 # med_df = med_df[med_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
 # med_df_agg = med_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
@@ -359,6 +384,7 @@ filtered_func_df = pd.concat(filtered_dfs)
 #
 # # check if assignment makes sense
 # meta_df = filtered_func_df[filtered_func_df.metric == 'meta_cluster_freq']
+# meta_df = meta_df[meta_df.functional_marker.isin(sp_markers)]
 # meta_df = meta_df[meta_df.subset == 'all']
 # meta_df = meta_df[meta_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
 # meta_df_agg = meta_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
@@ -410,8 +436,7 @@ for filters in filtering:
 # do the same thing for double positive cells
 
 # # identify combinations of markers and cell types to include in analysis based on threshold
-# dp_markers = cell_table_func.columns.values
-# dp_markers = [x for x in dp_markers if '__' in x]
+# dp_markers = [x for x in filtered_func_df.functional_marker.unique() if '__' in x]
 # mean_percent_positive_dp = 0.05
 # broad_df_dp = filtered_func_df[filtered_func_df.metric == 'cluster_broad_freq']
 # broad_df_dp = broad_df_dp[broad_df_dp.subset == 'all']
@@ -423,46 +448,36 @@ for filters in filtering:
 # broad_df_dp = broad_df_dp_agg.pivot(index='cell_type', columns='functional_marker', values='value')
 # broad_df_dp_include = broad_df_dp > mean_percent_positive_dp
 #
-# # # include Ki67 in combination with everything else
-# # general_markers = [x for x in dp_markers if 'Ki67' in x]
-# # broad_df_dp_include[[general_markers]] = True
-#
 # broad_df_dp_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_broad_dp.csv'))
 #
 # # do the same for medium-level clustering
-# med_df = filtered_func_df[filtered_func_df.metric == 'cluster_freq']
-# med_df = med_df[med_df.subset == 'all']
-# med_df = med_df[med_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
-# med_df = med_df[med_df.functional_marker.isin(dp_markers)]
-# med_df_agg = med_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+# med_df_dp = filtered_func_df[filtered_func_df.metric == 'cluster_freq']
+# med_df_dp = med_df_dp[med_df_dp.subset == 'all']
+# med_df_dp = med_df_dp[med_df_dp.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# med_df_dp = med_df_dp[med_df_dp.functional_marker.isin(dp_markers)]
+# med_df_dp_agg = med_df_dp[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
 #
 # # create matrix of cell types and markers
-# med_df_agg = med_df_agg.reset_index()
-# med_df = med_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
-# med_df_include = med_df > mean_percent_positive_dp
+# med_df_dp_agg = med_df_dp_agg.reset_index()
+# med_df_dp = med_df_dp_agg.pivot(index='cell_type', columns='functional_marker', values='value')
+# med_df_dp_include = med_df_dp > mean_percent_positive_dp
 #
-# # # include Ki67 in combination with everything else
-# # med_df_include[[general_markers]] = True
-#
-# med_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_med_dp.csv'))
+# med_df_dp_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_med_dp.csv'))
 #
 #
 # # do the same for finest-level clustering
-# meta_df = filtered_func_df[filtered_func_df.metric == 'meta_cluster_freq']
-# meta_df = meta_df[meta_df.subset == 'all']
-# meta_df = meta_df[meta_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
-# meta_df = meta_df[meta_df.functional_marker.isin(dp_markers)]
-# meta_df_agg = meta_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+# meta_df_dp = filtered_func_df[filtered_func_df.metric == 'meta_cluster_freq']
+# meta_df_dp = meta_df_dp[meta_df_dp.subset == 'all']
+# meta_df_dp = meta_df_dp[meta_df_dp.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# meta_df_dp = meta_df_dp[meta_df_dp.functional_marker.isin(dp_markers)]
+# meta_df_dp_agg = meta_df_dp[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
 #
 # # create matrix of cell types and markers
-# meta_df_agg = meta_df_agg.reset_index()
-# meta_df = meta_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
-# meta_df_include = meta_df > mean_percent_positive_dp
+# meta_df_dp_agg = meta_df_dp_agg.reset_index()
+# meta_df_dp = meta_df_dp_agg.pivot(index='cell_type', columns='functional_marker', values='value')
+# meta_df_dp_include = meta_df_dp > mean_percent_positive_dp
 #
-# # # include Ki67 in combination with everything else
-# # meta_df_include[[general_markers]] = True
-#
-# meta_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_meta_dp.csv'))
+# meta_df_dp_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_meta_dp.csv'))
 
 # load inclusion matrices
 broad_df_include_dp = pd.read_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_broad_dp.csv'), index_col=0)
@@ -497,44 +512,38 @@ for filters in filtering:
 
 
 # create manual df with total functional marker positivity across all cells in an image
-func_table_small = cell_table_func.loc[:, ~cell_table_func.columns.isin(['cell_cluster', 'cell_cluster_broad', 'cell_meta_cluster', 'label', 'tumor_region'])]
-func_table_small = func_table_small.loc[:, ~func_table_small.columns.isin(dp_markers)]
-
-# group by specified columns
-grouped_table = func_table_small.groupby('fov')
-transformed = grouped_table.agg(np.mean)
-transformed.reset_index(inplace=True)
-
-# reshape to long df
-long_df = pd.melt(transformed, id_vars=['fov'], var_name='functional_marker')
-long_df['metric'] = 'total_freq'
-long_df['cell_type'] = 'all'
-long_df['subset'] = 'all'
-
-long_df = long_df.merge(harmonized_metadata, on='fov', how='inner')
+# dp_markers = [x for x in filtered_func_df.functional_marker.unique() if '__' in x]
+# func_table_small = cell_table_func.loc[:, ~cell_table_func.columns.isin(['cell_cluster', 'cell_cluster_broad', 'cell_meta_cluster', 'label', 'tumor_region'])]
+# func_table_small = func_table_small.loc[:, ~func_table_small.columns.isin(dp_markers)]
+#
+# # group by specified columns
+# grouped_table = func_table_small.groupby('fov')
+# transformed = grouped_table.agg(np.mean)
+# transformed.reset_index(inplace=True)
+#
+# # reshape to long df
+# long_df = pd.melt(transformed, id_vars=['fov'], var_name='functional_marker')
+# long_df['metric'] = 'total_freq'
+# long_df['cell_type'] = 'all'
+# long_df['subset'] = 'all'
+#
+# long_df = long_df.merge(harmonized_metadata, on='fov', how='inner')
+#
+# long_df.to_csv(os.path.join(data_dir, 'post_processing/total_func_per_core.csv'), index=False)
 
 # append to list of dfs
+long_df = pd.read_csv(os.path.join(data_dir, 'post_processing/total_func_per_core.csv'))
 combo_dfs.append(long_df)
 
 # combine
 combo_df = pd.concat(combo_dfs)
-#combo_df.to_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'), index=False)
-combo_df.to_csv(os.path.join('/Users/noahgreenwald/Downloads/functional_df_per_core_filtered.csv'), index=False)
-
-# create version aggregated by timepoint
-total_df_grouped_func = total_df_func.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric', 'subset'])
-total_df_timepoint_func = total_df_grouped_func['value'].agg([np.mean, np.std])
-total_df_timepoint_func.reset_index(inplace=True)
-total_df_timepoint_func = total_df_timepoint_func.merge(harmonized_metadata.drop('fov', axis=1).drop_duplicates(), on='Tissue_ID')
-
-# save timepoint df
-total_df_timepoint_func.to_csv(os.path.join(data_dir, 'functional_df_per_timepoint.csv'), index=False)
+combo_df.to_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'), index=False)
 
 # create version of filtered df aggregated by timepoint
 combo_df_grouped_func = combo_df.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric', 'subset'])
 combo_df_timepoint_func = combo_df_grouped_func['value'].agg([np.mean, np.std])
 combo_df_timepoint_func.reset_index(inplace=True)
-combo_df_timepoint_func = combo_df_timepoint_func.merge(harmonized_metadata.drop('fov', axis=1).drop_duplicates(), on='Tissue_ID')
+combo_df_timepoint_func = combo_df_timepoint_func.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
 
 # save timepoint df
 combo_df_timepoint_func.to_csv(os.path.join(data_dir, 'functional_df_per_timepoint_filtered.csv'), index=False)
@@ -544,98 +553,531 @@ combo_df_timepoint_func.to_csv(os.path.join(data_dir, 'functional_df_per_timepoi
 # Remove double positive functional markers that are highly correlated with single positive scores
 #
 
+# cluster_resolution = [['cluster_broad_freq', 'cluster_broad_count'],
+#            ['cluster_freq', 'cluster_count'],
+#            ['meta_cluster_freq', 'meta_cluster_count']]
+#
+# all_markers = combo_df.functional_marker.unique()
+# dp_markers = [x for x in all_markers if '__' in x]
+#
+# exclude_lists = []
+# for cluster in cluster_resolution:
+#
+#     # subset functional df to only include functional markers at this resolution
+#     func_df = combo_df[combo_df.metric.isin(cluster)]
+#
+#     # add unique identifier for cell + marker combo
+#     func_df['feature_name'] = func_df['cell_type'] + '__' + func_df['functional_marker']
+#
+#     # subset the df further to look at just frequency and just one compartment
+#     func_df_subset = func_df[func_df.metric == cluster[0]]
+#     func_df_subset = func_df_subset[func_df_subset.subset == 'all']
+#
+#     # loop over each cell type, and each double positive functional marker
+#     exclude_markers = []
+#     cell_types = func_df_subset.cell_type.unique()
+#     for cell_type in cell_types:
+#         for marker in dp_markers:
+#             # get the two markers that make up the double positive marker
+#             marker_1, marker_2 = marker.split('__')
+#
+#             # subset to only include this cell type and these markers
+#             current_df = func_df_subset.loc[func_df_subset.cell_type == cell_type, :]
+#             current_df = current_df.loc[current_df.functional_marker.isin([marker, marker_1, marker_2]), :]
+#
+#             # these markers are not present in this cell type
+#             if len(current_df) == 0:
+#                 continue
+#
+#             # this double positive marker is not present in this cell type
+#             if marker not in current_df.functional_marker.unique():
+#                 continue
+#
+#             current_df_wide = current_df.pivot(index='fov', columns='functional_marker', values='value')
+#
+#             # the double positive marker is present, but both single positives are not; exclude it
+#             if len(current_df_wide.columns) != 3:
+#                 exclude_markers.append(marker)
+#                 continue
+#
+#             corr_1, _ = spearmanr(current_df_wide[marker_1].values, current_df_wide[marker].values)
+#             corr_2, _ = spearmanr(current_df_wide[marker_2].values, current_df_wide[marker].values)
+#
+#             if (corr_1 > 0.7) | (corr_2 > 0.7):
+#                 exclude_markers.append(cell_type + '__' + marker)
+#
+#     # add to list
+#     exclude_lists.append(exclude_markers)
+#
+# # construct df to hold list of exlcuded cells
+# exclude_df_cluster = ['cluster_broad_freq'] * len(exclude_lists[0]) + ['cluster_freq'] * len(exclude_lists[1]) + ['meta_cluster_freq'] * len(exclude_lists[2])
+# exclude_df_name = exclude_lists[0] + exclude_lists[1] + exclude_lists[2]
+#
+# exclude_df = pd.DataFrame({'metric': exclude_df_cluster, 'feature_name': exclude_df_name})
+# exclude_df.to_csv(os.path.join(data_dir, 'post_processing/exclude_double_positive_markers.csv'), index=False)
+
+# use previously generated exclude list
+exclude_df = pd.read_csv(os.path.join(data_dir, 'post_processing/exclude_double_positive_markers.csv'))
+
 dedup_dfs = []
 
 cluster_resolution = [['cluster_broad_freq', 'cluster_broad_count'],
            ['cluster_freq', 'cluster_count'],
            ['meta_cluster_freq', 'meta_cluster_count']]
 
-all_markers = combo_df.functional_marker.unique()
-dp_markers = [x for x in all_markers if '__' in x]
-
 for cluster in cluster_resolution:
-
     # subset functional df to only include functional markers at this resolution
     func_df = combo_df[combo_df.metric.isin(cluster)]
 
     # add unique identifier for cell + marker combo
     func_df['feature_name'] = func_df['cell_type'] + '__' + func_df['functional_marker']
 
-    # subset the df further to look at just frequency and just one compartment
-    func_df_subset = func_df[func_df.metric == cluster[0]]
-    func_df_subset = func_df_subset[func_df_subset.subset == 'all']
-
-    # loop over each cell type, and each double positive functional marker
-    exclude_markers = []
-    cell_types = func_df_subset.cell_type.unique()
-    for cell_type in cell_types:
-        for marker in dp_markers:
-            # get the two markers that make up the double positive marker
-            marker_1, marker_2 = marker.split('__')
-
-            # subset to only include this cell type and these markers
-            current_df = func_df_subset.loc[func_df_subset.cell_type == cell_type, :]
-            current_df = current_df.loc[current_df.functional_marker.isin([marker, marker_1, marker_2]), :]
-
-            # these markers are not present in this cell type
-            if len(current_df) == 0:
-                continue
-
-            # this double positive marker is not present in this cell type
-            if marker not in current_df.functional_marker.unique():
-                continue
-
-            current_df_wide = current_df.pivot(index='fov', columns='functional_marker', values='value')
-
-            # the double positive marker is present, but both single positives are not; exclude it
-            if len(current_df_wide.columns) != 3:
-                exclude_markers.append(marker)
-                continue
-
-            corr_1, _ = spearmanr(current_df_wide[marker_1].values, current_df_wide[marker].values)
-            corr_2, _ = spearmanr(current_df_wide[marker_2].values, current_df_wide[marker].values)
-
-            if (corr_1 > 0.8) | (corr_2 > 0.8):
-                exclude_markers.append(cell_type + '__' + marker)
+    exclude_names = exclude_df.loc[exclude_df.metric == cluster[0], 'feature_name'].values
 
     # remove double positive markers that are highly correlated with single positive scores
-    func_df = func_df[~func_df.feature_name.isin(exclude_markers)]
+    func_df = func_df[~func_df.feature_name.isin(exclude_names)]
     dedup_dfs.append(func_df)
 
+
+dedup_dfs.append(long_df)
 deduped_df = pd.concat(dedup_dfs)
 deduped_df = deduped_df.drop('feature_name', axis=1)
 
 # save deduped df
 deduped_df.to_csv(os.path.join(data_dir, 'functional_df_per_core_filtered_deduped.csv'), index=False)
-deduped_df.to_csv(os.path.join('/Users/noahgreenwald/Downloads/functional_df_per_core_filtered_deduped.csv'), index=False)
 
-# # create histogram of number of cells per cluster per image
-# plot_df = total_df[total_df['metric'] == 'cluster_count']
+# create version aggregated by timepoint
+deduped_df_grouped = deduped_df.groupby(['Tissue_ID', 'cell_type', 'functional_marker', 'metric', 'subset'])
+deduped_df_timepoint = deduped_df_grouped['value'].agg([np.mean, np.std])
+deduped_df_timepoint.reset_index(inplace=True)
+deduped_df_timepoint = deduped_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+deduped_df_timepoint.to_csv(os.path.join(data_dir, 'functional_df_per_timepoint_filtered_deduped.csv'), index=False)
+
+
+# morphology metric summary
+
+# Create list to hold parameters for each df that will be produced
+morph_df_params = [['cluster_broad_freq', 'cell_cluster_broad'],
+                  ['cluster_freq', 'cell_cluster'],
+                  ['meta_cluster_freq', 'cell_meta_cluster']]
+
+morph_dfs = []
+for result_name, cluster_col_name in morph_df_params:
+
+    # remove cluster_names except for the one specified for the df
+    drop_cols = ['cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad', 'label']
+    drop_cols.remove(cluster_col_name)
+
+    # create df
+    morph_dfs.append(create_long_df_by_functional(func_table=cell_table_morph,
+                                                 result_name=result_name,
+                                                 cluster_col_name=cluster_col_name,
+                                                 drop_cols=drop_cols,
+                                                 normalize=True,
+                                                 subset_col='tumor_region'))
+
+# create combined df
+total_df_morph = pd.concat(morph_dfs, axis=0)
+total_df_morph = total_df_morph.merge(harmonized_metadata, on='fov', how='inner')
+total_df_morph = total_df_morph.rename(columns={'functional_marker': 'morphology_feature'})
+
+# save df
+total_df_morph.to_csv(os.path.join(data_dir, 'morph_df_per_core.csv'), index=False)
+
+
+# create manual df with total morphology marker average across all cells in an image
+morph_table_small = cell_table_morph.loc[:, ~cell_table_morph.columns.isin(['cell_cluster', 'cell_cluster_broad', 'cell_meta_cluster', 'label', 'tumor_region'])]
+
+# group by specified columns
+grouped_table = morph_table_small.groupby('fov')
+transformed = grouped_table.agg(np.mean)
+transformed.reset_index(inplace=True)
+
+# reshape to long df
+long_df = pd.melt(transformed, id_vars=['fov'], var_name='morphology_feature')
+long_df['metric'] = 'total_freq'
+long_df['cell_type'] = 'all'
+long_df['subset'] = 'all'
+
+long_df = long_df.merge(harmonized_metadata, on='fov', how='inner')
+
+long_df.to_csv(os.path.join(data_dir, 'post_processing/total_morph_per_core.csv'), index=False)
+
+# filter morphology markers to only include FOVs with at least the specified number of cells
+total_df = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
+min_cells = 5
+
+filtered_dfs = []
+metrics = [['cluster_broad_count', 'cluster_broad_freq'],
+           ['cluster_count', 'cluster_freq'],
+           ['meta_cluster_count', 'meta_cluster_freq']]
+for metric in metrics:
+    # subset count df to include cells at the relevant clustering resolution
+    for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border',
+                        'tls', 'tagg', 'all']:
+        count_df = total_df[total_df.metric == metric[0]]
+        count_df = count_df[count_df.subset == compartment]
+
+        # subset morphology df to only include morphology metrics at this resolution
+        morph_df = total_df_morph[total_df_morph.metric == metric[1]]
+        morph_df = morph_df[morph_df.subset == compartment]
+
+        # for each cell type, determine which FOVs have high enough counts to be included
+        for cell_type in count_df.cell_type.unique():
+            keep_df = count_df[count_df.cell_type == cell_type]
+            keep_df = keep_df[keep_df.value >= min_cells]
+            keep_fovs = keep_df.fov.unique()
+
+            # subset morphology df to only include FOVs with high enough counts
+            keep_features = morph_df[morph_df.cell_type == cell_type]
+            keep_features = keep_features[keep_features.fov.isin(keep_fovs)]
+
+            # append to list of filtered dfs
+            filtered_dfs.append(keep_features)
+
+filtered_dfs.append(long_df)
+filtered_morph_df = pd.concat(filtered_dfs)
+
+# save filtered df
+filtered_morph_df.to_csv(os.path.join(data_dir, 'morph_df_per_core_filtered.csv'), index=False)
+
+# create version aggregated by timepoint
+filtered_morph_df_grouped = filtered_morph_df.groupby(['Tissue_ID', 'cell_type', 'morphology_feature', 'metric', 'subset'])
+filtered_morph_df_timepoint = filtered_morph_df_grouped['value'].agg([np.mean, np.std])
+filtered_morph_df_timepoint.reset_index(inplace=True)
+filtered_morph_df_timepoint = filtered_morph_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+filtered_morph_df_timepoint.to_csv(os.path.join(data_dir, 'morph_df_per_timepoint_filtered.csv'), index=False)
+
+# remove redundant morphology features
+block1 = ['area', 'major_axis_length', 'minor_axis_length', 'perimeter', 'convex_area', 'equivalent_diameter']
+
+block2 = ['area_nuclear', 'major_axis_length_nuclear', 'minor_axis_length_nuclear', 'perimeter_nuclear', 'convex_area_nuclear', 'equivalent_diameter_nuclear']
+
+block3 = ['eccentricity', 'major_axis_equiv_diam_ratio']
+
+block4 = ['eccentricity_nuclear', 'major_axis_equiv_diam_ratio_nuclear', 'perim_square_over_area_nuclear']
+
+deduped_morph_df = filtered_morph_df.loc[~filtered_morph_df.morphology_feature.isin(block1[1:] + block2[1:] + block3[1:] + block4[1:]), :]
+
+# only keep complex morphology features for cancer cells, remove everything except area and nc for others
+cancer_clusters = ['Cancer', 'Cancer_EMT', 'Cancer_Other', 'Cancer_CD56', 'Cancer_CK17',
+                   'Cancer_Ecad', 'Cancer_Mono', 'Cancer_SMA', 'Cancer_Vim']
+basic_morph_features = ['area', 'area_nuclear', 'nc_ratio']
+
+deduped_morph_df = deduped_morph_df.loc[~(~(deduped_morph_df.cell_type.isin(cancer_clusters)) & ~(deduped_morph_df.morphology_feature.isin(basic_morph_features))), :]
+
+# saved deduped
+deduped_morph_df.to_csv(os.path.join(data_dir, 'morph_df_per_core_filtered_deduped.csv'), index=False)
+
+# same for timepoints
+deduped_morph_df_timepoint = filtered_morph_df_timepoint.loc[~filtered_morph_df_timepoint.morphology_feature.isin(block1[1:] + block2[1:] + block3[1:] + block4[1:]), :]
+deduped_morph_df_timepoint = deduped_morph_df_timepoint.loc[~(~(deduped_morph_df_timepoint.cell_type.isin(cancer_clusters)) & ~(deduped_morph_df_timepoint.morphology_feature.isin(basic_morph_features))), :]
+deduped_morph_df_timepoint.to_csv(os.path.join(data_dir, 'morph_df_per_timepoint_filtered_deduped.csv'), index=False)
+
+# fiber objects summary
+
+
 #
-# # created fascetted histogram with seaborn
-# g = sns.FacetGrid(plot_df, col="cell_type", col_wrap=5, height=2.5, aspect=1.5)
-# g.map(sns.histplot, "value", bins=range(0, 400, 10))
-# g.savefig(os.path.join(plot_dir, 'cell_count_per_cluster.png'))
-# plt.close()
+# spatial features
 #
-# # create histogram of number of cells per image
-# plot_df = total_df[total_df['metric'] == 'cluster_count']
-# grouped = plot_df[['fov', 'value', 'cell_type']].groupby('fov').sum()
-#
-# sns.histplot(grouped['value'], bins=range(0, 4000, 100))
-# freq_fovs = grouped[grouped['value'] > 500].index
-# total_df_filtered = total_df[total_df['fov'].isin(freq_fovs)]
-#
-# # save annotated cluster counts
-# total_df_filtered.to_csv(os.path.join(data_dir, 'cluster_df_per_core_filtered.csv'), index=False)
-#
-# # create version aggregated by timepoint
-# total_df_grouped_filtered = total_df_filtered.groupby(['Tissue_ID', 'cell_type', 'metric'])
-# total_df_timepoint_filtered = total_df_grouped_filtered['value'].agg([np.mean, np.std])
-# total_df_timepoint_filtered.reset_index(inplace=True)
-# total_df_timepoint_filtered = total_df_timepoint_filtered.merge(harmonized_metadata.drop('fov', axis=1).drop_duplicates(), on='Tissue_ID')
-#
-# # save timepoint df
-# total_df_timepoint_filtered.to_csv(os.path.join(data_dir, 'cluster_df_per_timepoint_filtered.csv'), index=False)
-#
-#
+
+# format mixing scores
+mixing_scores = pd.read_csv(os.path.join(data_dir, 'spatial_analysis/mixing_score/cell_cluster_broad/homogeneous_mixing_scores.csv'))
+cols = mixing_scores.columns.tolist()
+keep_cols = [col for col in cols if 'mixing_score' in col]
+mixing_scores = mixing_scores[['fov'] + keep_cols]
+
+mixing_scores = pd.melt(mixing_scores, id_vars=['fov'], var_name='mixing_score', value_name='value')
+mixing_scores.to_csv(os.path.join(data_dir, 'spatial_analysis/mixing_score/cell_cluster_broad/formatted_scores.csv'), index=False)
+
+# compute local diversity scores per image
+
+# Create list to hold parameters for each df that will be produced
+diversity_df_params = [['cluster_broad_freq', 'cell_cluster_broad'],
+                  ['cluster_freq', 'cell_cluster'],
+                  ['meta_cluster_freq', 'cell_meta_cluster']]
+
+diversity_dfs = []
+for result_name, cluster_col_name in diversity_df_params:
+
+    # remove cluster_names except for the one specified for the df
+    drop_cols = ['cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad', 'label']
+    drop_cols.remove(cluster_col_name)
+
+    # create df
+    diversity_dfs.append(create_long_df_by_functional(func_table=cell_table_diversity,
+                                                 result_name=result_name,
+                                                 cluster_col_name=cluster_col_name,
+                                                 drop_cols=drop_cols,
+                                                 normalize=True,
+                                                 subset_col='tumor_region'))
+
+# create combined df
+total_df_diversity = pd.concat(diversity_dfs, axis=0)
+total_df_diversity = total_df_diversity.merge(harmonized_metadata, on='fov', how='inner')
+total_df_diversity = total_df_diversity.rename(columns={'functional_marker': 'diversity_feature'})
+
+# save df
+total_df_diversity.to_csv(os.path.join(data_dir, 'diversity_df_per_core.csv'), index=False)
+
+# filter diversity scores to only include FOVs with at least the specified number of cells
+total_df = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
+min_cells = 5
+
+filtered_dfs = []
+metrics = [['cluster_broad_count', 'cluster_broad_freq'],
+           ['cluster_count', 'cluster_freq'],
+           ['meta_cluster_count', 'meta_cluster_freq']]
+for metric in metrics:
+    # subset count df to include cells at the relevant clustering resolution
+    for compartment in ['cancer_core', 'cancer_border', 'stroma_core',
+                        'stroma_border', 'tagg', 'tls', 'all']:
+        count_df = total_df[total_df.metric == metric[0]]
+        count_df = count_df[count_df.subset == compartment]
+
+        # subset diversity df to only include diversity metrics at this resolution
+        diversity_df = total_df_diversity[total_df_diversity.metric == metric[1]]
+        diversity_df = diversity_df[diversity_df.subset == compartment]
+
+        # for each cell type, determine which FOVs have high enough counts to be included
+        for cell_type in count_df.cell_type.unique():
+            keep_df = count_df[count_df.cell_type == cell_type]
+            keep_df = keep_df[keep_df.value >= min_cells]
+            keep_fovs = keep_df.fov.unique()
+
+            # subset morphology df to only include FOVs with high enough counts
+            keep_features = diversity_df[diversity_df.cell_type == cell_type]
+            keep_features = keep_features[keep_features.fov.isin(keep_fovs)]
+
+            # append to list of filtered dfs
+            filtered_dfs.append(keep_features)
+
+filtered_diversity_df = pd.concat(filtered_dfs)
+
+# save filtered df
+filtered_diversity_df.to_csv(os.path.join(data_dir, 'diversity_df_per_core_filtered.csv'), index=False)
+
+# create version aggregated by timepoint
+filtered_diversity_df_grouped = filtered_diversity_df.groupby(['Tissue_ID', 'cell_type', 'diversity_feature', 'metric', 'subset'])
+filtered_diversity_df_timepoint = filtered_diversity_df_grouped['value'].agg([np.mean, np.std])
+filtered_diversity_df_timepoint.reset_index(inplace=True)
+filtered_diversity_df_timepoint = filtered_diversity_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+filtered_diversity_df_timepoint.to_csv(os.path.join(data_dir, 'diversity_df_per_timepoint_filtered.csv'), index=False)
+
+
+# investigate correlation between diversity scores
+fov_data = filtered_diversity_df.copy()
+fov_data['feature_name_unique'] = fov_data['cell_type'] + '_' + fov_data['diversity_feature']
+fov_data = fov_data.loc[(fov_data.subset == 'all') & (fov_data.metric == 'cluster_freq')]
+fov_data = fov_data.loc[fov_data.diversity_feature != 'diversity_cell_meta_cluster']
+fov_data_wide = fov_data.pivot(index='fov', columns='feature_name_unique', values='value')
+
+corr_df = fov_data_wide.corr(method='spearman')
+
+# replace Nans
+corr_df = corr_df.fillna(0)
+clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+
+# save deduped df that excludes cell meta cluster
+deduped_diversity_df = filtered_diversity_df.loc[filtered_diversity_df.diversity_feature != 'diversity_cell_meta_cluster']
+deduped_diversity_df.to_csv(os.path.join(data_dir, 'diversity_df_per_core_filtered_deduped.csv'), index=False)
+
+# create version aggregated by timepoint
+deduped_diversity_df_grouped = deduped_diversity_df.groupby(['Tissue_ID', 'cell_type', 'diversity_feature', 'metric', 'subset'])
+deduped_diversity_df_timepoint = deduped_diversity_df_grouped['value'].agg([np.mean, np.std])
+deduped_diversity_df_timepoint.reset_index(inplace=True)
+deduped_diversity_df_timepoint = deduped_diversity_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+deduped_diversity_df_timepoint.to_csv(os.path.join(data_dir, 'diversity_df_per_timepoint_filtered_deduped.csv'), index=False)
+
+
+# process linear distance dfs
+distance_dfs = []
+
+# create dfs
+distance_dfs.append(create_long_df_by_functional(func_table=cell_table_distances,
+                                             result_name='cluster_freq',
+                                             cluster_col_name='cell_cluster',
+                                             drop_cols=['label'],
+                                             normalize=True,
+                                             subset_col='tumor_region'))
+
+distance_dfs.append(create_long_df_by_functional(func_table=cell_table_distances_broad,
+                                             result_name='cluster_broad_freq',
+                                             cluster_col_name='cell_cluster_broad',
+                                             drop_cols=['label'],
+                                             normalize=True,
+                                             subset_col='tumor_region'))
+
+# create combined df
+total_df_distance = pd.concat(distance_dfs, axis=0)
+total_df_distance = total_df_distance.merge(harmonized_metadata, on='fov', how='inner')
+total_df_distance = total_df_distance.rename(columns={'functional_marker': 'linear_distance'})
+total_df_distance.dropna(inplace=True)
+
+# save df
+total_df_distance.to_csv(os.path.join(data_dir, 'distance_df_per_core.csv'), index=False)
+
+# filter distance scores to only include FOVs with at least the specified number of cells
+total_df = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
+min_cells = 5
+
+filtered_dfs = []
+metrics = [['cluster_broad_count', 'cluster_broad_freq'],
+            ['cluster_count', 'cluster_freq']]
+
+for metric in metrics:
+    # subset count df to include cells at the relevant clustering resolution
+    for compartment in ['cancer_core', 'cancer_border', 'stroma_core',
+                        'stroma_border', 'tagg', 'tls', 'all']:
+        count_df = total_df[total_df.metric == metric[0]]
+        count_df = count_df[count_df.subset == compartment]
+
+        # subset distance df to only include distance metrics at this resolution
+        distance_df = total_df_distance[total_df_distance.metric == metric[1]]
+        distance_df = distance_df[distance_df.subset == compartment]
+
+        # for each cell type, determine which FOVs have high enough counts to be included
+        for cell_type in count_df.cell_type.unique():
+            keep_df = count_df[count_df.cell_type == cell_type]
+            keep_df = keep_df[keep_df.value >= min_cells]
+            keep_fovs = keep_df.fov.unique()
+
+            # subset morphology df to only include FOVs with high enough counts
+            keep_features = distance_df[distance_df.cell_type == cell_type]
+            keep_features = keep_features[keep_features.fov.isin(keep_fovs)]
+
+            # append to list of filtered dfs
+            filtered_dfs.append(keep_features)
+
+filtered_distance_df = pd.concat(filtered_dfs)
+
+# save filtered df
+filtered_distance_df.to_csv(os.path.join(data_dir, 'distance_df_per_core_filtered.csv'), index=False)
+
+
+# create version aggregated by timepoint
+filtered_distance_df_grouped = filtered_distance_df.groupby(['Tissue_ID', 'cell_type', 'linear_distance', 'metric', 'subset'])
+filtered_distance_df_timepoint = filtered_distance_df_grouped['value'].agg([np.mean, np.std])
+filtered_distance_df_timepoint.reset_index(inplace=True)
+filtered_distance_df_timepoint = filtered_distance_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+filtered_distance_df_timepoint.to_csv(os.path.join(data_dir, 'distance_df_per_timepoint_filtered.csv'), index=False)
+
+
+# remove distances that are correlated with abundance of cell type
+
+# load data
+total_df = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
+density_df = total_df.loc[(total_df.metric == 'cluster_broad_density') & (total_df.subset == 'all')]
+filtered_distance_df = filtered_distance_df.loc[(filtered_distance_df.metric == 'cluster_broad_freq') & (filtered_distance_df.subset == 'all')]
+
+# remove images without tumor cells
+density_df = density_df.loc[density_df.Timepoint != 'lymphnode_neg', :]
+filtered_distance_df = filtered_distance_df.loc[filtered_distance_df.fov.isin(density_df.fov.unique())]
+cell_types = filtered_distance_df.cell_type.unique()
+
+# calculate which pairings to keep
+keep_cells, keep_features = [], []
+
+for cell_type in cell_types:
+    density_subset = density_df.loc[density_df.cell_type == cell_type]
+    distance_subset = filtered_distance_df.loc[filtered_distance_df.linear_distance == cell_type]
+    distance_wide = distance_subset.pivot(index='fov', columns='cell_type', values='value')
+    distance_wide.reset_index(inplace=True)
+    distance_wide = pd.merge(distance_wide, density_subset[['fov', 'value']], on='fov', how='inner')
+
+    # get correlations
+    corr_df = distance_wide.corr(method='spearman')
+
+    # determine which features to keep
+    corr_vals = corr_df.loc['value', :].abs()
+    corr_vals = corr_vals[corr_vals < 0.8]
+
+    # add to list of features to keep
+    keep_cells.extend(corr_vals.index)
+    keep_features.extend([cell_type] * len(corr_vals.index))
+
+keep_df = pd.DataFrame({'cell_type': keep_cells, 'feature_name': keep_features})
+
+keep_df.to_csv(os.path.join(data_dir, 'distance_df_keep_features.csv'), index=False)
+
+# filter distance df to only include features with low correlation with abundance
+
+deduped_dfs = []
+for cell_type in keep_df.cell_type.unique():
+    keep_features = keep_df.loc[keep_df.cell_type == cell_type, 'feature_name'].unique()
+    if len(keep_features) > 0:
+        keep_df_subset = filtered_distance_df.loc[filtered_distance_df.cell_type == cell_type]
+        keep_df_subset = keep_df_subset.loc[keep_df_subset.linear_distance.isin(keep_features)]
+        deduped_dfs.append(keep_df_subset)
+
+deduped_distance_df = pd.concat(deduped_dfs)
+
+# save filtered df
+deduped_distance_df.to_csv(os.path.join(data_dir, 'distance_df_per_core_deduped.csv'), index=False)
+
+# create version aggregated by timepoint
+deduped_distance_df_grouped = deduped_distance_df.groupby(['Tissue_ID', 'cell_type', 'linear_distance', 'metric', 'subset'])
+deduped_distance_df_timepoint = deduped_distance_df_grouped['value'].agg([np.mean, np.std])
+deduped_distance_df_timepoint.reset_index(inplace=True)
+deduped_distance_df_timepoint = deduped_distance_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+deduped_distance_df_timepoint.to_csv(os.path.join(data_dir, 'distance_df_per_timepoint_deduped.csv'), index=False)
+
+
+# fiber analysis
+fiber_df = fiber_df.loc[:, ~fiber_df.columns.isin(['label', 'centroid-0', 'centroid-1'])]
+
+fiber_df = fiber_df.merge(harmonized_metadata[['Tissue_ID', 'fov']], on=['fov'], how='left')
+
+fiber_df_means = fiber_df.groupby(['Tissue_ID', 'fov']).agg(np.mean)
+fiber_df_means.reset_index(inplace=True)
+
+fiber_df_long = pd.melt(fiber_df_means, id_vars=['Tissue_ID', 'fov'], var_name='fiber_metric', value_name='value')
+fiber_df_long['fiber_metric'] = 'fiber_' + fiber_df_long['fiber_metric']
+
+fiber_df_long.to_csv(os.path.join(data_dir, 'fiber_df_per_core.csv'), index=False)
+
+# create version aggregated by timepoint
+fiber_df_grouped = fiber_df_long.groupby(['Tissue_ID', 'fiber_metric'])
+fiber_df_timepoint = fiber_df_grouped['value'].agg([np.mean, np.std])
+fiber_df_timepoint.reset_index(inplace=True)
+fiber_df_timepoint = fiber_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+fiber_df_timepoint.to_csv(os.path.join(data_dir, 'fiber_df_per_timepoint.csv'), index=False)
+
+# for tiles, get max per image
+fiber_tile_df = fiber_tile_df.dropna()
+fiber_tile_df = fiber_tile_df.loc[:, ~fiber_tile_df.columns.isin(['pixel_density', 'tile_y', 'tile_x'])]
+fiber_tile_df.columns = fiber_tile_df.columns.str.replace('avg_', '')
+fiber_tile_df.columns = fiber_tile_df.columns.str.replace('fiber_', '')
+fiber_tile_df = fiber_tile_df.merge(harmonized_metadata[['Tissue_ID', 'fov']], on=['fov'], how='left')
+
+# group by fov
+fiber_tile_df_means = fiber_tile_df.groupby(['Tissue_ID', 'fov']).agg(np.max)
+fiber_tile_df_means.reset_index(inplace=True)
+
+fiber_tile_df_long = pd.melt(fiber_tile_df_means, id_vars=['Tissue_ID', 'fov'], var_name='fiber_metric', value_name='value')
+fiber_tile_df_long['fiber_metric'] = 'max_fiber_' + fiber_tile_df_long['fiber_metric']
+
+fiber_tile_df_long.to_csv(os.path.join(data_dir, 'fiber_df_per_tile.csv'), index=False)
+
+# create version aggregated by timepoint
+fiber_tile_df_grouped = fiber_tile_df_long.groupby(['Tissue_ID', 'fiber_metric'])
+fiber_tile_df_timepoint = fiber_tile_df_grouped['value'].agg([np.mean, np.std])
+fiber_tile_df_timepoint.reset_index(inplace=True)
+fiber_tile_df_timepoint = fiber_tile_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+fiber_tile_df_timepoint.to_csv(os.path.join(data_dir, 'fiber_df_per_tile_timepoint.csv'), index=False)

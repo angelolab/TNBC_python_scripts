@@ -6,7 +6,7 @@ import pandas as pd
 import seaborn as sns
 
 
-data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
+data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 
 # create dataset
@@ -15,6 +15,61 @@ timepoint_df_func = pd.read_csv(os.path.join(data_dir, 'functional_df_per_timepo
 
 
 # create stacked barplot
+
+def create_summary_stacked_barplot(plot_df, x_var, data_var, values_var, category_var, xlabel, ylabel, title, colors_dict=None,
+                   colormap='husl', savepath=None):
+    plot_cross = pd.pivot(plot_df, index=[x_var, category_var], columns=data_var, values=values_var)
+    plot_cross = plot_cross.reset_index()
+
+    # order columns by count
+    means = plot_cross.mean(axis=0).sort_values(ascending=False)
+    #plot_cross[x_var] = plot_cross.index
+    plot_cross.columns = pd.CategoricalIndex(plot_cross.columns.values, ordered=True,
+                                             categories=means.index.tolist() + [x_var])
+    plot_cross = plot_cross.sort_index(axis=1)
+
+    # order rows by count of most common x_var
+    row_counts1 = plot_cross.loc[plot_cross[category_var], means.index[0]].sort_values(ascending=False)
+    row_counts2 = plot_cross.loc[~plot_cross[category_var], means.index[0]].sort_values(ascending=False)
+
+    plot_cross.index = pd.CategoricalIndex(plot_cross.index.values, ordered=True,
+                                           categories=row_counts1.index.tolist() + row_counts2.index.tolist())
+    plot_cross = plot_cross.sort_index(axis=0)
+    # set consistent plotting if colors not supplied
+    if colors_dict is None:
+        color_labels = plot_df[data_var].unique()
+        color_labels.sort()
+
+        # List of colors in the color palettes
+        rgb_values = sns.color_palette(colormap, len(color_labels))
+
+        # Map continents to the colors
+        colors_dict = dict(zip(color_labels, rgb_values))
+
+    # plot barplot
+    plot_cross.plot(x=x_var, kind='bar', stacked=True, figsize=(12, 5), color=colors_dict)
+
+    # reverse legend ordering
+    handles, labels = plt.gca().get_legend_handles_labels()
+    order = list(np.arange(len(plot_cross.columns) - 2))
+    order.reverse()
+    plt.legend([handles[idx] for idx in order], [labels[idx] for idx in order])
+
+    # remove x tick labels
+    plt.xticks([])
+
+    # despine
+    sns.despine(left=True, bottom=True)
+
+    # annotate plot
+    plt.xlabel(xlabel, fontsize=15)
+    plt.ylabel(ylabel, fontsize=15)
+    plt.title(title, fontsize=15)
+    plt.tight_layout()
+    if savepath is not None:
+        plt.savefig(savepath)
+        plt.close()
+
 def create_stacked_barplot(plot_df, x_var, data_var, values_var, xlabel, ylabel, title, colors_dict=None,
                    colormap='husl', savepath=None):
     plot_cross = pd.pivot(plot_df, index=x_var, columns=data_var, values=values_var)
@@ -96,6 +151,21 @@ def create_sorted_barplot(plot_df, x_var, xlabel, ylabel, title, colors_dict=Non
     # if savepath is not None:
     #     plt.savefig(savepath)
     #     plt.close()
+
+
+# stacked bar across all timepoints
+plot_df = timepoint_df_cluster.loc[timepoint_df_cluster.metric == 'cluster_broad_freq', :]
+plot_df = plot_df.loc[plot_df.Timepoint.isin(['primary_untreated', 'primary', 'baseline','local_recurrence',
+                                              'metastasis', 'post_induction', 'on_nivo', 'biopsy'])]
+plot_df = plot_df.loc[plot_df.subset == 'all', :]
+plot_df = plot_df.loc[plot_df.MIBI_data_generated, :]
+plot_df['primary'] = plot_df.Timepoint.isin(['primary_untreated', 'primary', 'biopsy', 'local_recurrence'])
+
+create_summary_stacked_barplot(plot_df=plot_df, x_var='Tissue_ID', data_var='cell_type', values_var='mean',
+                       category_var='primary',
+                     xlabel='Timepoint', ylabel='Proportion of total cells', colormap='husl',
+                     title='Frequency of broad clusters across all timepoints',
+                     savepath=os.path.join(plot_dir, 'Figure2_primary_vs_met_broad_cluster.png'))
 
 
 # broad clusters across primary tumors

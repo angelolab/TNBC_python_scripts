@@ -119,8 +119,13 @@ for fov in all_fovs[0:1]:
                                         smooth_val=5,
                                         erode_val=5)
 
-    # create mask
-    io.imsave(os.path.join(mask_dir, fov, 'total_ecm.tiff'), mask.astype('uint8'),
+    # create folder
+    out_folder = os.path.join(out_dir, 'masks', fov)
+    if not os.path.exists(out_folder):
+        os.makedirs(out_folder)
+
+    # save mask
+    io.imsave(os.path.join(out_folder, 'total_ecm.tiff'), mask.astype('uint8'),
               check_contrast=False)
 
 # generate crop sums

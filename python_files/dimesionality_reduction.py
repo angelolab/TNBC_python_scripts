@@ -9,30 +9,23 @@ import seaborn as sns
 # patterns of change
 #
 
-data_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
+data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 
-fov_data_df = pd.read_csv(os.path.join(data_dir, 'conserved_features/fov_features_conserved.csv'))
+fov_data_df = pd.read_csv(os.path.join(data_dir, 'fov_features_no_compartment.csv'))
+harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
+fov_data_df = fov_data_df.merge(harmonized_metadata[['fov', 'Timepoint']].drop_duplicates(), on='fov', how='left')
 
 # plot clustermap
 
 
 # determine which timepoints to use
-include_timepoints = ['primary_untreated', 'baseline']
+include_timepoints = ['primary_untreated', 'baseline', 'on_nivo', 'post_induction']
 #include_timepoints = fov_data_df.Timepoint.unique()
 fov_data_df_subset = fov_data_df[fov_data_df.Timepoint.isin(include_timepoints)]
 
-# determine whether to use image-level or timepoint-level features
-timepoint = True
-fov_data_df_subset = fov_data_df_subset.groupby(['Tissue_ID', 'metric']).agg(np.mean)
-fov_data_df_subset.reset_index(inplace=True)
 
-if timepoint:
-    # aggregate to timepoint level
-    data_wide = fov_data_df_subset.pivot(index='Tissue_ID', columns='metric', values='value')
-else:
-    # aggregate to image level
-    data_wide = fov_data_df.pivot(index='fov', columns='feature_name', values='value')
+data_wide = fov_data_df_subset.pivot(index='fov', columns='feature_name', values='normalized_value')
 
 
 # replace Nan with 0
@@ -53,6 +46,9 @@ plt.close()
 # create correlation matrix using spearman correlation
 corr_df = data_wide.corr(method='spearman')
 clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+
+clustergrid_columns = clustergrid.data2d.columns
+clustergrid2 = sns.clustermap(corr_df.loc[clustergrid_columns[305:350], clustergrid_columns[305:350]], cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
 clustergrid.savefig(os.path.join(plot_dir, 'spearman_correlation_clustermap.png'), dpi=300)
 plt.close()
 
@@ -101,10 +97,12 @@ def generate_pca(data, num_pcs):
 
     return pca_data
 
+# replace Nans with mean
+data_wide_filled = data_wide.fillna(data_wide.mean())
 
 # scale data
 scaler = StandardScaler()
-scaled_data = scaler.fit_transform(data_wide)
+scaled_data = scaler.fit_transform(data_wide_filled)
 
 # create PCA object
 pca = PCA(n_components=10)
@@ -118,25 +116,41 @@ pca.explained_variance_ratio_
 # transform data
 pca_data = pca.transform(scaled_data)
 
+pca_data_df = pd.DataFrame(pca_data, index=data_wide.index,
+                            columns=['PC1', 'PC2', 'PC3', 'PC4', 'PC5',
+                                        'PC6', 'PC7', 'PC8', 'PC9', 'PC10'])
+
+pca_data_df = pca_data_df.melt(value_vars=['PC1', 'PC2', 'PC3', 'PC4', 'PC5',
+                                        'PC6', 'PC7', 'PC8', 'PC9', 'PC10'],
+                                 var_name='PC', value_name='value', ignore_index=False).reset_index()
+pca_data_df = pca_data_df.merge(harmonized_metadata[['Tissue_ID', 'Patient_ID', 'Timepoint', 'fov']], on='fov', how='left')
+pca_data_df = pca_data_df.rename(columns={'PC': 'feature_name'})
+pca_data_df.to_csv(os.path.join(data_dir, 'pca_data_df.csv'), index=False)
+
+pca_data_df_grouped = pca_data_df.groupby(['Tissue_ID', 'feature_name', 'Timepoint', 'Patient_ID'])
+pca_data_df_grouped = pca_data_df_grouped['value'].agg([np.mean, np.std])
+pca_data_df_grouped = pca_data_df_grouped.reset_index()
+pca_data_df_grouped.to_csv(os.path.join(data_dir, 'pca_data_df_grouped.csv'), index=False)
 # get PCA loadings and create dataframe
 pca_loadings = pd.DataFrame(pca.components_.T, index=data_wide.columns,
                             columns=['PC1', 'PC2', 'PC3', 'PC4', 'PC5',
                                      'PC6', 'PC7', 'PC8', 'PC9', 'PC10'])
+
 
 # plot rows based on first two PCs
 sns.scatterplot(x=pca_data[:, 0], y=pca_data[:, 1])
 
 
 # select which PCs to plot
-num_pcs = 2
+num_pcs = 4
 pca_loadings_subset = pca_loadings.iloc[:, :num_pcs]
 
-# set threshold for which PCs to include based on 75% quantile across all columns at once
+# set threshold for which features to include based on 75% quantile across all columns at once
 pc_cutoff = pca_loadings_subset.abs().unstack().quantile(0.75)
 
 # TODO: instead of looking at maximum 75%, look at difference between the features
 
-# create mask for which PCs to include
+# create mask for which features to include
 pc_mask = pca_loadings_subset.abs() > pc_cutoff
 keep_rows = pc_mask.any(axis=1)
 
@@ -144,7 +158,7 @@ keep_rows = pc_mask.any(axis=1)
 pca_loadings_subset = pca_loadings_subset.loc[keep_rows, :]
 
 # plot heatmap of loadings
-clustergrid = sns.clustermap(pca_loadings_subset, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+clustergrid = sns.clustermap(pca_loadings_subset, cmap='vlag', figsize=(20, 20))
 clustergrid.savefig(os.path.join(plot_dir, 'pca_loadings_heatmap.png'), dpi=300)
 plt.close()
 
@@ -163,6 +177,44 @@ plotting_df = plotting_df.loc[pca2_mask, :]
 clustergrid = sns.clustermap(plotting_df, cmap='vlag', vmin=-4, vmax=4, figsize=(20, 20))
 clustergrid.savefig(os.path.join(plot_dir, 'high_PC2_FOVs.png'), dpi=300)
 plt.close()
+
+
+# NMF clustering of features
+from sklearn.decomposition import NMF
+from sklearn.preprocessing import StandardScaler
+
+# replace Nans with mean
+data_wide_filled = data_wide.fillna(data_wide.mean())
+
+# scale data
+data_wide_filled = data_wide_filled.apply(lambda x: (x - np.min(x)) / (np.max(x) - np.min(x)), axis=0)
+
+# create NMF object
+nmf = NMF(n_components=10)
+
+# fit NMF
+nmf.fit(data_wide_filled)
+
+# transform data
+nmf_data = nmf.transform(data_wide_filled)
+
+nmf_data_df = pd.DataFrame(nmf_data, index=data_wide.index,
+                            columns=['PC1', 'PC2', 'PC3', 'PC4', 'PC5',
+                                        'PC6', 'PC7', 'PC8', 'PC9', 'PC10'])
+
+sns.clustermap(nmf_data_df, cmap='Reds', figsize=(20, 20), vmin=0, vmax=1)
+
+nmf_data_df = nmf_data_df.melt(value_vars=['PC1', 'PC2', 'PC3', 'PC4', 'PC5',
+                                        'PC6', 'PC7', 'PC8', 'PC9', 'PC10'],
+                                    var_name='feature_name', value_name='value', ignore_index=False).reset_index()
+nmf_data_df = nmf_data_df.merge(harmonized_metadata[['Tissue_ID', 'Patient_ID', 'Timepoint', 'fov']], on='fov', how='left')
+nmf_data_df.to_csv(os.path.join(data_dir, 'nmf_data_df.csv'), index=False)
+
+nmf_data_df_grouped = nmf_data_df.groupby(['Tissue_ID', 'feature_name', 'Timepoint', 'Patient_ID'])
+nmf_data_df_grouped = nmf_data_df_grouped['value'].agg([np.mean, np.std])
+nmf_data_df_grouped = nmf_data_df_grouped.reset_index()
+nmf_data_df_grouped.to_csv(os.path.join(data_dir, 'nmf_data_df_grouped.csv'), index=False)
+
 
 
 # look at correlation between selected subsets of features
