@@ -98,7 +98,7 @@ plot_df = plot_df + 0.1
 plot_df = plot_df.reindex(cell_ordering)
 
 # plot heatmap
-plt.figure(figsize=(30, 10))
+plt.figure(figsize=(12, 10))
 #sns.heatmap(plot_df, cmap=sns.color_palette("coolwarm", as_cmap=True), vmin=0, vmax=1)
 sns.heatmap(plot_df, cmap=sns.color_palette("Greys", as_cmap=True), vmin=0, vmax=1.1)
 plt.tight_layout()

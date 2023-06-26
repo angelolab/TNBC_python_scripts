@@ -152,6 +152,31 @@ summarize_timepoint_enrichment(input_df=primary_met_means, feature_df=timepoint_
                                  pval_thresh=2, diff_thresh=0.3, output_dir=plot_dir + '/primary_baseline_evolution')
 
 
+# compare differences between LN and none LN metastasis
+combined_dfs = []
+for location in ['LN', 'nonLN']:
+    if location == 'LN':
+        keep_pats = harmonized_metadata.loc[(harmonized_metadata.Localization == 'Lymphnode') & (harmonized_metadata.Timepoint == 'baseline'), 'Patient_ID'].unique()
+    else:
+        keep_pats = harmonized_metadata.loc[(harmonized_metadata.Localization != 'Lymphnode') & (harmonized_metadata.Timepoint == 'baseline'), 'Patient_ID'].unique()
+
+
+    primary_met_means = compare_timepoints(feature_df=timepoint_features.loc[timepoint_features.Patient_ID.isin(keep_pats)],
+                                           timepoint_1_name='primary', timepoint_1_list=['primary_untreated'],
+                                           timepoint_2_name='metastatic', timepoint_2_list=['baseline'], paired='primary__baseline',
+                                           feature_suff='mean')
+
+    save_dir = plot_dir + '/primary_baseline_evolution_{}'.format(location)
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    summarize_timepoint_enrichment(input_df=primary_met_means, feature_df=timepoint_features.loc[timepoint_features.Patient_ID.isin(keep_pats)],
+                                   timepoints=['baseline', 'primary_untreated'], pval_thresh=2, diff_thresh=0.2, output_dir=save_dir)
+
+    primary_met_means['location'] = location
+    combined_dfs.append(primary_met_means)
+
+
 # plot evolution of features
 feature_name = 'H3K9ac_H3K27me3_ratio+__all'
 feature_name = 'TBET+__CD8T'
