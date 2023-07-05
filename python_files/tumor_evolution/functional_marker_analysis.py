@@ -70,55 +70,6 @@ plt.savefig('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Plots/Functiona
 plt.close()
 
 
-
-
-
-# heatmap of functional marker expression per cell type
-plot_df = core_df_func.loc[core_df_func.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
-plot_df = plot_df.loc[plot_df.metric == 'cluster_freq', :]
-plot_df = plot_df.loc[plot_df.subset == 'all', :]
-
-sp_markers = [x for x in core_df_func.functional_marker.unique() if '__' not in x]
-plot_df = plot_df.loc[plot_df.functional_marker.isin(sp_markers), :]
-
-# # compute z-score within each functional marker
-# plot_df['zscore'] = plot_df.groupby('functional_marker')['mean'].transform(lambda x: (x - x.mean()) / x.std())
-
-# average the z-score across cell types
-plot_df = plot_df.groupby(['cell_type', 'functional_marker']).mean().reset_index()
-plot_df = pd.pivot(plot_df, index='cell_type', columns='functional_marker', values='value')
-#plot_df = plot_df.apply(lambda x: (x - x.min()), axis=0)
-
-# subtract min from each column, unless that column only has a single value
-for col in plot_df.columns:
-    if plot_df[col].max() == plot_df[col].min():
-        continue
-    else:
-        plot_df[col] = plot_df[col] - plot_df[col].min()
-plot_df = plot_df.apply(lambda x: (x / x.max()), axis=0)
-plot_df = plot_df + 0.1
-
-# set index based on cell_ordering
-plot_df = plot_df.reindex(cell_ordering)
-
-# set column order
-cols = ['PDL1','Ki67','GLUT1','CD45RO', 'CD45RO_CD45RB_ratio','CD69', 'PD1','CD57','TBET', 'TCF1',
-        'CD45RB', 'TIM3', 'Fe','HLADR','IDO','CD38','H3K9ac_H3K27me3_ratio', 'HLA1', 'Vim']
-
-plot_df = plot_df[cols]
-
-# replace nans with 0
-#plot_df = plot_df.fillna(0)
-
-# plot heatmap
-plt.figure(figsize=(12, 10))
-#sns.clustermap(plot_df, cmap=sns.color_palette("coolwarm", as_cmap=True), vmin=0, vmax=1, row_cluster=False)
-sns.heatmap(plot_df, cmap=sns.color_palette("Greys", as_cmap=True), vmin=0, vmax=1.1)
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Functional_marker_heatmap_min_max_normalized.pdf'))
-plt.close()
-
-
 # check correlation between single positive and double positive cells
 working_df = deduped_df.loc[deduped_df.subset == 'all', :]
 working_df = working_df.loc[working_df.metric == 'cluster_freq', :]
