@@ -697,8 +697,10 @@ def compare_populations(feature_df, pop_col, pop_1, pop_2, timepoints, feature_s
     feature_names = []
     pop_1_means = []
     pop_1_norm_means = []
+    pop_1_norm_meds = []
     pop_2_means = []
     pop_2_norm_means = []
+    pop_2_norm_meds = []
     log_pvals = []
 
     analysis_df = feature_df.loc[(feature_df.Timepoint.isin(timepoints)), :]
@@ -709,29 +711,40 @@ def compare_populations(feature_df, pop_col, pop_1, pop_2, timepoints, feature_s
         pop_1_norm_vals = values.loc[values[pop_col] == pop_1, 'normalized_' + feature_suff].values
         pop_2_vals = values.loc[values[pop_col] == pop_2, 'raw_' + feature_suff].values
         pop_2_norm_vals = values.loc[values[pop_col] == pop_2, 'normalized_' + feature_suff].values
+
+        # if insufficient number of samples, ignore that comparison
+        if len(pop_1_vals) < 3 or len(pop_2_vals) < 3:
+            pop_1_vals, pop_1_norm_vals = np.array(np.nan), np.array(np.nan)
+            pop_2_vals, pop_2_norm_vals = np.array(np.nan), np.array(np.nan)
+
         pop_1_means.append(pop_1_vals.mean())
         pop_1_norm_means.append(pop_1_norm_vals.mean())
+        pop_1_norm_meds.append(np.median(pop_1_norm_vals))
         pop_2_means.append(pop_2_vals.mean())
         pop_2_norm_means.append(pop_2_norm_vals.mean())
+        pop_2_norm_meds.append(np.median(pop_2_norm_vals))
 
-        # compute t-test for difference between timepoints
-        t, p = ttest_ind(pop_1_norm_vals, pop_2_norm_vals)
+        # compute difference between timepoints
+        t, p = mannwhitneyu(pop_1_norm_vals, pop_2_norm_vals)
         log_pvals.append(-np.log10(p))
 
     means_df = pd.DataFrame({pop_1 + '_mean': pop_1_means,
                              pop_2 + '_mean': pop_2_means,
                              pop_1 + '_norm_mean': pop_1_norm_means,
                              pop_2 + '_norm_mean': pop_2_norm_means,
+                             pop_1 + '_norm_med': pop_1_norm_meds,
+                             pop_2 + '_norm_med': pop_2_norm_meds,
                              'log_pval': log_pvals}, index=features)
     # calculate difference
     means_df['mean_diff'] = means_df[pop_2 + '_norm_mean'].values - means_df[pop_1 + '_norm_mean'].values
+    means_df['med_diff'] = means_df[pop_2 + '_norm_med'].values - means_df[pop_1 + '_norm_med'].values
     means_df = means_df.reset_index().rename(columns={'index': 'feature_name_unique'})
 
     return means_df
 
 
 def summarize_timepoint_enrichment(input_df, feature_df, timepoints, output_dir, pval_thresh=2,
-                                   diff_thresh=0.3, plot_type='strip'):
+                                   diff_thresh=0.3, plot_type='strip', sort_by='mean_diff'):
     """Generate a summary of the timepoint enrichment results
 
     Args:
@@ -743,9 +756,9 @@ def summarize_timepoint_enrichment(input_df, feature_df, timepoints, output_dir,
         diff_thresh (float): threshold for difference between timepoints
     """
 
-    input_df_filtered = input_df.loc[(input_df.log_pval > pval_thresh) & (np.abs(input_df.mean_diff) > diff_thresh), :]
+    input_df_filtered = input_df.loc[(input_df.log_pval > pval_thresh) & (np.abs(input_df[sort_by]) > diff_thresh), :]
 
-    input_df_filtered = input_df_filtered.sort_values('mean_diff', ascending=False)
+    input_df_filtered = input_df_filtered.sort_values(sort_by, ascending=False)
 
     # plot the results
     for idx, feature in enumerate(input_df_filtered.feature_name_unique):
@@ -757,13 +770,13 @@ def summarize_timepoint_enrichment(input_df, feature_df, timepoints, output_dir,
         g.savefig(os.path.join(output_dir, 'Evolution_{}_{}.png'.format(idx, feature)))
         plt.close()
 
-    sns.catplot(data=input_df_filtered, x='mean_diff', y='feature_name_unique', kind='bar', color='grey')
+    sns.catplot(data=input_df_filtered, x=sort_by, y='feature_name_unique', kind='bar', color='grey')
     plt.savefig(os.path.join(output_dir, 'Timepoint_summary.png'))
     plt.close()
 
 
 def summarize_population_enrichment(input_df, feature_df, timepoints, pop_col, output_dir, pval_thresh=2, diff_thresh=0.3,
-                                    plot_type='strip'):
+                                    sort_by='mean_diff', plot_type='strip'):
     """Generate a summary of the population enrichment results
 
     Args:
@@ -776,10 +789,9 @@ def summarize_population_enrichment(input_df, feature_df, timepoints, pop_col, o
         diff_thresh (float): threshold for difference between timepoints
     """
 
-    input_df_filtered = input_df.loc[(input_df.log_pval > pval_thresh) & (np.abs(input_df.mean_diff) > diff_thresh), :]
+    input_df_filtered = input_df.loc[(input_df.log_pval > pval_thresh) & (np.abs(input_df[sort_by]) > diff_thresh), :]
 
-    input_df_filtered = input_df_filtered.sort_values('mean_diff', ascending=False)
-    print(input_df_filtered)
+    input_df_filtered = input_df_filtered.sort_values(sort_by, ascending=False)
 
     # plot the results
     for idx, feature in enumerate(input_df_filtered.feature_name_unique):
@@ -791,7 +803,7 @@ def summarize_population_enrichment(input_df, feature_df, timepoints, pop_col, o
         g.savefig(os.path.join(output_dir, 'Evolution_{}_{}.png'.format(idx, feature)))
         plt.close()
 
-    sns.catplot(data=input_df_filtered, x='mean_diff', y='feature_name_unique', kind='bar', color='grey')
+    sns.catplot(data=input_df_filtered, x=sort_by, y='feature_name_unique', kind='bar', color='grey')
     plt.savefig(os.path.join(output_dir, 'Evolution_summary.png'))
     plt.close()
 

@@ -3,6 +3,10 @@ import os
 import natsort
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
+
 import matplotlib.pyplot as plt
 from itertools import combinations
 import seaborn as sns
@@ -75,7 +79,7 @@ plot_df = plot_df.loc[plot_df.metric == 'cluster_freq', :]
 plot_df = plot_df.loc[plot_df.subset == 'all', :]
 
 sp_markers = [x for x in core_df_func.functional_marker.unique() if '__' not in x]
-# plot_df = plot_df.loc[plot_df.functional_marker.isin(sp_markers), :]
+plot_df = plot_df.loc[plot_df.functional_marker.isin(sp_markers), :]
 
 # # compute z-score within each functional marker
 # plot_df['zscore'] = plot_df.groupby('functional_marker')['mean'].transform(lambda x: (x - x.mean()) / x.std())
@@ -97,12 +101,21 @@ plot_df = plot_df + 0.1
 # set index based on cell_ordering
 plot_df = plot_df.reindex(cell_ordering)
 
+# set column order
+cols = ['PDL1','Ki67','GLUT1','CD45RO', 'CD45RO_CD45RB_ratio','CD69', 'PD1','CD57','TBET', 'TCF1',
+        'CD45RB', 'TIM3', 'Fe','HLADR','IDO','CD38','H3K9ac_H3K27me3_ratio', 'HLA1', 'Vim']
+
+plot_df = plot_df[cols]
+
+# replace nans with 0
+#plot_df = plot_df.fillna(0)
+
 # plot heatmap
 plt.figure(figsize=(12, 10))
-#sns.heatmap(plot_df, cmap=sns.color_palette("coolwarm", as_cmap=True), vmin=0, vmax=1)
+#sns.clustermap(plot_df, cmap=sns.color_palette("coolwarm", as_cmap=True), vmin=0, vmax=1, row_cluster=False)
 sns.heatmap(plot_df, cmap=sns.color_palette("Greys", as_cmap=True), vmin=0, vmax=1.1)
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Functional_marker_heatmap_min_max_normalized.png'))
+plt.savefig(os.path.join(plot_dir, 'Functional_marker_heatmap_min_max_normalized.pdf'))
 plt.close()
 
 
