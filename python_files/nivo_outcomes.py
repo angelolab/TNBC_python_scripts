@@ -27,9 +27,9 @@ patient_metadata = patient_metadata.loc[~patient_metadata.MIBI_evolution_set.isn
 patient_metadata['iRECIST_response'] = 'non-responders'
 patient_metadata.loc[(patient_metadata.BOR_iRECIST.isin(['iCR', 'iPR', 'iSD'])), 'iRECIST_response'] = 'responders'
 feature_metadata = pd.read_csv(os.path.join(data_dir, 'feature_metadata.csv'))
-#patient_metadata.loc[patient_metadata.Patient_ID.isin([33, 40, 75, 85, 100, 105, 109]), 'iRECIST_response'] = 'noinduction_responders'
-
 timepoint_features = pd.read_csv(os.path.join(data_dir, 'timepoint_features_filtered.csv'))
+
+#patient_metadata.loc[patient_metadata.Patient_ID.isin([33, 40, 75, 85, 100, 105, 109]), 'iRECIST_response'] = 'noinduction_responders'
 # func_df_timepoint = pd.read_csv(os.path.join(data_dir, 'functional_df_per_timepoint_filtered_deduped.csv'))
 # func_df_timepoint = func_df_timepoint.loc[(func_df_timepoint.cell_type == 'Mono_Mac') & (func_df_timepoint.subset == 'all') &
 #                                           (func_df_timepoint.functional_marker == 'PDL1') & (func_df_timepoint.metric == 'cluster_broad_freq') &
@@ -41,9 +41,9 @@ timepoint_features = pd.read_csv(os.path.join(data_dir, 'timepoint_features_filt
 # func_df_timepoint['cell_pop_level'] = 'broad'
 # func_df_timepoint['feature_type'] = 'functional_marker'
 # func_df_timepoint = func_df_timepoint.rename(columns={'mean': 'raw_mean', 'std': 'raw_std', 'cell_type': 'cell_pop'})
-#
 # timepoint_features = timepoint_features.append(func_df_timepoint[['Tissue_ID', 'feature_name', 'feature_name_unique', 'compartment', 'cell_pop_level', 'feature_type', 'raw_mean', 'raw_std']])
-timepoint_features = timepoint_features.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint', 'primary__baseline',
+
+timepoint_features = timepoint_features.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint',
                                                                    'baseline__on_nivo', 'baseline__post_induction', 'post_induction__on_nivo']].drop_duplicates(), on='Tissue_ID')
 timepoint_features = timepoint_features.merge(patient_metadata[['Patient_ID', 'iRECIST_response']].drop_duplicates(), on='Patient_ID', how='left')
 
@@ -55,21 +55,22 @@ timepoint_features = timepoint_features[['Tissue_ID', 'feature_name', 'feature_n
 daisy_dir = '/Users/noahgreenwald/Downloads/daisy_data'
 timepoint_features.to_csv(os.path.join(daisy_dir, 'timepoint_features.csv'), index=False)
 
-# look at change due to nivo
-for comparison in ['baseline__on_nivo', 'baseline__post_induction', 'post_induction__on_nivo']:
+# # look at change due to nivo
+# for comparison in ['baseline__on_nivo', 'baseline__post_induction', 'post_induction__on_nivo']:
+#
+#     # compare pre and post therapy
+#     pop_1, pop_2 = comparison.split('__')
+#     compare_df = compare_timepoints(feature_df=timepoint_features, timepoint_1_name=pop_1, timepoint_1_list=[pop_1],
+#                                     timepoint_2_name=pop_2, timepoint_2_list=[pop_2], paired=comparison)
+#     # plot results
+#     output_dir = plot_dir + '/evolution_{}'.format(comparison)
+#     if not os.path.exists(output_dir):
+#         os.makedirs(output_dir)
+#
+#     summarize_timepoint_enrichment(input_df=compare_df, feature_df=timepoint_features, timepoints=[pop_1, pop_2],
+#                                  pval_thresh=2, diff_thresh=0.3, output_dir=output_dir)
 
-    # compare pre and post therapy
-    pop_1, pop_2 = comparison.split('__')
-    compare_df = compare_timepoints(feature_df=timepoint_features, timepoint_1_name=pop_1, timepoint_1_list=[pop_1],
-                                    timepoint_2_name=pop_2, timepoint_2_list=[pop_2], paired=comparison)
-    # plot results
-    output_dir = plot_dir + '/evolution_{}'.format(comparison)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    summarize_timepoint_enrichment(input_df=compare_df, feature_df=timepoint_features, timepoints=[pop_1, pop_2],
-                                 pval_thresh=2, diff_thresh=0.3, output_dir=output_dir)
-
+# generate a single set of top hits across all comparisons
 
 # loop over different populations
 pop_df_means = pd.DataFrame({'feature_name_unique': timepoint_features.feature_name_unique.unique()})
@@ -263,7 +264,8 @@ plt.savefig(os.path.join(plot_dir, 'top_feature_celltype_enrichment.pdf'))
 plt.close()
 
 # plot top features
-top_features = total_dfs.loc[total_dfs.top_feature, :]
+#top_features = total_dfs.loc[total_dfs.top_feature, :]
+top_features = total_dfs.iloc[:100, :]
 top_features = top_features.sort_values('importance_score', ascending=False)
 
 for idx, (feature_name, comparison) in enumerate(zip(top_features.feature_name_unique, top_features.comparison)):
@@ -290,10 +292,11 @@ top_features_by_comparison = top_features[['feature_name_unique', 'comparison']]
 top_features_by_comparison.columns = ['comparison', 'num_features']
 top_features_by_comparison = top_features_by_comparison.sort_values('num_features', ascending=False)
 
-sns.barplot(data=top_features_by_comparison, x='comparison', y='num_features', color='grey')
+fig, ax = plt.subplots(figsize=(4, 4))
+sns.barplot(data=top_features_by_comparison, x='comparison', y='num_features', color='grey', ax=ax)
 plt.xticks(rotation=90)
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'top_features_by_comparison.png'))
+plt.savefig(os.path.join(plot_dir, 'top_features_by_comparison.pdf'))
 plt.close()
 
 
@@ -302,20 +305,21 @@ top_features_by_feature = top_features[['feature_name_unique', 'comparison']].gr
 feature_counts = top_features_by_feature.groupby('comparison').count().reset_index()
 feature_counts.columns = ['num_comparisons', 'num_features']
 
-sns.barplot(data=feature_counts, x='num_comparisons', y='num_features', color='grey')
+fig, ax = plt.subplots(figsize=(4, 4))
+sns.barplot(data=feature_counts, x='num_comparisons', y='num_features', color='grey', ax=ax)
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'top_features_by_feature.png'))
+plt.savefig(os.path.join(plot_dir, 'top_features_by_feature.pdf'))
 plt.close()
 
 
 # plot top featurse across all comparisons
 all_top_features = total_dfs.loc[total_dfs.feature_name_unique.isin(top_features.feature_name_unique), :]
 all_top_features = all_top_features.loc[~all_top_features.comparison.isin(['primary', 'primary__baseline'])]
-all_top_features = all_top_features.pivot(index='feature_name_unique', columns='comparison', values='importance_score')
-all_top_features = all_top_features.fillna(0.5)
+all_top_features = all_top_features.pivot(index='feature_name_unique', columns='comparison', values='signed_importance_score')
+all_top_features = all_top_features.fillna(0)
 
-sns.clustermap(data=all_top_features, cmap='Reds', vmin=0, vmax=1)
-plt.savefig(os.path.join(plot_dir, 'top_features_clustermap_all.png'))
+sns.clustermap(data=all_top_features, cmap='RdBu_r', vmin=-1, vmax=1, figsize=(10, 10))
+plt.savefig(os.path.join(plot_dir, 'top_features_clustermap_all.pdf'))
 plt.close()
 
 
@@ -405,14 +409,16 @@ timepoint = 'post_induction'
 plot_df = timepoint_features.loc[(timepoint_features.feature_name_unique == feature_name) &
                                     (timepoint_features.Timepoint == timepoint), :]
 
-fig, ax = plt.subplots(1, 1, figsize=(2, 4))
-sns.violinplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
-                color='grey', inner='points', height=5, cut=1, ax=ax)
+fig, ax = plt.subplots(1, 1, figsize=(3, 6))
+sns.stripplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
+                color='black', ax=ax)
+sns.boxplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
+                color='grey', ax=ax)
 ax.set_title(feature_name + ' ' + timepoint)
 ax.set_ylim([0, 1])
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'violin_{}_{}.pdf'.format(feature_name, timepoint)))
+plt.savefig(os.path.join(plot_dir, 'response_{}_{}.pdf'.format(feature_name, timepoint)))
 plt.close()
 
 # change in CD8T density in cancer border
@@ -422,14 +428,16 @@ comparison = 'post_induction__on_nivo'
 plot_df = evolution_df.loc[(evolution_df.feature_name_unique == feature_name) &
                             (evolution_df.comparison == comparison), :]
 
-fig, ax = plt.subplots(1, 1, figsize=(2, 4))
+fig, ax = plt.subplots(1, 1, figsize=(3, 6))
+sns.stripplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
+                color='black', ax=ax)
 sns.boxplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
-                color='grey',  ax=ax)
+                color='grey', ax=ax)
 ax.set_title(feature_name + ' ' + comparison)
 ax.set_ylim([-.1, .2])
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'box_{}_{}.pdf'.format(feature_name, comparison)))
+plt.savefig(os.path.join(plot_dir, 'response_{}_{}.pdf'.format(feature_name, comparison)))
 plt.close()
 
 # diversity of stroma in on nivo
@@ -439,7 +447,7 @@ timepoint = 'on_nivo'
 plot_df = timepoint_features.loc[(timepoint_features.feature_name_unique == feature_name) &
                                     (timepoint_features.Timepoint == timepoint), :]
 
-fig, ax = plt.subplots(1, 1, figsize=(2, 4))
+fig, ax = plt.subplots(1, 1, figsize=(3, 6))
 sns.stripplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
                 color='black', ax=ax)
 sns.boxplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
@@ -448,7 +456,7 @@ ax.set_title(feature_name + ' ' + timepoint)
 ax.set_ylim([0, 2.5])
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'box_w_dots_{}_{}.pdf'.format(feature_name, timepoint)))
+plt.savefig(os.path.join(plot_dir, 'response_{}_{}.pdf'.format(feature_name, timepoint)))
 plt.close()
 
 
@@ -462,12 +470,13 @@ plot_df = timepoint_features.loc[(timepoint_features.feature_name_unique == feat
 fig, ax = plt.subplots(1, 1, figsize=(2, 4))
 sns.stripplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
                 color='black', ax=ax)
-
+sns.boxplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
+                color='grey', ax=ax)
 ax.set_title(feature_name + ' ' + timepoint)
 ax.set_ylim([-10, 10])
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'strip_{}_{}.pdf'.format(feature_name, timepoint)))
+plt.savefig(os.path.join(plot_dir, 'response_{}_{}.pdf'.format(feature_name, timepoint)))
 plt.close()
 
 
@@ -478,15 +487,16 @@ timepoint = 'on_nivo'
 plot_df = timepoint_features.loc[(timepoint_features.feature_name_unique == feature_name) &
                                     (timepoint_features.Timepoint == timepoint), :]
 
-fig, ax = plt.subplots(1, 1, figsize=(2, 4))
+fig, ax = plt.subplots(1, 1, figsize=(3, 6))
 sns.stripplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
                 color='black', ax=ax)
-
+sns.boxplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
+                color='grey', ax=ax)
 ax.set_title(feature_name + ' ' + timepoint)
 ax.set_ylim([-10, 15])
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'strip_{}_{}.pdf'.format(feature_name, timepoint)))
+plt.savefig(os.path.join(plot_dir, 'response_{}_{}.pdf'.format(feature_name, timepoint)))
 plt.close()
 
 

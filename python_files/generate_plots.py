@@ -106,6 +106,7 @@ plt.close()
 plot_df = core_df_func.loc[core_df_func.Timepoint.isin(['baseline', 'post_induction', 'on_nivo']), :]
 plot_df = plot_df.loc[plot_df.metric == 'cluster_freq', :]
 plot_df = plot_df.loc[plot_df.subset == 'all', :]
+plot_df = plot_df.loc[~plot_df.functional_marker.isin(['Vim', 'CD45RO_CD45RB_ratio', 'H3K9ac_H3K27me3_ratio', 'HLA1'])]
 
 sp_markers = [x for x in core_df_func.functional_marker.unique() if '__' not in x]
 plot_df = plot_df.loc[plot_df.functional_marker.isin(sp_markers), :]
@@ -131,8 +132,11 @@ plot_df = plot_df + 0.1
 plot_df = plot_df.reindex(cell_ordering)
 
 # set column order
-cols = ['PDL1','Ki67','GLUT1','CD45RO', 'CD45RO_CD45RB_ratio','CD69', 'PD1','CD57','TBET', 'TCF1',
-        'CD45RB', 'TIM3', 'Fe','HLADR','IDO','CD38','H3K9ac_H3K27me3_ratio', 'HLA1', 'Vim']
+# cols = ['PDL1','Ki67','GLUT1','CD45RO', 'CD45RO_CD45RB_ratio','CD69', 'PD1','CD57','TBET', 'TCF1',
+#         'CD45RB', 'TIM3', 'Fe','HLADR','IDO','CD38','H3K9ac_H3K27me3_ratio', 'HLA1', 'Vim']
+
+cols = ['PDL1','Ki67','GLUT1','CD45RO','CD69', 'PD1','CD57','TBET', 'TCF1',
+        'CD45RB', 'TIM3', 'Fe','HLADR','IDO','CD38']
 
 plot_df = plot_df[cols]
 
@@ -143,3 +147,42 @@ sns.heatmap(plot_df, cmap=sns.color_palette("Greys", as_cmap=True), vmin=0, vmax
 plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Functional_marker_heatmap_min_max_normalized.pdf'))
 plt.close()
+
+
+# p value evaluation
+df = pd.read_csv('/Users/noahgreenwald/Downloads/daisy_data/feature_ranking_ttest.csv')
+plot_df = df.loc[df.comparison == 'post_induction__on_nivo', :]
+plot_df['rank'] = np.arange(1, plot_df.shape[0] + 1)
+
+sns.scatterplot(data=plot_df.iloc[:100], x='rank', y='pval')
+# add a line with slope of alpha / n
+slope = 0.1 / len(plot_df)
+
+plt.plot([0, 100], [0, 100 * slope], color='red')
+
+# calculate rank
+plot_df['pval_rank'] = plot_df.log_pval.rank(ascending=False)
+plot_df['cor_rank'] = plot_df.med_diff.abs().rank(ascending=False)
+plot_df['combined_rank'] = (plot_df.pval_rank.values + plot_df.cor_rank.values) / 2
+
+
+# p value evaluation
+df2 = pd.read_csv('/Users/noahgreenwald/Downloads/daisy_data/feature_ranking_manwhitney.csv')
+plot_df2 = df2.loc[df2.comparison == 'post_induction__on_nivo', :]
+plot_df2['rank'] = np.arange(1, plot_df2.shape[0] + 1)
+
+sns.scatterplot(data=plot_df2.iloc[:100], x='rank', y='pval')
+# add a line with slope of alpha / n
+slope = 0.1 / len(plot_df2)
+
+plt.plot([0, 100], [0, 100 * slope], color='red')
+
+# calculate rank
+plot_df2['pval_rank'] = plot_df2.log_pval.rank(ascending=False)
+plot_df2['cor_rank'] = plot_df2.med_diff.abs().rank(ascending=False)
+plot_df2['combined_rank_rank'] = (plot_df2.pval_rank.values + plot_df2.cor_rank.values) / 2
+
+
+
+combined_df = pd.merge(plot_df, plot_df2[['comparison', 'feature_name_unique', 'combined_rank_rank']], on=['comparison', 'feature_name_unique'], how='outer')
+combined_df = combined_df.sort_values(by='combined_rank_rank', ascending=True)

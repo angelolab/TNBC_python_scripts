@@ -680,7 +680,8 @@ def compare_timepoints(feature_df, timepoint_1_name, timepoint_1_list, timepoint
     return means_df
 
 
-def compare_populations(feature_df, pop_col, pop_1, pop_2, timepoints, feature_suff='mean'):
+def compare_populations(feature_df, pop_col, pop_1, pop_2, timepoints, feature_suff='mean',
+                        method='ttest'):
     """Compare difference in a feature between two populations.
 
     Args:
@@ -690,6 +691,7 @@ def compare_populations(feature_df, pop_col, pop_1, pop_2, timepoints, feature_s
         pop_2 (str): name of the second population
         timepoints (list): list of timepoints to include
         feature_suff (str): suffix to add to feature name
+        method (str): method to use for comparing populations
     """
     # get unique features
     features = feature_df.feature_name_unique.unique()
@@ -725,7 +727,11 @@ def compare_populations(feature_df, pop_col, pop_1, pop_2, timepoints, feature_s
         pop_2_norm_meds.append(np.median(pop_2_norm_vals))
 
         # compute difference between timepoints
-        t, p = mannwhitneyu(pop_1_norm_vals, pop_2_norm_vals)
+        if method == 'ttest':
+            t, p = ttest_ind(pop_1_norm_vals, pop_2_norm_vals)
+        else:
+            t, p = mannwhitneyu(pop_1_norm_vals, pop_2_norm_vals)
+
         log_pvals.append(-np.log10(p))
 
     means_df = pd.DataFrame({pop_1 + '_mean': pop_1_means,
