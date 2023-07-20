@@ -2,59 +2,71 @@ import pandas as pd
 import os
 import numpy as np
 
-TMA_dir = '/Users/noahgreenwald/Downloads/TMA_QC_v3'
+TMA_dir = '/Users/noahgreenwald/Downloads/tma_qc_v3'
 
-TMA = 'peru'
+TMA = 'princessa'
 
-tma_map = pd.read_csv(os.path.join(TMA_dir, TMA + '_map.csv'), header=None)
+#tma_map = pd.read_csv(os.path.join(TMA_dir, TMA + '_map.csv'), header=None)
 tma_cores = pd.read_csv(os.path.join(TMA_dir, TMA + '_cores.csv'))
 tma_blocks = pd.read_csv(os.path.join(TMA_dir, TMA + '_blocks.csv'))
-tma_metadata = pd.read_csv(os.path.join(TMA_dir, TMA + '_metadata.csv'))
-tma_metadata['random_id'] = np.arange(len(tma_metadata))
-tma_metadata_long = pd.melt(tma_metadata, id_vars=['random_id'], value_vars=['Block'])
+# tma_metadata = pd.read_csv(os.path.join(TMA_dir, TMA + '_metadata.csv'))
+# tma_metadata['random_id'] = np.arange(len(tma_metadata))
+# tma_metadata_long = pd.melt(tma_metadata, id_vars=['random_id'], value_vars=['Block'])
+tma_patient_data = pd.read_csv(os.path.join(TMA_dir, TMA + '_metadata.csv'))
 
 # check that all blocks present in the map are found in the cores sheet
-tma_map_long = [tma_map.iloc[:, i].astype('str') for i in range(tma_map.shape[1])]
-tma_map_long = pd.concat(tma_map_long, axis=0)
-tma_map_long_unique = tma_map_long.unique()
-
-map_blocks_not_in_core_sheet = [i for i in tma_map_long_unique if i not in tma_cores.TMA_map_Tissue_ID.unique()]
+# tma_map_long = [tma_map.iloc[:, i].astype('str') for i in range(tma_map.shape[1])]
+# tma_map_long = pd.concat(tma_map_long, axis=0)
+# tma_map_long_unique = tma_map_long.unique()
+#
+# map_blocks_not_in_core_sheet = [i for i in tma_map_long_unique if i not in tma_cores.TMA_map_Tissue_ID.unique()]
 
 core_blocks_not_in_block_sheet = [i for i in tma_cores.Tissue_ID.unique() if i not in tma_blocks.Tissue_ID.unique()]
 block_sheet_blocks_not_in_core_sheet = [i for i in tma_blocks.Tissue_ID.unique() if i not in tma_cores.Tissue_ID.unique()]
 
 
-mismatched_number_of_cores = []
-for i in tma_map_long_unique:
-      map_num = np.sum(tma_map_long == i)
-      core_num = np.sum(tma_cores.TMA_map_Tissue_ID == i)
-      if map_num == 0 or core_num == 0:
-          continue
-      if map_num != core_num:
-            mismatched_number_of_cores.append(i)
+# mismatched_number_of_cores = []
+# for i in tma_map_long_unique:
+#       map_num = np.sum(tma_map_long == i)
+#       core_num = np.sum(tma_cores.TMA_map_Tissue_ID == i)
+#       if map_num == 0 or core_num == 0:
+#           continue
+#       if map_num != core_num:
+#             mismatched_number_of_cores.append(i)
 
 # check that blocks are assigned to the same patient in the metadata sheet as in the block sheet
-mismatched_block_patient = []
-for patient in tma_blocks.Patient_ID.unique():
-      block_ids = tma_blocks[tma_blocks.Patient_ID == patient].Tissue_ID.values
-      block_ids = [x for x in block_ids if str(x) != 'nan']
-      block_ids.sort()
-      metadata_pat_id = tma_metadata_long[tma_metadata_long.value == block_ids[0]].random_id.values
-      if len(metadata_pat_id) == 0:
-            mismatched_block_patient.append(patient)
-            continue
+# mismatched_block_patient = []
+# for patient in tma_blocks.Patient_ID.unique():
+#       block_ids = tma_blocks[tma_blocks.Patient_ID == patient].Tissue_ID.values
+#       block_ids = [x for x in block_ids if str(x) != 'nan']
+#       block_ids.sort()
+#       metadata_pat_id = tma_metadata_long[tma_metadata_long.value == block_ids[0]].random_id.values
+#       if len(metadata_pat_id) == 0:
+#             mismatched_block_patient.append(patient)
+#             continue
+#
+#       metadata_block_ids = tma_metadata_long[tma_metadata_long.random_id == metadata_pat_id[0]].value.values
+#       metadata_block_ids = [x for x in metadata_block_ids if str(x) != 'nan']
+#       metadata_block_ids.sort()
+#       if not np.array_equal(block_ids, metadata_block_ids):
+#             mismatched_block_patient.append(patient)
 
-      metadata_block_ids = tma_metadata_long[tma_metadata_long.random_id == metadata_pat_id[0]].value.values
-      metadata_block_ids = [x for x in metadata_block_ids if str(x) != 'nan']
-      metadata_block_ids.sort()
-      if not np.array_equal(block_ids, metadata_block_ids):
-            mismatched_block_patient.append(patient)
+
+# check that same patient_ids are in the metadata sheet and the block sheet
+mismatched_block_patient_metadata = []
+block_pat_ids = tma_blocks.Patient_ID.unique().astype('int')
+metadata_pat_ids = tma_patient_data['Patient ID'].unique().astype('int')
+
+mismatched_block_patient_metadata = [i for i in block_pat_ids if i not in metadata_pat_ids]
+mismatched_block_patient_metadata.extend([i for i in metadata_pat_ids if i not in block_pat_ids])
 
 
-# summarize the results
-if len(map_blocks_not_in_core_sheet) > 0:
-      print("the following block IDs were present in the original TMA map, but are not found in the "
-            "cores sheet: {}: ".format(map_blocks_not_in_core_sheet))
+
+
+# # summarize the results
+# if len(map_blocks_not_in_core_sheet) > 0:
+#       print("the following block IDs were present in the original TMA map, but are not found in the "
+#             "cores sheet: {}: ".format(map_blocks_not_in_core_sheet))
 
 if len(core_blocks_not_in_block_sheet) > 0:
     print("the following block IDs were present in the cores sheet, but are not found in the "
@@ -64,13 +76,16 @@ if len(block_sheet_blocks_not_in_core_sheet) > 0:
     print("the following block IDs were present in the blocks sheet, but are not found in the "
       "cores sheet: {}: ".format(block_sheet_blocks_not_in_core_sheet))
 
-if len(mismatched_number_of_cores) > 0:
-    print("the following block IDs have a different number of cores in the TMA map than "
-          "in the cores sheet: {}: ".format(mismatched_number_of_cores))
+# if len(mismatched_number_of_cores) > 0:
+#     print("the following block IDs have a different number of cores in the TMA map than "
+#           "in the cores sheet: {}: ".format(mismatched_number_of_cores))
+#
+# if len(mismatched_block_patient) > 0:
+#     print("the following patients have different blocks in the metadata sheet "
+#           "and the blocks sheet: {}: ".format(mismatched_block_patient))
 
-if len(mismatched_block_patient) > 0:
+if len(mismatched_block_patient_metadata) > 0:
     print("the following patients have different blocks in the metadata sheet "
-          "and the blocks sheet: {}: ".format(mismatched_block_patient))
-
+          "and the blocks sheet: {}: ".format(mismatched_block_patient_metadata))
 
 

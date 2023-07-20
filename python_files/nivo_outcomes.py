@@ -52,8 +52,20 @@ timepoint_features = timepoint_features.loc[~timepoint_features.iRECIST_response
 timepoint_features = timepoint_features.loc[timepoint_features.Timepoint.isin(['baseline', 'post_induction', 'on_nivo']), :]
 timepoint_features = timepoint_features[['Tissue_ID', 'feature_name', 'feature_name_unique', 'raw_mean', 'raw_std', 'normalized_mean', 'normalized_std', 'Patient_ID', 'Timepoint', 'iRECIST_response']]
 
-daisy_dir = '/Users/noahgreenwald/Downloads/daisy_data'
-timepoint_features.to_csv(os.path.join(daisy_dir, 'timepoint_features.csv'), index=False)
+
+# look at evolution
+evolution_df = pd.read_csv(os.path.join(data_dir, 'evolution/evolution_df.csv'))
+evolution_df = evolution_df.merge(patient_metadata[['Patient_ID', 'iRECIST_response']].drop_duplicates(), on='Patient_ID', how='left')
+evolution_df = evolution_df.rename(columns={'raw_value': 'raw_mean', 'normalized_value': 'normalized_mean', 'comparison': 'Timepoint'})
+evolution_df = evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'iRECIST_response']]
+
+# combine together into single df
+combined_df = timepoint_features.copy()
+combined_df = combined_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'iRECIST_response']]
+combined_df = combined_df.append(evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'iRECIST_response']])
+combined_df['combined_name'] = combined_df.feature_name_unique + '__' + combined_df.Timepoint
+
+combined_df.to_csv(os.path.join(data_dir, 'nivo_outcomes/combined_df.csv'), index=False)
 
 # # look at change due to nivo
 # for comparison in ['baseline__on_nivo', 'baseline__post_induction', 'post_induction__on_nivo']:
@@ -72,80 +84,23 @@ timepoint_features.to_csv(os.path.join(daisy_dir, 'timepoint_features.csv'), ind
 
 # generate a single set of top hits across all comparisons
 
-# loop over different populations
-pop_df_means = pd.DataFrame({'feature_name_unique': timepoint_features.feature_name_unique.unique()})
-keep_rows = []
+# settings for generating hits
+plot_hits = True
+method = 'ttest'
+
+# placeholder for all values
 total_dfs = []
 
-for population in ['baseline', 'post_induction', 'on_nivo']:
-    population_df = compare_populations(feature_df=timepoint_features, pop_col='iRECIST_response', timepoints=[population],
-                                        pop_1='non-responders', pop_2='responders')
-    pval_thresh = 2
-    diff_thresh = 0.3
-    population_df_filtered = population_df.loc[(population_df.log_pval > pval_thresh) & (np.abs(population_df.mean_diff) > diff_thresh), :]
-    keep_rows.extend(population_df_filtered.feature_name_unique.tolist())
+for comparison in ['baseline', 'post_induction', 'on_nivo', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']:
+    population_df = compare_populations(feature_df=combined_df, pop_col='iRECIST_response',
+                                        timepoints=[comparison], pop_1='non-responders', pop_2='responders', method=method)
 
-    # current_plot_dir = os.path.join(plot_dir, 'responders_nonresponders_timepoint_{}'.format(population))
-    # if not os.path.exists(current_plot_dir):
-    #     os.makedirs(current_plot_dir)
-    # summarize_population_enrichment(input_df=population_df, feature_df=timepoint_features, timepoints=[population],
-    #                                 pop_col='iRECIST_response', output_dir=current_plot_dir, sort_by='med_diff')
-
-    long_df = population_df[['feature_name_unique', 'log_pval', 'mean_diff', 'med_diff']]
-    long_df['comparison'] = population
-    long_df = long_df.dropna()
-    long_df['pval'] = 10 ** (-long_df.log_pval)
-    long_df['fdr_pval'] = multipletests(long_df.pval, method='fdr_bh')[1]
-
-    total_dfs.append(long_df)
-
-
-    population_df = population_df.rename(columns={'mean_diff': (population)})
-    pop_df_means = pop_df_means.merge(population_df.loc[:, ['feature_name_unique', population]], on=['feature_name_unique'], how='left')
-
-
-pop_df_means = pop_df_means.loc[pop_df_means.feature_name_unique.isin(keep_rows), :]
-pop_df_means = pop_df_means.set_index('feature_name_unique')
-pop_df_means = pop_df_means.fillna(0)
-
-# make clustermap 20 x 10
-g = sns.clustermap(pop_df_means, cmap='RdBu_r', vmin=-2, vmax=2)
-plt.savefig(os.path.join(plot_dir, 'responders_nonresponders_timepoint_clustermap.png'))
-plt.close()
-
-
-# look at evolution
-
-evolution_df = pd.read_csv(os.path.join(data_dir, 'evolution/evolution_df.csv'))
-evolution_df = evolution_df.merge(patient_metadata[['Patient_ID', 'iRECIST_response']].drop_duplicates(), on='Patient_ID', how='left')
-evolution_df = evolution_df.rename(columns={'raw_value': 'raw_mean', 'normalized_value': 'normalized_mean'})
-
-evolution_df.to_csv(os.path.join(daisy_dir, 'evolution_df.csv'), index=False)
-
-change_df_means = pd.DataFrame({'feature_name_unique': evolution_df.feature_name_unique.unique()})
-keep_rows = []
-for comparison in [ 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']:
-    pop_1, pop_2 = comparison.split('__')
-    if pop_1 == 'primary':
-        pop_1 = 'primary_untreated'
-
-    # subset to the comparison
-    input_df = evolution_df.loc[evolution_df.comparison == comparison, :]
-    input_df['Timepoint'] = pop_1
-
-    population_df = compare_populations(feature_df=input_df, pop_col='iRECIST_response', timepoints=[pop_1, pop_2],
-                                            pop_1='non-responders', pop_2='responders', feature_suff='mean')
-
-    pval_thresh = 2
-    diff_thresh = 0.3
-    population_df_filtered = population_df.loc[(population_df.log_pval > pval_thresh) & (np.abs(population_df.mean_diff) > diff_thresh), :]
-    keep_rows.extend(population_df_filtered.feature_name_unique.tolist())
-
-    # current_plot_dir = os.path.join(plot_dir, 'response_evolution_{}'.format(comparison))
-    # if not os.path.exists(current_plot_dir):
-    #     os.makedirs(current_plot_dir)
-    # summarize_population_enrichment(input_df=population_df, feature_df=input_df, timepoints=[pop_1, pop_2],
-    #                                 pop_col='iRECIST_response', output_dir=current_plot_dir, sort_by='med_diff')
+    if plot_hits:
+        current_plot_dir = os.path.join(plot_dir, 'responders_nonresponders_{}'.format(comparison))
+        if not os.path.exists(current_plot_dir):
+            os.makedirs(current_plot_dir)
+        summarize_population_enrichment(input_df=population_df, feature_df=combined_df, timepoints=[comparison],
+                                        pop_col='iRECIST_response', output_dir=current_plot_dir, sort_by='med_diff')
 
     long_df = population_df[['feature_name_unique', 'log_pval', 'mean_diff', 'med_diff']]
     long_df['comparison'] = comparison
@@ -154,19 +109,6 @@ for comparison in [ 'baseline__post_induction', 'baseline__on_nivo', 'post_induc
     long_df['fdr_pval'] = multipletests(long_df.pval, method='fdr_bh')[1]
     total_dfs.append(long_df)
 
-
-    population_df = population_df.rename(columns={'mean_diff': (comparison)})
-    change_df_means = change_df_means.merge(population_df.loc[:, ['feature_name_unique', comparison]], on='feature_name_unique', how='left')
-
-
-change_df_means = change_df_means.loc[change_df_means.feature_name_unique.isin(keep_rows), :]
-change_df_means = change_df_means.set_index('feature_name_unique')
-change_df_means = change_df_means.fillna(0)
-
-# make clustermap 20 x 10
-g = sns.clustermap(change_df_means, cmap='RdBu_r', vmin=-2, vmax=2)
-plt.savefig(os.path.join(plot_dir, 'response_evolution_clustermap.png'))
-plt.close()
 
 # summarize hits from all comparisons
 total_dfs = pd.concat(total_dfs)
@@ -184,11 +126,14 @@ normalized_rank = total_dfs.combined_rank / max_rank
 total_dfs['importance_score'] = 1 - normalized_rank
 
 total_dfs = total_dfs.sort_values('importance_score', ascending=False)
+# total_dfs = total_dfs.sort_values('fdr_pval', ascending=True)
 
 # generate signed version of score
 total_dfs['signed_importance_score'] = total_dfs.importance_score * np.sign(total_dfs.med_diff)
 
 # add feature type
+total_dfs = total_dfs.merge(feature_metadata, on='feature_name_unique', how='left')
+
 feature_type_dict = {'functional_marker': 'phenotype', 'linear_distance': 'interactions',
                      'density': 'density', 'cell_diversity': 'diversity', 'density_ratio': 'density',
                      'mixing_score': 'interactions', 'region_diversity': 'diversity',
@@ -198,43 +143,13 @@ feature_type_dict = {'functional_marker': 'phenotype', 'linear_distance': 'inter
 total_dfs['feature_type_broad'] = total_dfs.feature_type.map(feature_type_dict)
 
 # identify top features
-total_dfs['top_feature'] = total_dfs.importance_score > 0.975
+total_dfs['top_feature'] = False
+total_dfs.iloc[:50, -1] = True
 
 # saved formatted df
-total_dfs.to_csv(os.path.join(data_dir, 'evolution/evolution_df_outcomes.csv'), index=False)
-
-total_dfs = pd.read_csv(os.path.join(data_dir, 'evolution/evolution_df_outcomes.csv'))
+total_dfs.to_csv(os.path.join(data_dir, 'nivo_outcomes/outcomes_df.csv'), index=False)
 
 
-# plot total volcano
-fig, ax = plt.subplots(figsize=(10,8))
-sns.scatterplot(data=total_dfs, x='med_diff', y='log_pval', alpha=0.5, color='grey')
-ax.set_xlim(-3, 3)
-sns.despine()
-plt.savefig(os.path.join(plot_dir, 'outcomes_volcano.pdf'))
-plt.close()
-
-
-# plot diversity volcano
-total_dfs = total_dfs.merge(feature_metadata, on='feature_name_unique', how='left')
-total_dfs['diversity'] = total_dfs.feature_type.isin(['mixing_score', 'region_diversity', 'cell_diversity'])
-
-fig, ax = plt.subplots(figsize=(10,8))
-sns.scatterplot(data=total_dfs, x='med_diff', y='log_pval', hue='diversity', alpha=0.5, palette=['lightgrey', 'black'])
-ax.set_xlim(-3, 3)
-sns.despine()
-plt.savefig(os.path.join(plot_dir, 'outcomes_volcano_diversity.pdf'))
-plt.close()
-
-# plot phenotype volcano
-total_dfs['phenotype'] = total_dfs.feature_type_broad == 'phenotype'
-
-fig, ax = plt.subplots(figsize=(10,8))
-sns.scatterplot(data=total_dfs, x='med_diff', y='log_pval', hue='phenotype', alpha=0.5, palette=['lightgrey', 'black'])
-ax.set_xlim(-3, 3)
-sns.despine()
-plt.savefig(os.path.join(plot_dir, 'outcomes_volcano_phenotype.pdf'))
-plt.close()
 
 # look at enriched features
 enriched_features = compute_feature_enrichment(feature_df=total_dfs, inclusion_col='top_feature', analysis_col='feature_type_broad')
@@ -265,7 +180,7 @@ plt.close()
 
 # plot top features
 #top_features = total_dfs.loc[total_dfs.top_feature, :]
-top_features = total_dfs.iloc[:100, :]
+top_features = total_dfs.iloc[:50, :]
 top_features = top_features.sort_values('importance_score', ascending=False)
 
 for idx, (feature_name, comparison) in enumerate(zip(top_features.feature_name_unique, top_features.comparison)):
@@ -400,103 +315,33 @@ for i in range(len(select_metadata)):
     shutil.copy(os.path.join(mask_dir, fov + '.png'), os.path.join(output_dir, output_string + '_mask.png'))
 
 
-# plot specific top features
 
-# PDL1+__APC in induction
-feature_name = 'PDL1+__APC'
-timepoint = 'post_induction'
 
-plot_df = timepoint_features.loc[(timepoint_features.feature_name_unique == feature_name) &
-                                    (timepoint_features.Timepoint == timepoint), :]
 
-fig, ax = plt.subplots(1, 1, figsize=(3, 6))
-sns.stripplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
-                color='black', ax=ax)
-sns.boxplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
-                color='grey', ax=ax)
-ax.set_title(feature_name + ' ' + timepoint)
-ax.set_ylim([0, 1])
-sns.despine()
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'response_{}_{}.pdf'.format(feature_name, timepoint)))
+
+
+# look at top features across all patients
+top_features = total_dfs.loc[total_dfs.top_feature, :]
+top_features['combined_name'] = top_features.feature_name_unique + '__' + top_features.comparison
+
+top_feature_df = combined_df.loc[combined_df.combined_name.isin(top_features.combined_name.values), :]
+
+patient_feature_df = top_feature_df.pivot(index=['Patient_ID', 'iRECIST_response'], columns='combined_name', values='normalized_mean')
+patient_feature_df = patient_feature_df.reset_index()
+
+patient_feature_df.fillna(0, inplace=True)
+patient_feature_df['response_status'] = (patient_feature_df.iRECIST_response == 'responders').astype(int)
+
+plot_df = patient_feature_df.drop(['Patient_ID', 'iRECIST_response'], axis=1)
+#plot_df = plot_df.loc[plot_df.response_status == 1, :]
+sns.clustermap(plot_df, figsize=(20, 20),
+                cmap='RdBu_r', vmin=-5, vmax=5, center=0)
+plt.savefig(os.path.join(plot_dir, 'top_features_clustermap.pdf'))
 plt.close()
 
-# change in CD8T density in cancer border
-feature_name = 'CD8T__cluster_density__cancer_border'
-comparison = 'post_induction__on_nivo'
+from scipy.stats import fisher_exact
 
-plot_df = evolution_df.loc[(evolution_df.feature_name_unique == feature_name) &
-                            (evolution_df.comparison == comparison), :]
-
-fig, ax = plt.subplots(1, 1, figsize=(3, 6))
-sns.stripplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
-                color='black', ax=ax)
-sns.boxplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
-                color='grey', ax=ax)
-ax.set_title(feature_name + ' ' + comparison)
-ax.set_ylim([-.1, .2])
-sns.despine()
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'response_{}_{}.pdf'.format(feature_name, comparison)))
-plt.close()
-
-# diversity of stroma in on nivo
-feature_name = 'diversity_cell_cluster__Stroma'
-timepoint = 'on_nivo'
-
-plot_df = timepoint_features.loc[(timepoint_features.feature_name_unique == feature_name) &
-                                    (timepoint_features.Timepoint == timepoint), :]
-
-fig, ax = plt.subplots(1, 1, figsize=(3, 6))
-sns.stripplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
-                color='black', ax=ax)
-sns.boxplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
-                color='grey', ax=ax)
-ax.set_title(feature_name + ' ' + timepoint)
-ax.set_ylim([0, 2.5])
-sns.despine()
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'response_{}_{}.pdf'.format(feature_name, timepoint)))
-plt.close()
-
-
-# ratio of stroma to t cells
-feature_name = 'Stroma__T__ratio__cancer_core'
-timepoint = 'on_nivo'
-
-plot_df = timepoint_features.loc[(timepoint_features.feature_name_unique == feature_name) &
-                                    (timepoint_features.Timepoint == timepoint), :]
-
-fig, ax = plt.subplots(1, 1, figsize=(2, 4))
-sns.stripplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
-                color='black', ax=ax)
-sns.boxplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
-                color='grey', ax=ax)
-ax.set_title(feature_name + ' ' + timepoint)
-ax.set_ylim([-10, 10])
-sns.despine()
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'response_{}_{}.pdf'.format(feature_name, timepoint)))
-plt.close()
-
-
-# ratio of cancer to t cells
-feature_name = 'Cancer__T__ratio'
-timepoint = 'on_nivo'
-
-plot_df = timepoint_features.loc[(timepoint_features.feature_name_unique == feature_name) &
-                                    (timepoint_features.Timepoint == timepoint), :]
-
-fig, ax = plt.subplots(1, 1, figsize=(3, 6))
-sns.stripplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
-                color='black', ax=ax)
-sns.boxplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
-                color='grey', ax=ax)
-ax.set_title(feature_name + ' ' + timepoint)
-ax.set_ylim([-10, 15])
-sns.despine()
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'response_{}_{}.pdf'.format(feature_name, timepoint)))
-plt.close()
-
+# create fake data
+fake_data = pd.DataFrame(np.array([[0, 10], [200, 3000]]), columns=['top_features', 'all_features'], index=['feature_category', 'other_categories'])
+fisher_exact(fake_data)
 

@@ -278,6 +278,14 @@ for metric in metrics:
 
 filtered_func_df = pd.concat(filtered_dfs)
 
+# take subset for plotting average functional marker expression
+filtered_func_df_plot = filtered_func_df.loc[filtered_func_df.subset == 'all', :]
+filtered_func_df_plot = filtered_func_df_plot.loc[filtered_func_df_plot.metric.isin(['cluster_broad_freq', 'cluster_freq', 'meta_cluster_freq']), :]
+filtered_func_df_plot = filtered_func_df_plot.loc[filtered_func_df_plot.functional_marker.isin(sp_markers), :]
+
+# save filtered df
+filtered_func_df_plot.to_csv(os.path.join(data_dir, 'functional_df_per_core_filtered_all_combos.csv'), index=False)
+
 # # identify combinations of markers and cell types to include in analysis based on threshold
 # mean_percent_positive = 0.05
 # sp_markers = [x for x in filtered_func_df.functional_marker.unique() if '__' not in x]
