@@ -2,9 +2,9 @@ import pandas as pd
 import os
 import numpy as np
 
-TMA_dir = '/Users/noahgreenwald/Downloads/tma_qc_v3'
+TMA_dir = '/Users/noahgreenwald/Downloads/tma_qc_v4'
 
-TMA = 'princessa'
+TMA = 'Peru'
 
 #tma_map = pd.read_csv(os.path.join(TMA_dir, TMA + '_map.csv'), header=None)
 tma_cores = pd.read_csv(os.path.join(TMA_dir, TMA + '_cores.csv'))

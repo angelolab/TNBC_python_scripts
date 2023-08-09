@@ -22,9 +22,13 @@ from itertools import combinations
 import seaborn as sns
 from scipy.stats import spearmanr
 
+from python_files.utils import compute_feature_enrichment
+
+
 data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data'
 metadata_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/metadata'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/figures/'
+harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
 
 cell_ordering = ['Cancer', 'Cancer_EMT', 'Cancer_Other', 'CD4T', 'CD8T', 'Treg', 'T_Other', 'B',
                  'NK', 'M1_Mac', 'M2_Mac', 'Mac_Other', 'Monocyte', 'APC','Mast', 'Neutrophil',
@@ -186,13 +190,15 @@ total_dfs = pd.read_csv(os.path.join(data_dir, 'nivo_outcomes/outcomes_df.csv'))
 
 
 # plot total volcano
+total_dfs['importance_score_exp10'] = np.power(10, total_dfs.importance_score)
 fig, ax = plt.subplots(figsize=(6,4))
-sns.scatterplot(data=total_dfs, x='med_diff', y='log_pval', alpha=0.7, hue='importance_score', palette=sns.color_palette("Greys", as_cmap=True), ax=ax)
-ax.set_xlim(-3, 3)
+sns.scatterplot(data=total_dfs, x='med_diff', y='log_pval', alpha=1, hue='importance_score', palette=sns.color_palette("Greys", as_cmap=True),
+                s=2.5, edgecolor='none', ax=ax)
+ax.set_xlim(-3.5, 3.5)
 sns.despine()
 
 # add gradient legend
-norm = plt.Normalize(total_dfs.importance_score.min(), total_dfs.importance_score.max())
+norm = plt.Normalize(total_dfs.importance_score_exp10.min(), total_dfs.importance_score_exp10.max())
 sm = plt.cm.ScalarMappable(cmap="Greys", norm=norm)
 ax.get_legend().remove()
 ax.figure.colorbar(sm, ax=ax)
@@ -256,8 +262,8 @@ def get_top_x_features(df, feature_type, x=5, plot_val='importance_score', ascen
 
     scores, names = [], []
     for feature in features:
-        plot_df = total_dfs.loc[(total_dfs.feature_type_detail == feature) &
-                                (total_dfs.feature_type == feature_type), :]
+        plot_df = df.loc[(df.feature_type_detail == feature) &
+                                (df.feature_type == feature_type), :]
         plot_df = plot_df.sort_values(by=plot_val, ascending=ascending)
         temp_scores = plot_df.iloc[:x, :][plot_val].values
         scores.append(temp_scores)
@@ -269,36 +275,36 @@ def get_top_x_features(df, feature_type, x=5, plot_val='importance_score', ascen
 func_score_df = get_top_x_features(total_dfs, 'functional_marker', x=5, plot_val='combined_rank', ascending=True)
 func_score_df = func_score_df.loc[func_score_df.name.isin(cols), :]
 meds = func_score_df.groupby('name').median().sort_values(by='score', ascending=True)
-func_score_df = func_score_df.loc[func_score_df.name.isin(meds.loc[meds.values > 0.85, :].index), :]
+#func_score_df = func_score_df.loc[func_score_df.name.isin(meds.loc[meds.values > 0.85, :].index), :]
 
-fig, ax = plt.subplots(figsize=(4, 6))
-sns.stripplot(data=func_score_df, x='name', y='score', ax=ax, order=meds.loc[meds.values > 0.85, :].index, color='black')
-sns.boxplot(data=func_score_df, x='name', y='score', order=meds.loc[meds.values > 0.85, :].index, color='grey', ax=ax, showfliers=False, width=0.5)
+fig, ax = plt.subplots(figsize=(4, 5))
+sns.stripplot(data=func_score_df, x='name', y='score', ax=ax, order=meds.index, color='black')
+sns.boxplot(data=func_score_df, x='name', y='score', order=meds.index, color='grey', ax=ax, showfliers=False, width=0.5)
 ax.set_title('Functional Markers Ranking')
-ax.set_ylim([0, 1])
+#ax.set_ylim([0, 1])
 ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
 
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure3_functinal_marker_enrichment.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure3_functional_marker_enrichment_rank.pdf'))
 plt.close()
 
 
 # get importance score of top 5 examples for densities
-density_score_df = get_top_x_features(total_dfs, 'density', x=5)
+density_score_df = get_top_x_features(total_dfs, 'density', x=5, plot_val='combined_rank', ascending=True)
 
-meds = density_score_df.groupby('name').median().sort_values(by='score', ascending=False)
+meds = density_score_df.groupby('name').median().sort_values(by='score', ascending=True)
 
-fig, ax = plt.subplots(figsize=(4, 6))
+fig, ax = plt.subplots(figsize=(4, 5))
 sns.stripplot(data=density_score_df, x='name', y='score', ax=ax, order=meds.index, color='black')
 sns.boxplot(data=density_score_df, x='name', y='score', order=meds.index, color='grey', ax=ax, showfliers=False, width=0.5)
 ax.set_title('Densities Ranking')
-ax.set_ylim([0, 1])
+#ax.set_ylim([0, 1])
 ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
 
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure3_density_enrichment.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure3_density_enrichment_rank.pdf'))
 plt.close()
 
 # get importance score of top 5 examples for diversity
@@ -316,6 +322,38 @@ sns.despine()
 plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Figure3_diversity_enrichment.pdf'))
 plt.close()
+
+# look at enrichment of specific features
+
+# # spatial features
+# total_dfs['spatial_feature'] = total_dfs.feature_type.isin(['density', 'region_diversity', 'cell_diversity',
+#                                                             'pixie_ecm', 'fiber', 'compartment_area_ratio', 'ecm_cluster', 'compartment_area',
+#                                                             'mixing_score', 'linear_distance', 'ecm_fraction'])
+#
+# enriched_features = compute_feature_enrichment(feature_df=total_dfs, inclusion_col='top_feature', analysis_col='spatial_feature')
+#
+# # # plot as a barplot
+# # fig, ax = plt.subplots(figsize=(10,8))
+# # sns.barplot(data=enriched_features, x='log2_ratio', y='spatial_feature', color='grey', ax=ax)
+# # plt.xlabel('Log2 ratio of proportion of top features')
+# # ax.set_xlim(-1.5, 1.5)
+# # sns.despine()
+# # plt.savefig(os.path.join(plot_dir, 'top_feature_enrichment.pdf'))
+# # plt.close()
+#
+#
+# # look at enriched cell types
+# enriched_features = compute_feature_enrichment(feature_df=total_dfs, inclusion_col='top_feature', analysis_col='cell_pop')
+#
+# # plot as a barplot
+# fig, ax = plt.subplots(figsize=(10,8))
+# sns.barplot(data=enriched_features, x='log2_ratio', y='cell_pop', color='grey')
+# plt.xlabel('Log2 ratio of proportion of top features')
+# ax.set_xlim(-1.5, 1.5)
+# sns.despine()
+# plt.savefig(os.path.join(plot_dir, 'top_feature_celltype_enrichment.pdf'))
+# plt.close()
+
 
 #
 # Figure 4
@@ -382,84 +420,177 @@ plt.savefig(os.path.join(plot_dir, 'Figure4_feature_{}_{}.pdf'.format(feature_na
 plt.close()
 
 
-# ratio of stroma to t cells
-feature_name = 'Stroma__T__ratio__cancer_core'
-timepoint = 'on_nivo'
+#
+# Figure 5
+#
 
-plot_df = timepoint_features.loc[(timepoint_features.feature_name_unique == feature_name) &
-                                    (timepoint_features.Timepoint == timepoint), :]
+# plot top features
+top_features = total_dfs.loc[total_dfs.top_feature, :]
+top_features = top_features.sort_values('importance_score', ascending=False)
 
-fig, ax = plt.subplots(1, 1, figsize=(2, 4))
-sns.stripplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
-                color='black', ax=ax)
-sns.boxplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
-                color='grey', ax=ax)
-ax.set_title(feature_name + ' ' + timepoint)
-ax.set_ylim([-10, 10])
-sns.despine()
+for idx, (feature_name, comparison) in enumerate(zip(top_features.feature_name_unique, top_features.comparison)):
+    plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
+                              (combined_df.Timepoint == comparison), :]
+
+    # plot
+    sns.stripplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'noinduction_responders', 'non-responders'],
+                color='grey')
+    plt.title(feature_name + ' in ' + comparison)
+    plt.savefig(os.path.join(plot_dir, 'top_features_noinduction', f'{idx}_{feature_name}.png'))
+    plt.close()
+
+
+# summarize distribution of top features
+top_features_by_comparison = top_features[['feature_name_unique', 'comparison']].groupby('comparison').count().reset_index()
+top_features_by_comparison.columns = ['comparison', 'num_features']
+top_features_by_comparison = top_features_by_comparison.sort_values('num_features', ascending=False)
+
+fig, ax = plt.subplots(figsize=(4, 4))
+sns.barplot(data=top_features_by_comparison, x='comparison', y='num_features', color='grey', ax=ax)
+plt.xticks(rotation=90)
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'response_{}_{}.pdf'.format(feature_name, timepoint)))
+plt.savefig(os.path.join(plot_dir, 'Figure5_num_features_per_comparison.pdf'))
 plt.close()
 
 
-# ratio of cancer to t cells
-feature_name = 'Cancer__T__ratio'
-timepoint = 'on_nivo'
+# summarize overlap of top features
+top_features_by_feature = top_features[['feature_name_unique', 'comparison']].groupby('feature_name_unique').count().reset_index()
+feature_counts = top_features_by_feature.groupby('comparison').count().reset_index()
+feature_counts.columns = ['num_comparisons', 'num_features']
 
-plot_df = timepoint_features.loc[(timepoint_features.feature_name_unique == feature_name) &
-                                    (timepoint_features.Timepoint == timepoint), :]
-
-fig, ax = plt.subplots(1, 1, figsize=(3, 6))
-sns.stripplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
-                color='black', ax=ax)
-sns.boxplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
-                color='grey', ax=ax)
-ax.set_title(feature_name + ' ' + timepoint)
-ax.set_ylim([-10, 15])
-sns.despine()
+fig, ax = plt.subplots(figsize=(4, 4))
+sns.barplot(data=feature_counts, x='num_comparisons', y='num_features', color='grey', ax=ax)
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'response_{}_{}.pdf'.format(feature_name, timepoint)))
+plt.savefig(os.path.join(plot_dir, 'Figure5_num_comparisons_per_feature.pdf'))
 plt.close()
 
 
+def get_top_x_features_by_list(df, detail_names, x=5, plot_val='importance_score', ascending=False):
+    scores, names = [], []
+    for feature in detail_names:
+        keep_idx = np.logical_or(df.feature_type_detail == feature, df.feature_type_detail_2 == feature)
+        plot_df = df.loc[keep_idx, :]
+        plot_df = plot_df.sort_values(by=plot_val, ascending=ascending)
+        temp_scores = plot_df.iloc[:x, :][plot_val].values
+        scores.append(temp_scores)
+        names.append([feature] * len(temp_scores))
 
-# # p value evaluation
-# df = pd.read_csv('/Users/noahgreenwald/Downloads/daisy_data/feature_ranking_ttest.csv')
-# plot_df = df.loc[df.comparison == 'post_induction__on_nivo', :]
-# plot_df['rank'] = np.arange(1, plot_df.shape[0] + 1)
-#
-# sns.scatterplot(data=plot_df.iloc[:100], x='rank', y='pval')
-# # add a line with slope of alpha / n
-# slope = 0.1 / len(plot_df)
-#
-# plt.plot([0, 100], [0, 100 * slope], color='red')
-#
-# # calculate rank
-# plot_df['pval_rank'] = plot_df.log_pval.rank(ascending=False)
-# plot_df['cor_rank'] = plot_df.med_diff.abs().rank(ascending=False)
-# plot_df['combined_rank'] = (plot_df.pval_rank.values + plot_df.cor_rank.values) / 2
-#
-#
-# # p value evaluation
-# df2 = pd.read_csv('/Users/noahgreenwald/Downloads/daisy_data/feature_ranking_manwhitney.csv')
-# plot_df2 = df2.loc[df2.comparison == 'post_induction__on_nivo', :]
-# plot_df2['rank'] = np.arange(1, plot_df2.shape[0] + 1)
-#
-# sns.scatterplot(data=plot_df2.iloc[:100], x='rank', y='pval')
-# # add a line with slope of alpha / n
-# slope = 0.1 / len(plot_df2)
-#
-# plt.plot([0, 100], [0, 100 * slope], color='red')
-#
-# # calculate rank
-# plot_df2['pval_rank'] = plot_df2.log_pval.rank(ascending=False)
-# plot_df2['cor_rank'] = plot_df2.med_diff.abs().rank(ascending=False)
-# plot_df2['combined_rank_rank'] = (plot_df2.pval_rank.values + plot_df2.cor_rank.values) / 2
-#
-#
-#
-# combined_df = pd.merge(plot_df, plot_df2[['comparison', 'feature_name_unique', 'combined_rank_rank']], on=['comparison', 'feature_name_unique'], how='outer')
-# combined_df = combined_df.sort_values(by='combined_rank_rank', ascending=True)
+    score_df = pd.DataFrame({'score': np.concatenate(scores), 'name': np.concatenate(names)})
+    return score_df
 
 
-p_df = total_dfs.loc[total_dfs.pval < 0.05, :]
+# get importance score of top 5 examples for cell-based features
+cell_type_list, cell_prop_list, comparison_list = [], [], []
+
+for groupings in [[['nivo'], ['post_induction__on_nivo', 'on_nivo', 'baseline__on_nivo']],
+                  [['baseline'], ['baseline']],
+                  [['induction'], ['baseline__post_induction', 'post_induction']]]:
+
+    # score of top 5 features
+    name, comparisons = groupings
+    # cell_type_features = get_top_x_features_by_list(df=total_dfs.loc[total_dfs.comparison.isin(comparisons)],
+    #                                                 detail_names=cell_ordering + ['T', 'Mono_Mac'], x=5, plot_val='combined_rank',
+    #                                                 ascending=True)
+    #
+    # meds = cell_type_features.groupby('name').median().sort_values(by='score', ascending=True)
+    #
+    # fig, ax = plt.subplots(figsize=(4, 6))
+    # sns.stripplot(data=cell_type_features, x='name', y='score', ax=ax, order=meds.index, color='black')
+    # sns.boxplot(data=cell_type_features, x='name', y='score', order=meds.index, color='grey', ax=ax, showfliers=False, width=0.5)
+    # ax.set_title('Densities Ranking')
+    # #ax.set_ylim([0, 1])
+    # ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+    # sns.despine()
+    # plt.tight_layout()
+    # plt.savefig(os.path.join(plot_dir, 'Figure5_cell_type_rank_{}.pdf'.format(name)))
+    # plt.close()
+
+    # proportion of features belonging to each cell type
+
+    current_comparison_features = top_features.loc[top_features.comparison.isin(comparisons), :]
+    for cell_type in cell_ordering + ['T', 'Mono_Mac']:
+        cell_idx = np.logical_or(current_comparison_features.feature_type_detail == cell_type,
+                                    current_comparison_features.feature_type_detail_2 == cell_type)
+        cell_type_list.append(cell_type)
+        cell_prop_list.append(np.sum(cell_idx) / len(current_comparison_features))
+        comparison_list.append(name[0])
+
+proportion_df = pd.DataFrame({'cell_type': cell_type_list, 'proportion': cell_prop_list, 'comparison': comparison_list})
+
+fig, ax = plt.subplots(figsize=(4, 4))
+sns.barplot(data=proportion_df, x='cell_type', y='proportion', hue='comparison', hue_order=['nivo', 'baseline', 'induction'], ax=ax)
+plt.xticks(rotation=90)
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'Figure5_cell_type_proportion.pdf'))
+plt.close()
+
+# plot top featurse across all comparisons
+all_top_features = total_dfs.loc[total_dfs.feature_name_unique.isin(top_features.feature_name_unique), :]
+all_top_features = all_top_features.pivot(index='feature_name_unique', columns='comparison', values='signed_importance_score')
+all_top_features = all_top_features.fillna(0)
+
+sns.clustermap(data=all_top_features, cmap='RdBu_r', vmin=-1, vmax=1, figsize=(10, 10))
+plt.savefig(os.path.join(plot_dir, 'top_features_clustermap_all.pdf'))
+plt.close()
+
+# identify features with opposite effects at different timepoints
+opposite_features = []
+for feature in all_top_features.index:
+    feature_vals = all_top_features.loc[feature, :]
+
+    # get sign of the feature with the max absolute value
+    max_idx = np.argmax(np.abs(feature_vals))
+    max_sign = np.sign(feature_vals[max_idx])
+
+    # determine if any features of opposite sign have absolute value > 0.9
+    opposite_idx = np.logical_and(np.abs(feature_vals) > 0.85, np.sign(feature_vals) != max_sign)
+    if np.sum(opposite_idx) > 0:
+        opposite_features.append(feature)
+
+opposite_features = all_top_features.loc[opposite_features, :]
+
+# create connected lineplots for features with opposite effects
+
+# select patients with data at all timepoints
+pats = harmonized_metadata.loc[harmonized_metadata.baseline__on_nivo, 'Patient_ID'].unique().tolist()
+pats2 = harmonized_metadata.loc[harmonized_metadata.post_induction__on_nivo, 'Patient_ID'].unique().tolist()
+#pats = set(pats).intersection(set(pats2))
+#pats = set(pats).union(set(pats2))
+pats = pats2
+
+for feature in opposite_features.index:
+    plot_df = combined_df.loc[(combined_df.feature_name_unique == feature) &
+                                        (combined_df.Timepoint.isin(['baseline', 'post_induction', 'on_nivo'])) &
+                                        (combined_df.Patient_ID.isin(pats)), :]
+
+    plot_df_wide = plot_df.pivot(index=['Patient_ID', 'Clinical_benefit'], columns='Timepoint', values='raw_mean')
+    #plot_df_wide.dropna(inplace=True)
+    # divide each row by the baseline value
+    #plot_df_wide = plot_df_wide.divide(plot_df_wide.loc[:, 'baseline'], axis=0)
+    #plot_df_wide = plot_df_wide.subtract(plot_df_wide.loc[:, 'baseline'], axis=0)
+    plot_df_wide = plot_df_wide.reset_index()
+
+    plot_df_norm = pd.melt(plot_df_wide, id_vars=['Patient_ID', 'Clinical_benefit'], value_vars=['post_induction', 'on_nivo'])
+
+    plot_df_1 = plot_df_norm.loc[plot_df_norm.Clinical_benefit == 'No', :]
+    plot_df_2 = plot_df_norm.loc[plot_df_norm.Clinical_benefit == 'Yes', :]
+    fig, ax = plt.subplots(1, 3, figsize=(15, 10))
+    sns.lineplot(data=plot_df_1, x='Timepoint', y='value', units='Patient_ID', estimator=None, color='grey', alpha=0.5, marker='o', ax=ax[0])
+    sns.lineplot(data=plot_df_2, x='Timepoint', y='value', units='Patient_ID', estimator=None, color='grey', alpha=0.5, marker='o', ax=ax[1])
+    sns.lineplot(data=plot_df_norm, x='Timepoint', y='value', units='Patient_ID',  hue='Clinical_benefit', estimator=None, alpha=0.5, marker='o', ax=ax[2])
+
+    # set ylimits
+    # ax[0].set_ylim([-0.6, 0.6])
+    # ax[1].set_ylim([-0.6, 0.6])
+    # ax[2].set_ylim([-0.6, 0.6])
+
+    # add responder and non-responder titles
+    ax[0].set_title('non-responders')
+    ax[1].set_title('responders')
+    ax[2].set_title('combined')
+
+    # set figure title
+    fig.suptitle(feature)
+    plt.savefig(os.path.join(plot_dir, 'longitudinal_response_raw_{}.png'.format(feature)))
+    plt.close()
+

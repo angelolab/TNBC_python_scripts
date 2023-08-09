@@ -23,9 +23,6 @@ data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 
 harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
 patient_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/TONIC_data_per_patient.csv'))
-patient_metadata = patient_metadata.loc[~patient_metadata.MIBI_evolution_set.isna(), :]
-patient_metadata['iRECIST_response'] = 'non-responders'
-patient_metadata.loc[(patient_metadata.BOR_iRECIST.isin(['iCR', 'iPR', 'iSD'])), 'iRECIST_response'] = 'responders'
 feature_metadata = pd.read_csv(os.path.join(data_dir, 'feature_metadata.csv'))
 timepoint_features = pd.read_csv(os.path.join(data_dir, 'timepoint_features_filtered.csv'))
 
@@ -43,29 +40,34 @@ timepoint_features = pd.read_csv(os.path.join(data_dir, 'timepoint_features_filt
 # func_df_timepoint = func_df_timepoint.rename(columns={'mean': 'raw_mean', 'std': 'raw_std', 'cell_type': 'cell_pop'})
 # timepoint_features = timepoint_features.append(func_df_timepoint[['Tissue_ID', 'feature_name', 'feature_name_unique', 'compartment', 'cell_pop_level', 'feature_type', 'raw_mean', 'raw_std']])
 
-timepoint_features = timepoint_features.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint',
-                                                                   'baseline__on_nivo', 'baseline__post_induction', 'post_induction__on_nivo']].drop_duplicates(), on='Tissue_ID')
-timepoint_features = timepoint_features.merge(patient_metadata[['Patient_ID', 'iRECIST_response']].drop_duplicates(), on='Patient_ID', how='left')
+# timepoint_features = timepoint_features.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint',
+#                                                                    'baseline__on_nivo', 'baseline__post_induction', 'post_induction__on_nivo']].drop_duplicates(), on='Tissue_ID')
+# timepoint_features = timepoint_features.merge(patient_metadata[['Patient_ID', 'iRECIST_response']].drop_duplicates(), on='Patient_ID', how='left')
+#
+# # Hacky, remove once metadata is updated
+# timepoint_features = timepoint_features.loc[~timepoint_features.iRECIST_response.isna(), :]
+# timepoint_features = timepoint_features.loc[timepoint_features.Timepoint.isin(['baseline', 'post_induction', 'on_nivo']), :]
+# timepoint_features = timepoint_features[['Tissue_ID', 'feature_name', 'feature_name_unique', 'raw_mean', 'raw_std', 'normalized_mean', 'normalized_std', 'Patient_ID', 'Timepoint', 'iRECIST_response']]
+#
+#
+# # look at evolution
+# evolution_df = pd.read_csv(os.path.join(data_dir, 'evolution/evolution_df.csv'))
+# evolution_df = evolution_df.merge(patient_metadata[['Patient_ID', 'iRECIST_response']].drop_duplicates(), on='Patient_ID', how='left')
+# evolution_df = evolution_df.rename(columns={'raw_value': 'raw_mean', 'normalized_value': 'normalized_mean', 'comparison': 'Timepoint'})
+# evolution_df = evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'iRECIST_response']]
+#
+# # combine together into single df
+# combined_df = timepoint_features.copy()
+# combined_df = combined_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'iRECIST_response']]
+# combined_df = combined_df.append(evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'iRECIST_response']])
+# combined_df['combined_name'] = combined_df.feature_name_unique + '__' + combined_df.Timepoint
+#
+# combined_df.to_csv(os.path.join(data_dir, 'nivo_outcomes/combined_df.csv'), index=False)
+harmonized_metadata = harmonized_metadata.loc[harmonized_metadata.Patient_ID.isin(combined_df.Patient_ID.unique()), :]
+combined_df = pd.read_csv(os.path.join(data_dir, 'nivo_outcomes/combined_df.csv'))
+combined_df = pd.merge(combined_df, harmonized_metadata[['Patient_ID', 'Clinical_benefit', 'Censoring_PFS_RECIST1.1',
+                                                         'Time_to_progression_weeks_RECIST1.1']].drop_duplicates(), on='Patient_ID', how='left')
 
-# Hacky, remove once metadata is updated
-timepoint_features = timepoint_features.loc[~timepoint_features.iRECIST_response.isna(), :]
-timepoint_features = timepoint_features.loc[timepoint_features.Timepoint.isin(['baseline', 'post_induction', 'on_nivo']), :]
-timepoint_features = timepoint_features[['Tissue_ID', 'feature_name', 'feature_name_unique', 'raw_mean', 'raw_std', 'normalized_mean', 'normalized_std', 'Patient_ID', 'Timepoint', 'iRECIST_response']]
-
-
-# look at evolution
-evolution_df = pd.read_csv(os.path.join(data_dir, 'evolution/evolution_df.csv'))
-evolution_df = evolution_df.merge(patient_metadata[['Patient_ID', 'iRECIST_response']].drop_duplicates(), on='Patient_ID', how='left')
-evolution_df = evolution_df.rename(columns={'raw_value': 'raw_mean', 'normalized_value': 'normalized_mean', 'comparison': 'Timepoint'})
-evolution_df = evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'iRECIST_response']]
-
-# combine together into single df
-combined_df = timepoint_features.copy()
-combined_df = combined_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'iRECIST_response']]
-combined_df = combined_df.append(evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'iRECIST_response']])
-combined_df['combined_name'] = combined_df.feature_name_unique + '__' + combined_df.Timepoint
-
-combined_df.to_csv(os.path.join(data_dir, 'nivo_outcomes/combined_df.csv'), index=False)
 
 # # look at change due to nivo
 # for comparison in ['baseline__on_nivo', 'baseline__post_induction', 'post_induction__on_nivo']:
@@ -100,7 +102,7 @@ for comparison in ['baseline', 'post_induction', 'on_nivo', 'baseline__post_indu
         if not os.path.exists(current_plot_dir):
             os.makedirs(current_plot_dir)
         summarize_population_enrichment(input_df=population_df, feature_df=combined_df, timepoints=[comparison],
-                                        pop_col='iRECIST_response', output_dir=current_plot_dir, sort_by='med_diff')
+                                        pop_col='Clinical_benefit', output_dir=current_plot_dir, sort_by='med_diff')
 
     long_df = population_df[['feature_name_unique', 'log_pval', 'mean_diff', 'med_diff']]
     long_df['comparison'] = comparison
@@ -151,139 +153,12 @@ total_dfs.to_csv(os.path.join(data_dir, 'nivo_outcomes/outcomes_df.csv'), index=
 
 
 
-# look at enriched features
-enriched_features = compute_feature_enrichment(feature_df=total_dfs, inclusion_col='top_feature', analysis_col='feature_type_broad')
-
-
-# plot as a barplot
-enriched_features = enriched_features.iloc[:-2, :]
-fig, ax = plt.subplots(figsize=(10,8))
-sns.barplot(data=enriched_features, x='log2_ratio', y='feature_type_broad', color='grey', ax=ax)
-plt.xlabel('Log2 ratio of proportion of top features')
-ax.set_xlim(-1.5, 1.5)
-sns.despine()
-plt.savefig(os.path.join(plot_dir, 'top_feature_enrichment.pdf'))
-plt.close()
-
-
-# look at enriched cell types
-enriched_features = compute_feature_enrichment(feature_df=total_dfs, inclusion_col='top_feature', analysis_col='cell_pop')
-
-# plot as a barplot
-fig, ax = plt.subplots(figsize=(10,8))
-sns.barplot(data=enriched_features, x='log2_ratio', y='cell_pop', color='grey')
-plt.xlabel('Log2 ratio of proportion of top features')
-ax.set_xlim(-1.5, 1.5)
-sns.despine()
-plt.savefig(os.path.join(plot_dir, 'top_feature_celltype_enrichment.pdf'))
-plt.close()
-
-# plot top features
-#top_features = total_dfs.loc[total_dfs.top_feature, :]
-top_features = total_dfs.iloc[:50, :]
-top_features = top_features.sort_values('importance_score', ascending=False)
-
-for idx, (feature_name, comparison) in enumerate(zip(top_features.feature_name_unique, top_features.comparison)):
-    if '__' in comparison:
-        source_df = evolution_df
-        source_df = source_df.loc[source_df.comparison == comparison, :]
-
-    else:
-        source_df = timepoint_features
-        source_df = source_df.loc[source_df.Timepoint == comparison, :]
-
-    plot_df = source_df.loc[source_df.feature_name_unique == feature_name, :]
-
-    # plot
-    sns.stripplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'noinduction_responders', 'non-responders'],
-                color='grey')
-    plt.title(feature_name + ' in ' + comparison)
-    plt.savefig(os.path.join(plot_dir, 'top_features_noinduction', f'{idx}_{feature_name}.png'))
-    plt.close()
-
-
-# summarize distribution of top features
-top_features_by_comparison = top_features[['feature_name_unique', 'comparison']].groupby('comparison').count().reset_index()
-top_features_by_comparison.columns = ['comparison', 'num_features']
-top_features_by_comparison = top_features_by_comparison.sort_values('num_features', ascending=False)
-
-fig, ax = plt.subplots(figsize=(4, 4))
-sns.barplot(data=top_features_by_comparison, x='comparison', y='num_features', color='grey', ax=ax)
-plt.xticks(rotation=90)
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'top_features_by_comparison.pdf'))
-plt.close()
-
-
-# summarize overlap of top features
-top_features_by_feature = top_features[['feature_name_unique', 'comparison']].groupby('feature_name_unique').count().reset_index()
-feature_counts = top_features_by_feature.groupby('comparison').count().reset_index()
-feature_counts.columns = ['num_comparisons', 'num_features']
-
-fig, ax = plt.subplots(figsize=(4, 4))
-sns.barplot(data=feature_counts, x='num_comparisons', y='num_features', color='grey', ax=ax)
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'top_features_by_feature.pdf'))
-plt.close()
-
-
-# plot top featurse across all comparisons
-all_top_features = total_dfs.loc[total_dfs.feature_name_unique.isin(top_features.feature_name_unique), :]
-all_top_features = all_top_features.loc[~all_top_features.comparison.isin(['primary', 'primary__baseline'])]
-all_top_features = all_top_features.pivot(index='feature_name_unique', columns='comparison', values='signed_importance_score')
-all_top_features = all_top_features.fillna(0)
-
-sns.clustermap(data=all_top_features, cmap='RdBu_r', vmin=-1, vmax=1, figsize=(10, 10))
-plt.savefig(os.path.join(plot_dir, 'top_features_clustermap_all.pdf'))
-plt.close()
 
 
 
 
-# create connected dotplot between timepoints by patient
-feature_name = 'CD69+__CD4T'
-feature_name = 'PDL1+__APC'
-feature_name = 'PDL1+__M2_Mac'
-feature_name = 'Mono_Mac__PDL1+'
-timepoint_1 = 'baseline'
-timepoint_2 = 'post_induction'
-timepoint_3 = 'on_nivo'
 
-pats = harmonized_metadata.loc[harmonized_metadata.baseline__on_nivo, 'Patient_ID'].unique().tolist()
-pats2 = harmonized_metadata.loc[harmonized_metadata.post_induction__on_nivo, 'Patient_ID'].unique().tolist()
-pats = set(pats).intersection(set(pats2))
 
-plot_df = timepoint_features.loc[(timepoint_features.feature_name == feature_name) &
-                                    (timepoint_features.Timepoint.isin([timepoint_1, timepoint_2, timepoint_3]) &
-                                     timepoint_features.Patient_ID.isin(pats)), :]
-
-plot_df_wide = plot_df.pivot(index=['Patient_ID', 'iRECIST_response'], columns='Timepoint', values='raw_mean')
-plot_df_wide.dropna(inplace=True)
-# divide each row by the baseline value
-#plot_df_wide = plot_df_wide.divide(plot_df_wide.loc[:, 'baseline'], axis=0)
-#plot_df_wide = plot_df_wide.subtract(plot_df_wide.loc[:, 'baseline'], axis=0)
-plot_df_wide = plot_df_wide.reset_index()
-
-plot_df_norm = pd.melt(plot_df_wide, id_vars=['Patient_ID', 'iRECIST_response'], value_vars=['baseline', 'post_induction', 'on_nivo'])
-
-plot_df_1 = plot_df_norm.loc[plot_df_norm.iRECIST_response != 'responders', :]
-plot_df_2 = plot_df_norm.loc[plot_df_norm.iRECIST_response == 'responders', :]
-fig, ax = plt.subplots(1, 3, figsize=(15, 10))
-sns.lineplot(data=plot_df_1, x='Timepoint', y='value', units='Patient_ID', estimator=None, color='grey', alpha=0.5, marker='o', ax=ax[0])
-sns.lineplot(data=plot_df_2.loc[plot_df_2.Patient_ID == 33], x='Timepoint', y='value', units='Patient_ID', estimator=None, color='grey', alpha=0.5, marker='o', ax=ax[1])
-sns.lineplot(data=plot_df_norm, x='Timepoint', y='value', units='Patient_ID',  hue='iRECIST_response', estimator=None, alpha=0.5, marker='o', ax=ax[2])
-
-# set ylimits
-ax[0].set_ylim([-0.6, 0.6])
-ax[1].set_ylim([-0.6, 0.6])
-ax[2].set_ylim([-0.6, 0.6])
-
-# add responder and non-responder titles
-ax[0].set_title('non-responders')
-ax[1].set_title('responders')
-ax[2].set_title('combined')
-plt.savefig(os.path.join(plot_dir, 'longitudinal_response_raw_{}.png'.format(feature_name)))
-plt.close()
 
 # pat 19, 93 have peak in inudction
 # pat 71,108 have high on niov

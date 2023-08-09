@@ -145,7 +145,7 @@ harmonized_metadata = pd.merge(harmonized_metadata, timepoint_metadata.loc[:, ['
 assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
 
 # select and merge relevant columns from patients
-harmonized_metadata = pd.merge(harmonized_metadata, patient_metadata.loc[:, ['Patient_ID', 'primary__baseline', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']], on='Patient_ID', how='inner')
+harmonized_metadata = pd.merge(harmonized_metadata, patient_metadata.loc[:, ['Patient_ID', 'primary__baseline', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']], on='Patient_ID', how='inner')
 assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
 
 # save harmonized metadata
