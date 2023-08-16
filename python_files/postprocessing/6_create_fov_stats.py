@@ -66,6 +66,8 @@ diversity_features = [['cluster_broad_freq', 'cluster_broad_diversity'],
                       ['cancer_freq', 'cancer_diversity'],
                       ['stroma_freq', 'stroma_diversity']]
 
+# diversity_features = [['meta_cluster_freq', 'meta_cluster_diversity']]
+
 for cluster_name, feature_name in diversity_features:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border',
@@ -104,6 +106,9 @@ for cluster_name, feature_name in diversity_features:
 # compute abundance of cell types
 abundance_features = [['cluster_density', 'cluster_density', 'med'],
                       ['total_cell_density', 'total_density', 'broad']]
+
+# abundance_features = [['meta_cluster_density', 'meta_cluster_density', 'narrow']]
+
 for cluster_name, feature_name, cell_pop_level in abundance_features:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border',
@@ -258,6 +263,8 @@ for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_borde
 # compute functional marker positivity for different levels of granularity
 functional_features = [['cluster_freq', 'med'],
                        ['total_freq', 'broad']]
+
+# functional_features = [['meta_cluster_freq', 'narrow']]
 for functional_name, cell_pop_level in functional_features:
     input_df = functional_df_core[functional_df_core['metric'].isin([functional_name])]
     #for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border','tls', 'tagg', 'all']:
@@ -289,6 +296,7 @@ for functional_name, cell_pop_level in functional_features:
 morphology_features = [['cluster_freq', 'med'],
                           ['total_freq', 'broad']]
 
+# morphology_features = [['meta_cluster_freq', 'narrow']]
 for morphology_name, cell_pop_level in morphology_features:
     input_df = morph_df_core[morph_df_core['metric'].isin([morphology_name])]
     #for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'tls', 'tagg', 'all']:
@@ -499,6 +507,11 @@ fov_data.append(ecm_clusters)
 
 # add fiber stats
 fiber_df = fiber_df.rename(columns={'fiber_metric': 'feature_name'})
+
+# drop rows with NAs or Inf
+fiber_df = fiber_df.dropna()
+fiber_df = fiber_df[~fiber_df.isin([np.nan, np.inf, -np.inf]).any(1)]
+
 fiber_df['feature_name_unique'] = fiber_df['feature_name']
 fiber_df['compartment'] = 'all'
 fiber_df['cell_pop'] = 'ecm'
@@ -552,7 +565,7 @@ grouped = fov_data_df.groupby(['Tissue_ID', 'feature_name', 'feature_name_unique
 grouped.columns = ['raw_mean', 'raw_std', 'normalized_mean', 'normalized_std']
 grouped = grouped.reset_index()
 
-grouped.to_csv(os.path.join(data_dir, 'timepoint_features.csv'), index=False)
+grouped.to_csv(os.path.join(data_dir, 'timepoint_features_metacluster.csv'), index=False)
 
 #
 # filter FOV features based on correlation in compartments
@@ -651,4 +664,4 @@ plt.close()
 
 
 
-
+fiber_features = fov_data_df_filtered.loc[fov_data_df_filtered.feature_name_unique.str.contains('fiber'), :]

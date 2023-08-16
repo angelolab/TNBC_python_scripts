@@ -25,6 +25,12 @@ harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_me
 patient_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/TONIC_data_per_patient.csv'))
 feature_metadata = pd.read_csv(os.path.join(data_dir, 'feature_metadata.csv'))
 timepoint_features = pd.read_csv(os.path.join(data_dir, 'timepoint_features_filtered.csv'))
+patient_metadata['iRECIST_response'] = 'non-responders'
+patient_metadata.loc[(patient_metadata.BOR_iRECIST.isin(['iCR', 'iPR', 'iSD'])), 'iRECIST_response'] = 'responders'
+
+# create mask where boolean arrays are not equal
+patient_metadata['survival_diff'] = np.equal(patient_metadata.iRECIST_response.values == 'responders',  patient_metadata.Clinical_benefit.values == 'Yes')
+
 
 #patient_metadata.loc[patient_metadata.Patient_ID.isin([33, 40, 75, 85, 100, 105, 109]), 'iRECIST_response'] = 'noinduction_responders'
 # func_df_timepoint = pd.read_csv(os.path.join(data_dir, 'functional_df_per_timepoint_filtered_deduped.csv'))
@@ -40,33 +46,34 @@ timepoint_features = pd.read_csv(os.path.join(data_dir, 'timepoint_features_filt
 # func_df_timepoint = func_df_timepoint.rename(columns={'mean': 'raw_mean', 'std': 'raw_std', 'cell_type': 'cell_pop'})
 # timepoint_features = timepoint_features.append(func_df_timepoint[['Tissue_ID', 'feature_name', 'feature_name_unique', 'compartment', 'cell_pop_level', 'feature_type', 'raw_mean', 'raw_std']])
 
+
+# # create combined df
 # timepoint_features = timepoint_features.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint',
 #                                                                    'baseline__on_nivo', 'baseline__post_induction', 'post_induction__on_nivo']].drop_duplicates(), on='Tissue_ID')
-# timepoint_features = timepoint_features.merge(patient_metadata[['Patient_ID', 'iRECIST_response']].drop_duplicates(), on='Patient_ID', how='left')
+# timepoint_features = timepoint_features.merge(patient_metadata[['Patient_ID', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']].drop_duplicates(), on='Patient_ID', how='left')
 #
 # # Hacky, remove once metadata is updated
-# timepoint_features = timepoint_features.loc[~timepoint_features.iRECIST_response.isna(), :]
+# timepoint_features = timepoint_features.loc[timepoint_features.Clinical_benefit.isin(['Yes', 'No']), :]
 # timepoint_features = timepoint_features.loc[timepoint_features.Timepoint.isin(['baseline', 'post_induction', 'on_nivo']), :]
-# timepoint_features = timepoint_features[['Tissue_ID', 'feature_name', 'feature_name_unique', 'raw_mean', 'raw_std', 'normalized_mean', 'normalized_std', 'Patient_ID', 'Timepoint', 'iRECIST_response']]
+# timepoint_features = timepoint_features[['Tissue_ID', 'feature_name', 'feature_name_unique', 'raw_mean', 'raw_std', 'normalized_mean', 'normalized_std', 'Patient_ID', 'Timepoint', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]
 #
 #
 # # look at evolution
 # evolution_df = pd.read_csv(os.path.join(data_dir, 'evolution/evolution_df.csv'))
-# evolution_df = evolution_df.merge(patient_metadata[['Patient_ID', 'iRECIST_response']].drop_duplicates(), on='Patient_ID', how='left')
+# evolution_df = evolution_df.merge(patient_metadata[['Patient_ID', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']].drop_duplicates(), on='Patient_ID', how='left')
 # evolution_df = evolution_df.rename(columns={'raw_value': 'raw_mean', 'normalized_value': 'normalized_mean', 'comparison': 'Timepoint'})
-# evolution_df = evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'iRECIST_response']]
+# evolution_df = evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]
 #
 # # combine together into single df
 # combined_df = timepoint_features.copy()
-# combined_df = combined_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'iRECIST_response']]
-# combined_df = combined_df.append(evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'iRECIST_response']])
+# combined_df = combined_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]
+# combined_df = combined_df.append(evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']])
 # combined_df['combined_name'] = combined_df.feature_name_unique + '__' + combined_df.Timepoint
 #
 # combined_df.to_csv(os.path.join(data_dir, 'nivo_outcomes/combined_df.csv'), index=False)
-harmonized_metadata = harmonized_metadata.loc[harmonized_metadata.Patient_ID.isin(combined_df.Patient_ID.unique()), :]
+
+# load previously computed results
 combined_df = pd.read_csv(os.path.join(data_dir, 'nivo_outcomes/combined_df.csv'))
-combined_df = pd.merge(combined_df, harmonized_metadata[['Patient_ID', 'Clinical_benefit', 'Censoring_PFS_RECIST1.1',
-                                                         'Time_to_progression_weeks_RECIST1.1']].drop_duplicates(), on='Patient_ID', how='left')
 
 
 # # look at change due to nivo
@@ -94,8 +101,8 @@ method = 'ttest'
 total_dfs = []
 
 for comparison in ['baseline', 'post_induction', 'on_nivo', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']:
-    population_df = compare_populations(feature_df=combined_df, pop_col='iRECIST_response',
-                                        timepoints=[comparison], pop_1='non-responders', pop_2='responders', method=method)
+    population_df = compare_populations(feature_df=combined_df, pop_col='Clinical_benefit',
+                                        timepoints=[comparison], pop_1='No', pop_2='Yes', method=method)
 
     if plot_hits:
         current_plot_dir = os.path.join(plot_dir, 'responders_nonresponders_{}'.format(comparison))
@@ -146,50 +153,10 @@ total_dfs['feature_type_broad'] = total_dfs.feature_type.map(feature_type_dict)
 
 # identify top features
 total_dfs['top_feature'] = False
-total_dfs.iloc[:50, -1] = True
+total_dfs.iloc[:100, -1] = True
 
 # saved formatted df
 total_dfs.to_csv(os.path.join(data_dir, 'nivo_outcomes/outcomes_df.csv'), index=False)
-
-
-
-
-
-
-
-
-
-
-# pat 19, 93 have peak in inudction
-# pat 71,108 have high on niov
-test = evolution_df.loc[(evolution_df.feature_name == feature_name) &
-                        (evolution_df.comparison == timepoint_1 + '__' + timepoint_2), :]
-
-test_2 = test.loc[test.iRECIST_response == 'responders', :]
-
-plot_df_missing = timepoint_features.loc[(timepoint_features.feature_name == feature_name) &
-                                         (timepoint_features.Timepoint.isin([timepoint_1, timepoint_2, timepoint_3])) &
-                                         (timepoint_features.Patient_ID == 75), :]
-
-# investigate iron in CD8s and Bs
-patients = [37, 56]
-timepoints = ['baseline', 'post_induction']
-
-select_metadata = harmonized_metadata.loc[harmonized_metadata.Patient_ID.isin(patients) & harmonized_metadata.Timepoint.isin(timepoints), :]
-select_metadata = select_metadata.loc[select_metadata.MIBI_data_generated, :]
-
-# copy relevant images
-output_dir = os.path.join(plot_dir, 'iron_changes')
-channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples'
-mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay'
-
-for i in range(len(select_metadata)):
-    pat_id, timepoint, fov = select_metadata.iloc[i, :][['Patient_ID', 'Timepoint', 'fov']]
-    output_string = '{}_{}_{}'.format(pat_id, timepoint, fov)
-    shutil.copy(os.path.join(channel_dir, fov, 'Fe.tiff'), os.path.join(output_dir, output_string + '_Fe.tiff'))
-    shutil.copy(os.path.join(mask_dir, fov + '.png'), os.path.join(output_dir, output_string + '_mask.png'))
-
-
 
 
 

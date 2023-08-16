@@ -433,10 +433,10 @@ for idx, (feature_name, comparison) in enumerate(zip(top_features.feature_name_u
                               (combined_df.Timepoint == comparison), :]
 
     # plot
-    sns.stripplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'noinduction_responders', 'non-responders'],
+    sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
                 color='grey')
     plt.title(feature_name + ' in ' + comparison)
-    plt.savefig(os.path.join(plot_dir, 'top_features_noinduction', f'{idx}_{feature_name}.png'))
+    plt.savefig(os.path.join(plot_dir, 'top_features', f'{idx}_{feature_name}.png'))
     plt.close()
 
 
@@ -465,64 +465,64 @@ plt.savefig(os.path.join(plot_dir, 'Figure5_num_comparisons_per_feature.pdf'))
 plt.close()
 
 
-def get_top_x_features_by_list(df, detail_names, x=5, plot_val='importance_score', ascending=False):
-    scores, names = [], []
-    for feature in detail_names:
-        keep_idx = np.logical_or(df.feature_type_detail == feature, df.feature_type_detail_2 == feature)
-        plot_df = df.loc[keep_idx, :]
-        plot_df = plot_df.sort_values(by=plot_val, ascending=ascending)
-        temp_scores = plot_df.iloc[:x, :][plot_val].values
-        scores.append(temp_scores)
-        names.append([feature] * len(temp_scores))
-
-    score_df = pd.DataFrame({'score': np.concatenate(scores), 'name': np.concatenate(names)})
-    return score_df
-
-
-# get importance score of top 5 examples for cell-based features
-cell_type_list, cell_prop_list, comparison_list = [], [], []
-
-for groupings in [[['nivo'], ['post_induction__on_nivo', 'on_nivo', 'baseline__on_nivo']],
-                  [['baseline'], ['baseline']],
-                  [['induction'], ['baseline__post_induction', 'post_induction']]]:
-
-    # score of top 5 features
-    name, comparisons = groupings
-    # cell_type_features = get_top_x_features_by_list(df=total_dfs.loc[total_dfs.comparison.isin(comparisons)],
-    #                                                 detail_names=cell_ordering + ['T', 'Mono_Mac'], x=5, plot_val='combined_rank',
-    #                                                 ascending=True)
-    #
-    # meds = cell_type_features.groupby('name').median().sort_values(by='score', ascending=True)
-    #
-    # fig, ax = plt.subplots(figsize=(4, 6))
-    # sns.stripplot(data=cell_type_features, x='name', y='score', ax=ax, order=meds.index, color='black')
-    # sns.boxplot(data=cell_type_features, x='name', y='score', order=meds.index, color='grey', ax=ax, showfliers=False, width=0.5)
-    # ax.set_title('Densities Ranking')
-    # #ax.set_ylim([0, 1])
-    # ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
-    # sns.despine()
-    # plt.tight_layout()
-    # plt.savefig(os.path.join(plot_dir, 'Figure5_cell_type_rank_{}.pdf'.format(name)))
-    # plt.close()
-
-    # proportion of features belonging to each cell type
-
-    current_comparison_features = top_features.loc[top_features.comparison.isin(comparisons), :]
-    for cell_type in cell_ordering + ['T', 'Mono_Mac']:
-        cell_idx = np.logical_or(current_comparison_features.feature_type_detail == cell_type,
-                                    current_comparison_features.feature_type_detail_2 == cell_type)
-        cell_type_list.append(cell_type)
-        cell_prop_list.append(np.sum(cell_idx) / len(current_comparison_features))
-        comparison_list.append(name[0])
-
-proportion_df = pd.DataFrame({'cell_type': cell_type_list, 'proportion': cell_prop_list, 'comparison': comparison_list})
-
-fig, ax = plt.subplots(figsize=(4, 4))
-sns.barplot(data=proportion_df, x='cell_type', y='proportion', hue='comparison', hue_order=['nivo', 'baseline', 'induction'], ax=ax)
-plt.xticks(rotation=90)
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure5_cell_type_proportion.pdf'))
-plt.close()
+# def get_top_x_features_by_list(df, detail_names, x=5, plot_val='importance_score', ascending=False):
+#     scores, names = [], []
+#     for feature in detail_names:
+#         keep_idx = np.logical_or(df.feature_type_detail == feature, df.feature_type_detail_2 == feature)
+#         plot_df = df.loc[keep_idx, :]
+#         plot_df = plot_df.sort_values(by=plot_val, ascending=ascending)
+#         temp_scores = plot_df.iloc[:x, :][plot_val].values
+#         scores.append(temp_scores)
+#         names.append([feature] * len(temp_scores))
+#
+#     score_df = pd.DataFrame({'score': np.concatenate(scores), 'name': np.concatenate(names)})
+#     return score_df
+#
+#
+# # get importance score of top 5 examples for cell-based features
+# cell_type_list, cell_prop_list, comparison_list = [], [], []
+#
+# for groupings in [[['nivo'], ['post_induction__on_nivo', 'on_nivo', 'baseline__on_nivo']],
+#                   [['baseline'], ['baseline']],
+#                   [['induction'], ['baseline__post_induction', 'post_induction']]]:
+#
+#     # score of top 5 features
+#     name, comparisons = groupings
+#     # cell_type_features = get_top_x_features_by_list(df=total_dfs.loc[total_dfs.comparison.isin(comparisons)],
+#     #                                                 detail_names=cell_ordering + ['T', 'Mono_Mac'], x=5, plot_val='combined_rank',
+#     #                                                 ascending=True)
+#     #
+#     # meds = cell_type_features.groupby('name').median().sort_values(by='score', ascending=True)
+#     #
+#     # fig, ax = plt.subplots(figsize=(4, 6))
+#     # sns.stripplot(data=cell_type_features, x='name', y='score', ax=ax, order=meds.index, color='black')
+#     # sns.boxplot(data=cell_type_features, x='name', y='score', order=meds.index, color='grey', ax=ax, showfliers=False, width=0.5)
+#     # ax.set_title('Densities Ranking')
+#     # #ax.set_ylim([0, 1])
+#     # ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+#     # sns.despine()
+#     # plt.tight_layout()
+#     # plt.savefig(os.path.join(plot_dir, 'Figure5_cell_type_rank_{}.pdf'.format(name)))
+#     # plt.close()
+#
+#     # proportion of features belonging to each cell type
+#
+#     current_comparison_features = top_features.loc[top_features.comparison.isin(comparisons), :]
+#     for cell_type in cell_ordering + ['T', 'Mono_Mac']:
+#         cell_idx = np.logical_or(current_comparison_features.feature_type_detail == cell_type,
+#                                     current_comparison_features.feature_type_detail_2 == cell_type)
+#         cell_type_list.append(cell_type)
+#         cell_prop_list.append(np.sum(cell_idx) / len(current_comparison_features))
+#         comparison_list.append(name[0])
+#
+# proportion_df = pd.DataFrame({'cell_type': cell_type_list, 'proportion': cell_prop_list, 'comparison': comparison_list})
+#
+# fig, ax = plt.subplots(figsize=(4, 4))
+# sns.barplot(data=proportion_df, x='cell_type', y='proportion', hue='comparison', hue_order=['nivo', 'baseline', 'induction'], ax=ax)
+# plt.xticks(rotation=90)
+# plt.tight_layout()
+# plt.savefig(os.path.join(plot_dir, 'Figure5_cell_type_proportion.pdf'))
+# plt.close()
 
 # plot top featurse across all comparisons
 all_top_features = total_dfs.loc[total_dfs.feature_name_unique.isin(top_features.feature_name_unique), :]
@@ -535,6 +535,7 @@ plt.close()
 
 # identify features with opposite effects at different timepoints
 opposite_features = []
+induction_peak_features = []
 for feature in all_top_features.index:
     feature_vals = all_top_features.loc[feature, :]
 
@@ -542,12 +543,20 @@ for feature in all_top_features.index:
     max_idx = np.argmax(np.abs(feature_vals))
     max_sign = np.sign(feature_vals[max_idx])
 
-    # determine if any features of opposite sign have absolute value > 0.9
-    opposite_idx = np.logical_and(np.abs(feature_vals) > 0.85, np.sign(feature_vals) != max_sign)
+    # determine if any features of opposite sign have absolute value > 0.85
+    opposite_idx = np.logical_and(np.abs(feature_vals) > 0.8, np.sign(feature_vals) != max_sign)
     if np.sum(opposite_idx) > 0:
         opposite_features.append(feature)
 
-opposite_features = all_top_features.loc[opposite_features, :]
+    # determine which features have a peak at induction
+    opposite_indices = set(np.where(opposite_idx)[0]).union(set([max_idx]))
+
+    # check if 4 and 5 are in the set
+    if set([4, 5]).issubset(opposite_indices):
+        induction_peak_features.append(feature)
+
+
+#opposite_features = all_top_features.loc[opposite_features, :]
 
 # create connected lineplots for features with opposite effects
 
@@ -558,7 +567,7 @@ pats2 = harmonized_metadata.loc[harmonized_metadata.post_induction__on_nivo, 'Pa
 #pats = set(pats).union(set(pats2))
 pats = pats2
 
-for feature in opposite_features.index:
+for feature in opposite_features:
     plot_df = combined_df.loc[(combined_df.feature_name_unique == feature) &
                                         (combined_df.Timepoint.isin(['baseline', 'post_induction', 'on_nivo'])) &
                                         (combined_df.Patient_ID.isin(pats)), :]
@@ -594,3 +603,147 @@ for feature in opposite_features.index:
     plt.savefig(os.path.join(plot_dir, 'longitudinal_response_raw_{}.png'.format(feature)))
     plt.close()
 
+all_opp_features = total_dfs.loc[total_dfs.feature_name_unique.isin(opposite_features), :]
+#all_opp_features = all_opp_features.loc[all_opp_features.comparison.isin(['post_induction', 'post_induction__on_nivo']), :]
+all_opp_features = all_opp_features.pivot(index='feature_name_unique', columns='comparison', values='signed_importance_score')
+all_opp_features = all_opp_features.fillna(0)
+
+sns.clustermap(data=all_opp_features, cmap='RdBu_r', vmin=-1, vmax=1, figsize=(10, 10))
+plt.savefig(os.path.join(plot_dir, 'opposite_clustermap.pdf'))
+plt.close()
+
+# plot induction peak features
+induction_peak_df = total_dfs.loc[total_dfs.feature_name_unique.isin(induction_peak_features), :]
+induction_peak_df = induction_peak_df.pivot(index='feature_name_unique', columns='comparison', values='signed_importance_score')
+induction_peak_df = induction_peak_df.fillna(0)
+
+induction_peak_df = induction_peak_df[['baseline', 'baseline__on_nivo', 'on_nivo', 'baseline__post_induction',
+       'post_induction', 'post_induction__on_nivo']]
+
+sns.clustermap(data=induction_peak_df, cmap='RdBu_r', vmin=-1, vmax=1, figsize=(10, 10), col_cluster=False)
+plt.savefig(os.path.join(plot_dir, 'induction_peak_clustermap.pdf'))
+plt.close()
+
+
+# create averaged lineplot for induction peak
+baseline_induction_pats = harmonized_metadata.loc[harmonized_metadata.baseline__post_induction, 'Patient_ID'].unique().tolist()
+induction_nivo_pats = harmonized_metadata.loc[harmonized_metadata.post_induction__on_nivo, 'Patient_ID'].unique().tolist()
+combined_pats = set(baseline_induction_pats).intersection(set(induction_nivo_pats))
+
+plot_df = combined_df.loc[(combined_df.Timepoint.isin(['baseline', 'post_induction', 'on_nivo'])) &
+                                    (combined_df.Patient_ID.isin(combined_pats)), :]
+plot_df = plot_df.loc[plot_df.feature_name_unique.isin(induction_peak_features), :]
+
+plot_df_wide = plot_df.pivot(index=['Patient_ID', 'iRECIST_response', 'feature_name_unique'], columns='Timepoint', values='raw_mean')
+plot_df_wide.dropna(inplace=True)
+plot_df_wide = plot_df_wide.reset_index()
+plot_df_wide['unique_id'] = np.arange(0, plot_df_wide.shape[0], 1)
+
+induction_peak_features = ['PDL1+__APC', 'CD45RO+__Immune_Other', 'PDL1+__M2_Mac', 'Ki67+__T_Other', 'CD45RO__CD69+__NK', 'TIM3+__CD4T', 'CD69+__CD4T', 'PDL1+__CD4T']
+# # divide each row by the baseline value
+# #plot_df_wide = plot_df_wide.divide(plot_df_wide.loc[:, 'baseline'], axis=0)
+# #plot_df_wide = plot_df_wide.subtract(plot_df_wide.loc[:, 'baseline'], axis=0)
+#
+plot_df_norm = pd.melt(plot_df_wide, id_vars=['Patient_ID', 'iRECIST_response', 'feature_name_unique', 'unique_id'], value_vars=['baseline', 'post_induction', 'on_nivo'])
+
+plot_df_test = plot_df_norm.loc[plot_df_norm.feature_name_unique == 'PDL1+__APC', :]
+plot_df_1 = plot_df_test.loc[plot_df_test.iRECIST_response == 'non-responders', :]
+plot_df_2 = plot_df_test.loc[plot_df_test.iRECIST_response == 'responders', :]
+
+plot_df_1 = plot_df_norm.loc[plot_df_norm.iRECIST_response == 'non-responders', :]
+plot_df_2 = plot_df_norm.loc[plot_df_norm.iRECIST_response == 'responders', :]
+fig, ax = plt.subplots(1, 4, figsize=(15, 10))
+sns.lineplot(data=plot_df_1, x='Timepoint', y='value', units='unique_id', estimator=None, color='grey', alpha=0.5, marker='o', ax=ax[0])
+sns.lineplot(data=plot_df_2, x='Timepoint', y='value', units='unique_id', estimator=None, color='grey', alpha=0.5, marker='o', ax=ax[1])
+sns.lineplot(data=plot_df_test, x='Timepoint', y='value', units='unique_id',  hue='iRECIST_response', estimator=None, alpha=0.5, marker='o', ax=ax[2])
+sns.lineplot(data=plot_df_test, x='Timepoint', y='value', hue='iRECIST_response', estimator='median', alpha=0.5, marker='o', ax=ax[3])
+
+plt.savefig(os.path.join(plot_dir, 'triple_induction_peak_PDL1_APC.png'))
+plt.close()
+
+# # set ylimits
+# # ax[0].set_ylim([-0.6, 0.6])
+# # ax[1].set_ylim([-0.6, 0.6])
+# # ax[2].set_ylim([-0.6, 0.6])
+#
+# # add responder and non-responder titles
+# ax[0].set_title('non-responders')
+# ax[1].set_title('responders')
+# ax[2].set_title('combined')
+#
+# # set figure title
+# fig.suptitle(feature)
+# plt.savefig(os.path.join(plot_dir, 'longitudinal_response_raw_{}.png'.format(feature)))
+# plt.close()
+
+# make facceted seaborn correlation plot
+
+plot_df = combined_df.loc[(combined_df.Timepoint.isin(['baseline'])) &
+                                    (combined_df.feature_name_unique.isin(induction_peak_features)), :]
+
+plot_df_wide = plot_df.pivot(index=['Patient_ID', 'iRECIST_response'], columns='feature_name_unique', values='raw_mean')
+plot_df_wide = plot_df_wide.reset_index()
+plot_df_wide = plot_df_wide.drop(['Patient_ID'], axis=1)
+
+sns.pairplot(plot_df_wide, hue='iRECIST_response', diag_kind='kde', plot_kws={'alpha': 0.5, 's': 80})
+plt.savefig(os.path.join(plot_dir, 'induction_peak_pairplot.png'))
+plt.close()
+
+# compute correlations by timepoint
+corrs = []
+timepoints = []
+
+for timepoint in combined_df.Timepoint.unique():
+    timepoint_df = combined_df.loc[(combined_df.Timepoint == timepoint) &
+                                    (~combined_df.feature_name_unique.isin(induction_peak_features)), :]
+
+    timepoint_df_wide = timepoint_df.pivot(index=['Patient_ID', 'iRECIST_response'], columns='feature_name_unique', values='raw_mean')
+    timepoint_df_wide = timepoint_df_wide.reset_index()
+    timepoint_df_wide = timepoint_df_wide.drop(['Patient_ID', 'iRECIST_response'], axis=1)
+
+    corr_vals = timepoint_df_wide.corr(method='spearman').values.flatten()
+    corr_vals = corr_vals[corr_vals != 1]
+    corrs.extend(corr_vals.tolist())
+    timepoints.extend(['others'] * len(corr_vals))
+
+plot_df = pd.DataFrame({'correlation': corrs, 'timepoint': timepoints})
+sns.boxplot(data=plot_df, x='timepoint', y='correlation')
+
+switch_patients = patient_metadata.loc[~patient_metadata.survival_diff, 'Patient_ID'].tolist()
+# plot patients that switched from non-responders to responders
+for feature in induction_peak_features:
+    plot_df = combined_df.loc[(combined_df.feature_name_unique == feature) &
+                                        (combined_df.Timepoint.isin(['baseline', 'post_induction', 'on_nivo'])) &
+                                        (combined_df.Patient_ID.isin(pats)), :]
+
+    plot_df_wide = plot_df.pivot(index=['Patient_ID', 'Clinical_benefit'], columns='Timepoint', values='raw_mean')
+    #plot_df_wide.dropna(inplace=True)
+    # divide each row by the baseline value
+    #plot_df_wide = plot_df_wide.divide(plot_df_wide.loc[:, 'baseline'], axis=0)
+    #plot_df_wide = plot_df_wide.subtract(plot_df_wide.loc[:, 'baseline'], axis=0)
+    plot_df_wide = plot_df_wide.reset_index()
+
+    plot_df_norm = pd.melt(plot_df_wide, id_vars=['Patient_ID', 'Clinical_benefit'], value_vars=['baseline', 'post_induction', 'on_nivo'])
+    plot_df_norm['patient_switch'] = plot_df_norm.Patient_ID.isin(switch_patients)
+
+    plot_df_1 = plot_df_norm.loc[plot_df_norm.Clinical_benefit == 'No', :]
+    plot_df_2 = plot_df_norm.loc[plot_df_norm.Clinical_benefit == 'Yes', :]
+    fig, ax = plt.subplots(1, 3, figsize=(15, 10))
+    sns.lineplot(data=plot_df_1, x='Timepoint', y='value', units='Patient_ID', hue='patient_switch', estimator=None, color='grey', alpha=0.5, marker='o', ax=ax[0])
+    sns.lineplot(data=plot_df_2, x='Timepoint', y='value', units='Patient_ID', hue='patient_switch', estimator=None, color='grey', alpha=0.5, marker='o', ax=ax[1])
+    sns.lineplot(data=plot_df_norm, x='Timepoint', y='value', units='Patient_ID',  hue='Clinical_benefit', estimator=None, alpha=0.5, marker='o', ax=ax[2])
+
+    # set ylimits
+    # ax[0].set_ylim([-0.6, 0.6])
+    # ax[1].set_ylim([-0.6, 0.6])
+    # ax[2].set_ylim([-0.6, 0.6])
+
+    # add responder and non-responder titles
+    ax[0].set_title('non-responders')
+    ax[1].set_title('responders')
+    ax[2].set_title('combined')
+
+    # set figure title
+    fig.suptitle(feature)
+    plt.savefig(os.path.join(plot_dir, 'longitudinal_response_raw_{}.png'.format(feature)))
+    plt.close()
