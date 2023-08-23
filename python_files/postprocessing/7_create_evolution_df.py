@@ -41,4 +41,4 @@ for evolution_col in evolution_cats:
     evolution_dfs.append(evolution_df_wide)
 
 evolution_df = pd.concat(evolution_dfs)
-evolution_df.to_csv(os.path.join(data_dir, 'evolution/evolution_df.csv'), index=False)
+evolution_df.to_csv(os.path.join(data_dir, 'evolution/evolution_df_metacluster.csv'), index=False)

@@ -11,7 +11,7 @@ from alpineer.misc_utils import verify_in_list
 from alpineer import io_utils, load_utils
 from ark.segmentation import marker_quantification
 
-from scipy.stats import spearmanr, ttest_ind, ttest_rel, wilcoxon, mannwhitneyu
+from scipy.stats import spearmanr, ttest_ind, ttest_rel, wilcoxon, mannwhitneyu, pearsonr
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -749,6 +749,52 @@ def compare_populations(feature_df, pop_col, pop_1, pop_2, timepoints, feature_s
     return means_df
 
 
+def compare_continuous(feature_df, variable_col, min_samples=20, feature_suff='mean', method='spearman'):
+    # set up placeholders
+    p_vals = []
+    cors = []
+    names = []
+
+    # loop over each feature in the df
+    for feature_name in feature_df.feature_name_unique.unique():
+
+        # if either sample is missing a feature, skip that comparison
+        values = feature_df[(feature_df.feature_name_unique == feature_name)].copy()
+        values.dropna(inplace=True)
+
+        if len(values) > min_samples:
+            if method == 'spearman':
+                cor, p_val = spearmanr(values[variable_col], values['normalized_' + feature_suff])
+            elif method == 'pearson':
+                cor, p_val = pearsonr(values[variable_col], values['normalized_' + feature_suff])
+            p_vals.append(p_val)
+            cors.append(cor)
+            names.append(feature_name)
+        else:
+            p_vals.append(np.nan)
+            cors.append(np.nan)
+            names.append(feature_name)
+
+    ranked_features = pd.DataFrame({'feature_name_unique': names, 'p_val': p_vals, 'cor': cors})
+    ranked_features['log_pval'] = -np.log10(ranked_features.p_val)
+
+    # get ranking of each row by log_pval
+    ranked_features['pval_rank'] = ranked_features.log_pval.rank(ascending=False)
+    ranked_features['cor_rank'] = ranked_features.cor.abs().rank(ascending=False)
+    ranked_features['combined_rank'] = (ranked_features.pval_rank.values + ranked_features.cor_rank.values) / 2
+
+    # generate consistency score
+    max_rank = len(~ranked_features.cor.isna())
+    normalized_rank = ranked_features.combined_rank / max_rank
+    ranked_features['feature_score'] = 1 - normalized_rank
+
+    ranked_features = ranked_features.sort_values('feature_score', ascending=False)
+
+    return ranked_features
+
+
+
+
 def summarize_timepoint_enrichment(input_df, feature_df, timepoints, output_dir, pval_thresh=2,
                                    diff_thresh=0.3, plot_type='strip', sort_by='mean_diff'):
     """Generate a summary of the timepoint enrichment results
@@ -812,6 +858,34 @@ def summarize_population_enrichment(input_df, feature_df, timepoints, pop_col, o
     sns.catplot(data=input_df_filtered, x=sort_by, y='feature_name_unique', kind='bar', color='grey')
     plt.savefig(os.path.join(output_dir, 'Evolution_summary.png'))
     plt.close()
+
+
+def summarize_continuous_enrichment(input_df, feature_df, variable_col, timepoint, output_dir, min_score=0.85):
+
+    # generate plot for best ranked features
+    plot_features = input_df.loc[input_df.feature_score >= min_score, :]
+
+    # sort by combined rank
+    plot_features.sort_values(by='feature_score', inplace=True, ascending=False)
+
+    for i in range(len(plot_features)):
+        feature_name = plot_features.iloc[i].feature_name_unique
+        feature_score = plot_features.iloc[i].feature_score
+        values = feature_df[(feature_df.feature_name_unique == feature_name)].copy()
+        values = values.loc[values.Timepoint == timepoint, :]
+        values.dropna(inplace=True)
+
+        # add leading 0 for plot
+        str_pos = str(i)
+        if i < 10:
+            str_pos = '0' + str_pos
+
+        # plot
+        sns.scatterplot(data=values, x='raw_mean', y=variable_col)
+        correlation, p_val = spearmanr(values.raw_mean, values[variable_col])
+        plt.title(f'{feature_name} (score={feature_score:.2f}, r={correlation:.2f}, p={p_val:.2f})')
+        plt.savefig(os.path.join(output_dir, f'{str_pos}_{feature_name}.png'))
+        plt.close()
 
 
 def compute_feature_enrichment(feature_df, inclusion_col, analysis_col):

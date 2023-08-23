@@ -381,6 +381,31 @@ plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Figure4_feature_{}_{}.pdf'.format(feature_name, timepoint)))
 plt.close()
 
+cell_table_func = pd.read_csv(os.path.join(data_dir, 'post_processing/cell_table_func_single_positive.csv'))
+
+# get overlays
+pats = [9, 16, 26,40, 37, 62, 102]
+fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
+
+cell_table_subset = cell_table_func.loc[(cell_table_func.fov.isin(fovs)), :]
+cell_table_subset['APC_plot'] = cell_table_subset.cell_cluster
+cell_table_subset.loc[cell_table_subset.cell_cluster != 'APC', 'APC_plot'] = 'Other'
+cell_table_subset.loc[(cell_table_subset.cell_cluster == 'APC') & (cell_table_subset.PDL1.values), 'APC_plot'] = 'APC_PDL1+'
+
+for pat in pats:
+    pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == 'post_induction'), 'fov'].unique()
+    pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
+
+    pat_dir = os.path.join(plot_dir, 'Figure4_{}'.format(pat))
+    if not os.path.exists(pat_dir):
+        os.mkdir(pat_dir)
+
+    create_cell_overlay(cell_table=pat_df, seg_folder='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
+                        fovs=pat_fovs, cluster_col='APC_plot', plot_dir=pat_dir,
+                        save_names=['{}.png'.format(x) for x in pat_fovs])
+
+
+
 # change in CD8T density in cancer border
 feature_name = 'CD8T__cluster_density__cancer_border'
 timepoint = 'post_induction__on_nivo'
@@ -418,6 +443,11 @@ sns.despine()
 plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Figure4_feature_{}_{}.pdf'.format(feature_name, timepoint)))
 plt.close()
+
+
+
+
+
 
 
 #

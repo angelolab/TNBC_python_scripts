@@ -70,7 +70,7 @@ patient_metadata['survival_diff'] = np.equal(patient_metadata.iRECIST_response.v
 # combined_df = combined_df.append(evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']])
 # combined_df['combined_name'] = combined_df.feature_name_unique + '__' + combined_df.Timepoint
 #
-# combined_df.to_csv(os.path.join(data_dir, 'nivo_outcomes/combined_df.csv'), index=False)
+# combined_df.to_csv(os.path.join(data_dir, 'nivo_outcomes/combined_df_metacluster.csv'), index=False)
 
 # load previously computed results
 combined_df = pd.read_csv(os.path.join(data_dir, 'nivo_outcomes/combined_df.csv'))
@@ -119,6 +119,18 @@ for comparison in ['baseline', 'post_induction', 'on_nivo', 'baseline__post_indu
     total_dfs.append(long_df)
 
 
+total_dfs_continuous = []
+for comparison in ['baseline', 'post_induction', 'on_nivo', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']:
+    input_df = combined_df[combined_df.Timepoint == comparison]
+    continuous_df = compare_continuous(feature_df=input_df, variable_col='Time_to_progression_weeks_RECIST1.1')
+
+    if plot_hits:
+        current_plot_dir = os.path.join(plot_dir, 'responders_nonresponders_continuous_{}'.format(comparison))
+        if not os.path.exists(current_plot_dir):
+            os.makedirs(current_plot_dir)
+        summarize_continuous_enrichment(input_df=continuous_df, feature_df=combined_df, timepoint=comparison,
+                                        variable_col='Time_to_progression_weeks_RECIST1.1', output_dir=current_plot_dir, min_score=0.95)
+
 # summarize hits from all comparisons
 total_dfs = pd.concat(total_dfs)
 total_dfs['log10_qval'] = -np.log10(total_dfs.fdr_pval)
@@ -156,7 +168,7 @@ total_dfs['top_feature'] = False
 total_dfs.iloc[:100, -1] = True
 
 # saved formatted df
-total_dfs.to_csv(os.path.join(data_dir, 'nivo_outcomes/outcomes_df.csv'), index=False)
+total_dfs.to_csv(os.path.join(data_dir, 'nivo_outcomes/outcomes_df_metacluster.csv'), index=False)
 
 
 
