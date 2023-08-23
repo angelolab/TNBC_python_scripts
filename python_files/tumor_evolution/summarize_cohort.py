@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import os
 
+from matplotlib_venn import venn3
 import matplotlib.pyplot as plt
 
 metadata_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/metadata'
@@ -57,4 +58,5 @@ upset_data = from_contents(contents_dict)
 plot(upset_data, sort_categories_by='-input')
 plt.savefig(os.path.join(plot_dir, 'upset_plot_default.pdf'), dpi=300)
 plt.close()
+
 

@@ -3,6 +3,10 @@ import os
 import natsort
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
+
 import matplotlib.pyplot as plt
 from itertools import combinations
 import seaborn as sns
@@ -63,46 +67,6 @@ avg = pd.DataFrame(avg, index=functional_markers, columns=functional_markers)
 sns.heatmap(avg, cmap='vlag', vmin=-3, vmax=3)
 plt.tight_layout()
 plt.savefig('/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Plots/Functional_Markers/avg_functional_marker_heatmap.png', dpi=300)
-plt.close()
-
-
-
-
-
-# heatmap of functional marker expression per cell type
-plot_df = core_df_func.loc[core_df_func.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
-plot_df = plot_df.loc[plot_df.metric == 'cluster_freq', :]
-plot_df = plot_df.loc[plot_df.subset == 'all', :]
-
-sp_markers = [x for x in core_df_func.functional_marker.unique() if '__' not in x]
-# plot_df = plot_df.loc[plot_df.functional_marker.isin(sp_markers), :]
-
-# # compute z-score within each functional marker
-# plot_df['zscore'] = plot_df.groupby('functional_marker')['mean'].transform(lambda x: (x - x.mean()) / x.std())
-
-# average the z-score across cell types
-plot_df = plot_df.groupby(['cell_type', 'functional_marker']).mean().reset_index()
-plot_df = pd.pivot(plot_df, index='cell_type', columns='functional_marker', values='value')
-#plot_df = plot_df.apply(lambda x: (x - x.min()), axis=0)
-
-# subtract min from each column, unless that column only has a single value
-for col in plot_df.columns:
-    if plot_df[col].max() == plot_df[col].min():
-        continue
-    else:
-        plot_df[col] = plot_df[col] - plot_df[col].min()
-plot_df = plot_df.apply(lambda x: (x / x.max()), axis=0)
-plot_df = plot_df + 0.1
-
-# set index based on cell_ordering
-plot_df = plot_df.reindex(cell_ordering)
-
-# plot heatmap
-plt.figure(figsize=(30, 10))
-#sns.heatmap(plot_df, cmap=sns.color_palette("coolwarm", as_cmap=True), vmin=0, vmax=1)
-sns.heatmap(plot_df, cmap=sns.color_palette("Greys", as_cmap=True), vmin=0, vmax=1.1)
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Functional_marker_heatmap_min_max_normalized.png'))
 plt.close()
 
 

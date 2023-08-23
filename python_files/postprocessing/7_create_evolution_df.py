@@ -14,7 +14,7 @@ data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 
 harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
 timepoint_features = pd.read_csv(os.path.join(data_dir, 'timepoint_features_filtered.csv'))
-evolution_cats = ['primary__baseline', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']
+evolution_cats = ['baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']
 timepoint_features = timepoint_features.merge(harmonized_metadata[['Tissue_ID', 'Timepoint', 'Localization', 'Patient_ID'] + evolution_cats].drop_duplicates(), on='Tissue_ID', how='left')
 
 evolution_dfs = []
@@ -41,4 +41,4 @@ for evolution_col in evolution_cats:
     evolution_dfs.append(evolution_df_wide)
 
 evolution_df = pd.concat(evolution_dfs)
-evolution_df.to_csv(os.path.join(data_dir, 'evolution/evolution_df.csv'), index=False)
+evolution_df.to_csv(os.path.join(data_dir, 'evolution/evolution_df_metacluster.csv'), index=False)

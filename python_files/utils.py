@@ -11,7 +11,7 @@ from alpineer.misc_utils import verify_in_list
 from alpineer import io_utils, load_utils
 from ark.segmentation import marker_quantification
 
-from scipy.stats import spearmanr, ttest_ind, ttest_rel, wilcoxon, mannwhitneyu
+from scipy.stats import spearmanr, ttest_ind, ttest_rel, wilcoxon, mannwhitneyu, pearsonr
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -680,7 +680,8 @@ def compare_timepoints(feature_df, timepoint_1_name, timepoint_1_list, timepoint
     return means_df
 
 
-def compare_populations(feature_df, pop_col, pop_1, pop_2, timepoints, feature_suff='mean'):
+def compare_populations(feature_df, pop_col, pop_1, pop_2, timepoints, feature_suff='mean',
+                        method='ttest'):
     """Compare difference in a feature between two populations.
 
     Args:
@@ -690,6 +691,7 @@ def compare_populations(feature_df, pop_col, pop_1, pop_2, timepoints, feature_s
         pop_2 (str): name of the second population
         timepoints (list): list of timepoints to include
         feature_suff (str): suffix to add to feature name
+        method (str): method to use for comparing populations
     """
     # get unique features
     features = feature_df.feature_name_unique.unique()
@@ -697,8 +699,10 @@ def compare_populations(feature_df, pop_col, pop_1, pop_2, timepoints, feature_s
     feature_names = []
     pop_1_means = []
     pop_1_norm_means = []
+    pop_1_norm_meds = []
     pop_2_means = []
     pop_2_norm_means = []
+    pop_2_norm_meds = []
     log_pvals = []
 
     analysis_df = feature_df.loc[(feature_df.Timepoint.isin(timepoints)), :]
@@ -709,29 +713,90 @@ def compare_populations(feature_df, pop_col, pop_1, pop_2, timepoints, feature_s
         pop_1_norm_vals = values.loc[values[pop_col] == pop_1, 'normalized_' + feature_suff].values
         pop_2_vals = values.loc[values[pop_col] == pop_2, 'raw_' + feature_suff].values
         pop_2_norm_vals = values.loc[values[pop_col] == pop_2, 'normalized_' + feature_suff].values
+
+        # if insufficient number of samples, ignore that comparison
+        if len(pop_1_vals) < 3 or len(pop_2_vals) < 3:
+            pop_1_vals, pop_1_norm_vals = np.array(np.nan), np.array(np.nan)
+            pop_2_vals, pop_2_norm_vals = np.array(np.nan), np.array(np.nan)
+
         pop_1_means.append(pop_1_vals.mean())
         pop_1_norm_means.append(pop_1_norm_vals.mean())
+        pop_1_norm_meds.append(np.median(pop_1_norm_vals))
         pop_2_means.append(pop_2_vals.mean())
         pop_2_norm_means.append(pop_2_norm_vals.mean())
+        pop_2_norm_meds.append(np.median(pop_2_norm_vals))
 
-        # compute t-test for difference between timepoints
-        t, p = ttest_ind(pop_1_norm_vals, pop_2_norm_vals)
+        # compute difference between timepoints
+        if method == 'ttest':
+            t, p = ttest_ind(pop_1_norm_vals, pop_2_norm_vals)
+        else:
+            t, p = mannwhitneyu(pop_1_norm_vals, pop_2_norm_vals)
+
         log_pvals.append(-np.log10(p))
 
     means_df = pd.DataFrame({pop_1 + '_mean': pop_1_means,
                              pop_2 + '_mean': pop_2_means,
                              pop_1 + '_norm_mean': pop_1_norm_means,
                              pop_2 + '_norm_mean': pop_2_norm_means,
+                             pop_1 + '_norm_med': pop_1_norm_meds,
+                             pop_2 + '_norm_med': pop_2_norm_meds,
                              'log_pval': log_pvals}, index=features)
     # calculate difference
     means_df['mean_diff'] = means_df[pop_2 + '_norm_mean'].values - means_df[pop_1 + '_norm_mean'].values
+    means_df['med_diff'] = means_df[pop_2 + '_norm_med'].values - means_df[pop_1 + '_norm_med'].values
     means_df = means_df.reset_index().rename(columns={'index': 'feature_name_unique'})
 
     return means_df
 
 
+def compare_continuous(feature_df, variable_col, min_samples=20, feature_suff='mean', method='spearman'):
+    # set up placeholders
+    p_vals = []
+    cors = []
+    names = []
+
+    # loop over each feature in the df
+    for feature_name in feature_df.feature_name_unique.unique():
+
+        # if either sample is missing a feature, skip that comparison
+        values = feature_df[(feature_df.feature_name_unique == feature_name)].copy()
+        values.dropna(inplace=True)
+
+        if len(values) > min_samples:
+            if method == 'spearman':
+                cor, p_val = spearmanr(values[variable_col], values['normalized_' + feature_suff])
+            elif method == 'pearson':
+                cor, p_val = pearsonr(values[variable_col], values['normalized_' + feature_suff])
+            p_vals.append(p_val)
+            cors.append(cor)
+            names.append(feature_name)
+        else:
+            p_vals.append(np.nan)
+            cors.append(np.nan)
+            names.append(feature_name)
+
+    ranked_features = pd.DataFrame({'feature_name_unique': names, 'p_val': p_vals, 'cor': cors})
+    ranked_features['log_pval'] = -np.log10(ranked_features.p_val)
+
+    # get ranking of each row by log_pval
+    ranked_features['pval_rank'] = ranked_features.log_pval.rank(ascending=False)
+    ranked_features['cor_rank'] = ranked_features.cor.abs().rank(ascending=False)
+    ranked_features['combined_rank'] = (ranked_features.pval_rank.values + ranked_features.cor_rank.values) / 2
+
+    # generate consistency score
+    max_rank = len(~ranked_features.cor.isna())
+    normalized_rank = ranked_features.combined_rank / max_rank
+    ranked_features['feature_score'] = 1 - normalized_rank
+
+    ranked_features = ranked_features.sort_values('feature_score', ascending=False)
+
+    return ranked_features
+
+
+
+
 def summarize_timepoint_enrichment(input_df, feature_df, timepoints, output_dir, pval_thresh=2,
-                                   diff_thresh=0.3, plot_type='strip'):
+                                   diff_thresh=0.3, plot_type='strip', sort_by='mean_diff'):
     """Generate a summary of the timepoint enrichment results
 
     Args:
@@ -743,9 +808,9 @@ def summarize_timepoint_enrichment(input_df, feature_df, timepoints, output_dir,
         diff_thresh (float): threshold for difference between timepoints
     """
 
-    input_df_filtered = input_df.loc[(input_df.log_pval > pval_thresh) & (np.abs(input_df.mean_diff) > diff_thresh), :]
+    input_df_filtered = input_df.loc[(input_df.log_pval > pval_thresh) & (np.abs(input_df[sort_by]) > diff_thresh), :]
 
-    input_df_filtered = input_df_filtered.sort_values('mean_diff', ascending=False)
+    input_df_filtered = input_df_filtered.sort_values(sort_by, ascending=False)
 
     # plot the results
     for idx, feature in enumerate(input_df_filtered.feature_name_unique):
@@ -757,13 +822,13 @@ def summarize_timepoint_enrichment(input_df, feature_df, timepoints, output_dir,
         g.savefig(os.path.join(output_dir, 'Evolution_{}_{}.png'.format(idx, feature)))
         plt.close()
 
-    sns.catplot(data=input_df_filtered, x='mean_diff', y='feature_name_unique', kind='bar', color='grey')
+    sns.catplot(data=input_df_filtered, x=sort_by, y='feature_name_unique', kind='bar', color='grey')
     plt.savefig(os.path.join(output_dir, 'Timepoint_summary.png'))
     plt.close()
 
 
 def summarize_population_enrichment(input_df, feature_df, timepoints, pop_col, output_dir, pval_thresh=2, diff_thresh=0.3,
-                                    plot_type='strip'):
+                                    sort_by='mean_diff', plot_type='strip'):
     """Generate a summary of the population enrichment results
 
     Args:
@@ -776,10 +841,9 @@ def summarize_population_enrichment(input_df, feature_df, timepoints, pop_col, o
         diff_thresh (float): threshold for difference between timepoints
     """
 
-    input_df_filtered = input_df.loc[(input_df.log_pval > pval_thresh) & (np.abs(input_df.mean_diff) > diff_thresh), :]
+    input_df_filtered = input_df.loc[(input_df.log_pval > pval_thresh) & (np.abs(input_df[sort_by]) > diff_thresh), :]
 
-    input_df_filtered = input_df_filtered.sort_values('mean_diff', ascending=False)
-    print(input_df_filtered)
+    input_df_filtered = input_df_filtered.sort_values(sort_by, ascending=False)
 
     # plot the results
     for idx, feature in enumerate(input_df_filtered.feature_name_unique):
@@ -791,9 +855,37 @@ def summarize_population_enrichment(input_df, feature_df, timepoints, pop_col, o
         g.savefig(os.path.join(output_dir, 'Evolution_{}_{}.png'.format(idx, feature)))
         plt.close()
 
-    sns.catplot(data=input_df_filtered, x='mean_diff', y='feature_name_unique', kind='bar', color='grey')
+    sns.catplot(data=input_df_filtered, x=sort_by, y='feature_name_unique', kind='bar', color='grey')
     plt.savefig(os.path.join(output_dir, 'Evolution_summary.png'))
     plt.close()
+
+
+def summarize_continuous_enrichment(input_df, feature_df, variable_col, timepoint, output_dir, min_score=0.85):
+
+    # generate plot for best ranked features
+    plot_features = input_df.loc[input_df.feature_score >= min_score, :]
+
+    # sort by combined rank
+    plot_features.sort_values(by='feature_score', inplace=True, ascending=False)
+
+    for i in range(len(plot_features)):
+        feature_name = plot_features.iloc[i].feature_name_unique
+        feature_score = plot_features.iloc[i].feature_score
+        values = feature_df[(feature_df.feature_name_unique == feature_name)].copy()
+        values = values.loc[values.Timepoint == timepoint, :]
+        values.dropna(inplace=True)
+
+        # add leading 0 for plot
+        str_pos = str(i)
+        if i < 10:
+            str_pos = '0' + str_pos
+
+        # plot
+        sns.scatterplot(data=values, x='raw_mean', y=variable_col)
+        correlation, p_val = spearmanr(values.raw_mean, values[variable_col])
+        plt.title(f'{feature_name} (score={feature_score:.2f}, r={correlation:.2f}, p={p_val:.2f})')
+        plt.savefig(os.path.join(output_dir, f'{str_pos}_{feature_name}.png'))
+        plt.close()
 
 
 def compute_feature_enrichment(feature_df, inclusion_col, analysis_col):
@@ -822,3 +914,5 @@ def compute_feature_enrichment(feature_df, inclusion_col, analysis_col):
     feature_props.sort_values(by='log2_ratio', inplace=True, ascending=False)
 
     return feature_props
+
+
