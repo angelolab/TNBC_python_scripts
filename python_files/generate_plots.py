@@ -383,7 +383,7 @@ plt.close()
 
 cell_table_func = pd.read_csv(os.path.join(data_dir, 'post_processing/cell_table_func_single_positive.csv'))
 
-# get overlays
+# corresponding overlays
 pats = [9, 16, 26,40, 37, 62, 102]
 fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
 
@@ -405,6 +405,13 @@ for pat in pats:
                         save_names=['{}.png'.format(x) for x in pat_fovs])
 
 
+# selected crops from above
+fov1 = 'TONIC_TMA11_R7C5'
+fov_df = cell_table_subset.loc[cell_table_subset.fov == fov1, :]
+create_cell_overlay(cell_table=fov_df, seg_folder='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
+                    fovs=[fov1], cluster_col='APC_plot', plot_dir=plot_dir,
+                    save_names=['{}.png'.format(fov1)])
+
 
 # change in CD8T density in cancer border
 feature_name = 'CD8T__cluster_density__cancer_border'
@@ -424,6 +431,46 @@ sns.despine()
 plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Figure4_feature_{}_{}.pdf'.format(feature_name, timepoint)))
 plt.close()
+
+
+# corresponding overlays
+cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'post_processing/cell_table_clusters.csv'))
+annotations_by_mask = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cell_annotation_mask.csv'))
+annotations_by_mask = annotations_by_mask.rename(columns={'mask_name': 'tumor_region'})
+cell_table_clusters = cell_table_clusters.merge(annotations_by_mask, on=['fov', 'label'], how='left')
+
+pats = [62, 65, 26, 117, 2]
+fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
+
+# add column for CD8T in cancer border, CD8T elsewhere, and others
+cell_table_subset = cell_table_clusters.loc[(cell_table_clusters.fov.isin(fovs)), :]
+cell_table_subset['CD8T_plot'] = cell_table_subset.tumor_region
+cell_table_subset.loc[cell_table_subset.cell_cluster == 'CD8T', 'CD8T_plot'] = 'CD8T'
+cell_table_subset.loc[(cell_table_subset.cell_cluster == 'CD8T') & (cell_table_subset.tumor_region == 'cancer_border'), 'CD8T_plot'] = 'border_CD8T'
+
+figure_dir = os.path.join(plot_dir, 'Figure4_CD8T_density')
+if not os.path.exists(figure_dir):
+    os.mkdir(figure_dir)
+
+for pat in pats:
+    pat_dir = os.path.join(figure_dir, 'Figure4_{}'.format(pat))
+    if not os.path.exists(pat_dir):
+        os.mkdir(pat_dir)
+    for timepoint in ['post_induction', 'on_nivo']:
+        pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == timepoint), 'fov'].unique()
+        pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
+
+        tp_dir = os.path.join(pat_dir, timepoint)
+        if not os.path.exists(tp_dir):
+            os.mkdir(tp_dir)
+
+        create_cell_overlay(cell_table=pat_df, seg_folder='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
+                            fovs=pat_fovs, cluster_col='CD8T_plot', plot_dir=tp_dir,
+                            save_names=['{}.png'.format(x) for x in pat_fovs])
+
+
+
+
 
 # diversity of stroma in on nivo
 feature_name = 'cluster_broad_diversity_cancer_border'
