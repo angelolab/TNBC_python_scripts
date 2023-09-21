@@ -1,48 +1,30 @@
-import matplotlib.pyplot as plt
-
-import pandas as pd
-import numpy as np
 import os
-
-from matplotlib_venn import venn3
-import matplotlib.pyplot as plt
-
-
-import os
-
-import natsort
 import numpy as np
 import pandas as pd
 import matplotlib
+
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
 import matplotlib.pyplot as plt
-from itertools import combinations
 import seaborn as sns
-from scipy.stats import spearmanr
-
-from python_files.utils import compute_feature_enrichment
+from matplotlib_venn import venn3
+from ark.utils.plot_utils import cohort_cluster_plot, color_segmentation_by_stat
+import ark.settings as settings
 
 
 data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data'
 metadata_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/metadata'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/figures/'
 harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
+seg_dir = os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output')
 
-cell_ordering = ['Cancer', 'Cancer_EMT', 'Cancer_Other', 'CD4T', 'CD8T', 'Treg', 'T_Other', 'B',
-                 'NK', 'M1_Mac', 'M2_Mac', 'Mac_Other', 'Monocyte', 'APC','Mast', 'Neutrophil',
-                 'Fibroblast', 'Stroma','Endothelium']
-# create dataset
-core_df_cluster = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
-core_df_func = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core_filtered_all_combos.csv'))
-#cell_table_func = pd.read_csv(os.path.join(data_dir, 'post_processing', 'combined_cell_table_normalized_cell_labels_updated_func_only.csv'))
-timepoint_metadata = pd.read_csv(os.path.join(metadata_dir, 'TONIC_data_per_timepoint.csv'))
-harmonized_metadata = pd.read_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'))
 
 #
 # Figure 1
 #
+
+timepoint_metadata = pd.read_csv(os.path.join(metadata_dir, 'TONIC_data_per_timepoint.csv'))
 
 # create venn diagrams
 timepoint_metadata = timepoint_metadata.loc[timepoint_metadata.MIBI_data_generated, :]
@@ -66,6 +48,10 @@ markers = ["ECAD", "CK17", "CD45", "CD3", "CD4", "CD8", "FOXP3", "CD20", "CD56",
            "CD163", "CD11c", "HLADR", "ChyTr", "Calprotectin", "FAP", "SMA", "Vim", "Fibronectin",
            "Collagen1", "CD31"]
 
+cell_ordering = ['Cancer', 'Cancer_EMT', 'Cancer_Other', 'CD4T', 'CD8T', 'Treg', 'T_Other', 'B',
+                 'NK', 'M1_Mac', 'M2_Mac', 'Mac_Other', 'Monocyte', 'APC','Mast', 'Neutrophil',
+                 'Fibroblast', 'Stroma','Endothelium']
+
 # Get average across each cell phenotype
 
 # cell_counts = pd.read_csv(os.path.join(data_dir, "post_processing/cell_table_counts.csv"))
@@ -76,82 +62,32 @@ markers = ["ECAD", "CK17", "CD45", "CD3", "CD4", "CD8", "FOXP3", "CD20", "CD56",
 # mean_counts.to_csv(os.path.join(plot_dir, "figure2/cell_cluster_marker_means.csv"))
 
 # read previously generated
-mean_counts = pd.read_csv(os.path.join(plot_dir, "figure2/cell_cluster_marker_means.csv"))
+mean_counts = pd.read_csv(os.path.join(plot_dir, "figure2_cell_cluster_marker_means.csv"))
+mean_counts = mean_counts.set_index('cell_cluster')
 mean_counts = mean_counts.reindex(cell_ordering)
 
 # set column order
 mean_counts = mean_counts[markers]
 
-# Make heatmap
-f = sns.clustermap(data=mean_counts,
-                   z_score=1,
-                   cmap="vlag",
-                   center=0,
-                   vmin=-3,
-                   vmax=3,
-                   xticklabels=True,
-                   yticklabels=True,
-                    row_cluster=False,
-               col_cluster=False)
-plt.tight_layout()
-# f.fig.subplots_adjust(wspace=0.01)
-# f.ax_cbar.set_position((0.1, 0.82, 0.03, 0.15))
-# f.ax_heatmap.set_xlabel("Marker")
-# f.ax_heatmap.set_ylabel("Cell cluster")
 
-f.savefig(os.path.join(plot_dir, "figure2_cell_cluster_marker_manual.pdf"))
-plt.close()
-
-
-
-# heatmap of functional marker expression per cell type
+# functional marker expression per cell type
+core_df_func = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core_filtered_all_combos.csv'))
 plot_df = core_df_func.loc[core_df_func.Timepoint.isin(['baseline', 'post_induction', 'on_nivo']), :]
 plot_df = plot_df.loc[plot_df.metric == 'cluster_freq', :]
 plot_df = plot_df.loc[plot_df.subset == 'all', :]
 plot_df = plot_df.loc[~plot_df.functional_marker.isin(['Vim', 'CD45RO_CD45RB_ratio', 'H3K9ac_H3K27me3_ratio', 'HLA1'])]
 
-#sp_markers = [x for x in core_df_func.functional_marker.unique() if '__' not in x]
-#plot_df = plot_df.loc[plot_df.functional_marker.isin(sp_markers), :]
-
-# # compute z-score within each functional marker
-# plot_df['zscore'] = plot_df.groupby('functional_marker')['mean'].transform(lambda x: (x - x.mean()) / x.std())
-
-# average the z-score across cell types
-plot_df = plot_df.groupby(['cell_type', 'functional_marker']).mean().reset_index()
+# average across cell types
+plot_df = plot_df[['cell_type', 'functional_marker', 'value']].groupby(['cell_type', 'functional_marker']).mean().reset_index()
 plot_df = pd.pivot(plot_df, index='cell_type', columns='functional_marker', values='value')
-
-# subtract min from each column, unless that column only has a single value
-# for col in plot_df.columns:
-#     if plot_df[col].max() == plot_df[col].min():
-#         continue
-#     else:
-#         plot_df[col] = plot_df[col] - plot_df[col].min()
-# plot_df = plot_df.apply(lambda x: (x / x.max()), axis=0)
-# plot_df = plot_df + 0.1
 
 # set index based on cell_ordering
 plot_df = plot_df.reindex(cell_ordering)
 
-# set column order
-# cols = ['PDL1','Ki67','GLUT1','CD45RO', 'CD45RO_CD45RB_ratio','CD69', 'PD1','CD57','TBET', 'TCF1',
-#         'CD45RB', 'TIM3', 'Fe','HLADR','IDO','CD38','H3K9ac_H3K27me3_ratio', 'HLA1', 'Vim']
-
 cols = ['PDL1','Ki67','GLUT1','CD45RO','CD69', 'PD1','CD57','TBET', 'TCF1',
         'CD45RB', 'TIM3', 'Fe','IDO','CD38']
-
 plot_df = plot_df[cols]
 
-# plot heatmap
-#sns.clustermap(plot_df, cmap=sns.color_palette("coolwarm", as_cmap=True), vmin=0, vmax=1, row_cluster=False)
-f = sns.clustermap(data=plot_df, z_score=1,cmap="vlag", center=0, vmin=-3, vmax=3, xticklabels=True, yticklabels=True,
-                    row_cluster=False,col_cluster=False)
-
-#sns.heatmap(plot_df, cmap=sns.color_palette("Greys", as_cmap=True), vmin=0, vmax=1.1)
-plt.tight_layout()
-f.savefig(os.path.join(plot_dir, 'Figure2_Functional_marker_heatmap.pdf'))
-plt.close()
-
-# plot combined heatmap
 # combine together
 combined_df = pd.concat([mean_counts, plot_df], axis=1)
 
@@ -163,27 +99,35 @@ plt.savefig(os.path.join(plot_dir, 'Figure2_combined_heatmap.pdf'))
 plt.close()
 
 
-# create barplot with total number of cells per cluster
-plot_df = core_df_cluster.loc[core_df_cluster.Timepoint.isin(['baseline', 'post_induction', 'on_nivo']), :]
-plot_df = plot_df.loc[plot_df.metric == 'cluster_count', :]
-plot_df = plot_df.loc[plot_df.subset == 'all', :]
-plot_df = plot_df.loc[plot_df.cell_type.isin(cell_ordering), :]
-
-plot_df_sum = plot_df[['cell_type', 'value']].groupby(['cell_type']).sum().reset_index()
-plot_df_sum.index = plot_df_sum.cell_type
-plot_df_sum = plot_df_sum.reindex(cell_ordering)
-plot_df_sum['logcounts'] = np.log10(plot_df_sum['value'])
-
-# plot barplot
-fig, ax = plt.subplots(figsize=(4, 4))
-sns.barplot(data=plot_df_sum, y='cell_type', x='value', color='grey', ax=ax)
-sns.despine()
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure2_cell_count_barplot.pdf'))
+# # create barplot with total number of cells per cluster
+# plot_df = core_df_cluster.loc[core_df_cluster.Timepoint.isin(['baseline', 'post_induction', 'on_nivo']), :]
+# plot_df = plot_df.loc[plot_df.metric == 'cluster_count', :]
+# plot_df = plot_df.loc[plot_df.subset == 'all', :]
+# plot_df = plot_df.loc[plot_df.cell_type.isin(cell_ordering), :]
+#
+# plot_df_sum = plot_df[['cell_type', 'value']].groupby(['cell_type']).sum().reset_index()
+# plot_df_sum.index = plot_df_sum.cell_type
+# plot_df_sum = plot_df_sum.reindex(cell_ordering)
+# plot_df_sum['logcounts'] = np.log10(plot_df_sum['value'])
+#
+# # plot barplot
+# fig, ax = plt.subplots(figsize=(4, 4))
+# sns.barplot(data=plot_df_sum, y='cell_type', x='value', color='grey', ax=ax)
+# sns.despine()
+# plt.tight_layout()
+# plt.savefig(os.path.join(plot_dir, 'Figure2_cell_count_barplot.pdf'))
 
 
 #
 # Figure 3
+#
+
+# TODO
+
+
+
+#
+# Figure 4
 #
 
 total_dfs = pd.read_csv(os.path.join(data_dir, 'nivo_outcomes/outcomes_df.csv'))
@@ -203,7 +147,7 @@ sm = plt.cm.ScalarMappable(cmap="Greys", norm=norm)
 ax.get_legend().remove()
 ax.figure.colorbar(sm, ax=ax)
 
-plt.savefig(os.path.join(plot_dir, 'Figure3_volcano.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure4_volcano.pdf'))
 plt.close()
 
 # plot specific highlighted volcanos
@@ -215,7 +159,7 @@ fig, ax = plt.subplots(figsize=(2,2))
 sns.scatterplot(data=total_dfs, x='med_diff', y='log_pval', hue='diversity', alpha=0.7, palette=['lightgrey', 'black'], s=10)
 ax.set_xlim(-3, 3)
 sns.despine()
-plt.savefig(os.path.join(plot_dir, 'Figure3_volcano_diversity.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure4_volcano_diversity.pdf'))
 plt.close()
 
 # plot phenotype volcano
@@ -225,7 +169,7 @@ fig, ax = plt.subplots(figsize=(2,2))
 sns.scatterplot(data=total_dfs, x='med_diff', y='log_pval', hue='phenotype', alpha=0.7, palette=['lightgrey', 'black'], s=10)
 ax.set_xlim(-3, 3)
 sns.despine()
-plt.savefig(os.path.join(plot_dir, 'Figure3_volcano_phenotype.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure4_volcano_phenotype.pdf'))
 plt.close()
 
 
@@ -236,7 +180,7 @@ fig, ax = plt.subplots(figsize=(2,2))
 sns.scatterplot(data=total_dfs, x='med_diff', y='log_pval', hue='density', alpha=0.7, palette=['lightgrey', 'black'], s=10)
 ax.set_xlim(-3, 3)
 sns.despine()
-plt.savefig(os.path.join(plot_dir, 'Figure3_volcano_density.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure4_volcano_density.pdf'))
 plt.close()
 
 # plot proportion volcano
@@ -246,7 +190,7 @@ fig, ax = plt.subplots(figsize=(2,2))
 sns.scatterplot(data=total_dfs, x='med_diff', y='log_pval', hue='proportion', alpha=0.7, palette=['lightgrey', 'black'], s=10)
 ax.set_xlim(-3, 3)
 sns.despine()
-plt.savefig(os.path.join(plot_dir, 'Figure3_volcano_proportion.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure4_volcano_proportion.pdf'))
 plt.close()
 
 # plot top features
@@ -256,7 +200,8 @@ sns.barplot(data=plot_features, y='feature_name_unique', x='importance_score', h
 
 
 # get importance score of top 5 examples for functional markers
-
+cols = ['PDL1','Ki67','GLUT1','CD45RO','CD69', 'PD1','CD57','TBET', 'TCF1',
+        'CD45RB', 'TIM3', 'Fe','IDO','CD38']
 def get_top_x_features(df, feature_type, x=5, plot_val='importance_score', ascending=False):
     features = df.loc[df.feature_type == feature_type, 'feature_type_detail'].unique()
 
@@ -286,7 +231,7 @@ ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
 
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure3_functional_marker_enrichment_rank.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure4_functional_marker_enrichment_rank.pdf'))
 plt.close()
 
 
@@ -304,7 +249,7 @@ ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
 
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure3_density_enrichment_rank.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure4_density_enrichment_rank.pdf'))
 plt.close()
 
 # get importance score of top 5 examples for diversity
@@ -320,7 +265,7 @@ ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
 
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure3_diversity_enrichment.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure4_diversity_enrichment.pdf'))
 plt.close()
 
 # look at enrichment of specific features
@@ -356,7 +301,7 @@ plt.close()
 
 
 #
-# Figure 4
+# Figure 5
 #
 
 # plot specific top features
@@ -378,7 +323,7 @@ ax.set_title(feature_name + ' ' + timepoint)
 ax.set_ylim([0, 1])
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure4_feature_{}_{}.pdf'.format(feature_name, timepoint)))
+plt.savefig(os.path.join(plot_dir, 'Figure5_feature_{}_{}.pdf'.format(feature_name, timepoint)))
 plt.close()
 
 cell_table_func = pd.read_csv(os.path.join(data_dir, 'post_processing/cell_table_func_single_positive.csv'))
@@ -392,59 +337,55 @@ cell_table_subset['APC_plot'] = cell_table_subset.cell_cluster
 cell_table_subset.loc[cell_table_subset.cell_cluster != 'APC', 'APC_plot'] = 'Other'
 cell_table_subset.loc[(cell_table_subset.cell_cluster == 'APC') & (cell_table_subset.PDL1.values), 'APC_plot'] = 'APC_PDL1+'
 
+apc_colormap = pd.DataFrame({'APC_plot': ['APC', 'Other', 'APC_PDL1+'],
+                         'color': ['grey', 'lightsteelblue', 'blue']})
+apc_plot_dir = os.path.join(plot_dir, 'Figure5_APC_overlays')
+if not os.path.exists(apc_plot_dir):
+    os.mkdir(apc_plot_dir)
+
+
 for pat in pats:
     pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == 'post_induction'), 'fov'].unique()
     pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
 
-    pat_dir = os.path.join(plot_dir, 'Figure4_{}'.format(pat))
+    pat_dir = os.path.join(apc_plot_dir, 'patient_{}'.format(pat))
     if not os.path.exists(pat_dir):
         os.mkdir(pat_dir)
 
-    create_cell_overlay(cell_table=pat_df, seg_folder='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
-                        fovs=pat_fovs, cluster_col='APC_plot', plot_dir=pat_dir,
-                        save_names=['{}.png'.format(x) for x in pat_fovs])
+    cohort_cluster_plot(
+        fovs=pat_fovs,
+        seg_dir=seg_dir,
+        save_dir=pat_dir,
+        cell_data=pat_df,
+        erode=True,
+        fov_col=settings.FOV_ID,
+        label_col=settings.CELL_LABEL,
+        cluster_col='APC_plot',
+        seg_suffix="_whole_cell.tiff",
+        cmap=apc_colormap,
+        display_fig=False,
+    )
 
 
-# # selected crops from above
-# fov1 = 'TONIC_TMA11_R7C5'
-# fov_df = cell_table_subset.loc[cell_table_subset.fov == fov1, :]
-# create_cell_overlay(cell_table=fov_df, seg_folder='/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output',
-#                     fovs=[fov1], cluster_col='APC_plot', plot_dir=plot_dir,
-#                     save_names=['{}.png'.format(fov1)])
-
-# new plotting code
-import os
-import pandas as pd
-from ark.utils.plot_utils import cohort_cluster_plot, color_segmentation_by_stat
-import ark.settings as settings
-
-base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/'
-seg_dir = os.path.join(base_dir, 'segmentation_data/deepcell_output')
-plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/new_plots'
-
+# create crops for selected FOVs
 subset_fovs = ['TONIC_TMA11_R7C5', 'TONIC_TMA4_R6C6']
-cell_table_func = pd.read_csv(os.path.join(base_dir, 'data/post_processing/cell_table_func_single_positive.csv'))
 
-cell_table_subset = cell_table_func.loc[cell_table_func.fov.isin(subset_fovs), :]
-cell_table_subset['APC_plot'] = cell_table_subset.cell_cluster
-cell_table_subset.loc[cell_table_subset.cell_cluster != 'APC', 'APC_plot'] = 'Other'
-cell_table_subset.loc[(cell_table_subset.cell_cluster == 'APC') & (cell_table_subset.PDL1.values), 'APC_plot'] = 'APC_PDL1+'
+subset_dir = os.path.join(apc_plot_dir, 'selected_fovs')
+if not os.path.exists(subset_dir):
+    os.mkdir(subset_dir)
 
-
-custom_colormap = pd.DataFrame({'APC_plot': ['APC', 'Other', 'APC_PDL1+'],
-                         'color': ['grey', 'lightsteelblue', 'blue']})
 
 cohort_cluster_plot(
     fovs=subset_fovs,
     seg_dir=seg_dir,
-    save_dir=plot_dir,
+    save_dir=subset_dir,
     cell_data=cell_table_subset,
     erode=True,
     fov_col=settings.FOV_ID,
     label_col=settings.CELL_LABEL,
     cluster_col='APC_plot',
     seg_suffix="_whole_cell.tiff",
-    cmap=custom_colormap,
+    cmap=apc_colormap,
     display_fig=False,
 )
 
@@ -485,7 +426,7 @@ ax.set_title(feature_name + ' ' + timepoint)
 ax.set_ylim([-.05, .2])
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure4_feature_{}_{}.pdf'.format(feature_name, timepoint)))
+plt.savefig(os.path.join(plot_dir, 'Figure5_feature_{}_{}.pdf'.format(feature_name, timepoint)))
 plt.close()
 
 
@@ -504,7 +445,7 @@ cell_table_subset['CD8T_plot'] = cell_table_subset.tumor_region
 cell_table_subset.loc[cell_table_subset.cell_cluster == 'CD8T', 'CD8T_plot'] = 'CD8T'
 cell_table_subset.loc[(cell_table_subset.cell_cluster == 'CD8T') & (cell_table_subset.tumor_region == 'cancer_border'), 'CD8T_plot'] = 'border_CD8T'
 
-figure_dir = os.path.join(plot_dir, 'Figure4_CD8T_density')
+figure_dir = os.path.join(plot_dir, 'Figure5_CD8T_density')
 if not os.path.exists(figure_dir):
     os.mkdir(figure_dir)
 
@@ -597,7 +538,7 @@ ax.set_title(feature_name + ' ' + timepoint)
 ax.set_ylim([0, 2])
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure4_feature_{}_{}.pdf'.format(feature_name, timepoint)))
+plt.savefig(os.path.join(plot_dir, 'Figure5_feature_{}_{}.pdf'.format(feature_name, timepoint)))
 plt.close()
 
 
@@ -616,7 +557,7 @@ cell_table_subset = cell_table_clusters.loc[(cell_table_clusters.fov.isin(fovs))
 cell_table_subset['border_plot'] = cell_table_subset.cell_cluster_broad
 cell_table_subset.loc[cell_table_subset.tumor_region != 'cancer_border', 'border_plot'] = 'Other_region'
 
-figure_dir = os.path.join(plot_dir, 'Figure4_border_diversity')
+figure_dir = os.path.join(plot_dir, 'Figure5_border_diversity')
 if not os.path.exists(figure_dir):
     os.mkdir(figure_dir)
 
@@ -625,7 +566,7 @@ custom_colormap = pd.DataFrame({'border_plot': ['Cancer', 'Stroma', 'Granulocyte
 
 
 for pat in pats:
-    pat_dir = os.path.join(figure_dir, 'Figure4_{}'.format(pat))
+    pat_dir = os.path.join(figure_dir, 'Figure5_{}'.format(pat))
     if not os.path.exists(pat_dir):
         os.mkdir(pat_dir)
     pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == 'post_induction'), 'fov'].unique()
@@ -652,7 +593,7 @@ fov1 = 'TONIC_TMA5_R4C4'
 row_start, col_start = 100, 0
 row_len, col_len = 800, 1000
 
-fov1_image = io.imread(os.path.join(plot_dir, 'Figure4_border_diversity/Figure4_25/cluster_masks_colored/', fov1 + '.tiff'))
+fov1_image = io.imread(os.path.join(plot_dir, 'Figure4_border_diversity/Figure5_25/cluster_masks_colored/', fov1 + '.tiff'))
 fov1_image = fov1_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
 io.imsave(os.path.join(plot_dir, 'new_plots_diversity', fov1 + '_crop.tiff'), fov1_image)
 
@@ -660,13 +601,13 @@ fov2 = 'TONIC_TMA11_R7C6'
 row_start, col_start = 800, 1248
 row_len, col_len = 1000, 800
 
-fov2_image = io.imread(os.path.join(plot_dir, 'Figure4_border_diversity/Figure4_62/cluster_masks_colored/', fov2 + '.tiff'))
+fov2_image = io.imread(os.path.join(plot_dir, 'Figure5_border_diversity/Figure4_62/cluster_masks_colored/', fov2 + '.tiff'))
 fov2_image = fov2_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
 io.imsave(os.path.join(plot_dir, 'new_plots_diversity', fov2 + '_crop.tiff'), fov2_image)
 
 
 #
-# Figure 5
+# Figure 6
 #
 
 # plot top features
@@ -694,7 +635,7 @@ fig, ax = plt.subplots(figsize=(4, 4))
 sns.barplot(data=top_features_by_comparison, x='comparison', y='num_features', color='grey', ax=ax)
 plt.xticks(rotation=90)
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure5_num_features_per_comparison.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure6_num_features_per_comparison.pdf'))
 plt.close()
 
 
@@ -706,7 +647,7 @@ feature_counts.columns = ['num_comparisons', 'num_features']
 fig, ax = plt.subplots(figsize=(4, 4))
 sns.barplot(data=feature_counts, x='num_comparisons', y='num_features', color='grey', ax=ax)
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure5_num_comparisons_per_feature.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure6_num_comparisons_per_feature.pdf'))
 plt.close()
 
 
