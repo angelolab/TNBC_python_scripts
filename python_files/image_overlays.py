@@ -12,7 +12,6 @@ from matplotlib import colors
 
 from alpineer import io_utils
 from ark.utils import data_utils
-from skimage.segmentation import find_boundaries
 
 def create_cell_overlay(cell_table, seg_folder, fovs, cluster_col, plot_dir, save_names):
     cell_subset = cell_table.copy()
@@ -200,5 +199,3 @@ for fov in fov_subset:
 
 plt.savefig(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/combined_ecm_overlay', fov + '.png'), dpi=300)
 plt.close()
-
-
