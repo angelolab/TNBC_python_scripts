@@ -22,7 +22,7 @@ harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_me
 seg_dir = os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output')
 image_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
 
-
+study_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['baseline', 'post_induction', 'on_nivo']), 'fov'].values
 #
 # Figure 1
 #
@@ -59,8 +59,7 @@ cell_ordering = ['Cancer', 'Cancer_EMT', 'Cancer_Other', 'CD4T', 'CD8T', 'Treg',
 
 # cell_counts = pd.read_csv(os.path.join(data_dir, "post_processing/cell_table_counts.csv"))
 # phenotype_col_name = "cell_cluster"
-# keep_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['baseline', 'post_induction', 'on_nivo']), 'fov'].values
-# cell_counts = cell_counts.loc[cell_counts.fov.isin(keep_fovs), :]
+# cell_counts = cell_counts.loc[cell_counts.fov.isin(study_fovs), :]
 # mean_counts = cell_counts.groupby(phenotype_col_name)[markers].mean()
 # mean_counts.to_csv(os.path.join(plot_dir, "figure2/cell_cluster_marker_means.csv"))
 
@@ -75,7 +74,7 @@ mean_counts = mean_counts[markers]
 
 # functional marker expression per cell type
 core_df_func = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core_filtered_all_combos.csv'))
-plot_df = core_df_func.loc[core_df_func.Timepoint.isin(['baseline', 'post_induction', 'on_nivo']), :]
+plot_df = core_df_func.loc[core_df_func.Timepoint.isin(study_fovs), :]
 plot_df = plot_df.loc[plot_df.metric == 'cluster_freq', :]
 plot_df = plot_df.loc[plot_df.subset == 'all', :]
 plot_df = plot_df.loc[~plot_df.functional_marker.isin(['Vim', 'CD45RO_CD45RB_ratio', 'H3K9ac_H3K27me3_ratio', 'HLA1'])]
@@ -131,6 +130,17 @@ annotations_by_mask = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cel
 annotations_by_mask.loc[annotations_by_mask.mask_name.isin(['tls', 'tagg']), 'mask_name'] = 'stroma_core'
 
 
+# set thresholds
+fov_features = pd.read_csv(os.path.join(data_dir, 'fov_features_filtered.csv'))
+fov_features = fov_features.loc[fov_features.fov.isin(study_fovs), :]
+compartment_features = fov_features.loc[(fov_features.feature_name == 'cancer_core__proportion'), :]
+
+sns.histplot(data=compartment_features, x='raw_value',  bins=20, multiple='stack')
+
+# set thresholds for each group
+thresholds = {'low': [0.01, 0.1], 'mid': [0.3, .5], 'high': [0.6, 1]}
+
+
 # generate overlays
 compartment_colormap = pd.DataFrame({'mask_name': ['cancer_core', 'cancer_border', 'stroma_border', 'stroma_core'],
                          'color': ['firebrick', 'deepskyblue', 'blue', 'lightcoral']})
@@ -139,87 +149,100 @@ compartment_plot_dir = os.path.join(plot_dir, 'Figure3_compartment_overlays')
 if not os.path.exists(compartment_plot_dir):
     os.mkdir(compartment_plot_dir)
 
-cohort_cluster_plot(
-    fovs=compartment_fovs[1:],
-    seg_dir=seg_dir,
-    save_dir=compartment_plot_dir,
-    cell_data=annotations_by_mask,
-    erode=True,
-    fov_col=settings.FOV_ID,
-    label_col=settings.CELL_LABEL,
-    cluster_col='mask_name',
-    seg_suffix="_whole_cell.tiff",
-    cmap=compartment_colormap,
-    display_fig=False,
-)
+for group in thresholds.keys():
+    group_dir = os.path.join(compartment_plot_dir, group)
+    if not os.path.exists(group_dir):
+        os.mkdir(group_dir)
+
+    min_val, max_val = thresholds[group]
+
+    # get fovs
+    fovs = compartment_features.loc[(compartment_features.raw_value > min_val) &
+                                        (compartment_features.raw_value < max_val), 'fov'].values
+
+    fovs = fovs[:10]
+    # generate overlays
+    cell_table_subset = annotations_by_mask.loc[(annotations_by_mask.fov.isin(fovs)), :]
+
+    cohort_cluster_plot(
+        fovs=fovs,
+        seg_dir=seg_dir,
+        save_dir=group_dir,
+        cell_data=annotations_by_mask,
+        erode=True,
+        fov_col=settings.FOV_ID,
+        label_col=settings.CELL_LABEL,
+        cluster_col='mask_name',
+        seg_suffix="_whole_cell.tiff",
+        cmap=compartment_colormap,
+        display_fig=False,
+    )
+
+
 
 
 # proliferating tumor cells
-func_df = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'))
+ki67_features = fov_features.loc[(fov_features.feature_name == 'Ki67+__all') & (fov_features.compartment == 'all'), :]
 
-func_df_filtered = func_df.loc[(func_df.metric == 'cluster_broad_freq') & (func_df.cell_type == 'Cancer')
-                               & (func_df.functional_marker == 'Ki67') & (func_df.subset == 'all'), :]
+sns.histplot(data=ki67_features, x='raw_value',  bins=20, multiple='stack')
 
-sns.histplot(data=func_df_filtered, x='value',  bins=20, multiple='stack')
+# set thresholds for each group
+thresholds = {'low': [0.01, 0.2], 'mid': [0.2, .4], 'high': [0.5, 1]}
 
-func_df_filtered = func_df.loc[(func_df.metric.isin(['cluster_broad_freq', 'cluster_broad_count']) & (func_df.cell_type == 'Cancer')
-                                & (func_df.functional_marker == 'Ki67') & (func_df.subset == 'all')), :]
-
-func_df_wide = pd.pivot(func_df_filtered, index='fov', columns='metric', values='value')
-prolif_mask = np.logical_and(func_df_wide.cluster_broad_freq > 0.3, func_df_wide.cluster_broad_freq < 0.7)
-count_mask = func_df_wide.cluster_broad_count > 300
-
-prolif_fovs = func_df_wide.loc[prolif_mask & count_mask, :].index.values
 
 # generate overlays
 cell_table_func = pd.read_csv(os.path.join(data_dir, 'post_processing/cell_table_func_single_positive.csv'))
 
-cell_table_subset = cell_table_func.loc[(cell_table_func.fov.isin(prolif_fovs[:20])), :]
+cell_table_subset = cell_table_func.loc[(cell_table_func.fov.isin(study_fovs)), :]
 
-prolif_colormap = pd.DataFrame({'proliferating': ['True', 'False'],
-                            'color': ['grey', 'red']})
+ki67_colormap = pd.DataFrame({'proliferating': ['True', 'False'],
+                            'color': ['dimgrey', 'red']})
 
 cell_table_subset['proliferating'] = cell_table_subset.Ki67.astype(str)
 
-prolif_plot_dir = os.path.join(plot_dir, 'Figure3_proliferation_overlays')
-if not os.path.exists(prolif_plot_dir):
-    os.mkdir(prolif_plot_dir)
+ki67_plot_dir = os.path.join(plot_dir, 'Figure3_ki67_overlays')
+if not os.path.exists(ki67_plot_dir):
+    os.mkdir(ki67_plot_dir)
 
-cohort_cluster_plot(
-    fovs=prolif_fovs,
-    seg_dir=seg_dir,
-    save_dir=prolif_plot_dir,
-    cell_data=cell_table_subset,
-    erode=True,
-    fov_col=settings.FOV_ID,
-    label_col=settings.CELL_LABEL,
-    cluster_col='proliferating',
-    seg_suffix="_whole_cell.tiff",
-    cmap=prolif_colormap,
-    display_fig=False,
-)
 
-selected_fovs = ['TONIC_TMA10_R6C4', 'TONIC_TMA10_R5C5', 'TONIC_TMA11_R2C1']
+for group in thresholds.keys():
+    group_dir = os.path.join(ki67_plot_dir, group)
+    if not os.path.exists(group_dir):
+        os.mkdir(group_dir)
 
-for fov in selected_fovs:
-    for channel in ['Ki67.tiff', 'ECAD.tiff', 'H3K27me3.tiff', 'H3K9ac.tiff', 'CD45.tiff']:
-        shutil.copy(os.path.join(image_dir, fov, channel), os.path.join(prolif_plot_dir, fov + '_' + channel))
+    min_val, max_val = thresholds[group]
+
+    # get fovs
+    fovs = ki67_features.loc[(ki67_features.raw_value > min_val) &
+                                        (ki67_features.raw_value < max_val), 'fov'].values
+
+    fovs = fovs[:10]
+
+    # generate overlays
+    cohort_cluster_plot(
+        fovs=fovs,
+        seg_dir=seg_dir,
+        save_dir=group_dir,
+        cell_data=cell_table_subset,
+        erode=True,
+        fov_col=settings.FOV_ID,
+        label_col=settings.CELL_LABEL,
+        cluster_col='proliferating',
+        seg_suffix="_whole_cell.tiff",
+        cmap=ki67_colormap,
+        display_fig=False,
+    )
+
 
 
 # CD8T density
-cluster_df = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
-cluster_df_filtered = cluster_df.loc[(cluster_df.Timepoint.isin(['baseline', 'post_induction', 'on_nivo'])) &
-                            (cluster_df.metric == 'cluster_density') & (cluster_df.subset == 'all') &
-                            (cluster_df.cell_type.isin(['CD8T', 'Cancer', 'Cancer_EMT', 'Cancer_Other'])), :]
+CD8T_features = fov_features.loc[(fov_features.feature_name == 'CD8T__cluster_density') & (fov_features.compartment == 'all'), :]
 
-sns.histplot(data=cluster_df_filtered.loc[cluster_df_filtered.cell_type == 'CD8T'], x='value',  bins=20, multiple='stack')
+sns.histplot(data=CD8T_features, x='raw_value',  bins=20, multiple='stack')
 
-cluster_df_filtered = cluster_df.loc[(cluster_df.Timepoint.isin(['baseline', 'post_induction', 'on_nivo'])) &
-                            (cluster_df.metric == 'cluster_density') & (cluster_df.subset == 'all') &
-                            (cluster_df.cell_type.isin(['CD8T', 'Cancer', 'Cancer_EMT', 'Cancer_Other'])), :]
 
 # set thresholds for each group
-thresholds = {'low': [0.01, 0.05], 'mid': [0.1, 0.2], 'high': [0.4, 0.6]}
+thresholds = {'low': [0.01, 0.05], 'mid': [0.1, 0.2], 'high': [0.3, 0.6]}
 
 cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'post_processing/cell_table_clusters.csv'))
 cell_table_clusters['CD8T_plot'] = cell_table_clusters.cell_cluster
@@ -227,7 +250,7 @@ cell_table_clusters.loc[cell_table_clusters.cell_cluster != 'CD8T', 'CD8T_plot']
 
 # set up plotting
 CD8_colormap = pd.DataFrame({'CD8T_plot': ['CD8T', 'Other'],
-                            'color': ['grey', 'red']})
+                            'color': ['dimgrey', 'royalblue']})
 
 CD8_plot_dir = os.path.join(plot_dir, 'Figure3_CD8_overlays')
 if not os.path.exists(CD8_plot_dir):
@@ -242,11 +265,10 @@ for group in thresholds.keys():
     min_val, max_val = thresholds[group]
 
     # get fovs
-    fovs = cluster_df_filtered.loc[(cluster_df_filtered.cell_type == 'CD8T') &
-                                      (cluster_df_filtered.value > min_val) &
-                                        (cluster_df_filtered.value < max_val), 'fov'].values
+    fovs = CD8T_features.loc[(CD8T_features.raw_value > min_val) &
+                             (CD8T_features.raw_value < max_val), 'fov'].values
 
-    fovs = fovs[:5]
+    fovs = fovs[:10]
     # generate overlays
     cell_table_subset = cell_table_clusters.loc[(cell_table_clusters.fov.isin(fovs)), :]
 
@@ -263,14 +285,6 @@ for group in thresholds.keys():
         cmap=CD8_colormap,
         display_fig=False,
     )
-
-
-# get FOVs for overlay:
-selected_fovs = ['TONIC_TMA18_R4C5', 'TONIC_TMA20_R12C3']
-
-for fov in selected_fovs:
-    for channel in ['CD8.tiff', 'ECAD.tiff', 'H3K27me3.tiff', 'H3K9ac.tiff']:
-        shutil.copy(os.path.join(image_dir, fov, channel), os.path.join(CD8_plot_dir, fov + '_' + channel))
 
 
 # Image diversity
