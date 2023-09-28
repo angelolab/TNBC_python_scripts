@@ -631,7 +631,7 @@ grouped.to_csv(os.path.join(data_dir, 'timepoint_features_filtered.csv'), index=
 
 
 # get feature metadata
-feature_metadata = fov_data_df[['feature_name', 'feature_name_unique', 'compartment', 'cell_pop', 'cell_pop_level', 'feature_type', 'feature_type_detail', 'feature_type_detail_2']]
+feature_metadata = fov_data_df_filtered[['feature_name', 'feature_name_unique', 'compartment', 'cell_pop', 'cell_pop_level', 'feature_type', 'feature_type_detail', 'feature_type_detail_2']]
 feature_metadata = feature_metadata.drop_duplicates()
 
 feature_metadata.to_csv(os.path.join(data_dir, 'feature_metadata.csv'), index=False)
