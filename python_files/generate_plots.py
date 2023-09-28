@@ -242,7 +242,7 @@ sns.histplot(data=CD8T_features, x='raw_value',  bins=20, multiple='stack')
 
 
 # set thresholds for each group
-thresholds = {'low': [0.01, 0.05], 'mid': [0.1, 0.2], 'high': [0.3, 0.6]}
+thresholds = {'low': [0.001, 0.05], 'mid': [0.1, 0.2], 'high': [0.3, 0.6]}
 
 cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'post_processing/cell_table_clusters.csv'))
 cell_table_clusters['CD8T_plot'] = cell_table_clusters.cell_cluster
@@ -288,7 +288,6 @@ for group in thresholds.keys():
 
 
 # Image diversity
-fov_features = pd.read_csv(os.path.join(data_dir, 'fov_features_filtered.csv'))
 diversity_features = fov_features.loc[(fov_features.feature_name == 'cluster_broad_diversity') &
                                       (fov_features.compartment == 'all'), :]
 
@@ -302,6 +301,11 @@ thresholds = {'low': [0.1, 0.5], 'mid': [1, 1.5], 'high': [2, 3]}
 diversity_plot_dir = os.path.join(plot_dir, 'Figure3_diversity_overlays')
 if not os.path.exists(diversity_plot_dir):
     os.mkdir(diversity_plot_dir)
+
+diversity_colormap = pd.DataFrame({'cell_cluster_broad': ['Stroma', 'Cancer', 'Mono_Mac', 'T',
+                                                          'Other', 'Granulocyte', 'NK', 'B'],
+                             'color': ['dimgrey', 'darksalmon', 'red', 'navajowhite',  'yellowgreen',
+                                       'aqua', 'dodgerblue', 'darkviolet']})
 
 for group in thresholds.keys():
     group_dir = os.path.join(diversity_plot_dir, group)
@@ -328,20 +332,75 @@ for group in thresholds.keys():
         label_col=settings.CELL_LABEL,
         cluster_col='cell_cluster_broad',
         seg_suffix="_whole_cell.tiff",
-        #cmap=CD8_colormap,
+        cmap=diversity_colormap,
         display_fig=False,
     )
 
+# summary plots for features
+feature_metadata = pd.read_csv(os.path.join(data_dir, 'feature_metadata.csv'))
+feature_classes = {'cell_abundance': ['density', 'density_ratio', 'density_proportion'],
+                     'diversity': ['cell_diversity', 'region_diversity'],
+                     'cell_phenotype': ['functional_marker', 'morphology', ],
+                     'cell_interactions': ['mixing_score', 'linear_distance'],
+                   'structure': ['compartment_area_ratio', 'compartment_area', 'ecm_cluster', 'ecm_fraction', 'pixie_ecm', 'fiber']}
 
-# get FOVs for overlay:
-selected_fovs = ['TONIC_TMA10_R5C4', 'TONIC_TMA10_R1C2']
+for feature_class in feature_classes.keys():
+    feature_metadata.loc[feature_metadata.feature_type.isin(feature_classes[feature_class]), 'feature_class'] = feature_class
 
-for fov in selected_fovs:
-    for channel in ['CD3.tiff', 'ECAD.tiff', 'H3K27me3.tiff', 'H3K9ac.tiff', 'CD14.tiff', 'CD20.tiff']:
-        shutil.copy(os.path.join(image_dir, fov, channel), os.path.join(diversity_plot_dir, fov + '_' + channel))
+sns.countplot(data=feature_metadata, x='feature_class', order=['cell_phenotype', 'cell_abundance', 'diversity', 'structure', 'cell_interactions'],
+              color='grey')
+sns.despine()
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'Figure3_feature_class_counts.pdf'))
+plt.close()
+
+
+cell_classes = {'Immune': ['Immune', 'Mono_Mac', 'T', 'Granulocyte'], 'Cancer': ['Cancer'],
+                'Stroma': ['Stroma'], 'Structural': ['ecm'], 'Multiple': ['multiple', 'all']}
+
+for cell_class in cell_classes.keys():
+    feature_metadata.loc[feature_metadata.cell_pop.isin(cell_classes[cell_class]), 'cell_class'] = cell_class
+
+
+sns.countplot(data=feature_metadata, x='cell_class', order=['Immune', 'Multiple', 'Cancer', 'Stroma', 'Structural'],
+                color='grey')
+
+sns.despine()
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'Figure3_cell_class_counts.pdf'))
+plt.close()
 
 
 
+# visualize distributions of different features
+# taken from https://plainenglish.io/blog/ridge-plots-with-pythons-seaborn-4de5725881af
+# 'NK__cluster_density', 'Fibroblast__cluster_density', 'nc_ratio__Cancer','Stroma_T_mixing_score', 'T__distance_to__Cancer', 'fiber_alignment_score'
+plot_df = fov_features.loc[fov_features.feature_name_unique.isin(['PDL1+__APC', 'Ki67+__Cancer', 'CD8T__cluster_density', 'cluster_broad_diversity',
+                                                                   'Cancer__T__ratio',
+                                                                  'CD4T__proportion_of__T', 'HLA1+__Cancer',  'T__distance_to__Cancer',
+                                                                  'Cancer_Immune_mixing_score',  'Hot_Coll__proportion',
+                                                                  'fiber_alignment_score']), :]
+sns.set_theme(style="white", rc={"axes.facecolor": (0, 0, 0, 0)})
+g = sns.FacetGrid(plot_df, row="feature_name_unique", aspect=9, height=1.2, row_order=['CD8T__cluster_density','CD4T__proportion_of__T',
+                                                                                       'Cancer_Immune_mixing_score',
+                                                                                       'PDL1+__APC', 'Ki67+__Cancer',  'HLA1+__Cancer', 'cluster_broad_diversity',
+                                                                   'Cancer__T__ratio', 'Hot_Coll__proportion'
+                                                                  ])
+g.map_dataframe(sns.kdeplot, x="normalized_value", fill=True, alpha=1)
+g.map_dataframe(sns.kdeplot, x="normalized_value", color='black')
+
+
+g.fig.subplots_adjust(hspace=-.5)
+g.set_titles("")
+g.set(yticks=[])
+g.despine(left=True)
+
+plt.savefig(os.path.join(plot_dir, 'Figure3_feature_distributions.pdf'))
+plt.close()
+
+
+sns.histplot(data=plot_df.loc[plot_df.feature_name_unique == 'cluster_broad_diversity'],
+             x='raw_value', bins=20, multiple='stack')
 
 #
 # Figure 4
