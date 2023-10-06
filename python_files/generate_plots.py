@@ -44,6 +44,23 @@ plt.close()
 # Figure 2
 #
 
+# representative images
+fov_list = ['TONIC_TMA21_R6C6', 'TONIC_TMA2_R6C6', 'TONIC_TMA18_R4C5', 'TONIC_TMA20_R12C4', 'TONIC_TMA10_R3C1', 'TONIC_TMA10_R6C2']
+
+# copy images to new folder
+for fov in fov_list:
+    fov_folder = os.path.join(image_dir, fov)
+    save_folder = os.path.join(plot_dir, 'Figure2_representative_images/{}'.format(fov))
+    if not os.path.exists(save_folder):
+        os.mkdir(save_folder)
+
+    fov_files = os.listdir(fov_folder)
+    fov_files = [x for x in fov_files if x.endswith('.tiff')]
+
+    for file in fov_files:
+        shutil.copy(os.path.join(fov_folder, file), os.path.join(save_folder, file))
+
+
 # cell cluster heatmap
 
 # Markers to include in the heatmap
@@ -411,19 +428,19 @@ total_dfs = pd.read_csv(os.path.join(data_dir, 'nivo_outcomes/outcomes_df.csv'))
 
 # plot total volcano
 total_dfs['importance_score_exp10'] = np.power(10, total_dfs.importance_score)
-fig, ax = plt.subplots(figsize=(6,4))
+fig, ax = plt.subplots(figsize=(4,3))
 sns.scatterplot(data=total_dfs, x='med_diff', y='log_pval', alpha=1, hue='importance_score', palette=sns.color_palette("Greys", as_cmap=True),
                 s=2.5, edgecolor='none', ax=ax)
 ax.set_xlim(-3.5, 3.5)
 sns.despine()
 
 # add gradient legend
-norm = plt.Normalize(total_dfs.importance_score_exp10.min(), total_dfs.importance_score_exp10.max())
+norm = plt.Normalize(total_dfs.importance_score.min(), total_dfs.importance_score.max())
 sm = plt.cm.ScalarMappable(cmap="Greys", norm=norm)
 ax.get_legend().remove()
 ax.figure.colorbar(sm, ax=ax)
 
-plt.savefig(os.path.join(plot_dir, 'Figure4_volcano.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure4_volcano_new.pdf'))
 plt.close()
 
 # plot specific highlighted volcanos
@@ -502,7 +519,7 @@ fig, ax = plt.subplots(figsize=(4, 5))
 sns.stripplot(data=func_score_df, x='name', y='score', ax=ax, order=meds.index, color='black')
 sns.boxplot(data=func_score_df, x='name', y='score', order=meds.index, color='grey', ax=ax, showfliers=False, width=0.5)
 ax.set_title('Functional Markers Ranking')
-#ax.set_ylim([0, 1])
+ax.set_ylim([0,3200])
 ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
 
 sns.despine()
@@ -605,7 +622,10 @@ plt.close()
 cell_table_func = pd.read_csv(os.path.join(data_dir, 'post_processing/cell_table_func_single_positive.csv'))
 
 # corresponding overlays
-pats = [9, 16, 26,40, 37, 62, 102]
+subset = plot_df.loc[plot_df.raw_mean < 0.1, :]
+
+pats = [5, 26, 40, 37, 33, 62, 102]
+pats = [16, 15, 17, 27, 32, 34, 39, 48, 57]
 fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
 
 cell_table_subset = cell_table_func.loc[(cell_table_func.fov.isin(fovs)), :]
@@ -614,7 +634,7 @@ cell_table_subset.loc[cell_table_subset.cell_cluster != 'APC', 'APC_plot'] = 'Ot
 cell_table_subset.loc[(cell_table_subset.cell_cluster == 'APC') & (cell_table_subset.PDL1.values), 'APC_plot'] = 'APC_PDL1+'
 
 apc_colormap = pd.DataFrame({'APC_plot': ['APC', 'Other', 'APC_PDL1+'],
-                         'color': ['grey', 'lightsteelblue', 'blue']})
+                         'color': ['lightsteelblue','grey', 'blue']})
 apc_plot_dir = os.path.join(plot_dir, 'Figure5_APC_overlays')
 if not os.path.exists(apc_plot_dir):
     os.mkdir(apc_plot_dir)
@@ -644,7 +664,7 @@ for pat in pats:
 
 
 # create crops for selected FOVs
-subset_fovs = ['TONIC_TMA11_R7C5', 'TONIC_TMA4_R6C6']
+subset_fovs = ['TONIC_TMA2_R11C6', 'TONIC_TMA11_R8C1', 'TONIC_TMA4_R5C6', 'TONIC_TMA6_R5C3'] # 5, 62, 15, 32
 
 subset_dir = os.path.join(apc_plot_dir, 'selected_fovs')
 if not os.path.exists(subset_dir):
@@ -667,22 +687,175 @@ cohort_cluster_plot(
 
 
 # select crops for visualization
-fov1 = 'TONIC_TMA11_R7C5'
-row_start, col_start = 300, 250
-row_len, col_len = 1000, 800
+fov1 = subset_fovs[0]
+row_start, col_start = 1100, 1000
+row_len, col_len = 500, 1000
 
 fov1_image = io.imread(os.path.join(subset_dir, 'cluster_masks_colored', fov1 + '.tiff'))
 fov1_image = fov1_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
 io.imsave(os.path.join(subset_dir, 'cluster_masks_colored', fov1 + '_crop.tiff'), fov1_image)
 
 
-fov2 = 'TONIC_TMA4_R6C6'
-row_start, col_start = 300, 1250
-row_len, col_len = 1000, 800
+fov2 = subset_fovs[1]
+row_start, col_start = 20, 1500
+row_len, col_len = 1000, 500
 
 fov2_image = io.imread(os.path.join(subset_dir, 'cluster_masks_colored', fov2 + '.tiff'))
 fov2_image = fov2_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
 io.imsave(os.path.join(subset_dir, 'cluster_masks_colored', fov2 + '_crop.tiff'), fov2_image)
+
+
+
+fov3 = subset_fovs[2]
+row_start, col_start = 0, 0
+row_len, col_len = 500, 1000
+
+fov3_image = io.imread(os.path.join(subset_dir, 'cluster_masks_colored', fov3 + '.tiff'))
+fov3_image = fov3_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
+io.imsave(os.path.join(subset_dir, 'cluster_masks_colored', fov3 + '_crop.tiff'), fov3_image)
+
+
+fov4 = subset_fovs[3]
+row_start, col_start = 1000, 100
+row_len, col_len = 1000, 500
+
+fov4_image = io.imread(os.path.join(subset_dir, 'cluster_masks_colored', fov4 + '.tiff'))
+fov4_image = fov4_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
+io.imsave(os.path.join(subset_dir, 'cluster_masks_colored', fov4 + '_crop.tiff'), fov4_image)
+
+
+# diversity of cancer border at induction
+feature_name = 'cluster_broad_diversity_cancer_border'
+timepoint = 'post_induction'
+
+plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
+                                    (combined_df.Timepoint == timepoint), :]
+
+fig, ax = plt.subplots(1, 1, figsize=(3, 6))
+sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                color='black', ax=ax)
+sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                color='grey', ax=ax, showfliers=False)
+ax.set_title(feature_name + ' ' + timepoint)
+ax.set_ylim([0, 2])
+sns.despine()
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'Figure5_feature_{}_{}.pdf'.format(feature_name, timepoint)))
+plt.close()
+
+
+
+# corresponding overlays
+cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'post_processing/cell_table_clusters.csv'))
+annotations_by_mask = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cell_annotation_mask.csv'))
+annotations_by_mask = annotations_by_mask.rename(columns={'mask_name': 'tumor_region'})
+cell_table_clusters = cell_table_clusters.merge(annotations_by_mask, on=['fov', 'label'], how='left')
+
+subset = plot_df.loc[plot_df.raw_mean < 0.3, :]
+
+pats = [5, 40, 37, 46, 56, 33, 62, 64]
+pats = [8, 16, 17, 27, 25, 31, 34]
+fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
+
+# 25, 62 previously included
+
+# add column for CD8T in cancer border, CD8T elsewhere, and others
+cell_table_subset = cell_table_clusters.loc[(cell_table_clusters.fov.isin(fovs)), :]
+cell_table_subset['border_plot'] = cell_table_subset.cell_cluster_broad
+cell_table_subset.loc[cell_table_subset.tumor_region != 'cancer_border', 'border_plot'] = 'Other_region'
+
+figure_dir = os.path.join(plot_dir, 'Figure5_border_diversity')
+if not os.path.exists(figure_dir):
+    os.mkdir(figure_dir)
+
+diversity_colormap = pd.DataFrame({'border_plot': ['Cancer', 'Stroma', 'Granulocyte', 'T', 'B', 'Mono_Mac', 'Other', 'NK', 'Other_region'],
+                         'color': ['white', 'lightcoral', 'sandybrown', 'lightgreen', 'aqua', 'dodgerblue', 'darkviolet', 'crimson', 'gray']})
+
+
+for pat in pats:
+    pat_dir = os.path.join(figure_dir, 'patient_{}'.format(pat))
+    if not os.path.exists(pat_dir):
+        os.mkdir(pat_dir)
+    pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == 'post_induction'), 'fov'].unique()
+    pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
+
+    cohort_cluster_plot(
+        fovs=pat_fovs,
+        seg_dir=seg_dir,
+        save_dir=pat_dir,
+        cell_data=pat_df,
+        erode=True,
+        fov_col=settings.FOV_ID,
+        label_col=settings.CELL_LABEL,
+        cluster_col='border_plot',
+        seg_suffix="_whole_cell.tiff",
+        cmap=diversity_colormap,
+        display_fig=False,
+    )
+
+subset_fovs = ['TONIC_TMA2_R11C6', 'TONIC_TMA5_R4C4'] # 5, 25
+
+subset_dir = os.path.join(figure_dir, 'selected_fovs')
+if not os.path.exists(subset_dir):
+    os.mkdir(subset_dir)
+
+cohort_cluster_plot(
+    fovs=subset_fovs,
+    seg_dir=seg_dir,
+    save_dir=subset_dir,
+    cell_data=cell_table_subset,
+    erode=True,
+    fov_col=settings.FOV_ID,
+    label_col=settings.CELL_LABEL,
+    cluster_col='border_plot',
+    seg_suffix="_whole_cell.tiff",
+    cmap=diversity_colormap,
+    display_fig=False,
+)
+
+
+# same thing for compartment masks
+compartment_colormap = pd.DataFrame({'tumor_region': ['cancer_core', 'cancer_border', 'stroma_border', 'stroma_core'],
+                         'color': ['blue', 'deepskyblue', 'lightcoral', 'firebrick']})
+subset_mask_dir = os.path.join(figure_dir, 'selected_fovs_masks')
+if not os.path.exists(subset_mask_dir):
+    os.mkdir(subset_mask_dir)
+
+cohort_cluster_plot(
+    fovs=subset_fovs,
+    seg_dir=seg_dir,
+    save_dir=subset_mask_dir,
+    cell_data=cell_table_subset,
+    erode=True,
+    fov_col=settings.FOV_ID,
+    label_col=settings.CELL_LABEL,
+    cluster_col='tumor_region',
+    seg_suffix="_whole_cell.tiff",
+    cmap=compartment_colormap,
+    display_fig=False,
+)
+
+
+
+
+# crop overlays
+fov1 = subset_fovs[0]
+row_start, col_start = 1200, 300
+row_len, col_len = 500, 1000
+
+for dir in [subset_dir, subset_mask_dir]:
+    fov1_image = io.imread(os.path.join(dir, 'cluster_masks_colored', fov1 + '.tiff'))
+    fov1_image = fov1_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
+    io.imsave(os.path.join(dir, 'cluster_masks_colored', fov1 + '_crop.tiff'), fov1_image)
+
+fov2 = subset_fovs[1]
+row_start, col_start = 400, 20
+row_len, col_len = 500, 1000
+
+for dir in [subset_dir, subset_mask_dir]:
+    fov2_image = io.imread(os.path.join(dir, 'cluster_masks_colored', fov2 + '.tiff'))
+    fov2_image = fov2_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
+    io.imsave(os.path.join(dir, 'cluster_masks_colored', fov2 + '_crop.tiff'), fov2_image)
 
 
 
@@ -815,89 +988,6 @@ io.imsave(os.path.join(subset_dir, 'cluster_masks_colored', fov4 + '_crop.tiff')
 
 
 
-# diversity of stroma in on nivo
-feature_name = 'cluster_broad_diversity_cancer_border'
-timepoint = 'post_induction'
-
-plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
-                                    (combined_df.Timepoint == timepoint), :]
-
-fig, ax = plt.subplots(1, 1, figsize=(3, 6))
-sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
-                color='black', ax=ax)
-sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
-                color='grey', ax=ax, showfliers=False)
-ax.set_title(feature_name + ' ' + timepoint)
-ax.set_ylim([0, 2])
-sns.despine()
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure5_feature_{}_{}.pdf'.format(feature_name, timepoint)))
-plt.close()
-
-
-
-# corresponding overlays
-cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'post_processing/cell_table_clusters.csv'))
-annotations_by_mask = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cell_annotation_mask.csv'))
-annotations_by_mask = annotations_by_mask.rename(columns={'mask_name': 'tumor_region'})
-cell_table_clusters = cell_table_clusters.merge(annotations_by_mask, on=['fov', 'label'], how='left')
-
-pats = [46, 40, 56, 62, 25, 31, 94]
-fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
-
-# add column for CD8T in cancer border, CD8T elsewhere, and others
-cell_table_subset = cell_table_clusters.loc[(cell_table_clusters.fov.isin(fovs)), :]
-cell_table_subset['border_plot'] = cell_table_subset.cell_cluster_broad
-cell_table_subset.loc[cell_table_subset.tumor_region != 'cancer_border', 'border_plot'] = 'Other_region'
-
-figure_dir = os.path.join(plot_dir, 'Figure5_border_diversity')
-if not os.path.exists(figure_dir):
-    os.mkdir(figure_dir)
-
-diversity_colormap = pd.DataFrame({'border_plot': ['Cancer', 'Stroma', 'Granulocyte', 'T', 'B', 'Mono_Mac', 'Other', 'NK', 'Other_region'],
-                         'color': ['white', 'lightcoral', 'sandybrown', 'lightgreen', 'aqua', 'dodgerblue', 'darkviolet', 'crimson', 'gray']})
-
-
-for pat in pats:
-    pat_dir = os.path.join(figure_dir, 'Figure5_{}'.format(pat))
-    if not os.path.exists(pat_dir):
-        os.mkdir(pat_dir)
-    pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == 'post_induction'), 'fov'].unique()
-    pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
-
-    cohort_cluster_plot(
-        fovs=pat_fovs,
-        seg_dir=seg_dir,
-        save_dir=pat_dir,
-        cell_data=pat_df,
-        erode=True,
-        fov_col=settings.FOV_ID,
-        label_col=settings.CELL_LABEL,
-        cluster_col='border_plot',
-        seg_suffix="_whole_cell.tiff",
-        cmap=diversity_colormap,
-        display_fig=False,
-    )
-
-if not os.path.exists(os.path.join(plot_dir, 'Figure5_border_diversity/selected_fovs')):
-    os.mkdir(os.path.join(plot_dir, 'Figure5_border_diversity/selected_fovs'))
-
-# crop overlays
-fov1 = 'TONIC_TMA5_R4C4'
-row_start, col_start = 100, 0
-row_len, col_len = 800, 1000
-
-fov1_image = io.imread(os.path.join(plot_dir, 'Figure5_border_diversity/Figure5_25/cluster_masks_colored/', fov1 + '.tiff'))
-fov1_image = fov1_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
-io.imsave(os.path.join(plot_dir, 'Figure5_border_diversity/selected_fovs', fov1 + '_crop.tiff'), fov1_image)
-
-fov2 = 'TONIC_TMA11_R7C6'
-row_start, col_start = 800, 1248
-row_len, col_len = 1000, 800
-
-fov2_image = io.imread(os.path.join(plot_dir, 'Figure5_border_diversity/Figure5_62/cluster_masks_colored/', fov2 + '.tiff'))
-fov2_image = fov2_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
-io.imsave(os.path.join(plot_dir, 'Figure5_border_diversity/selected_fovs', fov2 + '_crop.tiff'), fov2_image)
 
 
 #
@@ -1227,3 +1317,28 @@ for feature in induction_peak_features:
     fig.suptitle(feature)
     plt.savefig(os.path.join(plot_dir, 'longitudinal_response_raw_{}.png'.format(feature)))
     plt.close()
+
+
+# Figure 7
+cv_scores = pd.read_csv(os.path.join(data_dir, 'nivo_outcomes', 'results_cv_all.csv'))
+cv_scores['fold'] = len(cv_scores)
+
+cv_scores_long = pd.melt(cv_scores, id_vars=['fold'], value_vars=cv_scores.columns)
+
+
+fig, ax = plt.subplots(1, 1, figsize=(5, 8))
+order = ['baseline_post_induction', 'post_induction', 'baseline_on_nivo',
+       'baseline', 'post_induction_on_nivo', 'on_nivo']
+sns.stripplot(data=cv_scores_long, x='variable', y='value', order=order,
+                color='black', ax=ax)
+sns.boxplot(data=cv_scores_long, x='variable', y='value', order=order,
+                color='grey', ax=ax, showfliers=False)
+
+ax.set_title('AUC')
+ax.set_ylim([0, 1])
+ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+
+sns.despine()
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'Figure7_AUC.pdf'))
+plt.close()
