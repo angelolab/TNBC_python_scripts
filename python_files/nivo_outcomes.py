@@ -17,7 +17,6 @@ from python_files.utils import summarize_population_enrichment, summarize_timepo
 from statsmodels.stats.multitest import multipletests
 
 
-local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
 
@@ -25,12 +24,6 @@ harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_me
 patient_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/TONIC_data_per_patient.csv'))
 feature_metadata = pd.read_csv(os.path.join(data_dir, 'feature_metadata.csv'))
 timepoint_features = pd.read_csv(os.path.join(data_dir, 'timepoint_features_filtered.csv'))
-patient_metadata['iRECIST_response'] = 'non-responders'
-patient_metadata.loc[(patient_metadata.BOR_iRECIST.isin(['iCR', 'iPR', 'iSD'])), 'iRECIST_response'] = 'responders'
-
-# create mask where boolean arrays are not equal
-patient_metadata['survival_diff'] = np.equal(patient_metadata.iRECIST_response.values == 'responders',  patient_metadata.Clinical_benefit.values == 'Yes')
-
 
 #patient_metadata.loc[patient_metadata.Patient_ID.isin([33, 40, 75, 85, 100, 105, 109]), 'iRECIST_response'] = 'noinduction_responders'
 # func_df_timepoint = pd.read_csv(os.path.join(data_dir, 'functional_df_per_timepoint_filtered_deduped.csv'))
@@ -48,29 +41,41 @@ patient_metadata['survival_diff'] = np.equal(patient_metadata.iRECIST_response.v
 
 
 # # create combined df
-# timepoint_features = timepoint_features.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint',
+# timepoint_features = timepoint_features.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint', 'primary__baseline',
 #                                                                    'baseline__on_nivo', 'baseline__post_induction', 'post_induction__on_nivo']].drop_duplicates(), on='Tissue_ID')
-# timepoint_features = timepoint_features.merge(patient_metadata[['Patient_ID', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']].drop_duplicates(), on='Patient_ID', how='left')
+# timepoint_features = timepoint_features.merge(patient_metadata[['Patient_ID', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']].drop_duplicates(), on='Patient_ID', how='left')
 #
 # # Hacky, remove once metadata is updated
 # timepoint_features = timepoint_features.loc[timepoint_features.Clinical_benefit.isin(['Yes', 'No']), :]
-# timepoint_features = timepoint_features.loc[timepoint_features.Timepoint.isin(['baseline', 'post_induction', 'on_nivo']), :]
-# timepoint_features = timepoint_features[['Tissue_ID', 'feature_name', 'feature_name_unique', 'raw_mean', 'raw_std', 'normalized_mean', 'normalized_std', 'Patient_ID', 'Timepoint', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]
+# timepoint_features = timepoint_features.loc[timepoint_features.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
+# timepoint_features = timepoint_features[['Tissue_ID', 'feature_name', 'feature_name_unique', 'raw_mean', 'raw_std', 'normalized_mean', 'normalized_std', 'Patient_ID', 'Timepoint', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]
 #
+# # # copy lymphnode data and make a combined version
+# # lymphnode_df = timepoint_features.loc[timepoint_features.Timepoint.isin(['lymphnode_pos', 'lymphnode_neg']), :].copy()
+# # lymphnode_df['Timepoint'] = 'lymphnode'
+# #
+# # timepoint_features = pd.concat([timepoint_features, lymphnode_df])
+#
+# # # rename induction timepoint based on treatment
+# # timepoint_features.loc[timepoint_features.Timepoint == 'post_induction', 'Timepoint'] = timepoint_features.loc[timepoint_features.Timepoint == 'post_induction', 'Induction_treatment'] + '__post_induction'
+# #
+# # # rename induction treatment based on no-induction or induction
+# # timepoint_features.loc[(timepoint_features.Induction_treatment == 'No induction') & (timepoint_features.Timepoint == 'post_induction'), 'Timepoint'] = 'induction_control'
 #
 # # look at evolution
-# evolution_df = pd.read_csv(os.path.join(data_dir, 'evolution/evolution_df.csv'))
-# evolution_df = evolution_df.merge(patient_metadata[['Patient_ID', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']].drop_duplicates(), on='Patient_ID', how='left')
+# evolution_df = pd.read_csv(os.path.join(data_dir, 'nivo_outcomes/evolution_df.csv'))
+# evolution_df = evolution_df.merge(patient_metadata[['Patient_ID', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']].drop_duplicates(), on='Patient_ID', how='left')
 # evolution_df = evolution_df.rename(columns={'raw_value': 'raw_mean', 'normalized_value': 'normalized_mean', 'comparison': 'Timepoint'})
-# evolution_df = evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]
+# evolution_df = evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]
 #
 # # combine together into single df
 # combined_df = timepoint_features.copy()
-# combined_df = combined_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]
-# combined_df = combined_df.append(evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']])
+# combined_df = combined_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]
+# combined_df = pd.concat([combined_df, evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean',
+#                                                     'Patient_ID', 'Timepoint', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]])
 # combined_df['combined_name'] = combined_df.feature_name_unique + '__' + combined_df.Timepoint
 #
-# combined_df.to_csv(os.path.join(data_dir, 'nivo_outcomes/combined_df_metacluster.csv'), index=False)
+# combined_df.to_csv(os.path.join(data_dir, 'nivo_outcomes/combined_df.csv'), index=False)
 
 # load previously computed results
 combined_df = pd.read_csv(os.path.join(data_dir, 'nivo_outcomes/combined_df.csv'))
@@ -94,13 +99,13 @@ combined_df = pd.read_csv(os.path.join(data_dir, 'nivo_outcomes/combined_df.csv'
 # generate a single set of top hits across all comparisons
 
 # settings for generating hits
-plot_hits = True
+plot_hits = False
 method = 'ttest'
 
 # placeholder for all values
 total_dfs = []
 
-for comparison in ['baseline', 'post_induction', 'on_nivo', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']:
+for comparison in combined_df.Timepoint.unique():
     population_df = compare_populations(feature_df=combined_df, pop_col='Clinical_benefit',
                                         timepoints=[comparison], pop_1='No', pop_2='Yes', method=method)
 
@@ -111,6 +116,8 @@ for comparison in ['baseline', 'post_induction', 'on_nivo', 'baseline__post_indu
         summarize_population_enrichment(input_df=population_df, feature_df=combined_df, timepoints=[comparison],
                                         pop_col='Clinical_benefit', output_dir=current_plot_dir, sort_by='med_diff')
 
+    if np.sum(~population_df.log_pval.isna()) == 0:
+        continue
     long_df = population_df[['feature_name_unique', 'log_pval', 'mean_diff', 'med_diff']]
     long_df['comparison'] = comparison
     long_df = long_df.dropna()
@@ -119,17 +126,17 @@ for comparison in ['baseline', 'post_induction', 'on_nivo', 'baseline__post_indu
     total_dfs.append(long_df)
 
 
-total_dfs_continuous = []
-for comparison in ['baseline', 'post_induction', 'on_nivo', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']:
-    input_df = combined_df[combined_df.Timepoint == comparison]
-    continuous_df = compare_continuous(feature_df=input_df, variable_col='Time_to_progression_weeks_RECIST1.1')
-
-    if plot_hits:
-        current_plot_dir = os.path.join(plot_dir, 'responders_nonresponders_continuous_{}'.format(comparison))
-        if not os.path.exists(current_plot_dir):
-            os.makedirs(current_plot_dir)
-        summarize_continuous_enrichment(input_df=continuous_df, feature_df=combined_df, timepoint=comparison,
-                                        variable_col='Time_to_progression_weeks_RECIST1.1', output_dir=current_plot_dir, min_score=0.95)
+# total_dfs_continuous = []
+# for comparison in ['baseline', 'post_induction', 'on_nivo', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']:
+#     input_df = combined_df[combined_df.Timepoint == comparison]
+#     continuous_df = compare_continuous(feature_df=input_df, variable_col='Time_to_progression_weeks_RECIST1.1')
+#
+#     if plot_hits:
+#         current_plot_dir = os.path.join(plot_dir, 'responders_nonresponders_continuous_{}'.format(comparison))
+#         if not os.path.exists(current_plot_dir):
+#             os.makedirs(current_plot_dir)
+#         summarize_continuous_enrichment(input_df=continuous_df, feature_df=combined_df, timepoint=comparison,
+#                                         variable_col='Time_to_progression_weeks_RECIST1.1', output_dir=current_plot_dir, min_score=0.95)
 
 # summarize hits from all comparisons
 total_dfs = pd.concat(total_dfs)
@@ -140,6 +147,28 @@ total_dfs['log10_qval'] = -np.log10(total_dfs.fdr_pval)
 total_dfs['pval_rank'] = total_dfs.log_pval.rank(ascending=False)
 total_dfs['cor_rank'] = total_dfs.med_diff.abs().rank(ascending=False)
 total_dfs['combined_rank'] = (total_dfs.pval_rank.values + total_dfs.cor_rank.values) / 2
+
+# plot top X features per comparison
+num_features = 20
+
+for comparison in total_dfs.comparison.unique():
+    current_plot_dir = os.path.join(plot_dir, 'top_features_{}'.format(comparison))
+    if not os.path.exists(current_plot_dir):
+        os.makedirs(current_plot_dir)
+
+    current_df = total_dfs.loc[total_dfs.comparison == comparison, :]
+    current_df = current_df.sort_values('combined_rank', ascending=True)
+    current_df = current_df.iloc[:num_features, :]
+
+    # plot results
+    for feature_name, rank in zip(current_df.feature_name_unique.values, current_df.combined_rank.values):
+        plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
+                                  (combined_df.Timepoint == comparison), :]
+
+        g = sns.catplot(data=plot_df, x='Clinical_benefit', y='raw_mean', kind='strip')
+        g.fig.suptitle(feature_name)
+        g.savefig(os.path.join(current_plot_dir, 'rank_{}_feature_{}.png'.format(rank, feature_name)))
+        plt.close()
 
 # generate importance score
 max_rank = len(~total_dfs.med_diff.isna())
@@ -168,34 +197,82 @@ total_dfs['top_feature'] = False
 total_dfs.iloc[:100, -1] = True
 
 # saved formatted df
-total_dfs.to_csv(os.path.join(data_dir, 'nivo_outcomes/outcomes_df_metacluster.csv'), index=False)
+total_dfs.to_csv(os.path.join(data_dir, 'nivo_outcomes/outcomes_df.csv'), index=False)
 
 
+# compare subsets of features to see effect of dox only
 
-
-
-# look at top features across all patients
-top_features = total_dfs.loc[total_dfs.top_feature, :]
-top_features['combined_name'] = top_features.feature_name_unique + '__' + top_features.comparison
-
-top_feature_df = combined_df.loc[combined_df.combined_name.isin(top_features.combined_name.values), :]
-
-patient_feature_df = top_feature_df.pivot(index=['Patient_ID', 'iRECIST_response'], columns='combined_name', values='normalized_mean')
-patient_feature_df = patient_feature_df.reset_index()
-
-patient_feature_df.fillna(0, inplace=True)
-patient_feature_df['response_status'] = (patient_feature_df.iRECIST_response == 'responders').astype(int)
-
-plot_df = patient_feature_df.drop(['Patient_ID', 'iRECIST_response'], axis=1)
-#plot_df = plot_df.loc[plot_df.response_status == 1, :]
-sns.clustermap(plot_df, figsize=(20, 20),
-                cmap='RdBu_r', vmin=-5, vmax=5, center=0)
-plt.savefig(os.path.join(plot_dir, 'top_features_clustermap.pdf'))
-plt.close()
-
-from scipy.stats import fisher_exact
-
-# create fake data
-fake_data = pd.DataFrame(np.array([[0, 10], [200, 3000]]), columns=['top_features', 'all_features'], index=['feature_category', 'other_categories'])
-fisher_exact(fake_data)
-
+# # create different input dfs
+# default_df = timepoint_features.copy()
+# control_df = timepoint_features.loc[timepoint_features.Induction_treatment != 'No induction', :]
+# dox_df = timepoint_features.loc[timepoint_features.Induction_treatment == 'Doxorubicin', :]
+#
+# len(dox_df.loc[(dox_df.Timepoint == 'post_induction'), 'Patient_ID'].unique())
+# induction_pats = default_df.loc[(default_df.Timepoint == 'post_induction'), 'Patient_ID'].unique()
+# len(induction_pats)
+#
+# # pick random subset from induction patients
+# np.random.seed(42)
+# induction_pat_subsets = [np.random.choice(induction_pats, size=29, replace=False) for _ in range(10)]
+#
+# dfs = [[default_df, 'default'], [control_df, 'control'], [dox_df, 'dox_only']]
+# random_dfs = [[default_df.loc[default_df.Patient_ID.isin(vals), :], 'subset_{}'.format(idx)] for idx, vals in enumerate(induction_pat_subsets)]
+#
+# dfs = dfs + random_dfs
+#
+# # generate top hits for each dataset
+# total_dfs = []
+# for input_df, name in dfs:
+#     population_df = compare_populations(feature_df=input_df, pop_col='Clinical_benefit',
+#                                             timepoints=['post_induction'], pop_1='No', pop_2='Yes', method='ttest')
+#
+#
+#     long_df = population_df[['feature_name_unique', 'log_pval', 'mean_diff', 'med_diff']]
+#     long_df['comparison'] = name
+#     long_df = long_df.dropna()
+#
+#     long_df['pval_rank'] = long_df.log_pval.rank(ascending=False)
+#     long_df['cor_rank'] = long_df.med_diff.abs().rank(ascending=False)
+#     long_df['combined_rank'] = (long_df.pval_rank.values + long_df.cor_rank.values) / 2
+#
+#     # add to overall df
+#     total_dfs.append(long_df)
+#
+# total_dfs = pd.concat(total_dfs)
+#
+# wide_df = total_dfs.pivot(index='feature_name_unique', columns='comparison', values='combined_rank')
+# wide_df = wide_df.reset_index()
+# wide_df = wide_df.loc[wide_df.default < 100]
+#
+# # plot results
+# plot_df = wide_df.loc[:, ['default', 'subset_5']]
+# plot_df.dropna(axis=0, inplace=True)
+# sns.scatterplot(data=plot_df, x='default', y='subset_5')
+# plt.title('All samples vs. subset 5')
+#
+# corr, _ = spearmanr(plot_df.default, plot_df.subset_5)
+# plt.text(0.5, 0.5, 'Spearman R = {:.2f}'.format(corr), transform=plt.gca().transAxes)
+# plt.savefig(os.path.join(plot_dir, 'Feature_Correlation_subset_5.pdf'))
+# plt.close()
+#
+# corrs = []
+# for i in range(10):
+#     col = 'subset_{}'.format(i)
+#     plot_df = wide_df.loc[:, ['default', col]]
+#     plot_df.dropna(axis=0, inplace=True)
+#     corr, _ = spearmanr(plot_df.default, plot_df[col])
+#     corrs.append(corr)
+#
+# cor_df = pd.DataFrame(corrs, columns=['correlation'])
+#
+# plot_df = wide_df.loc[:, ['default', 'dox_only']]
+# plot_df.dropna(axis=0, inplace=True)
+# dox_cor, _ = spearmanr(plot_df.default, plot_df.dox_only)
+#
+# cor_df = pd.concat([cor_df, (pd.DataFrame([dox_cor], columns=['correlation']))])
+# cor_df['type'] = 'randomized'
+# cor_df.iloc[-1, -1] = 'dox_only'
+#
+# sns.stripplot(data=cor_df, x='type', y='correlation')
+# plt.savefig(os.path.join(plot_dir, 'Feature_Correlation_summary.pdf'))
+# plt.close()

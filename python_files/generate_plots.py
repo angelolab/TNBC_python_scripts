@@ -597,6 +597,16 @@ plt.close()
 # Figure 5
 #
 
+# additional features:
+# Cancer / T ratio cancer border in baseline.
+# Cancer / Immune mixing score baseline to nivo
+# Cancer / T ratio cance core on nivo
+# PDL1+ M1_Mac on Nivo
+# Diversity Cell Cluster Cancer On nivo
+# cluster broad diversity cancer border on nivo
+
+
+
 # plot specific top features
 combined_df = pd.read_csv(os.path.join(data_dir, 'nivo_outcomes/combined_df.csv'))
 
