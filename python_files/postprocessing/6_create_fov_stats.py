@@ -510,7 +510,7 @@ fiber_df = fiber_df.rename(columns={'fiber_metric': 'feature_name'})
 
 # drop rows with NAs or Inf
 fiber_df = fiber_df.dropna()
-fiber_df = fiber_df[~fiber_df.isin([np.nan, np.inf, -np.inf]).any(1)]
+fiber_df = fiber_df[~fiber_df.isin([np.nan, np.inf, -np.inf]).any(axis=1)]
 
 fiber_df['feature_name_unique'] = fiber_df['feature_name']
 fiber_df['compartment'] = 'all'
@@ -565,7 +565,7 @@ grouped = fov_data_df.groupby(['Tissue_ID', 'feature_name', 'feature_name_unique
 grouped.columns = ['raw_mean', 'raw_std', 'normalized_mean', 'normalized_std']
 grouped = grouped.reset_index()
 
-grouped.to_csv(os.path.join(data_dir, 'timepoint_features_metacluster.csv'), index=False)
+grouped.to_csv(os.path.join(data_dir, 'timepoint_features.csv'), index=False)
 
 #
 # filter FOV features based on correlation in compartments
@@ -636,30 +636,6 @@ feature_metadata = feature_metadata.drop_duplicates()
 
 feature_metadata.to_csv(os.path.join(data_dir, 'feature_metadata.csv'), index=False)
 
-
-
-## plot correlations once excluded features removed
-fov_data_wide = fov_data_df_filtered.pivot(index='fov', columns='feature_name_unique', values='normalized_value')
-
-#working_df_wide = working_df_wide.loc[:, working_df_wide.columns.str.contains('HLA1')]
-corr_df = fov_data_wide.corr(method='spearman')
-
-# replace Nans
-corr_df = corr_df.fillna(0)
-
-
-clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
-clustergrid.savefig(os.path.join(plot_dir, 'spearman_correlation_dp_functional_markers_clustermap.png'), dpi=300)
-plt.close()
-
-# get names of features from clustergrid
-feature_names = clustergrid.data2d.columns
-
-start_idx = 0
-end_idx = 80
-clustergrid_small = sns.clustermap(corr_df.loc[feature_names[start_idx:end_idx], feature_names[start_idx:end_idx]], cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
-clustergrid_small.savefig(os.path.join(plot_dir, 'spearman_correlation_dp_functional_markers_clustermap_small_3.png'), dpi=300)
-plt.close()
 
 
 

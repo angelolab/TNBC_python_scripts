@@ -419,6 +419,65 @@ plt.close()
 sns.histplot(data=plot_df.loc[plot_df.feature_name_unique == 'cluster_broad_diversity'],
              x='raw_value', bins=20, multiple='stack')
 
+# cluster features together to identify modules
+fov_data_df = pd.read_csv(os.path.join(data_dir, 'fov_features_filtered.csv'))
+
+keep_timepoints = ['primary_untreated', 'baseline', 'post_induction', 'on_nivo']
+keep_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(keep_timepoints), 'fov'].values
+fov_data_df = fov_data_df.loc[fov_data_df.fov.isin(keep_fovs)]
+
+# create wide df
+fov_data_wide = fov_data_df.pivot(index='fov', columns='feature_name_unique', values='normalized_value')
+corr_df = fov_data_wide.corr(method='spearman')
+corr_df = corr_df.fillna(0)
+
+
+clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+clustergrid.savefig(os.path.join(plot_dir, 'Figure3_feature_clustermap_filtered.pdf'), dpi=300)
+plt.close()
+
+# get names of features from clustergrid
+feature_names = clustergrid.data2d.columns
+
+start_idx = 710
+end_idx = 750
+clustergrid_small = sns.clustermap(corr_df.loc[feature_names[start_idx:end_idx], feature_names[start_idx:end_idx]], cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20),
+                                   col_cluster=False, row_cluster=False)
+clustergrid_small.savefig(os.path.join(plot_dir, 'spearman_correlation_dp_functional_markers_clustermap_small_3.png'), dpi=300)
+plt.close()
+
+
+#  Doesn't seem to be working
+# from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
+# from scipy.spatial.distance import squareform
+#
+# plt.figure(figsize=(12,5))
+# dissimilarity = 1 - abs(corr_df)
+# Z = linkage(squareform(dissimilarity), 'average')
+#
+# # Clusterize the data
+# threshold = 0.92
+# labels = fcluster(Z, threshold, criterion='distance')
+#
+# # Keep the indices to sort labels
+# labels_order = np.argsort(labels)
+#
+# # Build a new dataframe with the sorted columns
+# for idx, i in enumerate(fov_data_wide.columns[labels_order]):
+#     if idx == 0:
+#         clustered = pd.DataFrame(fov_data_wide[i])
+#     else:
+#         df_to_append = pd.DataFrame(fov_data_wide[i])
+#         clustered = pd.concat([clustered, df_to_append], axis=1)
+#
+#
+# plt.figure(figsize=(15,10))
+# correlations = clustered.corr(method='spearman')
+# correlations.fillna(0, inplace=True)
+# sns.heatmap(round(correlations,2), cmap='vlag', annot=True,
+#             annot_kws={"size": 7}, vmin=-1, vmax=1)
+
+
 #
 # Figure 4
 #
