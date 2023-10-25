@@ -28,6 +28,9 @@ fiber_df = pd.read_csv(os.path.join(data_dir, 'fiber_df_per_core.csv'))
 fiber_tile_df = pd.read_csv(os.path.join(data_dir, 'fiber_df_per_tile.csv'))
 ecm_df = pd.read_csv(os.path.join(data_dir, 'ecm/fov_cluster_counts.csv'))
 ecm_clusters = pd.read_csv(os.path.join('/Volumes/Shared/Noah Greenwald/ecm_pixel_clustering/fov_pixel_cluster_counts.csv'))
+ecm_object_ratio = pd.read_csv(os.path.join('/Volumes/Shared/Noah Greenwald/ecm_pixel_clustering/shape_analysis/fov_object_mean_ratio.csv'))
+ecm_object_diff = pd.read_csv(os.path.join('/Volumes/Shared/Noah Greenwald/ecm_pixel_clustering/shape_analysis/fov_object_mean_diff_norm.csv'))
+ecm_neighborhoods = pd.read_csv(os.path.join('/Volumes/Shared/Noah Greenwald/ecm_pixel_clustering/neighborhood/fov_neighborhood_counts.csv'))
 
 # load metadata
 harmonized_metadata_df = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
@@ -486,14 +489,34 @@ ecm_frac_df = ecm_frac_df[['fov', 'value', 'feature_name', 'feature_name_unique'
 fov_data.append(ecm_frac_df)
 
 
-# add ecm pixel clusters
+# add ecm pixel cluster density
+area_df = pd.read_csv(os.path.join(data_dir, 'post_processing', 'fov_annotation_mask_area.csv'))
+area_df = area_df.loc[area_df.compartment == 'all', ['fov', 'area']]
+ecm_clusters_density = pd.merge(ecm_clusters, area_df, on='fov')
+ecm_clusters_density['density'] = ecm_clusters_density['counts'] / ecm_clusters_density['area']
+
+ecm_clusters_density['feature_name'] = 'Pixie__cluster__' + ecm_clusters_density['pixel_meta_cluster_rename'] + '__density'
+ecm_clusters_density['feature_name_unique'] = 'Pixie__cluster__' + ecm_clusters_density['pixel_meta_cluster_rename'] + '__density'
+ecm_clusters_density['compartment'] = 'all'
+ecm_clusters_density['cell_pop'] = 'ecm'
+ecm_clusters_density['cell_pop_level'] = 'broad'
+ecm_clusters_density['feature_type'] = 'pixie_ecm'
+ecm_clusters_density['feature_type_detail'] = ecm_clusters_density['pixel_meta_cluster_rename']
+ecm_clusters_density['feature_type_detail_2'] = ''
+ecm_clusters_density = ecm_clusters_density.rename(columns={'density': 'value'})
+ecm_clusters_density = ecm_clusters_density[['fov', 'value', 'feature_name', 'feature_name_unique',
+                                'compartment', 'cell_pop', 'cell_pop_level', 'feature_type', 'feature_type_detail', 'feature_type_detail_2']]
+
+fov_data.append(ecm_clusters_density)
+
+# add ecm pixel cluster proportion
 ecm_clusters_wide = pd.pivot(ecm_clusters, index='fov', columns='pixel_meta_cluster_rename', values='counts')
 ecm_clusters_wide = ecm_clusters_wide.apply(lambda x: x / x.sum(), axis=1)
 ecm_clusters_wide = ecm_clusters_wide.reset_index()
 
 ecm_clusters = pd.melt(ecm_clusters_wide, id_vars='fov', var_name='ecm_cluster_name', value_name='value')
-ecm_clusters['feature_name'] = 'Pixie__' + ecm_clusters['ecm_cluster_name'] + '__proportion'
-ecm_clusters['feature_name_unique'] = 'Pixie__' + ecm_clusters['ecm_cluster_name'] + '__proportion'
+ecm_clusters['feature_name'] = 'Pixie__cluster__' + ecm_clusters['ecm_cluster_name'] + '__proportion'
+ecm_clusters['feature_name_unique'] = 'Pixie__cluster__' + ecm_clusters['ecm_cluster_name'] + '__proportion'
 ecm_clusters['compartment'] = 'all'
 ecm_clusters['cell_pop'] = 'ecm'
 ecm_clusters['cell_pop_level'] = 'broad'
@@ -504,6 +527,73 @@ ecm_clusters = ecm_clusters[['fov', 'value', 'feature_name', 'feature_name_uniqu
                                 'compartment', 'cell_pop', 'cell_pop_level', 'feature_type', 'feature_type_detail', 'feature_type_detail_2']]
 
 fov_data.append(ecm_clusters)
+
+# add ecm neighborhood density
+ecm_neighborhoods = ecm_neighborhoods.rename(columns={'Cluster1': 'Collagen', 'Cluster2': 'SMA', 'Cluster3': 'Collagen_Vim', 'Cluster4': 'Vim_FAP', 'Cluster5': 'Fibronectin'})
+ecm_neighborhood_density = pd.melt(ecm_neighborhoods.iloc[:, :-1], id_vars='fov', var_name='ecm_neighborhood', value_name='counts')
+ecm_neighborhood_density = pd.merge(ecm_neighborhood_density, area_df, on='fov')
+ecm_neighborhood_density['density'] = ecm_neighborhood_density['counts'] / ecm_neighborhood_density['area']
+
+ecm_neighborhood_density['feature_name'] = 'Pixie__neighborhood__' + ecm_neighborhood_density['ecm_neighborhood'] + '__density'
+ecm_neighborhood_density['feature_name_unique'] = 'Pixie__neighborhood__' + ecm_neighborhood_density['ecm_neighborhood'] + '__density'
+ecm_neighborhood_density['compartment'] = 'all'
+ecm_neighborhood_density['cell_pop'] = 'ecm'
+ecm_neighborhood_density['cell_pop_level'] = 'broad'
+ecm_neighborhood_density['feature_type'] = 'pixie_ecm'
+ecm_neighborhood_density['feature_type_detail'] = ecm_neighborhood_density['ecm_neighborhood']
+ecm_neighborhood_density['feature_type_detail_2'] = ''
+ecm_neighborhood_density = ecm_neighborhood_density.rename(columns={'density': 'value'})
+ecm_neighborhood_density = ecm_neighborhood_density[['fov', 'value', 'feature_name', 'feature_name_unique',
+                                'compartment', 'cell_pop', 'cell_pop_level', 'feature_type', 'feature_type_detail', 'feature_type_detail_2']]
+
+fov_data.append(ecm_neighborhood_density)
+
+# add ecm neighborhood proportion
+ecm_neighborhoods_prop = ecm_neighborhoods.copy()
+for col in ecm_neighborhoods_prop.columns[1:-1]:
+    ecm_neighborhoods_prop[col] = ecm_neighborhoods_prop[col] / ecm_neighborhoods_prop['total']
+
+ecm_neighborhoods_prop = pd.melt(ecm_neighborhoods_prop.iloc[:, :-1], id_vars='fov', var_name='ecm_neighborhood', value_name='value')
+ecm_neighborhoods_prop['feature_name'] = 'Pixie__neighborhood__' + ecm_neighborhoods_prop['ecm_neighborhood'] + '__proportion'
+ecm_neighborhoods_prop['feature_name_unique'] = 'Pixie__neighborhood__' + ecm_neighborhoods_prop['ecm_neighborhood'] + '__proportion'
+ecm_neighborhoods_prop['compartment'] = 'all'
+ecm_neighborhoods_prop['cell_pop'] = 'ecm'
+ecm_neighborhoods_prop['cell_pop_level'] = 'broad'
+ecm_neighborhoods_prop['feature_type'] = 'pixie_ecm'
+ecm_neighborhoods_prop['feature_type_detail'] = ecm_neighborhoods_prop['ecm_neighborhood']
+ecm_neighborhoods_prop['feature_type_detail_2'] = ''
+ecm_neighborhoods_prop = ecm_neighborhoods_prop[['fov', 'value', 'feature_name', 'feature_name_unique',
+                                'compartment', 'cell_pop', 'cell_pop_level', 'feature_type', 'feature_type_detail', 'feature_type_detail_2']]
+fov_data.append(ecm_neighborhoods_prop)
+
+# add ecm shape axis ratio
+ecm_object_ratio['feature_name'] = 'Pixie__major_minor_ratio__' + ecm_object_ratio['cluster']
+ecm_object_ratio['feature_name_unique'] = 'Pixie__major_minor_ratio__' + ecm_object_ratio['cluster']
+ecm_object_ratio['compartment'] = 'all'
+ecm_object_ratio['cell_pop'] = 'ecm'
+ecm_object_ratio['cell_pop_level'] = 'broad'
+ecm_object_ratio['feature_type'] = 'pixie_ecm'
+ecm_object_ratio['feature_type_detail'] = 'major_minor_ratio'
+ecm_object_ratio['feature_type_detail_2'] = ''
+ecm_object_ratio = ecm_object_ratio.rename(columns={'axis_ratio': 'value'})
+ecm_object_ratio = ecm_object_ratio[['fov', 'value', 'feature_name', 'feature_name_unique',
+                                'compartment', 'cell_pop', 'cell_pop_level', 'feature_type', 'feature_type_detail', 'feature_type_detail_2']]
+
+fov_data.append(ecm_object_ratio)
+
+# add ecm shape normalized difference
+ecm_object_diff['feature_name'] = 'Pixie__major_minor_diff__' + ecm_object_diff['cluster']
+ecm_object_diff['feature_name_unique'] = 'Pixie__major_minor_diff__' + ecm_object_diff['cluster']
+ecm_object_diff['compartment'] = 'all'
+ecm_object_diff['cell_pop'] = 'ecm'
+ecm_object_diff['cell_pop_level'] = 'broad'
+ecm_object_diff['feature_type'] = 'pixie_ecm'
+ecm_object_diff['feature_type_detail'] = 'major_minor_diff'
+ecm_object_diff['feature_type_detail_2'] = ''
+ecm_object_diff = ecm_object_diff.rename(columns={'axis_diff_norm': 'value'})
+ecm_object_diff = ecm_object_diff[['fov', 'value', 'feature_name', 'feature_name_unique',
+                                'compartment', 'cell_pop', 'cell_pop_level', 'feature_type', 'feature_type_detail', 'feature_type_detail_2']]
+
 
 # add fiber stats
 fiber_df = fiber_df.rename(columns={'fiber_metric': 'feature_name'})
