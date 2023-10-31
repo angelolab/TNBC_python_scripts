@@ -108,12 +108,17 @@ for cluster_name, feature_name in diversity_features:
 
 # compute abundance of cell types
 abundance_features = [['cluster_density', 'cluster_density', 'med'],
-                      ['total_cell_density', 'total_density', 'broad']]
+                      ['total_cell_density', 'total_density', 'broad'],
+                      ['cluster_broad_density', 'cluster_broad_density', 'broad']]
 
 # abundance_features = [['meta_cluster_density', 'meta_cluster_density', 'narrow']]
 
 for cluster_name, feature_name, cell_pop_level in abundance_features:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
+    if cluster_name == 'cluster_density':
+        # B and NK are the same as cluster_broad, keep just cluster broad
+        input_df = input_df[~input_df.cell_type.isin(['B', 'NK'])]
+    
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border',
                         'tls', 'tagg', 'all']:
     #for compartment in ['all']:
@@ -145,6 +150,11 @@ for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_borde
 #for compartment in ['all']:
     compartment_df = input_df[input_df.subset == compartment].copy()
     cell_types = compartment_df.cell_type.unique()
+
+    # put cancer and stromal cells last
+    cell_types = [cell_type for cell_type in cell_types if cell_type not in ['Cancer', 'Stroma']]
+    cell_types = cell_types + ['Cancer', 'Stroma']
+
     for cell_type1, cell_type2 in itertools.combinations(cell_types, 2):
         cell_type1_df = compartment_df[compartment_df.cell_type == cell_type1].copy()
         cell_type2_df = compartment_df[compartment_df.cell_type == cell_type2].copy()
