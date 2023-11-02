@@ -118,7 +118,7 @@ for cluster_name, feature_name, cell_pop_level in abundance_features:
     if cluster_name == 'cluster_density':
         # B and NK are the same as cluster_broad, keep just cluster broad
         input_df = input_df[~input_df.cell_type.isin(['B', 'NK'])]
-    
+
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border',
                         'tls', 'tagg', 'all']:
     #for compartment in ['all']:
