@@ -10,7 +10,7 @@ matplotlib.rcParams['ps.fonttype'] = 42
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-from matplotlib_venn import venn3
+from matplotlib_venn import venn3, venn2
 from ark.utils.plot_utils import cohort_cluster_plot, color_segmentation_by_stat
 import ark.settings as settings
 
@@ -590,6 +590,12 @@ plot_features['ratio'] = plot_features.feature_type.isin(['density_ratio', 'dens
 plot_features['density'] = plot_features.feature_type == 'density'
 plot_features['diversity'] = plot_features.feature_type.isin(['region_diversity', 'cell_diversity'])
 plot_features['phenotype'] = plot_features.feature_type == 'functional_marker'
+plot_features['sign'] = plot_features.med_diff > 0
+plot_features = plot_features.iloc[:50, :]
+plot_features = plot_features[['feature_name', 'feature_name_unique', 'compartment', 'ratio', 'density', 'diversity', 'phenotype', 'sign']]
+plot_features = plot_features.drop_duplicates()
+plot_features = plot_features.sort_values(by='feature_name')
+plot_features.to_csv(os.path.join(plot_dir, 'Figure4_hits.csv'))
 
 # positive features
 plot_features_pos = plot_features.loc[plot_features.med_diff > 0, :]
@@ -1365,6 +1371,18 @@ all_top_features = all_top_features.fillna(0)
 sns.clustermap(data=all_top_features, cmap='RdBu_r', figsize=(10, 15))
 plt.savefig(os.path.join(plot_dir, 'top_features_clustermap_no_evolution_scaled_signed.pdf'))
 plt.close()
+
+# get overlap between static and evolution top features
+overlap_top_features = total_dfs.copy()
+overlap_top_features.loc[overlap_top_features.comparison.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), 'comparison'] = 'static'
+overlap_top_features.loc[overlap_top_features.comparison != 'static', 'comparison'] = 'evolution'
+overlap_top_features = overlap_top_features.iloc[:300, :]
+overlap_top_features = overlap_top_features.loc[overlap_top_features.feature_name_unique.isin(overlap_top_features.feature_name_unique.values[:133]), :]
+len(overlap_top_features.feature_name_unique.unique())
+
+# get counts of features in each category
+static_ids = overlap_top_features.loc[overlap_top_features.comparison == 'static', 'feature_name_unique'].unique()
+evolution_ids = overlap_top_features.loc[overlap_top_features.comparison == 'evolution', 'feature_name_unique'].unique()
 
 
 # identify features with opposite effects at different timepoints
