@@ -31,8 +31,8 @@ cell_table_func = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cell_ta
 cell_table_morph = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cell_table_morph.csv'))
 cell_table_diversity = pd.read_csv(os.path.join(data_dir, 'spatial_analysis/cell_neighbor_analysis/neighborhood_diversity_radius50.csv'))
 cell_table_distances_broad = pd.read_csv(os.path.join(data_dir, 'spatial_analysis/cell_neighbor_analysis/cell_cluster_broad_avg_dists-nearest_1.csv'))
-area_df = pd.read_csv(os.path.join(data_dir, 'post_processing', 'fov_annotation_mask_area.csv'))
-annotations_by_mask = pd.read_csv(os.path.join(data_dir, 'post_processing', 'cell_annotation_mask.csv'))
+area_df = pd.read_csv(os.path.join(data_dir, 'mask_dir/individual_masks-no_tagg_tls', 'fov_annotation_mask_area.csv'))
+annotations_by_mask = pd.read_csv(os.path.join(data_dir, 'mask_dir/individual_masks-no_tagg_tls', 'cell_annotation_mask.csv'))
 fiber_df = pd.read_csv(os.path.join(data_dir, 'fiber_segmentation_processed_data', 'fiber_object_table.csv'))
 fiber_tile_df = pd.read_csv(os.path.join(data_dir, 'fiber_segmentation_processed_data/tile_stats_512', 'fiber_stats_table-tile_512.csv'))
 
@@ -284,7 +284,7 @@ filtered_func_df_plot = filtered_func_df_plot.loc[filtered_func_df_plot.metric.i
 filtered_func_df_plot = filtered_func_df_plot.loc[filtered_func_df_plot.functional_marker.isin(sp_markers), :]
 
 # save filtered df
-filtered_func_df_plot.to_csv(os.path.join(data_dir, 'functional_df_per_core_filtered_all_combos.csv'), index=False)
+filtered_func_df_plot.to_csv(os.path.join(data_dir, 'functional_df_per_core_filtered.csv'), index=False)
 
 # # identify combinations of markers and cell types to include in analysis based on threshold
 # mean_percent_positive = 0.05
@@ -782,9 +782,6 @@ deduped_morph_df.to_csv(os.path.join(data_dir, 'morph_df_per_core_filtered_dedup
 deduped_morph_df_timepoint = filtered_morph_df_timepoint.loc[~filtered_morph_df_timepoint.morphology_feature.isin(block1[1:] + block2[1:] + block3[1:] + block4[1:]), :]
 deduped_morph_df_timepoint = deduped_morph_df_timepoint.loc[~(~(deduped_morph_df_timepoint.cell_type.isin(cancer_clusters)) & ~(deduped_morph_df_timepoint.morphology_feature.isin(basic_morph_features))), :]
 deduped_morph_df_timepoint.to_csv(os.path.join(data_dir, 'morph_df_per_timepoint_filtered_deduped.csv'), index=False)
-
-# fiber objects summary
-
 
 #
 # spatial features

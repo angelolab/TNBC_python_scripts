@@ -849,12 +849,15 @@ def summarize_population_enrichment(input_df, feature_df, timepoints, pop_col, o
     for idx, feature in enumerate(input_df_filtered.feature_name_unique):
         feature_subset = feature_df.loc[(feature_df.feature_name_unique == feature), :]
         feature_subset = feature_subset.loc[(feature_subset.Timepoint.isin(timepoints)), :]
-
+        if len(feature_subset[pop_col].unique()) != 2:
+            continue
         g = sns.catplot(data=feature_subset, x=pop_col, y='raw_mean', kind=plot_type)
         g.fig.suptitle(feature)
         g.savefig(os.path.join(output_dir, 'Evolution_{}_{}.png'.format(idx, feature)))
         plt.close()
 
+    if len(input_df_filtered) == 0:
+        return
     sns.catplot(data=input_df_filtered, x=sort_by, y='feature_name_unique', kind='bar', color='grey')
     plt.savefig(os.path.join(output_dir, 'Evolution_summary.png'))
     plt.close()

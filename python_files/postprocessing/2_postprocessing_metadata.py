@@ -4,22 +4,25 @@ import numpy as np
 
 from alpineer.io_utils import list_folders
 
-local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
-data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data'
+image_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples'
+image_dir = '/Volumes/Shared/Noah Greenwald/TNBC_Cohorts/BELLINI/image_data/samples'
+
 metadata_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/metadata'
+metadata_dir = '/Volumes/Shared/Noah Greenwald/TNBC_Cohorts/BELLINI/data/metadata'
 
-
+# used for metadata naming
+study_name = 'BELLINI'
 #
 # Determine which cores have valid image data, and update all metadata tables
 #
 
 # get list of acquired FOVs
-all_fovs = list_folders('/Volumes/Big_Boy/TONIC_Cohort/image_data/samples')
-fov_df = pd.DataFrame({'imaged_fovs': all_fovs})
-fov_df.to_csv(os.path.join(metadata_dir, 'imaged_fovs.csv'), index=False)
+# all_fovs = list_folders(image_dir)
+# fov_df = pd.DataFrame({'imaged_fovs': all_fovs})
+# fov_df.to_csv(os.path.join(metadata_dir, 'imaged_fovs.csv'), index=False)
 
 # annotate acquired FOVs
-core_metadata = pd.read_csv(os.path.join(metadata_dir, 'TONIC_data_per_core_unprocessed.csv'))
+core_metadata = pd.read_csv(os.path.join(metadata_dir, '{}_data_per_core_unprocessed.csv'.format(study_name)))
 fov_df = pd.read_csv(os.path.join(metadata_dir, 'imaged_fovs.csv'))
 core_metadata['MIBI_data_generated'] = core_metadata['fov'].isin(fov_df.imaged_fovs)
 
