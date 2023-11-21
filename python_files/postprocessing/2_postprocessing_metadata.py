@@ -6,9 +6,10 @@ from alpineer.io_utils import list_folders
 
 image_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples'
 image_dir = '/Volumes/Shared/Noah Greenwald/TNBC_Cohorts/BELLINI/image_data/samples'
+analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
 
-metadata_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/metadata'
-metadata_dir = '/Volumes/Shared/Noah Greenwald/TNBC_Cohorts/BELLINI/data/metadata'
+metadata_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/metadata'
+# metadata_dir = '/Volumes/Shared/Noah Greenwald/TNBC_Cohorts/BELLINI/data/metadata'
 
 # used for metadata naming
 study_name = 'BELLINI'
@@ -153,6 +154,7 @@ assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
 
 # save harmonized metadata
 harmonized_metadata.to_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'), index=False)
+harmonized_metadata.to_csv(os.path.join(analysis_dir, 'harmonized_metadata.csv'), index=False)
 
 # add in the harmonized metadata
 core_metadata = pd.merge(core_metadata, harmonized_metadata, on=['fov', 'Tissue_ID'], how='left')
