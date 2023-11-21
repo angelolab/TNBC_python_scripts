@@ -88,14 +88,19 @@ In addition, there are often multiple levels of granularity in the clustering sc
 
 ## Analysis Files
 
-### Nivo Outcomes
-*combined_df.csv*: tbd
-
-
 ### Metadata
 *harmonized_metadata.csv*: This data frame details the various FOVs and their associated tissue and patient IDs, localization, timepoint, etc.
 
 *feature_metadata.csv*: This file gives more detailed information about the specifications that make up each of the features in the fov and timepoint feature tables. The columns include, geenral feature name, unique feature name, compartment, cell population, cell population level, and feature type details.
+
+### Nivo Outcomes
+*combined_df.csv*: This dataframe details feature data for patients at various timepoints, and includes the relevant metadata.
+
+|    feature_name_unique    | raw_mean | normalized_mean | Patient_ID | disease_stage |
+|:-------------------------:|:--------:|:---------------:|:----------:|:-------------:|
+|        area_Cancer        |   0.1    |       2.6       |     1      |    Stage I    |
+|  cluster_broad_diversity  |  -0.01   |      -0.6       |     2      |   Stage II    |
+|     max_fiber_density     |   -1.8   |      -0.7       |     3      |   Stage III   |
 
 
 ### Image Level Features
@@ -172,7 +177,7 @@ In addition to these core columns, metadata can be added to faciliate easy analy
 | TMA1_FOV1| Immune |    diversity_cell_cluster    |  0.4  | cluster_broad_freq |  Stage II  | 
 | TMA2_FOV4| MacImmunerophage  | diversity_cell_cluster_broad |   2   | cluster_broad_freq |  Stage II | 
 
-6. *fiber_df / fiber_df_per_tile*: This data structure summarizes information about the collagen fibers in an image and also withing 512x512 size crops fo the image.
+6. *fiber_df / fiber_df_per_tile*: This data structure summarizes statistics about the collagen fibers at an image-level and also within 512x512 sized pixel crops of the image.
 
 | Tissue_ID |     fiber_metric      | mean | std | disease_stage | 
 |:---------:|:---------------------:|:----:|:---:| :---: | 
