@@ -20,6 +20,9 @@ data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files'
 output_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/output_files'
 analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
 
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
 #
 # Preprocess metadata to ensure all samples are present
 #
