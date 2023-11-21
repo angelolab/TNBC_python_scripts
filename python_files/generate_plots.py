@@ -630,13 +630,14 @@ total_counts = feature_metadata.groupby('compartment').count().iloc[:, 0]
 top_prop = top_counts / np.sum(top_counts)
 total_prop = total_counts / np.sum(total_counts)
 
-top_ratio = top_prop[:-1] / total_prop[:-2]
+top_ratio = top_prop / total_prop
 top_ratio = np.log2(top_ratio)
 ratio_df = pd.DataFrame({'compartment': top_ratio.index, 'ratio': top_ratio.values})
 ratio_df = ratio_df.sort_values(by='ratio', ascending=False)
 
 fig, ax = plt.subplots(figsize=(4, 3))
 sns.barplot(data=ratio_df, x='compartment', y='ratio', color='grey', ax=ax)
+sns.despine()
 plt.savefig(os.path.join(plot_dir, 'Figure4_enrichment_by_compartment.pdf'))
 plt.close()
 
@@ -650,6 +651,7 @@ for idx, row in top_ratios.iterrows():
     candidate_features = candidate_features.loc[candidate_features.feature_type == 'density', :]
     candidate_features = candidate_features.loc[candidate_features.comparison == row.comparison, :]
     candidate_features = candidate_features.loc[candidate_features.feature_type_detail.isin([row.feature_type_detail, row.feature_type_detail_2]), :]
+    candidate_features = candidate_features.loc[candidate_features.cell_pop_level == 'broad', :]
     feature_num.append(candidate_features.shape[0])
     best_rank = candidate_features.combined_rank.min()
     candidate_features = candidate_features.loc[candidate_features.combined_rank == best_rank, :]
@@ -663,21 +665,27 @@ for idx, row in top_ratios.iterrows():
         score.append([0])
 
 
-comparison_df = pd.DataFrame({'cell_type': np.concatenate(cell_types), 'rank': np.concatenate(rankings), 'feature_num': feature_num, 'score': np.concatenate(score)})
+comparison_df = pd.DataFrame({'cell_type': np.concatenate(cell_types), 'rank': np.concatenate(rankings), 'feature_num': feature_num, 'density_score': np.concatenate(score)})
 comparison_df['original_ranking'] = top_ratios.combined_rank.values
 comparison_df['original_feature'] = top_ratios.feature_name_unique.values
-comparison_df['original_score'] = top_ratios.importance_score.values
+comparison_df['ratio_score'] = top_ratios.importance_score.values
 comparison_df = comparison_df.loc[comparison_df.feature_num == 2, :]
 comparison_df['feature_id'] = np.arange(comparison_df.shape[0])
 
-plot_df = pd.melt(comparison_df, id_vars=['feature_id'], value_vars=['score', 'original_score'])
-
+plot_df = pd.melt(comparison_df, id_vars=['feature_id'], value_vars=['density_score', 'ratio_score'])
+plot_df['variable'] = pd.Categorical(plot_df['variable'], categories=['ratio_score', 'density_score'], ordered=True)
+# remove border from dots
+fig, ax = plt.subplots(figsize=(4, 3))
 sns.lineplot(data=plot_df, x='variable', y='value', units='feature_id', estimator=None,
-             color='grey', alpha=0.5, marker='o')
+             color='grey', alpha=0.5, marker='o', markeredgewidth=0, markersize=5, ax=ax) # markeredgecolor='none'
 sns.despine()
+plt.ylim(0, 1)
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure4_ratio_vs_individual.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure4_ratio_vs_density.pdf'))
 plt.close()
+
+
+# check reverse direction
 
 # get importance score of top 5 examples for functional markers
 cols = ['PDL1','Ki67','GLUT1','CD45RO','CD69', 'PD1','CD57','TBET', 'TCF1',
@@ -1192,8 +1200,8 @@ io.imsave(os.path.join(subset_dir, 'cluster_masks_colored', fov4 + '_crop.tiff')
 #
 
 # plot top features
-top_features = total_dfs.loc[total_dfs.top_feature, :]
-top_features = top_features. sort_values('importance_score', ascending=False)
+top_features = total_dfs.loc[total_dfs.comparison.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
+top_features = top_features.iloc[:100, :]
 
 for idx, (feature_name, comparison) in enumerate(zip(top_features.feature_name_unique, top_features.comparison)):
     plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
@@ -1216,6 +1224,7 @@ fig, ax = plt.subplots(figsize=(4, 4))
 sns.barplot(data=top_features_by_comparison, x='comparison', y='num_features', color='grey', ax=ax)
 plt.xticks(rotation=90)
 plt.tight_layout()
+sns.despine()
 plt.savefig(os.path.join(plot_dir, 'Figure6_num_features_per_comparison.pdf'))
 plt.close()
 
@@ -1228,6 +1237,7 @@ feature_counts.columns = ['num_comparisons', 'num_features']
 fig, ax = plt.subplots(figsize=(4, 4))
 sns.barplot(data=feature_counts, x='num_comparisons', y='num_features', color='grey', ax=ax)
 plt.tight_layout()
+sns.despine()
 plt.savefig(os.path.join(plot_dir, 'Figure6_num_comparisons_per_feature.pdf'))
 plt.close()
 
@@ -1373,18 +1383,46 @@ plt.savefig(os.path.join(plot_dir, 'top_features_clustermap_no_evolution_scaled_
 plt.close()
 
 # get overlap between static and evolution top features
-overlap_top_features = total_dfs.copy()
-overlap_top_features.loc[overlap_top_features.comparison.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), 'comparison'] = 'static'
-overlap_top_features.loc[overlap_top_features.comparison != 'static', 'comparison'] = 'evolution'
-overlap_top_features = overlap_top_features.iloc[:300, :]
-overlap_top_features = overlap_top_features.loc[overlap_top_features.feature_name_unique.isin(overlap_top_features.feature_name_unique.values[:133]), :]
-len(overlap_top_features.feature_name_unique.unique())
+overlap_type_dict = {'global': [['primary_untreated', 'baseline', 'post_induction', 'on_nivo'],
+                                ['primary__baseline', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']],
+                     'primary': [['primary_untreated'], ['primary__baseline']],
+                     'baseline': [['baseline'], ['primary__baseline', 'baseline__post_induction', 'baseline__on_nivo']],
+                     'post_induction': [['post_induction'], ['baseline__post_induction', 'post_induction__on_nivo']],
+                     'on_nivo': [['on_nivo'], ['baseline__on_nivo', 'post_induction__on_nivo']]}
+
+overlap_results = {}
+for overlap_type, comparisons in overlap_type_dict.items():
+    static_comparisons, evolution_comparisons = comparisons
+
+    overlap_top_features = total_dfs.copy()
+    overlap_top_features = overlap_top_features.loc[overlap_top_features.comparison.isin(static_comparisons + evolution_comparisons)]
+    overlap_top_features.loc[overlap_top_features.comparison.isin(static_comparisons), 'comparison'] = 'static'
+    overlap_top_features.loc[overlap_top_features.comparison.isin(evolution_comparisons), 'comparison'] = 'evolution'
+    overlap_top_features = overlap_top_features[['feature_name_unique', 'comparison']].drop_duplicates()
+    overlap_top_features = overlap_top_features.iloc[:100, :]
+    # keep_features = overlap_top_features.feature_name_unique.unique()[:100]
+    # overlap_top_features = overlap_top_features.loc[overlap_top_features.feature_name_unique.isin(keep_features), :]
+    # len(overlap_top_features.feature_name_unique.unique())
+    static_ids = overlap_top_features.loc[
+        overlap_top_features.comparison == 'static', 'feature_name_unique'].unique()
+    evolution_ids = overlap_top_features.loc[
+        overlap_top_features.comparison == 'evolution', 'feature_name_unique'].unique()
+
+    overlap_results[overlap_type] = {'static_ids': static_ids, 'evolution_ids': evolution_ids}
+
 
 # get counts of features in each category
-static_ids = overlap_top_features.loc[overlap_top_features.comparison == 'static', 'feature_name_unique'].unique()
-evolution_ids = overlap_top_features.loc[overlap_top_features.comparison == 'evolution', 'feature_name_unique'].unique()
+for overlap_type, results in overlap_results.items():
+    static_ids = results['static_ids']
+    evolution_ids = results['evolution_ids']
+    venn2([set(static_ids), set(evolution_ids)], set_labels=('Static', 'Evolution'))
+    plt.title(overlap_type)
+    plt.savefig(os.path.join(plot_dir, 'Figure6_top_features_overlap_{}.pdf'.format(overlap_type)))
+    plt.close()
 
 
+
+# TODO: redo this analysis for specific pairs of static and evolution features: i.e. just looking at primary, just looking at on-nivo, etc
 # identify features with opposite effects at different timepoints
 opposite_features = []
 induction_peak_features = []
@@ -1602,7 +1640,7 @@ for feature in induction_peak_features:
 
 
 # Figure 7
-cv_scores = pd.read_csv(os.path.join(data_dir, 'nivo_outcomes', 'results_cv_all.csv'))
+cv_scores = pd.read_csv(os.path.join(data_dir, 'multivariate_lasso', 'results_1112_cv.csv'))
 cv_scores['fold'] = len(cv_scores)
 
 cv_scores_long = pd.melt(cv_scores, id_vars=['fold'], value_vars=cv_scores.columns)
