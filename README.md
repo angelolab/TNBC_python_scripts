@@ -21,6 +21,27 @@ evaluation
 
 `create_image_masks.py`: This file creates masks for each image based on supplied critieria. It identifies background based on the gold channel, tumor compartments based on ECAD staining patterns, and TLS structures. It then takes these masks, and assigns each cell each image to the mask that it overlaps most with
 
+## Directory Structure
+* TONIC_Cohort
+  * **image data**
+  * **segmentation data**
+  * **analysis_files** - final analysis files
+  * **output_files** - output files for per core and per timepoint feature analysis 
+  * **intermediate_files** - intermediate data files that are used to compute the data found in output_files
+    * metadata
+    * mask_dir
+    * post_processing
+    * intermediate_files
+    * fiber_segmentation_processed_data - image level fiber analysis
+      * tile_stats_512 - 512x512 tile analysis
+    * spatial_analysis
+      * dist_mats
+      * neighborhood_mats - neighboring cell count/frequency at specified pixel radius and cell cluster level
+      * mixing_score - image level mixing score of various cell population combinations
+      * cell_neighbor_analysis - data detailing cell diversity and linear distance between cell populations in an image
+      * neighborhood_analysis - kmeans neighborhood analysis 
+
+
 
 ## Data Structures
 In order to facilitate different analyses, there are a small number of distinct formats for storing data. 
@@ -65,7 +86,17 @@ In addition, there are often multiple levels of granularity in the clustering sc
 | TMA1_FOV1| 2 | 5 | 0 | 30 |  5 | 
 | TMA2_FOV4| 5 | 0 | 0 | 30 |  6 | 
 
-## Output Files
+## Analysis Files
+
+### Nivo Outcomes
+*combined_df.csv*: tbd
+
+
+### Metadata
+*harmonized_metadata.csv*: This data frame details the various FOVs and their associated tissue and patient IDs, localization, timepoint, etc.
+
+*feature_metadata.csv*: This file gives more detailed information about the specifications that make up each of the features in the fov and timepoint feature tables. The columns include, geenral feature name, unique feature name, compartment, cell population, cell population level, and feature type details.
+
 
 ### Image Level Features
 *fov_features.csv*: This file is a combination of all feature metrics calculated on a per image basis. The file *fov_features_filtered.csv* is also produced, which is the entire features file with any highly correlated features removed.
@@ -76,7 +107,20 @@ In addition, there are often multiple levels of granularity in the clustering sc
 |    T2     |  2  |   -0.01   |       -0.6       |  cluster_broad_diversity   | Immune |
 |    T3     |  5  |   -1.8    |       -0.7       |     max_fiber_density      | all |
 
-The individual feature data can be found in the corresponding files detailed below.
+
+### Timepoint Level Features
+*timepoint.csv*: While the data table above is aggregated *per_core*, this data is a combination of all feature metrics calculated on a per sample timepoint basis.  The file *timepoint_features_filtered.csv* is also produced, which is the entire features file with any highly correlated features removed.
+
+| Tissue_ID | feature_name_unique | cell_pop | raw_mean | raw_std | normalized_mean | normalized_std |
+|:---------:|:---:|:--------:|:-------:|:-------:|:---------------:|:--------------:|
+|    T1     |  area_Cancer  |  Cancer  |   0.1    |   1.3   |       2.6       |      0.3       |
+|    T2     |  cluster_broad_diversity  |  Immune  |  -0.01   |   0.3   |      -0.6       |      1.1       |
+|    T3     |  max_fiber_density  |   all    |   -1.8   |   -16   |      -0.7       |      0.2       |
+
+
+### Output files
+
+The individual feature data that combines into *fov_features.csv* and *timepoint_features.csv* can be found in the corresponding files detailed below.
 Each of the data frames in this section can be further stratified based on the feature relevancy and redundancy. The files below can have any of the following suffixes:
 * *_filtered*: features removed if there are less than 5 cells of the specified type
 * *_deduped*: redundant features removed
@@ -128,32 +172,11 @@ In addition to these core columns, metadata can be added to faciliate easy analy
 | TMA1_FOV1| Immune |    diversity_cell_cluster    |  0.4  | cluster_broad_freq |  Stage II  | 
 | TMA2_FOV4| MacImmunerophage  | diversity_cell_cluster_broad |   2   | cluster_broad_freq |  Stage II | 
 
-6. *fiber_df / fiber_df_per_tile*:
+6. *fiber_df / fiber_df_per_tile*: This data structure summarizes information about the collagen fibers in an image and also withing 512x512 size crops fo the image.
 
-
-### Timepoint Level Features
-*timepoint.csv*: While the data tables above were aggregated *per_core*, this data is a combination of all feature metrics calculated on a per sample timepoint basis.  The file *timepoint_features_filtered.csv* is also produced, which is the entire features file with any highly correlated features removed.
-
-| Tissue_ID | feature_name_unique | cell_pop | raw_mean | raw_std | normalized_mean | normalized_std |
-|:---------:|:---:|:--------:|:-------:|:-------:|:---------------:|:--------------:|
-|    T1     |  area_Cancer  |  Cancer  |   0.1    |   1.3   |       2.6       |      0.3       |
-|    T2     |  cluster_broad_diversity  |  Immune  |  -0.01   |   0.3   |      -0.6       |      1.1       |
-|    T3     |  max_fiber_density  |   all    |   -1.8   |   -16   |      -0.7       |      0.2       |
-
-
-### Nivo Outcomes
-*combined_df.csv*: 
-
-1. *evolution_df.csv*:
-
-|      feature_name       | Patient_ID |       comparison        | normalized_value | raw_value |
-|:-----------------------:|:----------:|:-----------------------:|:----------------:|:---------:|
-|       area_Cancer       |     1      |    primary__baseline    |       2.6        |    0.1    |
-| cluster_broad_diversity |     2      | post_induction__on_nivo |      -0.06       |   -0.01   |
-|    max_fiber_density    |     5      |    baseline__on_nivo    |       -0.7       |   -1.8    |
-
-### Metadata
-*harmonized_metadata.csv*:
-
-*feature_metadata.csv*: This file gives more detailed information about the specifications that make up each of the features in the fov and timepoint feature tables. The columns include, geenral feature name, unique feature name, compartment, cell population, cell population level, and feature type details.
+| Tissue_ID |     fiber_metric      | mean | std | disease_stage | 
+|:---------:|:---------------------:|:----:|:---:| :---: | 
+| TMA1_FOV1 | fiber_alignment_score | 2.2  | 0.5 | Stage I | 
+| TMA1_FOV1 |       fiber_are       | 270  | 30  |  Stage II  | 
+| TMA2_FOV4 |   fiber_major_axis_length    |  35  |1.9  |  Stage II | 
 
