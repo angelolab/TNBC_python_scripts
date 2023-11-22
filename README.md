@@ -43,8 +43,8 @@ about each fov, each timepoint, and each patient, as appropriate for your study.
   * **output_files** 
   * **intermediate_files** 
     * metadata
-    * mask_dir - contains the compartment masks generated in *3_create_image_masks.py* 
-    * post_processing
+    * post_processing - contains specifications for the filtering of data tables in *output_files*  
+    * mask_dir - contains the compartment masks generated in *3_create_image_masks.py*
     * fiber_segmentation_processed_data - image level fiber analysis
       * tile_stats_512 - 512x512 tile analysis
     * spatial_analysis
@@ -53,6 +53,8 @@ about each fov, each timepoint, and each patient, as appropriate for your study.
       * mixing_score - image level mixing score of various cell population combinations
       * cell_neighbor_analysis - data detailing cell diversity and linear distance between cell populations in an image
       * neighborhood_analysis - kmeans neighborhood analysis 
+    * ecm
+    * ecm_pixel_clustering
 
 
 
