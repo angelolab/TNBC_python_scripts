@@ -17,9 +17,9 @@ from python_files import utils
 # real paths
 channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
 seg_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
-mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/mask_dir/'
-post_processing_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/post_processing/'
-cell_table_clusters = pd.read_csv(os.path.join(post_processing_dir, 'cell_table_clusters.csv'))
+mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/mask_dir/'
+analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
+cell_table_clusters = pd.read_csv(os.path.join(analysis_dir, 'cell_table_clusters.csv'))
 
 folders = list_folders(channel_dir)
 
@@ -136,7 +136,7 @@ for folder in folders:
 
 # compute the area of each mask
 area_df = utils.calculate_mask_areas(mask_dir=individual_dir, fovs=folders)
-area_df.to_csv(os.path.join(post_processing_dir, 'fov_annotation_mask_area.csv'), index=False)
+area_df.to_csv(os.path.join(mask_dir, 'fov_annotation_mask_area.csv'), index=False)
 
 # create combined images for visualization
 for folder in folders[:20]:
@@ -170,9 +170,9 @@ for folder in folders[:20]:
 # assign cells to the correct compartment
 all_assignment_table = pd.DataFrame()
 for i in range(0, 1400, 200):
-    # assignment_table = utils.assign_cells_to_mask(seg_dir=seg_dir, mask_dir=individual_dir, fovs=folders[i:i+200])
-    # assignment_table.to_csv(os.path.join(post_processing_dir, 'cell_annotation_mask_{}'.format(i)), index=False)
-    assignment_table = pd.read_csv(os.path.join(post_processing_dir, 'cell_annotation_mask_{}'.format(i)))
+    assignment_table = utils.assign_cells_to_mask(seg_dir=seg_dir, mask_dir=individual_dir, fovs=folders[i:i+200])
+    # assignment_table.to_csv(os.path.join(mask_dir, 'annotation_files', 'cell_annotation_mask_{}'.format(i)), index=False)
+    # assignment_table = pd.read_csv(os.path.join(mask_dir, 'annotation_files', 'cell_annotation_mask_{}'.format(i)))
     all_assignment_table = pd.concat([all_assignment_table, assignment_table])
 
-all_assignment_table.to_csv(os.path.join(post_processing_dir, 'cell_annotation_mask.csv'), index=False)
+all_assignment_table.to_csv(os.path.join(mask_dir, 'cell_annotation_mask.csv'), index=False)

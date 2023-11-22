@@ -14,27 +14,29 @@ from alpineer.io_utils import list_folders
 
 local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
-data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/'
+intermediate_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files'
+output_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/output_files'
+analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
 
 # load datasets
-cluster_df_core = pd.read_csv(os.path.join(data_dir, 'cluster_df_per_core.csv'))
-metadata_df_core = pd.read_csv(os.path.join(data_dir, 'metadata/TONIC_data_per_core.csv'))
-functional_df_core = pd.read_csv(os.path.join(data_dir, 'functional_df_per_core_filtered_deduped.csv'))
-morph_df_core = pd.read_csv(os.path.join(data_dir, 'morph_df_per_core_filtered_deduped.csv'))
-mixing_df = pd.read_csv(os.path.join(data_dir, 'spatial_analysis/mixing_score/cell_cluster_broad/formatted_scores.csv'))
-diversity_df = pd.read_csv(os.path.join(data_dir, 'diversity_df_per_core_filtered_deduped.csv'))
-distance_df = pd.read_csv(os.path.join(data_dir, 'distance_df_per_core_deduped.csv'))
-fiber_df = pd.read_csv(os.path.join(data_dir, 'fiber_df_per_core.csv'))
-fiber_tile_df = pd.read_csv(os.path.join(data_dir, 'fiber_df_per_tile.csv'))
-ecm_df = pd.read_csv(os.path.join(data_dir, 'ecm/fov_cluster_counts.csv'))
-ecm_clusters = pd.read_csv(os.path.join('/Volumes/Shared/Noah Greenwald/ecm_pixel_clustering/fov_pixel_cluster_counts.csv'))
-ecm_object_ratio = pd.read_csv(os.path.join('/Volumes/Shared/Noah Greenwald/ecm_pixel_clustering/shape_analysis/fov_object_mean_ratio.csv'))
-ecm_object_diff = pd.read_csv(os.path.join('/Volumes/Shared/Noah Greenwald/ecm_pixel_clustering/shape_analysis/fov_object_mean_diff_norm.csv'))
-ecm_neighborhoods = pd.read_csv(os.path.join('/Volumes/Shared/Noah Greenwald/ecm_pixel_clustering/neighborhood/fov_neighborhood_counts.csv'))
+cluster_df_core = pd.read_csv(os.path.join(output_dir, 'cluster_df_per_core.csv'))
+metadata_df_core = pd.read_csv(os.path.join(intermediate_dir, 'metadata/TONIC_data_per_core.csv'))
+functional_df_core = pd.read_csv(os.path.join(output_dir, 'functional_df_per_core_filtered_deduped.csv'))
+morph_df_core = pd.read_csv(os.path.join(output_dir, 'morph_df_per_core_filtered_deduped.csv'))
+mixing_df = pd.read_csv(os.path.join(output_dir, 'formatted_mixing_scores.csv'))
+diversity_df = pd.read_csv(os.path.join(output_dir, 'diversity_df_per_core_filtered_deduped.csv'))
+distance_df = pd.read_csv(os.path.join(output_dir, 'distance_df_per_core_deduped.csv'))
+fiber_df = pd.read_csv(os.path.join(output_dir, 'fiber_df_per_core.csv'))
+fiber_tile_df = pd.read_csv(os.path.join(output_dir, 'fiber_df_per_tile.csv'))
+ecm_df = pd.read_csv(os.path.join(intermediate_dir, 'ecm/fov_cluster_counts.csv'))
+ecm_clusters = pd.read_csv(os.path.join(intermediate_dir, 'ecm_pixel_clustering/fov_pixel_cluster_counts.csv'))
+ecm_object_ratio = pd.read_csv(os.path.join(intermediate_dir, 'ecm_pixel_clustering/shape_analysis/fov_object_mean_ratio.csv'))
+ecm_object_diff = pd.read_csv(os.path.join(intermediate_dir, 'ecm_pixel_clustering/shape_analysis/fov_object_mean_diff_norm.csv'))
+ecm_neighborhoods = pd.read_csv(os.path.join(intermediate_dir, 'ecm_pixel_clustering/neighborhood/fov_neighborhood_counts.csv'))
 
 # load metadata
-harmonized_metadata_df = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
-compartment_area = pd.read_csv(os.path.join(data_dir, 'mask_dir/individual_masks-no_tagg_tls/fov_annotation_mask_area.csv'))
+harmonized_metadata_df = pd.read_csv(os.path.join(analysis_dir, 'harmonized_metadata.csv'))
+compartment_area = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir/individual_masks-no_tagg_tls/fov_annotation_mask_area.csv'))
 
 
 # compute shannon diversity from list of proportions
@@ -465,7 +467,7 @@ for col_name in ['Cold_Coll', 'Hot_Coll', 'No_ECM', 'Cold_Coll_Norm', 'Hot_Coll_
     fov_data.append(ecm_df_subset)
 
 # compute ECM fraction for each image
-# ecm_mask_dir = os.path.join(data_dir, 'ecm/masks')
+# ecm_mask_dir = os.path.join(intermediate_dir, 'ecm/masks')
 # fovs = list_folders(ecm_mask_dir)
 # fov_name, fov_frac = [], []
 #
@@ -475,10 +477,10 @@ for col_name in ['Cold_Coll', 'Hot_Coll', 'No_ECM', 'Cold_Coll_Norm', 'Hot_Coll_
 #     fov_name.append(fov)
 #
 # ecm_frac_df = pd.DataFrame({'fov': fov_name, 'ecm_frac': fov_frac})
-# ecm_frac_df.to_csv(os.path.join(data_dir, 'ecm/ecm_fraction_fov.csv'), index=False)
+# ecm_frac_df.to_csv(os.path.join(intermediate_dir, 'ecm/ecm_fraction_fov.csv'), index=False)
 
 # add ecm fraction
-ecm_frac_df = pd.read_csv(os.path.join(data_dir, 'ecm/ecm_fraction_fov.csv'))
+ecm_frac_df = pd.read_csv(os.path.join(intermediate_dir, 'ecm/ecm_fraction_fov.csv'))
 ecm_frac_df = ecm_frac_df.rename(columns={'ecm_frac': 'value'})
 ecm_frac_df['feature_name'] = 'ecm_fraction'
 ecm_frac_df['feature_name_unique'] = 'ecm_fraction'
@@ -495,7 +497,7 @@ fov_data.append(ecm_frac_df)
 
 
 # add ecm pixel cluster density
-area_df = pd.read_csv(os.path.join(data_dir, 'post_processing', 'fov_annotation_mask_area.csv'))
+area_df = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir/individual_masks-no_tagg_tls/fov_annotation_mask_area.csv'))
 area_df = area_df.loc[area_df.compartment == 'all', ['fov', 'area']]
 ecm_clusters_density = pd.merge(ecm_clusters, area_df, on='fov')
 ecm_clusters_density['density'] = ecm_clusters_density['counts'] / ecm_clusters_density['area']
@@ -650,7 +652,7 @@ fov_data_df = pd.merge(fov_data_df, harmonized_metadata_df[['Tissue_ID', 'fov']]
 fov_data_df = fov_data_df[['Tissue_ID', 'fov', 'raw_value', 'normalized_value', 'feature_name', 'feature_name_unique',
                             'compartment', 'cell_pop', 'cell_pop_level', 'feature_type', 'feature_type_detail', 'feature_type_detail_2']]
 
-fov_data_df.to_csv(os.path.join(data_dir, 'fov_features.csv'), index=False)
+fov_data_df.to_csv(os.path.join(analysis_dir, 'fov_features.csv'), index=False)
 
 
 # create timepoint-level stats file
@@ -660,13 +662,13 @@ grouped = fov_data_df.groupby(['Tissue_ID', 'feature_name', 'feature_name_unique
 grouped.columns = ['raw_mean', 'raw_std', 'normalized_mean', 'normalized_std']
 grouped = grouped.reset_index()
 
-grouped.to_csv(os.path.join(data_dir, 'timepoint_features.csv'), index=False)
+grouped.to_csv(os.path.join(analysis_dir, 'timepoint_features.csv'), index=False)
 
 #
 # filter FOV features based on correlation in compartments
 #
-# study_fovs = harmonized_metadata_df.loc[harmonized_metadata_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), 'fov'].unique().values
-# fov_data_df = pd.read_csv(os.path.join(data_dir, 'fov_features.csv'))
+# study_fovs = harmonized_metadata_df.loc[harmonized_metadata_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), 'fov'].unique()
+# fov_data_df = pd.read_csv(os.path.join(analysis_dir, 'fov_features.csv'))
 #
 # # filter out features that are highly correlated in compartments
 # feature_names = fov_data_df.feature_name.unique()
@@ -707,13 +709,13 @@ grouped.to_csv(os.path.join(data_dir, 'timepoint_features.csv'), index=False)
 #             exclude_list.append(feature_name + '__' + compartment)
 #
 # exclude_df = pd.DataFrame({'feature_name_unique': exclude_list})
-# exclude_df.to_csv(os.path.join(data_dir, 'exclude_features_compartment_correlation.csv'), index=False)
+# exclude_df.to_csv(os.path.join(output_dir, 'exclude_features_compartment_correlation.csv'), index=False)
 
 # use pre-defined list of features to exclude
-exclude_df = pd.read_csv(os.path.join(data_dir, 'exclude_features_compartment_correlation.csv'))
+exclude_df = pd.read_csv(os.path.join(output_dir, 'exclude_features_compartment_correlation.csv'))
 
 fov_data_df_filtered = fov_data_df.loc[~fov_data_df.feature_name_unique.isin(exclude_df.feature_name_unique.values), :]
-fov_data_df_filtered.to_csv(os.path.join(data_dir, 'fov_features_filtered.csv'), index=False)
+fov_data_df_filtered.to_csv(os.path.join(analysis_dir, 'fov_features_filtered.csv'), index=False)
 
 # group by timepoint
 grouped = fov_data_df_filtered.groupby(['Tissue_ID', 'feature_name', 'feature_name_unique', 'compartment', 'cell_pop',
@@ -723,11 +725,11 @@ grouped = fov_data_df_filtered.groupby(['Tissue_ID', 'feature_name', 'feature_na
 grouped.columns = ['raw_mean', 'raw_std', 'normalized_mean', 'normalized_std']
 grouped = grouped.reset_index()
 
-grouped.to_csv(os.path.join(data_dir, 'timepoint_features_filtered.csv'), index=False)
+grouped.to_csv(os.path.join(analysis_dir, 'timepoint_features_filtered.csv'), index=False)
 
 
 # get feature metadata
 feature_metadata = fov_data_df_filtered[['feature_name', 'feature_name_unique', 'compartment', 'cell_pop', 'cell_pop_level', 'feature_type', 'feature_type_detail', 'feature_type_detail_2']]
 feature_metadata = feature_metadata.drop_duplicates()
 
-feature_metadata.to_csv(os.path.join(data_dir, 'feature_metadata.csv'), index=False)
+feature_metadata.to_csv(os.path.join(analysis_dir, 'feature_metadata.csv'), index=False)
