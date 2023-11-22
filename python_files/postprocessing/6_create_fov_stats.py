@@ -35,7 +35,7 @@ ecm_object_diff = pd.read_csv(os.path.join(intermediate_dir, 'ecm_pixel_clusteri
 ecm_neighborhoods = pd.read_csv(os.path.join(intermediate_dir, 'ecm_pixel_clustering/neighborhood/fov_neighborhood_counts.csv'))
 
 # load metadata
-harmonized_metadata_df = pd.read_csv(os.path.join(intermediate_dir, 'metadata/harmonized_metadata.csv'))
+harmonized_metadata_df = pd.read_csv(os.path.join(analysis_dir, 'harmonized_metadata.csv'))
 compartment_area = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir/individual_masks-no_tagg_tls/fov_annotation_mask_area.csv'))
 
 

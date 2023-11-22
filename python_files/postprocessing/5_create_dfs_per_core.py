@@ -30,7 +30,7 @@ if not os.path.exists(output_dir):
 # load relevant tables
 core_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata', 'TONIC_data_per_core.csv'))
 timepoint_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata', 'TONIC_data_per_timepoint.csv'))
-harmonized_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata', 'harmonized_metadata.csv'))
+harmonized_metadata = pd.read_csv(os.path.join(analysis_dir, 'harmonized_metadata.csv'))
 cell_table_clusters = pd.read_csv(os.path.join(analysis_dir, 'cell_table_clusters.csv'))
 cell_table_func = pd.read_csv(os.path.join(analysis_dir, 'cell_table_func_all.csv'))
 cell_table_morph = pd.read_csv(os.path.join(analysis_dir, 'cell_table_morph.csv'))
