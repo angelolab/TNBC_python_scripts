@@ -18,8 +18,8 @@ from python_files import utils
 channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
 seg_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
 mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/mask_dir/'
-data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files'
-cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'cell_table_clusters.csv'))
+analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
+cell_table_clusters = pd.read_csv(os.path.join(analysis_dir, 'cell_table_clusters.csv'))
 
 folders = list_folders(channel_dir)
 

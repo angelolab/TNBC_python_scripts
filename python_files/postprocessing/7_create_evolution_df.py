@@ -10,15 +10,15 @@ from scipy.stats import spearmanr, ttest_ind, ttest_rel
 from python_files.utils import find_conserved_features
 
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
-data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files'
+intermediate_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files'
 output_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/output_files'
 analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
 
-harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
+harmonized_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata/harmonized_metadata.csv'))
 timepoint_features = pd.read_csv(os.path.join(analysis_dir, 'timepoint_features_filtered.csv'))
 evolution_cats = ['primary__baseline', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']
 timepoint_features = timepoint_features.merge(harmonized_metadata[['Tissue_ID', 'Timepoint', 'Localization', 'Patient_ID'] + evolution_cats].drop_duplicates(), on='Tissue_ID', how='left')
-patient_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/TONIC_data_per_patient.csv'))
+patient_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata/TONIC_data_per_patient.csv'))
 
 evolution_dfs = []
 # generate evolution df based on difference in timepoints

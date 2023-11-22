@@ -5,7 +5,7 @@ import numpy as np
 from alpineer.io_utils import list_folders
 
 image_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples'
-image_dir = '/Volumes/Shared/Noah Greenwald/TNBC_Cohorts/BELLINI/image_data/samples'
+# image_dir = '/Volumes/Shared/Noah Greenwald/TNBC_Cohorts/BELLINI/image_data/samples'
 analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
 
 metadata_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/metadata'

@@ -26,9 +26,10 @@ from python_files import utils
 # This script is for generating the ECM assignments for image crops
 #
 
-out_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/ecm'
+out_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/ecm'
 channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples'
-mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/mask_dir/individual_masks/'
+analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
+mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/mask_dir/individual_masks/'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots'
 
 #
@@ -217,7 +218,7 @@ for cluster in tiled_crops.cluster.unique():
 
 
 # generate crops around cells to classify using the trained model
-cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'combined_cell_table_normalized_cell_labels_updated.csv'))
+cell_table_clusters = pd.read_csv(os.path.join(analysis_dir, 'combined_cell_table_normalized_cell_labels_updated.csv'))
 #cell_table_clusters = cell_table_clusters[cell_table_clusters.fov.isin(fov_subset)]
 cell_table_clusters = cell_table_clusters[['fov', 'centroid-0', 'centroid-1', 'label']]
 

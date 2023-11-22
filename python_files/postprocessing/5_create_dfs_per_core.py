@@ -16,7 +16,7 @@ from python_files.utils import create_long_df_by_functional, create_long_df_by_c
 #
 
 local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
-data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files'
+intermediate_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files'
 output_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/output_files'
 analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
 
@@ -28,18 +28,18 @@ if not os.path.exists(output_dir):
 #
 
 # load relevant tables
-core_metadata = pd.read_csv(os.path.join(data_dir, 'metadata', 'TONIC_data_per_core.csv'))
-timepoint_metadata = pd.read_csv(os.path.join(data_dir, 'metadata', 'TONIC_data_per_timepoint.csv'))
-harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata', 'harmonized_metadata.csv'))
+core_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata', 'TONIC_data_per_core.csv'))
+timepoint_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata', 'TONIC_data_per_timepoint.csv'))
+harmonized_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata', 'harmonized_metadata.csv'))
 cell_table_clusters = pd.read_csv(os.path.join(analysis_dir, 'cell_table_clusters.csv'))
 cell_table_func = pd.read_csv(os.path.join(analysis_dir, 'cell_table_func_all.csv'))
 cell_table_morph = pd.read_csv(os.path.join(analysis_dir, 'cell_table_morph.csv'))
-cell_table_diversity = pd.read_csv(os.path.join(data_dir, 'spatial_analysis/cell_neighbor_analysis/neighborhood_diversity_radius50.csv'))
-cell_table_distances_broad = pd.read_csv(os.path.join(data_dir, 'spatial_analysis/cell_neighbor_analysis/cell_cluster_broad_avg_dists-nearest_1.csv'))
-area_df = pd.read_csv(os.path.join(data_dir, 'mask_dir/individual_masks-no_tagg_tls', 'fov_annotation_mask_area.csv'))
-annotations_by_mask = pd.read_csv(os.path.join(data_dir, 'mask_dir/individual_masks-no_tagg_tls', 'cell_annotation_mask.csv'))
-fiber_df = pd.read_csv(os.path.join(data_dir, 'fiber_segmentation_processed_data', 'fiber_object_table.csv'))
-fiber_tile_df = pd.read_csv(os.path.join(data_dir, 'fiber_segmentation_processed_data/tile_stats_512', 'fiber_stats_table-tile_512.csv'))
+cell_table_diversity = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/cell_neighbor_analysis/neighborhood_diversity_radius50.csv'))
+cell_table_distances_broad = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/cell_neighbor_analysis/cell_cluster_broad_avg_dists-nearest_1.csv'))
+area_df = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir/individual_masks-no_tagg_tls', 'fov_annotation_mask_area.csv'))
+annotations_by_mask = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir/individual_masks-no_tagg_tls', 'cell_annotation_mask.csv'))
+fiber_df = pd.read_csv(os.path.join(intermediate_dir, 'fiber_segmentation_processed_data', 'fiber_object_table.csv'))
+fiber_tile_df = pd.read_csv(os.path.join(intermediate_dir, 'fiber_segmentation_processed_data/tile_stats_512', 'fiber_stats_table-tile_512.csv'))
 
 # merge cell-level annotations
 harmonized_annotations = annotations_by_mask
@@ -315,7 +315,7 @@ filtered_func_df_plot.to_csv(os.path.join(output_dir, 'functional_df_per_core_fi
 # # Cancer expression
 # broad_df_include.loc['Cancer', ['HLADR', 'CD57']] = True
 #
-# broad_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_broad.csv'))
+# broad_df_include.to_csv(os.path.join(intermediate_dir, 'post_processing', 'inclusion_matrix_broad.csv'))
 #
 # # apply thresholds to medium level clustering
 # assignment_dict_med = {'Cancer': ['Cancer', 'Cancer_EMT', 'Cancer_Other'],
@@ -357,7 +357,7 @@ filtered_func_df_plot.to_csv(os.path.join(output_dir, 'functional_df_per_core_fi
 # # compare to see where assignments disagree, to see if any others need to be added
 # new_includes = (med_df_bin == True) & (med_df_include == False)
 #
-# med_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_med.csv'))
+# med_df_include.to_csv(os.path.join(intermediate_dir, 'post_processing', 'inclusion_matrix_med.csv'))
 #
 # # do the same for the fine-grained clustering
 # assignment_dict_meta = {'Cancer': ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad'],
@@ -406,14 +406,14 @@ filtered_func_df_plot.to_csv(os.path.join(output_dir, 'functional_df_per_core_fi
 # # compare to see where assignments disagree
 # new_includes = (meta_df_bin == True) & (meta_df_include == False)
 #
-# meta_df_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_meta.csv'))
+# meta_df_include.to_csv(os.path.join(intermediate_dir, 'post_processing', 'inclusion_matrix_meta.csv'))
 
 # process functional data so that only the specified cell type/marker combos are included
 
 # load matrices
-broad_df_include = pd.read_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_broad.csv'), index_col=0)
-med_df_include = pd.read_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_med.csv'), index_col=0)
-meta_df_include = pd.read_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_meta.csv'), index_col=0)
+broad_df_include = pd.read_csv(os.path.join(intermediate_dir, 'post_processing', 'inclusion_matrix_broad.csv'), index_col=0)
+med_df_include = pd.read_csv(os.path.join(intermediate_dir, 'post_processing', 'inclusion_matrix_med.csv'), index_col=0)
+meta_df_include = pd.read_csv(os.path.join(intermediate_dir, 'post_processing', 'inclusion_matrix_meta.csv'), index_col=0)
 
 # identify metrics and dfs that will be filtered
 filtering = [['cluster_broad_count', 'cluster_broad_freq', broad_df_include],
@@ -458,7 +458,7 @@ for filters in filtering:
 # broad_df_dp = broad_df_dp_agg.pivot(index='cell_type', columns='functional_marker', values='value')
 # broad_df_dp_include = broad_df_dp > mean_percent_positive_dp
 #
-# broad_df_dp_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_broad_dp.csv'))
+# broad_df_dp_include.to_csv(os.path.join(intermediate_dir, 'post_processing', 'inclusion_matrix_broad_dp.csv'))
 #
 # # do the same for medium-level clustering
 # med_df_dp = filtered_func_df[filtered_func_df.metric == 'cluster_freq']
@@ -472,7 +472,7 @@ for filters in filtering:
 # med_df_dp = med_df_dp_agg.pivot(index='cell_type', columns='functional_marker', values='value')
 # med_df_dp_include = med_df_dp > mean_percent_positive_dp
 #
-# med_df_dp_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_med_dp.csv'))
+# med_df_dp_include.to_csv(os.path.join(intermediate_dir, 'post_processing', 'inclusion_matrix_med_dp.csv'))
 #
 #
 # # do the same for finest-level clustering
@@ -487,12 +487,12 @@ for filters in filtering:
 # meta_df_dp = meta_df_dp_agg.pivot(index='cell_type', columns='functional_marker', values='value')
 # meta_df_dp_include = meta_df_dp > mean_percent_positive_dp
 #
-# meta_df_dp_include.to_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_meta_dp.csv'))
+# meta_df_dp_include.to_csv(os.path.join(intermediate_dir, 'post_processing', 'inclusion_matrix_meta_dp.csv'))
 
 # load inclusion matrices
-broad_df_include_dp = pd.read_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_broad_dp.csv'), index_col=0)
-med_df_include_dp = pd.read_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_med_dp.csv'), index_col=0)
-meta_df_include_dp = pd.read_csv(os.path.join(data_dir, 'post_processing', 'inclusion_matrix_meta_dp.csv'), index_col=0)
+broad_df_include_dp = pd.read_csv(os.path.join(intermediate_dir, 'post_processing', 'inclusion_matrix_broad_dp.csv'), index_col=0)
+med_df_include_dp = pd.read_csv(os.path.join(intermediate_dir, 'post_processing', 'inclusion_matrix_med_dp.csv'), index_col=0)
+meta_df_include_dp = pd.read_csv(os.path.join(intermediate_dir, 'post_processing', 'inclusion_matrix_meta_dp.csv'), index_col=0)
 
 # identify metrics and dfs that will be filtered
 filtering = [['cluster_broad_count', 'cluster_broad_freq', broad_df_include_dp],
@@ -624,10 +624,10 @@ combo_df_timepoint_func.to_csv(os.path.join(output_dir, 'functional_df_per_timep
 # exclude_df_name = exclude_lists[0] + exclude_lists[1] + exclude_lists[2]
 #
 # exclude_df = pd.DataFrame({'metric': exclude_df_cluster, 'feature_name': exclude_df_name})
-# exclude_df.to_csv(os.path.join(data_dir, 'post_processing/exclude_double_positive_markers.csv'), index=False)
+# exclude_df.to_csv(os.path.join(intermediate_dir, 'post_processing', 'exclude_double_positive_markers.csv'), index=False)
 
 # use previously generated exclude list
-exclude_df = pd.read_csv(os.path.join(data_dir, 'post_processing/exclude_double_positive_markers.csv'))
+exclude_df = pd.read_csv(os.path.join(intermediate_dir, 'post_processing', 'exclude_double_positive_markers.csv'))
 
 dedup_dfs = []
 
@@ -793,7 +793,7 @@ deduped_morph_df_timepoint.to_csv(os.path.join(output_dir, 'morph_df_per_timepoi
 #
 
 # format mixing scores
-mixing_scores = pd.read_csv(os.path.join(data_dir, 'spatial_analysis/mixing_score/cell_cluster_broad/homogeneous_mixing_scores.csv'))
+mixing_scores = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/mixing_score/cell_cluster_broad/homogeneous_mixing_scores.csv'))
 cols = mixing_scores.columns.tolist()
 keep_cols = [col for col in cols if 'mixing_score' in col]
 mixing_scores = mixing_scores[['fov'] + keep_cols]
@@ -992,10 +992,10 @@ filtered_distance_df.to_csv(os.path.join(output_dir, 'distance_df_per_core_filte
 #
 # keep_df = pd.DataFrame({'cell_type': keep_cells, 'feature_name': keep_features})
 #
-# keep_df.to_csv(os.path.join(data_dir, 'post_processing', 'distance_df_keep_features.csv'), index=False)
+# keep_df.to_csv(os.path.join(intermediate_dir, 'post_processing', 'distance_df_keep_features.csv'), index=False)
 
 # filter distance df to only include features with low correlation with abundance
-keep_df = pd.read_csv(os.path.join(data_dir, 'distance_df_keep_features.csv'))
+keep_df = pd.read_csv(os.path.join(intermediate_dir, 'post_processing', 'distance_df_keep_features.csv'))
 
 
 deduped_dfs = []
