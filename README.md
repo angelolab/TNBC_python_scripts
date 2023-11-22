@@ -14,7 +14,7 @@ This repo contains working scripts for analyzing the TNBC MIBI data. Below is a 
 ### Top Level Folders
 `image_data`: Contains the channel images for each FOV. 
 
-`segmentation_data/deepcell_output`: Contains the whole cell and nuclear segmentation masks for each FOV.
+`segmentation_data`: Contains the whole cell and nuclear segmentation masks for each FOV.
 
 `analysis_files`: This directory should initially contain a cell table (generated with ark and annotated by Pixie). The scripts expect a column named 
 "cell_meta_cluster" containing the cell clusters, as well "fov" with the specific image name. 
@@ -29,11 +29,12 @@ about each fov, each timepoint, and each patient, as appropriate for your study.
 * TONIC_Cohort (base directory)
   * image_data 
   * segmentation_data
-  * **analysis_files** 
-  * **output_files** 
-  * **intermediate_files** 
+    * deepcell_output
+  * analysis_files
+  * output_files
+  * intermediate_files
     * metadata
-    * post_processing - contains specifications for the filtering of data tables in *output_files*  
+    * post_processing - contains specifications for the filtering of the data tables in *output_files*  
     * mask_dir - contains the compartment masks generated in *3_create_image_masks.py*
     * fiber_segmentation_processed_data - image level fiber analysis
       * tile_stats_512 - 512x512 tile analysis
@@ -95,7 +96,7 @@ In addition, there are often multiple levels of granularity in the clustering sc
 
 *harmonized_metadata.csv*: This data frame details the various FOVs and their associated tissue and patient IDs, localization, timepoint, etc.
 
-*feature_metadata.csv*: This file gives more detailed information about the specifications that make up each of the features in the fov and timepoint feature tables. The columns include, geenral feature name, unique feature name, compartment, cell population, cell population level, and feature type details.
+*feature_metadata.csv*: This file gives more detailed information about the specifications that make up each of the features in the fov and timepoint feature tables. The columns include, general feature name, unique feature name, compartment, cell population, cell population level, and feature type details.
 
 *nivo_outcomes_combined_df.csv*: This dataframe details feature data for patients at various timepoints and includes the relevant metadata.
 
@@ -118,7 +119,7 @@ In addition, there are often multiple levels of granularity in the clustering sc
 
 *cell_table_func_all*: A cell table containing all possible pairwise marker positivity data.
 
-*fov_features.csv*: This file is a combination of all feature metrics calculated on a per image basis. The file *fov_features_filtered.csv* is also produced, which is the entire features file with any highly correlated features removed.
+*fov_features.csv*: This file is a combination of all feature metrics calculated on a per image basis. The file *fov_features_filtered.csv* is also produced, which is the entire feature file with any highly correlated features removed.
 
 The fov_features table aggregates features of many different types together, all of which are detailed in [Ouput Files](#Output-Files).
 
@@ -128,12 +129,12 @@ The fov_features table aggregates features of many different types together, all
 |    T2     |  2  |   -0.01   |       -0.6       | cancer_diversity  | cancer_diversity_cancer_border | cancer_border |  Cancer  | region_diversity |
 |    T3     |  5  |   -1.8    |       -0.7       | max_fiber_density |       max_fiber_density        |  stroma_core  |   all    |      fiber       |
 
-In the example table above, we see there are a multiple columns that contain descriptive information about the statistics contained in each row. While `feature_name_unique` obviously gives the most granular description of the value, we can also use the other columns to quickly subset the data for specific analysis. 
+In the example table above, we see there are multiple columns that contain descriptive information about the statistics contained in each row. While `feature_name_unique` obviously gives the most granular description of the value, we can also use the other columns to quickly subset the data for specific analysis. 
 For example, to look at all features within one region type across every image, we simply filter the compartment for only "cancer_core". 
 Alternatively, we could compare the granular cell type diversity of all immune classified cells across regions by filtering both the feature_type as "cell_diversity" and cell_pop as "immune".
 
 
-*timepoint.csv*: While the data table above is aggregated *per_core*, this data is a combination of all feature metrics calculated on a per sample timepoint basis.  The file *timepoint_features_filtered.csv* is also produced, which is the entire features file with any highly correlated features removed.
+*timepoint.csv*: While the data table above is aggregated *per_core*, this data is a combination of all feature metrics calculated on a per sample timepoint basis.  The file *timepoint_features_filtered.csv* is also produced, which is the entire feature file with any highly correlated features removed.
 
 | Tissue_ID |   feature_name    |      feature_name_unique       |  compartment  | cell_pop | raw_mean | raw_std | normalized_mean | normalized_std |
 |:---------:|:-----------------:|:------------------------------:|:-------------:|:--------:|:-------:|:-------:|:---------------:|:--------------:|
@@ -149,7 +150,7 @@ The individual feature data that combines into *fov_features.csv* and *timepoint
 Each of the data frames in this section can be further stratified based on the feature relevancy and redundancy. The files below can have any of the following suffixes:
 * *_filtered*: features removed if there are less than 5 cells of the specified type
 * *_deduped*: redundant features removed
-* *_filtered_deduped*: both of the above filtering used
+* *_filtered_deduped*: both of the above filtering applied
 
 
 1. *cluster_df*: This data structure summarizes key informaton about cell clusters on a per-image basis, rather than a per-cell basis. Each row represents a specific summary observation for a specific image of a specific cell type. For example, the number of B cells in a given image. The key columns are `fov`, which specifies the image the observation is from; `cell_type`, which specifies the cell type the observation is from; `metric`, which describes the specific summary statistic that was calculated; and `value`, which is the actual value of the summary statistic. For example, one statistic might be `cell_count_broad`, which would represent the number of cells per image, enumerated according the cell types in the `broad` clustering scheme. Another might be `cell_freq_detail`, which would be the frequency of the specified cell type out of all cells in the image, enumerated based on the detailed clustering scheme.
@@ -209,7 +210,7 @@ In addition to these core columns, metadata can be added to faciliate easy analy
 ## Scripts 
 
 `1_postprocessing_cell_table_updates.py`: This file takes the cell table generated by Pixie, and transforms it for plotting. Some of this functionality is 
-has now been incorporated into notebook 4 in `ark`. Other parts, however, have not yet been put into `ark`, such as aggregating cell populations. It also creates a simplified cell table
+has now been incorporated into notebook 4 in `ark`. Other parts, however, have not yet been put into `ark`, such as aggregating cell populations. It also creates simplified cell tables
 with only the necessary columns for specific plotting tasks.
 
 `2_postprocessing_metadata.py`: This file transforms the metadata files for analysis. It creates annotations in the metadata files that need to be computed from the
@@ -218,10 +219,10 @@ data, such as which patients have data from multiple timepoints.
 `3_create_image_masks.py`: This file creates masks for each image based on supplied criteria. It identifies background based on the gold channel and tumor compartments based on ECAD staining patterns. It then takes these masks, and assigns each cell each image to the mask that it overlaps most with.
 
 `5_create_dfs_per_core.py`: This file creates the dfs which will be used for plotting core-level information. It transforms the cell table into
-a series of long-format dfs which can be easily used for data visualization. It creates separate dfs for cell population evaluations and functional marker
-evaluation.
+a series of long-format dfs which can be easily used for data visualization. It creates separate dfs for cell population evaluations, functional marker
+evaluation, etc.
 
 `6_create_fov_stats.py`: This file aggregates the various fov features and timepoint features into separate files, and  additionally filters out any unnecessary features based on their correlation within compartments.
 
-`7_create_evolution_df.py`: This file compares average features across various timepoints and treatments. 
+`7_create_evolution_df.py`: This file compares features across various timepoints and treatments. 
 
