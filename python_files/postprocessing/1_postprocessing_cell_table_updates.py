@@ -13,6 +13,9 @@ from alpineer.io_utils import list_folders
 post_processing_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/post_processing'
 analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
 
+if not os.path.exists(analysis_dir):
+    os.makedirs(analysis_dir)
+
 cell_table_name = 'combined_cell_table_normalized_cell_labels'
 cell_table_full = pd.read_csv(os.path.join(post_processing_dir, cell_table_name + '.csv'))
 
