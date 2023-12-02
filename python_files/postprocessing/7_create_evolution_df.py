@@ -44,7 +44,7 @@ for evolution_col in evolution_cats:
     evolution_dfs.append(evolution_df_wide)
 
 evolution_df = pd.concat(evolution_dfs)
-evolution_df.to_csv(os.path.join(output_dir, 'nivo_outcomes_evolution_df.csv'), index=False)
+evolution_df.to_csv(os.path.join(output_dir, 'timepoint_evolution_features.csv'), index=False)
 
 
 # create combined df
@@ -71,4 +71,4 @@ combined_df = pd.concat([combined_df, evolution_df[['feature_name_unique', 'raw_
                                                     'Patient_ID', 'Timepoint', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]])
 combined_df['combined_name'] = combined_df.feature_name_unique + '__' + combined_df.Timepoint
 
-combined_df.to_csv(os.path.join(analysis_dir, 'nivo_outcomes_combined_df.csv'), index=False)
+combined_df.to_csv(os.path.join(analysis_dir, 'timepoint_combined_features.csv'), index=False)

@@ -15,7 +15,7 @@ from ark.utils.plot_utils import cohort_cluster_plot, color_segmentation_by_stat
 import ark.settings as settings
 
 
-data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data'
+data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
 metadata_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/metadata'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/figures/'
 harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
@@ -59,6 +59,24 @@ for fov in fov_list:
 
     for file in fov_files:
         shutil.copy(os.path.join(fov_folder, file), os.path.join(save_folder, file))
+
+
+# generate crops
+crop_dict = {'TONIC_TMA2_R6C6': [[300, 400], [1300, 800], 'CD45_ECAD_Overlay.tif'],
+            'TONIC_TMA10_R3C1': [[750, 750], [1300, 1100], 'CD8_CD45RO_HLADR.tif']}
+
+for fov, crop_info in crop_dict.items():
+    save_folder = os.path.join(plot_dir, 'Figure2_representative_images/{}'.format(fov))
+    if not os.path.exists(save_folder):
+        os.mkdir(save_folder)
+
+    crop_coords_1, crop_coords_2, file = crop_info
+
+    # crop image
+    for crop_coords in [crop_coords_1, crop_coords_2]:
+        crop_img = io.imread(os.path.join(save_folder, file))
+        crop_img = crop_img[crop_coords[0]:crop_coords[0] + 500, crop_coords[1]:crop_coords[1] + 500, :]
+        io.imsave(os.path.join(save_folder, 'crop_{}.tiff'.format(crop_coords[0])), crop_img)
 
 
 # cell cluster heatmap
@@ -1646,9 +1664,9 @@ cv_scores['fold'] = len(cv_scores)
 cv_scores_long = pd.melt(cv_scores, id_vars=['fold'], value_vars=cv_scores.columns)
 
 
-fig, ax = plt.subplots(1, 1, figsize=(5, 8))
-order = ['baseline_post_induction', 'post_induction', 'baseline_on_nivo',
-       'baseline', 'post_induction_on_nivo', 'on_nivo']
+fig, ax = plt.subplots(1, 1, figsize=(2, 6))
+order = ['primary', 'post_induction', 'baseline', 'on_nivo']
+         #'primary_AND_baseline', 'primary_AND_post_induction', 'baseline_AND_post_induction']
 sns.stripplot(data=cv_scores_long, x='variable', y='value', order=order,
                 color='black', ax=ax)
 sns.boxplot(data=cv_scores_long, x='variable', y='value', order=order,
@@ -1660,5 +1678,5 @@ ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
 
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure7_AUC.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure6_AUC.pdf'))
 plt.close()
