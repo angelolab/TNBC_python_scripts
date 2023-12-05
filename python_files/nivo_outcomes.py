@@ -150,14 +150,14 @@ ranked_features_df['cor_rank'] = ranked_features_df.med_diff.abs().rank(ascendin
 ranked_features_df['combined_rank'] = (ranked_features_df.pval_rank.values + ranked_features_df.cor_rank.values) / 2
 
 # plot top X features per comparison
-num_features = 20
+num_features = 30
 
 for comparison in ranked_features_df.comparison.unique():
     current_plot_dir = os.path.join(plot_dir, 'top_features_{}'.format(comparison))
     if not os.path.exists(current_plot_dir):
         os.makedirs(current_plot_dir)
 
-    current_df = total_dfs.loc[total_dfs.comparison == comparison, :]
+    current_df = ranked_features_df.loc[ranked_features_df.comparison == comparison, :]
     current_df = current_df.sort_values('combined_rank', ascending=True)
     current_df = current_df.iloc[:num_features, :]
 
@@ -170,6 +170,29 @@ for comparison in ranked_features_df.comparison.unique():
         g.fig.suptitle(feature_name)
         g.savefig(os.path.join(current_plot_dir, 'rank_{}_feature_{}.png'.format(rank, feature_name)))
         plt.close()
+
+
+# plot top X features overall
+num_features = 30
+output_dir = os.path.join(plot_dir, 'top_features_overall')
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
+current_df = ranked_features.sort_values('combined_rank', ascending=True)
+current_df = current_df.iloc[:num_features, :]
+
+# plot results
+for feature_name, comparison, rank in zip(current_df.feature_name_unique.values, current_df.comparison.values, current_df.combined_rank.values):
+    plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
+                              (combined_df.Timepoint == comparison), :]
+
+    g = sns.catplot(data=plot_df, x='Clinical_benefit', y='raw_mean', kind='strip')
+    g.fig.suptitle(feature_name)
+    g.savefig(os.path.join(output_dir, 'rank_{}_feature_{}.png'.format(rank, feature_name)))
+    plt.close()
+
+
+
 
 # generate importance score
 max_rank = len(~ranked_features_df.med_diff.isna())
