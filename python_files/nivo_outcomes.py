@@ -179,6 +179,7 @@ if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 
 current_df = ranked_features.sort_values('combined_rank', ascending=True)
+current_df = current_df.loc[current_df.comparison.isin(['baseline', 'post_induction', 'on_nivo', 'primary_untreated']), :]
 current_df = current_df.iloc[:num_features, :]
 
 # plot results
