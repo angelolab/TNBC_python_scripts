@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from scipy.stats import spearmanr, ttest_ind, ttest_rel
 
 from python_files.utils import find_conserved_features, compare_timepoints, compare_populations
 from python_files.utils import summarize_population_enrichment, summarize_timepoint_enrichment, compute_feature_enrichment
@@ -24,78 +23,9 @@ base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/'
 harmonized_metadata = pd.read_csv(os.path.join(base_dir, 'intermediate_files/metadata/harmonized_metadata.csv'))
 patient_metadata = pd.read_csv(os.path.join(base_dir, 'intermediate_files/metadata/TONIC_data_per_patient.csv'))
 feature_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_metadata.csv'))
-timepoint_features = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_features_filtered.csv'))
-
-#patient_metadata.loc[patient_metadata.Patient_ID.isin([33, 40, 75, 85, 100, 105, 109]), 'iRECIST_response'] = 'noinduction_responders'
-# func_df_timepoint = pd.read_csv(os.path.join(data_dir, 'functional_df_per_timepoint_filtered_deduped.csv'))
-# func_df_timepoint = func_df_timepoint.loc[(func_df_timepoint.cell_type == 'Mono_Mac') & (func_df_timepoint.subset == 'all') &
-#                                           (func_df_timepoint.functional_marker == 'PDL1') & (func_df_timepoint.metric == 'cluster_broad_freq') &
-#                                           (func_df_timepoint.MIBI_data_generated), :]
-# # add total mono_mac PDL1 expression to df
-# func_df_timepoint['feature_name'] = 'Mono_Mac__PDL1+'
-# func_df_timepoint['feature_name_unique'] = 'Mono_Mac__PDL1+'
-# func_df_timepoint['compartment'] = 'all'
-# func_df_timepoint['cell_pop_level'] = 'broad'
-# func_df_timepoint['feature_type'] = 'functional_marker'
-# func_df_timepoint = func_df_timepoint.rename(columns={'mean': 'raw_mean', 'std': 'raw_std', 'cell_type': 'cell_pop'})
-# timepoint_features = timepoint_features.append(func_df_timepoint[['Tissue_ID', 'feature_name', 'feature_name_unique', 'compartment', 'cell_pop_level', 'feature_type', 'raw_mean', 'raw_std']])
-
-
-# # create combined df
-# timepoint_features = timepoint_features.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint', 'primary__baseline',
-#                                                                    'baseline__on_nivo', 'baseline__post_induction', 'post_induction__on_nivo']].drop_duplicates(), on='Tissue_ID')
-# timepoint_features = timepoint_features.merge(patient_metadata[['Patient_ID', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']].drop_duplicates(), on='Patient_ID', how='left')
-#
-# # Hacky, remove once metadata is updated
-# timepoint_features = timepoint_features.loc[timepoint_features.Clinical_benefit.isin(['Yes', 'No']), :]
-# timepoint_features = timepoint_features.loc[timepoint_features.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
-# timepoint_features = timepoint_features[['Tissue_ID', 'feature_name', 'feature_name_unique', 'raw_mean', 'raw_std', 'normalized_mean', 'normalized_std', 'Patient_ID', 'Timepoint', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]
-#
-# # # copy lymphnode data and make a combined version
-# # lymphnode_df = timepoint_features.loc[timepoint_features.Timepoint.isin(['lymphnode_pos', 'lymphnode_neg']), :].copy()
-# # lymphnode_df['Timepoint'] = 'lymphnode'
-# #
-# # timepoint_features = pd.concat([timepoint_features, lymphnode_df])
-#
-# # # rename induction timepoint based on treatment
-# # timepoint_features.loc[timepoint_features.Timepoint == 'post_induction', 'Timepoint'] = timepoint_features.loc[timepoint_features.Timepoint == 'post_induction', 'Induction_treatment'] + '__post_induction'
-# #
-# # # rename induction treatment based on no-induction or induction
-# # timepoint_features.loc[(timepoint_features.Induction_treatment == 'No induction') & (timepoint_features.Timepoint == 'post_induction'), 'Timepoint'] = 'induction_control'
-#
-# # look at evolution
-# evolution_df = pd.read_csv(os.path.join(data_dir, 'nivo_outcomes/evolution_df.csv'))
-# evolution_df = evolution_df.merge(patient_metadata[['Patient_ID', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']].drop_duplicates(), on='Patient_ID', how='left')
-# evolution_df = evolution_df.rename(columns={'raw_value': 'raw_mean', 'normalized_value': 'normalized_mean', 'comparison': 'Timepoint'})
-# evolution_df = evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]
-#
-# # combine together into single df
-# combined_df = timepoint_features.copy()
-# combined_df = combined_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]
-# combined_df = pd.concat([combined_df, evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean',
-#                                                     'Patient_ID', 'Timepoint', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]])
-# combined_df['combined_name'] = combined_df.feature_name_unique + '__' + combined_df.Timepoint
-#
-# combined_df.to_csv(os.path.join(data_dir, 'nivo_outcomes/combined_df.csv'), index=False)
 
 # load previously computed results
 combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
-
-
-# # look at change due to nivo
-# for comparison in ['baseline__on_nivo', 'baseline__post_induction', 'post_induction__on_nivo']:
-#
-#     # compare pre and post therapy
-#     pop_1, pop_2 = comparison.split('__')
-#     compare_df = compare_timepoints(feature_df=timepoint_features, timepoint_1_name=pop_1, timepoint_1_list=[pop_1],
-#                                     timepoint_2_name=pop_2, timepoint_2_list=[pop_2], paired=comparison)
-#     # plot results
-#     output_dir = plot_dir + '/evolution_{}'.format(comparison)
-#     if not os.path.exists(output_dir):
-#         os.makedirs(output_dir)
-#
-#     summarize_timepoint_enrichment(input_df=compare_df, feature_df=timepoint_features, timepoints=[pop_1, pop_2],
-#                                  pval_thresh=2, diff_thresh=0.3, output_dir=output_dir)
 
 # generate a single set of top hits across all comparisons
 
@@ -191,8 +121,6 @@ for feature_name, comparison, rank in zip(current_df.feature_name_unique.values,
     g.fig.suptitle(feature_name)
     g.savefig(os.path.join(output_dir, 'rank_{}_feature_{}.png'.format(rank, feature_name)))
     plt.close()
-
-
 
 
 # generate importance score
