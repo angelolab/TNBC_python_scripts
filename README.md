@@ -98,7 +98,7 @@ In addition, there are often multiple levels of granularity in the clustering sc
 
 *feature_metadata.csv*: This file gives more detailed information about the specifications that make up each of the features in the fov and timepoint feature tables. The columns include, general feature name, unique feature name, compartment, cell population, cell population level, and feature type details.
 
-*nivo_outcomes_combined_df.csv*: This dataframe details feature data for patients at various timepoints and includes the relevant metadata.
+*timepoint_combined_features.csv*: This dataframe details feature data for patients at various timepoints and includes the relevant metadata.
 
 |    feature_name_unique    | raw_mean | normalized_mean | Patient_ID | disease_stage |
 |:-------------------------:|:--------:|:---------------:|:----------:|:-------------:|

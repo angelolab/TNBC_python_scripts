@@ -13,13 +13,14 @@ import seaborn as sns
 from matplotlib_venn import venn3, venn2
 from ark.utils.plot_utils import cohort_cluster_plot, color_segmentation_by_stat
 import ark.settings as settings
+import skimage.io as io
 
 
-data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data'
-metadata_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/metadata'
+base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
+metadata_dir = os.path.join(base_dir, 'intermediate_files/metadata')
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/figures/'
-harmonized_metadata = pd.read_csv(os.path.join(data_dir, 'metadata/harmonized_metadata.csv'))
-seg_dir = os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output')
+harmonized_metadata = pd.read_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'))
+seg_dir = os.path.join(base_dir, 'segmentation_data/deepcell_output')
 image_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
 
 study_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), 'fov'].values
@@ -34,11 +35,68 @@ timepoint_metadata = timepoint_metadata.loc[timepoint_metadata.MIBI_data_generat
 baseline_ids = timepoint_metadata.loc[timepoint_metadata.Timepoint == 'baseline', 'Patient_ID'].values
 induction_ids = timepoint_metadata.loc[timepoint_metadata.Timepoint == 'post_induction', 'Patient_ID'].values
 nivo_ids = timepoint_metadata.loc[timepoint_metadata.Timepoint == 'on_nivo', 'Patient_ID'].values
+primary_ids = timepoint_metadata.loc[timepoint_metadata.Timepoint == 'primary_untreated', 'Patient_ID'].values
 
 venn3([set(baseline_ids), set(induction_ids), set(nivo_ids)], set_labels=('Baseline', 'Induction', 'Nivo'))
-plt.savefig(os.path.join(plot_dir, 'figure1/venn_diagram.pdf'), dpi=300)
+plt.savefig(os.path.join(plot_dir, 'figure1/venn_diagram_3.pdf'), dpi=300)
 plt.close()
 
+from venny4py.venny4py import venny4py
+
+# dict of sets
+sets = {
+    'primary': set(primary_ids),
+    'baseline': set(baseline_ids),
+    'induction': set(induction_ids),
+    'nivo': set(nivo_ids)}
+
+venny4py(sets=sets)
+
+# manually construct wide df with
+venn_metadata = timepoint_metadata.loc[timepoint_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
+venn_metadata_wide = venn_metadata.pivot(index='Patient_ID', columns='Timepoint', values='MIBI_data_generated')
+venn_metadata_wide = venn_metadata_wide.fillna(False)
+
+# get counts for each combination
+
+# baseline only
+print(np.sum(venn_metadata_wide.baseline & ~venn_metadata_wide.post_induction & ~venn_metadata_wide.on_nivo & ~venn_metadata_wide.primary_untreated))
+
+# induction only
+print(np.sum(~venn_metadata_wide.baseline & venn_metadata_wide.post_induction & ~venn_metadata_wide.on_nivo & ~venn_metadata_wide.primary_untreated))
+
+# nivo only
+print(np.sum(~venn_metadata_wide.baseline & ~venn_metadata_wide.post_induction & venn_metadata_wide.on_nivo & ~venn_metadata_wide.primary_untreated))
+
+# primary only
+print(np.sum(~venn_metadata_wide.baseline & ~venn_metadata_wide.post_induction & ~venn_metadata_wide.on_nivo & venn_metadata_wide.primary_untreated))
+
+# baseline and induction
+print(np.sum(venn_metadata_wide.baseline & venn_metadata_wide.post_induction & ~venn_metadata_wide.on_nivo & ~venn_metadata_wide.primary_untreated))
+
+# baseline and primary
+print(np.sum(venn_metadata_wide.baseline & ~venn_metadata_wide.post_induction & ~venn_metadata_wide.on_nivo & venn_metadata_wide.primary_untreated))
+
+# baseline and induction and primary
+print(np.sum(venn_metadata_wide.baseline & venn_metadata_wide.post_induction & ~venn_metadata_wide.on_nivo & venn_metadata_wide.primary_untreated))
+
+# induction and nivo
+print(np.sum(~venn_metadata_wide.baseline & venn_metadata_wide.post_induction & venn_metadata_wide.on_nivo & ~venn_metadata_wide.primary_untreated))
+
+# induction and baseline and nivo
+print(np.sum(venn_metadata_wide.baseline & venn_metadata_wide.post_induction & venn_metadata_wide.on_nivo & ~venn_metadata_wide.primary_untreated))
+
+# nivo and primary
+print(np.sum(~venn_metadata_wide.baseline & ~venn_metadata_wide.post_induction & venn_metadata_wide.on_nivo & venn_metadata_wide.primary_untreated))
+
+# nivo and primary and induction
+print(np.sum(~venn_metadata_wide.baseline & venn_metadata_wide.post_induction & venn_metadata_wide.on_nivo & venn_metadata_wide.primary_untreated))
+
+# primary and nivo and baseline
+print(np.sum(venn_metadata_wide.baseline & ~venn_metadata_wide.post_induction & venn_metadata_wide.on_nivo & venn_metadata_wide.primary_untreated))
+
+# primary and nivo and baseline and induction
+print(np.sum(venn_metadata_wide.baseline & venn_metadata_wide.post_induction & venn_metadata_wide.on_nivo & venn_metadata_wide.primary_untreated))
 
 #
 # Figure 2
@@ -59,6 +117,24 @@ for fov in fov_list:
 
     for file in fov_files:
         shutil.copy(os.path.join(fov_folder, file), os.path.join(save_folder, file))
+
+
+# generate crops
+crop_dict = {'TONIC_TMA2_R6C6': [[300, 400], [1300, 800], 'CD45_ECAD_Overlay.tif'],
+            'TONIC_TMA10_R3C1': [[750, 750], [1300, 1100], 'CD8_CD45RO_HLADR.tif']}
+
+for fov, crop_info in crop_dict.items():
+    save_folder = os.path.join(plot_dir, 'Figure2_representative_images/{}'.format(fov))
+    if not os.path.exists(save_folder):
+        os.mkdir(save_folder)
+
+    crop_coords_1, crop_coords_2, file = crop_info
+
+    # crop image
+    for crop_coords in [crop_coords_1, crop_coords_2]:
+        crop_img = io.imread(os.path.join(save_folder, file))
+        crop_img = crop_img[crop_coords[0]:crop_coords[0] + 500, crop_coords[1]:crop_coords[1] + 500, :]
+        io.imsave(os.path.join(save_folder, 'crop_{}.tiff'.format(crop_coords[0])), crop_img)
 
 
 # cell cluster heatmap
@@ -148,7 +224,7 @@ annotations_by_mask.loc[annotations_by_mask.mask_name.isin(['tls', 'tagg']), 'ma
 
 
 # set thresholds
-fov_features = pd.read_csv(os.path.join(data_dir, 'fov_features_filtered.csv'))
+fov_features = pd.read_csv(os.path.join(base_dir, 'analysis_files/fov_features_filtered.csv'))
 fov_features = fov_features.loc[fov_features.fov.isin(study_fovs), :]
 compartment_features = fov_features.loc[(fov_features.feature_name == 'cancer_core__proportion'), :]
 
@@ -261,18 +337,20 @@ sns.histplot(data=CD8T_features, x='raw_value',  bins=20, multiple='stack')
 # set thresholds for each group
 thresholds = {'low': [0.001, 0.05], 'mid': [0.1, 0.2], 'high': [0.3, 0.6]}
 
-cell_table_clusters = pd.read_csv(os.path.join(data_dir, 'post_processing/cell_table_clusters.csv'))
+cell_table_clusters = pd.read_csv(os.path.join(base_dir, 'analysis_files/cell_table_clusters.csv'))
 cell_table_clusters['CD8T_plot'] = cell_table_clusters.cell_cluster
 cell_table_clusters.loc[cell_table_clusters.cell_cluster != 'CD8T', 'CD8T_plot'] = 'Other'
 
 # set up plotting
 CD8_colormap = pd.DataFrame({'CD8T_plot': ['CD8T', 'Other'],
-                            'color': ['dimgrey', 'royalblue']})
+                            'color': ['navajowhite', 'dimgrey']})
 
-CD8_plot_dir = os.path.join(plot_dir, 'Figure3_CD8_overlays')
+CD8_plot_dir = os.path.join(plot_dir, 'Figure3_CD8_overlays_final')
 if not os.path.exists(CD8_plot_dir):
     os.mkdir(CD8_plot_dir)
 
+# after looking at below, can be rerun with just these fovs
+fovs = ['TONIC_TMA18_R4C6', 'TONIC_TMA10_R5C2']
 
 for group in thresholds.keys():
     group_dir = os.path.join(CD8_plot_dir, group)
@@ -292,7 +370,8 @@ for group in thresholds.keys():
     cohort_cluster_plot(
         fovs=fovs,
         seg_dir=seg_dir,
-        save_dir=group_dir,
+        #save_dir=group_dir,
+        save_dir=CD8_plot_dir,
         cell_data=cell_table_subset,
         erode=True,
         fov_col=settings.FOV_ID,
@@ -354,7 +433,7 @@ for group in thresholds.keys():
     )
 
 # summary plots for features
-feature_metadata = pd.read_csv(os.path.join(data_dir, 'feature_metadata.csv'))
+feature_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_metadata.csv'))
 feature_classes = {'cell_abundance': ['density', 'density_ratio', 'density_proportion'],
                      'diversity': ['cell_diversity', 'region_diversity'],
                      'cell_phenotype': ['functional_marker', 'morphology', ],
@@ -517,20 +596,21 @@ plt.close()
 # Figure 4
 #
 
-total_dfs = pd.read_csv(os.path.join(data_dir, 'nivo_outcomes/outcomes_df.csv'))
+ranked_features_all = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_ranking.csv'))
+ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
 
 
 # plot total volcano
-total_dfs['importance_score_exp10'] = np.power(10, total_dfs.importance_score)
-fig, ax = plt.subplots(figsize=(4,3))
+#ranked_features['importance_score_exp10'] = np.power(10, ranked_features.importance_score)
+fig, ax = plt.subplots(figsize=(3,3))
 # color pallete options: Greys, magma, vlag, icefire
-sns.scatterplot(data=total_dfs, x='med_diff', y='log_pval', alpha=1, hue='importance_score', palette=sns.color_palette("icefire", as_cmap=True),
+sns.scatterplot(data=ranked_features, x='med_diff', y='log_pval', alpha=1, hue='importance_score', palette=sns.color_palette("icefire", as_cmap=True),
                 s=2.5, edgecolor='none', ax=ax)
-ax.set_xlim(-3.5, 3.5)
+ax.set_xlim(-3, 3)
 sns.despine()
 
 # add gradient legend
-norm = plt.Normalize(total_dfs.importance_score.min(), total_dfs.importance_score.max())
+norm = plt.Normalize(ranked_features.importance_score.min(), ranked_features.importance_score.max())
 sm = plt.cm.ScalarMappable(cmap="icefire", norm=norm)
 ax.get_legend().remove()
 ax.figure.colorbar(sm, ax=ax)
@@ -539,91 +619,91 @@ plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Figure4_volcano.pdf'))
 plt.close()
 
-# plot specific highlighted volcanos
+# # plot specific highlighted volcanos
+#
+# # plot diversity volcano
+# ranked_features['diversity'] = ranked_features.feature_type.isin(['region_diversity', 'cell_diversity'])
+#
+# fig, ax = plt.subplots(figsize=(3, 3))
+# sns.scatterplot(data=ranked_features, x='med_diff', y='log_pval', hue='diversity', alpha=0.7, palette=['lightgrey', 'black'], s=10)
+# ax.set_xlim(-3, 3)
+# sns.despine()
+# plt.tight_layout()
+#
+# plt.savefig(os.path.join(plot_dir, 'Figure4_volcano_diversity.pdf'))
+# plt.close()
+#
+# # plot phenotype volcano
+# ranked_features['phenotype'] = ranked_features.feature_type_broad == 'phenotype'
+#
+# fig, ax = plt.subplots(figsize=(3, 3))
+# sns.scatterplot(data=ranked_features, x='med_diff', y='log_pval', hue='phenotype', alpha=0.7, palette=['lightgrey', 'black'], s=10)
+# ax.set_xlim(-3, 3)
+# sns.despine()
+# plt.savefig(os.path.join(plot_dir, 'Figure4_volcano_phenotype.pdf'))
+# plt.close()
+#
+#
+# # plot density volcano
+# ranked_features['density'] = ranked_features.feature_type.isin(['density'])
+#
+# fig, ax = plt.subplots(figsize=(3, 3))
+# sns.scatterplot(data=ranked_features, x='med_diff', y='log_pval', hue='density', alpha=0.7, palette=['lightgrey', 'black'], s=10)
+# ax.set_xlim(-3, 3)
+# sns.despine()
+# plt.savefig(os.path.join(plot_dir, 'Figure4_volcano_density.pdf'))
+# plt.close()
+#
+# # plot proportion volcano
+# ranked_features['proportion'] = ranked_features.feature_type.isin(['density_ratio', 'compartment_area_ratio', 'density_proportion'])
+#
+# fig, ax = plt.subplots(figsize=(3, 3))
+# sns.scatterplot(data=ranked_features, x='med_diff', y='log_pval', hue='proportion', alpha=0.7, palette=['lightgrey', 'black'], s=10)
+# ax.set_xlim(-3, 3)
+# sns.despine()
+# plt.savefig(os.path.join(plot_dir, 'Figure4_volcano_proportion.pdf'))
+# plt.close()
 
-# plot diversity volcano
-total_dfs['diversity'] = total_dfs.feature_type.isin(['region_diversity', 'cell_diversity'])
-
-fig, ax = plt.subplots(figsize=(3, 3))
-sns.scatterplot(data=total_dfs, x='med_diff', y='log_pval', hue='diversity', alpha=0.7, palette=['lightgrey', 'black'], s=10)
-ax.set_xlim(-3, 3)
-sns.despine()
-plt.tight_layout()
-
-plt.savefig(os.path.join(plot_dir, 'Figure4_volcano_diversity.pdf'))
-plt.close()
-
-# plot phenotype volcano
-total_dfs['phenotype'] = total_dfs.feature_type_broad == 'phenotype'
-
-fig, ax = plt.subplots(figsize=(3, 3))
-sns.scatterplot(data=total_dfs, x='med_diff', y='log_pval', hue='phenotype', alpha=0.7, palette=['lightgrey', 'black'], s=10)
-ax.set_xlim(-3, 3)
-sns.despine()
-plt.savefig(os.path.join(plot_dir, 'Figure4_volcano_phenotype.pdf'))
-plt.close()
-
-
-# plot density volcano
-total_dfs['density'] = total_dfs.feature_type.isin(['density'])
-
-fig, ax = plt.subplots(figsize=(3, 3))
-sns.scatterplot(data=total_dfs, x='med_diff', y='log_pval', hue='density', alpha=0.7, palette=['lightgrey', 'black'], s=10)
-ax.set_xlim(-3, 3)
-sns.despine()
-plt.savefig(os.path.join(plot_dir, 'Figure4_volcano_density.pdf'))
-plt.close()
-
-# plot proportion volcano
-total_dfs['proportion'] = total_dfs.feature_type.isin(['density_ratio', 'compartment_area_ratio', 'density_proportion'])
-
-fig, ax = plt.subplots(figsize=(3, 3))
-sns.scatterplot(data=total_dfs, x='med_diff', y='log_pval', hue='proportion', alpha=0.7, palette=['lightgrey', 'black'], s=10)
-ax.set_xlim(-3, 3)
-sns.despine()
-plt.savefig(os.path.join(plot_dir, 'Figure4_volcano_proportion.pdf'))
-plt.close()
-
-# plot top features
-plot_features = total_dfs.copy()
-plot_features['ratio'] = plot_features.feature_type.isin(['density_ratio', 'density_proportion'])
-plot_features['density'] = plot_features.feature_type == 'density'
-plot_features['diversity'] = plot_features.feature_type.isin(['region_diversity', 'cell_diversity'])
-plot_features['phenotype'] = plot_features.feature_type == 'functional_marker'
-plot_features['sign'] = plot_features.med_diff > 0
-plot_features = plot_features.iloc[:50, :]
-plot_features = plot_features[['feature_name', 'feature_name_unique', 'compartment', 'ratio', 'density', 'diversity', 'phenotype', 'sign']]
-plot_features = plot_features.drop_duplicates()
-plot_features = plot_features.sort_values(by='feature_name')
-plot_features.to_csv(os.path.join(plot_dir, 'Figure4_hits.csv'))
-
-# positive features
-plot_features_pos = plot_features.loc[plot_features.med_diff > 0, :]
-plot_features_pos = plot_features_pos.iloc[:17, :]
-plot_features_pos = plot_features_pos[['feature_name', 'feature_name_unique', 'compartment', 'ratio', 'density', 'diversity', 'phenotype']]
-plot_features_pos = plot_features_pos.drop_duplicates()
-
-# sort by compartment
-compartment_order = ['stroma_core', 'stroma_border', 'cancer_border', 'all']
-plot_features_pos['compartment'] = pd.Categorical(plot_features_pos['compartment'], categories=compartment_order, ordered=True)
-plot_features_pos = plot_features_pos.sort_values(by='compartment')
-plot_features_pos.to_csv(os.path.join(plot_dir, 'Figure4_positive_hits.csv'))
-
-# negative features
-plot_features_neg = plot_features.loc[plot_features.med_diff < 0, :]
-plot_features_neg = plot_features_neg.iloc[:17, :]
-plot_features_neg = plot_features_neg[['feature_name', 'feature_name_unique', 'compartment', 'ratio', 'density', 'diversity', 'phenotype']]
-plot_features_neg = plot_features_neg.drop_duplicates()
-
-# sort by compartment
-compartment_order = ['cancer_core', 'stroma_core', 'stroma_border', 'cancer_border', 'all']
-plot_features_neg['compartment'] = pd.Categorical(plot_features_neg['compartment'], categories=compartment_order, ordered=True)
-plot_features_neg = plot_features_neg.sort_values(by='compartment')
-plot_features_neg.to_csv(os.path.join(plot_dir, 'Figure4_negative_hits.csv'))
+# # plot top features
+# plot_features = ranked_features.copy()
+# plot_features['ratio'] = plot_features.feature_type.isin(['density_ratio', 'density_proportion'])
+# plot_features['density'] = plot_features.feature_type == 'density'
+# plot_features['diversity'] = plot_features.feature_type.isin(['region_diversity', 'cell_diversity'])
+# plot_features['phenotype'] = plot_features.feature_type == 'functional_marker'
+# plot_features['sign'] = plot_features.med_diff > 0
+# plot_features = plot_features.iloc[:50, :]
+# plot_features = plot_features[['feature_name', 'feature_name_unique', 'compartment', 'ratio', 'density', 'diversity', 'phenotype', 'sign']]
+# plot_features = plot_features.drop_duplicates()
+# plot_features = plot_features.sort_values(by='feature_name')
+# plot_features.to_csv(os.path.join(plot_dir, 'Figure4_hits.csv'))
+#
+# # positive features
+# plot_features_pos = plot_features.loc[plot_features.med_diff > 0, :]
+# plot_features_pos = plot_features_pos.iloc[:17, :]
+# plot_features_pos = plot_features_pos[['feature_name', 'feature_name_unique', 'compartment', 'ratio', 'density', 'diversity', 'phenotype']]
+# plot_features_pos = plot_features_pos.drop_duplicates()
+#
+# # sort by compartment
+# compartment_order = ['stroma_core', 'stroma_border', 'cancer_border', 'all']
+# plot_features_pos['compartment'] = pd.Categorical(plot_features_pos['compartment'], categories=compartment_order, ordered=True)
+# plot_features_pos = plot_features_pos.sort_values(by='compartment')
+# plot_features_pos.to_csv(os.path.join(plot_dir, 'Figure4_positive_hits.csv'))
+#
+# # negative features
+# plot_features_neg = plot_features.loc[plot_features.med_diff < 0, :]
+# plot_features_neg = plot_features_neg.iloc[:17, :]
+# plot_features_neg = plot_features_neg[['feature_name', 'feature_name_unique', 'compartment', 'ratio', 'density', 'diversity', 'phenotype']]
+# plot_features_neg = plot_features_neg.drop_duplicates()
+#
+# # sort by compartment
+# compartment_order = ['cancer_core', 'stroma_core', 'stroma_border', 'cancer_border', 'all']
+# plot_features_neg['compartment'] = pd.Categorical(plot_features_neg['compartment'], categories=compartment_order, ordered=True)
+# plot_features_neg = plot_features_neg.sort_values(by='compartment')
+# plot_features_neg.to_csv(os.path.join(plot_dir, 'Figure4_negative_hits.csv'))
 
 
 # look at enrichment by compartment
-top_counts = total_dfs.iloc[:100, :].groupby('compartment').count().iloc[:, 0]
+top_counts = ranked_features.iloc[:100, :].groupby('compartment').count().iloc[:, 0]
 
 total_counts = feature_metadata.groupby('compartment').count().iloc[:, 0]
 
@@ -642,12 +722,12 @@ plt.savefig(os.path.join(plot_dir, 'Figure4_enrichment_by_compartment.pdf'))
 plt.close()
 
 # compare ratio features to best individual feature that is part of the ratio
-top_ratios = total_dfs.iloc[:100, :]
+top_ratios = ranked_features.iloc[:100, :]
 top_ratios = top_ratios.loc[top_ratios.feature_type.isin(['density_ratio']), :]
 
 cell_types, rankings, feature_num, score = [], [], [], []
 for idx, row in top_ratios.iterrows():
-    candidate_features = total_dfs.loc[total_dfs.compartment == row.compartment, :]
+    candidate_features = ranked_features.loc[ranked_features.compartment == row.compartment, :]
     candidate_features = candidate_features.loc[candidate_features.feature_type == 'density', :]
     candidate_features = candidate_features.loc[candidate_features.comparison == row.comparison, :]
     candidate_features = candidate_features.loc[candidate_features.feature_type_detail.isin([row.feature_type_detail, row.feature_type_detail_2]), :]
@@ -656,6 +736,9 @@ for idx, row in top_ratios.iterrows():
     best_rank = candidate_features.combined_rank.min()
     candidate_features = candidate_features.loc[candidate_features.combined_rank == best_rank, :]
     if candidate_features.shape[0] != 0:
+        # just take first in case there are ties
+        candidate_features = candidate_features.iloc[0:1, :]
+
         cell_types.append(candidate_features.feature_name_unique.values)
         rankings.append(candidate_features.combined_rank.values)
         score.append(candidate_features.importance_score.values)
@@ -684,87 +767,377 @@ plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Figure4_ratio_vs_density.pdf'))
 plt.close()
 
+# # get importance score of top 5 examples for functional markers
+# cols = ['PDL1','Ki67','GLUT1','CD45RO','CD69', 'PD1','CD57','TBET', 'TCF1',
+#         'CD45RB', 'TIM3', 'Fe','IDO','CD38']
+# def get_top_x_features(df, feature_type, x=5, plot_val='importance_score', ascending=False):
+#     features = df.loc[df.feature_type == feature_type, 'feature_type_detail'].unique()
+#
+#     scores, names = [], []
+#     for feature in features:
+#         plot_df = df.loc[(df.feature_type_detail == feature) &
+#                                 (df.feature_type == feature_type), :]
+#         plot_df = plot_df.sort_values(by=plot_val, ascending=ascending)
+#         temp_scores = plot_df.iloc[:x, :][plot_val].values
+#         scores.append(temp_scores)
+#         names.append([feature] * len(temp_scores))
+#
+#     score_df = pd.DataFrame({'score': np.concatenate(scores), 'name': np.concatenate(names)})
+#     return score_df
+#
+# func_score_df = get_top_x_features(ranked_features, 'functional_marker', x=5, plot_val='combined_rank', ascending=True)
+# func_score_df = func_score_df.loc[func_score_df.name.isin(cols), :]
+# meds = func_score_df.groupby('name').median().sort_values(by='score', ascending=True)
+# #func_score_df = func_score_df.loc[func_score_df.name.isin(meds.loc[meds.values > 0.85, :].index), :]
+#
+# fig, ax = plt.subplots(figsize=(4, 5))
+# sns.stripplot(data=func_score_df, x='name', y='score', ax=ax, order=meds.index, color='black')
+# sns.boxplot(data=func_score_df, x='name', y='score', order=meds.index, color='grey', ax=ax, showfliers=False, width=0.5)
+# ax.set_title('Functional Markers Ranking')
+# ax.set_ylim([0,3200])
+# ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+#
+# sns.despine()
+# plt.tight_layout()
+# plt.savefig(os.path.join(plot_dir, 'Figure4_functional_marker_enrichment_rank.pdf'))
+# plt.close()
+#
+#
+# # get importance score of top 5 examples for densities
+# density_score_df = get_top_x_features(ranked_features, 'density', x=5, plot_val='combined_rank', ascending=True)
+#
+# meds = density_score_df.groupby('name').median().sort_values(by='score', ascending=True)
+#
+# fig, ax = plt.subplots(figsize=(4, 5))
+# sns.stripplot(data=density_score_df, x='name', y='score', ax=ax, order=meds.index, color='black')
+# sns.boxplot(data=density_score_df, x='name', y='score', order=meds.index, color='grey', ax=ax, showfliers=False, width=0.5)
+# ax.set_title('Densities Ranking')
+# #ax.set_ylim([0, 1])
+# ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+#
+# sns.despine()
+# plt.tight_layout()
+# plt.savefig(os.path.join(plot_dir, 'Figure4_density_enrichment_rank.pdf'))
+# plt.close()
+#
+# # get importance score of top 5 examples for diversity
+# diversity_score_df = get_top_x_features(ranked_features, 'cell_diversity', x=5)
+# meds = diversity_score_df.groupby('name').median().sort_values(by='score', ascending=False)
+#
+# fig, ax = plt.subplots(figsize=(4, 6))
+# sns.stripplot(data=diversity_score_df, x='name', y='score', ax=ax, order=meds.index, color='black')
+# sns.boxplot(data=diversity_score_df, x='name', y='score', order=meds.index, color='grey', ax=ax, showfliers=False, width=0.5)
+# ax.set_title('Diversity Ranking')
+# ax.set_ylim([0, 1])
+# ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+#
+# sns.despine()
+# plt.tight_layout()
+# plt.savefig(os.path.join(plot_dir, 'Figure4_diversity_enrichment.pdf'))
+# plt.close()
 
-# check reverse direction
+# look at enrichment of spatial features
+spatial_features = ['mixing_score', 'cell_diversity', 'compartment_area_ratio', 'pixie_ecm',
+                    'compartment_area', 'fiber', 'linear_distance', 'ecm_fraction', 'ecm_cluster']
+spatial_mask = np.logical_or(ranked_features.feature_type.isin(spatial_features), ranked_features.compartment != 'all')
+ranked_features['spatial_feature'] = spatial_mask
 
-# get importance score of top 5 examples for functional markers
-cols = ['PDL1','Ki67','GLUT1','CD45RO','CD69', 'PD1','CD57','TBET', 'TCF1',
-        'CD45RB', 'TIM3', 'Fe','IDO','CD38']
-def get_top_x_features(df, feature_type, x=5, plot_val='importance_score', ascending=False):
-    features = df.loc[df.feature_type == feature_type, 'feature_type_detail'].unique()
+spatial_mask_metadata = np.logical_or(feature_metadata.feature_type.isin(spatial_features), feature_metadata.compartment != 'all')
+feature_metadata['spatial_feature'] = spatial_mask_metadata
 
-    scores, names = [], []
-    for feature in features:
-        plot_df = df.loc[(df.feature_type_detail == feature) &
-                                (df.feature_type == feature_type), :]
-        plot_df = plot_df.sort_values(by=plot_val, ascending=ascending)
-        temp_scores = plot_df.iloc[:x, :][plot_val].values
-        scores.append(temp_scores)
-        names.append([feature] * len(temp_scores))
+top_count_spatial = ranked_features.iloc[:100, :].groupby('spatial_feature').count().iloc[:, 0]
 
-    score_df = pd.DataFrame({'score': np.concatenate(scores), 'name': np.concatenate(names)})
-    return score_df
+total_counts_spatial = feature_metadata.groupby('spatial_feature').count().iloc[:, 0]
 
-func_score_df = get_top_x_features(total_dfs, 'functional_marker', x=5, plot_val='combined_rank', ascending=True)
-func_score_df = func_score_df.loc[func_score_df.name.isin(cols), :]
-meds = func_score_df.groupby('name').median().sort_values(by='score', ascending=True)
-#func_score_df = func_score_df.loc[func_score_df.name.isin(meds.loc[meds.values > 0.85, :].index), :]
+top_prop = top_count_spatial / np.sum(top_count_spatial)
+total_prop = total_counts_spatial / np.sum(total_counts_spatial)
 
-fig, ax = plt.subplots(figsize=(4, 5))
-sns.stripplot(data=func_score_df, x='name', y='score', ax=ax, order=meds.index, color='black')
-sns.boxplot(data=func_score_df, x='name', y='score', order=meds.index, color='grey', ax=ax, showfliers=False, width=0.5)
-ax.set_title('Functional Markers Ranking')
-ax.set_ylim([0,3200])
-ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+top_ratio = top_prop / total_prop
+top_ratio = np.log2(top_ratio)
+ratio_df = pd.DataFrame({'spatial_feature': top_ratio.index, 'ratio': top_ratio.values})
+ratio_df = ratio_df.sort_values(by='ratio', ascending=False)
 
+fig, ax = plt.subplots(figsize=(4, 3))
+ax.set_ylim(-0.6, 0.6)
+sns.barplot(data=ratio_df, x='spatial_feature', y='ratio', color='grey', ax=ax)
 sns.despine()
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure4_functional_marker_enrichment_rank.pdf'))
+
+plt.savefig(os.path.join(plot_dir, 'Figure4_enrichment_by_spatial.pdf'))
 plt.close()
 
 
-# get importance score of top 5 examples for densities
-density_score_df = get_top_x_features(total_dfs, 'density', x=5, plot_val='combined_rank', ascending=True)
+# additional features:
+# CD45RO+__all.
+# Cancer_Other__proportion_of__Cancer
+# diversity_cell_cluster__Cancer__stroma_core
+# diveristy_cell_cluster__Cancer
+# Cancer_Immune_mixing_score
+# cluster broad diversity cancer border on nivo
+# cancer_diversity
 
-meds = density_score_df.groupby('name').median().sort_values(by='score', ascending=True)
 
-fig, ax = plt.subplots(figsize=(4, 5))
-sns.stripplot(data=density_score_df, x='name', y='score', ax=ax, order=meds.index, color='black')
-sns.boxplot(data=density_score_df, x='name', y='score', order=meds.index, color='grey', ax=ax, showfliers=False, width=0.5)
-ax.set_title('Densities Ranking')
-#ax.set_ylim([0, 1])
-ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+# cluster_broad_diversity__cancer_border
+# PDL1+__APC on nivo
+combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
 
-sns.despine()
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure4_density_enrichment_rank.pdf'))
-plt.close()
+feature_name = 'PDL1+__M1_Mac'
+timepoint = 'on_nivo'
 
-# get importance score of top 5 examples for diversity
-diversity_score_df = get_top_x_features(total_dfs, 'cell_diversity', x=5)
-meds = diversity_score_df.groupby('name').median().sort_values(by='score', ascending=False)
+plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
+                                    (combined_df.Timepoint == timepoint), :]
 
-fig, ax = plt.subplots(figsize=(4, 6))
-sns.stripplot(data=diversity_score_df, x='name', y='score', ax=ax, order=meds.index, color='black')
-sns.boxplot(data=diversity_score_df, x='name', y='score', order=meds.index, color='grey', ax=ax, showfliers=False, width=0.5)
-ax.set_title('Diversity Ranking')
+fig, ax = plt.subplots(1, 1, figsize=(2, 4))
+sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                color='black', ax=ax)
+sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                color='grey', ax=ax, showfliers=False, width=0.3)
+ax.set_title(feature_name + ' ' + timepoint)
 ax.set_ylim([0, 1])
-ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
-
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure4_diversity_enrichment.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure4_feature_{}_{}.pdf'.format(feature_name, timepoint)))
 plt.close()
 
-# look at enrichment of specific features
+cell_table_func = pd.read_csv(os.path.join(base_dir, 'analysis_files/cell_table_func_single_positive.csv'))
 
-# # spatial features
-# total_dfs['spatial_feature'] = total_dfs.feature_type.isin(['density', 'region_diversity', 'cell_diversity',
-#                                                             'pixie_ecm', 'fiber', 'compartment_area_ratio', 'ecm_cluster', 'compartment_area',
-#                                                             'mixing_score', 'linear_distance', 'ecm_fraction'])
-#
-# enriched_features = compute_feature_enrichment(feature_df=total_dfs, inclusion_col='top_feature', analysis_col='spatial_feature')
-#
+# corresponding overlays
+subset = plot_df.loc[plot_df.raw_mean < 0.08, :]
+
+pats = [37, 33, 59, 62, 64, 65] # responders
+pats = [24, 60, 87, 88, 107, 114] # nonresponders
+fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
+
+cell_table_subset = cell_table_func.loc[(cell_table_func.fov.isin(fovs)), :]
+cell_table_subset['M1_plot'] = cell_table_subset.cell_cluster
+cell_table_subset.loc[cell_table_subset.cell_cluster != 'M1_Mac', 'M1_plot'] = 'Other'
+cell_table_subset.loc[(cell_table_subset.cell_cluster == 'M1_Mac') & (cell_table_subset.PDL1.values), 'M1_plot'] = 'M1_PDL1+'
+
+m1_colormap = pd.DataFrame({'M1_plot': ['M1_Mac', 'Other', 'M1_PDL1+'],
+                         'color': ['blue','grey', 'lightsteelblue']})
+m1_plot_dir = os.path.join(plot_dir, 'Figure4_M1_overlays_neg')
+if not os.path.exists(m1_plot_dir):
+    os.mkdir(m1_plot_dir)
+
+
+for pat in pats:
+    pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == 'on_nivo'), 'fov'].unique()
+    pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
+
+    pat_dir = os.path.join(m1_plot_dir, 'patient_{}'.format(pat))
+    if not os.path.exists(pat_dir):
+        os.mkdir(pat_dir)
+
+    cohort_cluster_plot(
+        fovs=pat_fovs,
+        seg_dir=seg_dir,
+        save_dir=pat_dir,
+        cell_data=pat_df,
+        erode=True,
+        fov_col=settings.FOV_ID,
+        label_col=settings.CELL_LABEL,
+        cluster_col='M1_plot',
+        seg_suffix="_whole_cell.tiff",
+        cmap=m1_colormap,
+        display_fig=False,
+    )
+
+
+# create crops for selected FOVs
+fovs = ['TONIC_TMA6_R7C6', 'TONIC_TMA11_R7C4', 'TONIC_TMA11_R4C2', 'TONIC_TMA20_R2C3'] # patient 33, 62, 60, 114
+
+subset_dir = os.path.join(plot_dir, 'Figure4_M1_overlays_selected')
+if not os.path.exists(subset_dir):
+    os.mkdir(subset_dir)
+
+
+cohort_cluster_plot(
+    fovs=fovs,
+    seg_dir=seg_dir,
+    save_dir=subset_dir,
+    cell_data=cell_table_subset,
+    erode=True,
+    fov_col=settings.FOV_ID,
+    label_col=settings.CELL_LABEL,
+    cluster_col='M1_plot',
+    seg_suffix="_whole_cell.tiff",
+    cmap=m1_colormap,
+    display_fig=False,
+)
+
+
+# select crops for visualization
+fov1 = fovs[0]
+row_start, col_start = 1448, 1300
+row_len, col_len = 600, 600
+
+fov1_image = io.imread(os.path.join(subset_dir, 'cluster_masks_colored', fov1 + '.tiff'))
+fov1_image = fov1_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
+io.imsave(os.path.join(subset_dir, 'cluster_masks_colored', fov1 + '_crop.tiff'), fov1_image)
+
+
+fov2 = fovs[1]
+row_start, col_start = 900, 600
+row_len, col_len = 600, 600
+
+fov2_image = io.imread(os.path.join(subset_dir, 'cluster_masks_colored', fov2 + '.tiff'))
+fov2_image = fov2_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
+io.imsave(os.path.join(subset_dir, 'cluster_masks_colored', fov2 + '_crop.tiff'), fov2_image)
+
+
+fov3 = fovs[2]
+row_start, col_start = 600, 1100
+row_len, col_len = 600, 600
+
+fov3_image = io.imread(os.path.join(subset_dir, 'cluster_masks_colored', fov3 + '.tiff'))
+fov3_image = fov3_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
+io.imsave(os.path.join(subset_dir, 'cluster_masks_colored', fov3 + '_crop.tiff'), fov3_image)
+
+
+fov4 = fovs[3]
+row_start, col_start = 800, 0
+row_len, col_len = 600, 600
+
+fov4_image = io.imread(os.path.join(subset_dir, 'cluster_masks_colored', fov4 + '.tiff'))
+fov4_image = fov4_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
+io.imsave(os.path.join(subset_dir, 'cluster_masks_colored', fov4 + '_crop.tiff'), fov4_image)
+
+
+# diversity of cancer border at induction
+feature_name = 'cluster_broad_diversity_cancer_border'
+timepoint = 'on_nivo'
+
+plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
+                                    (combined_df.Timepoint == timepoint), :]
+
+fig, ax = plt.subplots(1, 1, figsize=(2, 4))
+sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                color='black', ax=ax)
+sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                color='grey', ax=ax, showfliers=False, width=0.3)
+ax.set_title(feature_name + ' ' + timepoint)
+ax.set_ylim([0, 2])
+sns.despine()
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'Figure4_feature_{}_{}.pdf'.format(feature_name, timepoint)))
+plt.close()
+
+
+
+# corresponding overlays
+cell_table_clusters = pd.read_csv(os.path.join(base_dir, 'analysis_files/cell_table_clusters.csv'))
+annotations_by_mask = pd.read_csv(os.path.join(base_dir, 'intermediate_files/mask_dir/individual_masks-no_tagg_tls/cell_annotation_mask.csv'))
+annotations_by_mask = annotations_by_mask.rename(columns={'mask_name': 'tumor_region'})
+cell_table_clusters = cell_table_clusters.merge(annotations_by_mask, on=['fov', 'label'], how='left')
+
+subset = plot_df.loc[plot_df.raw_mean < .25, :]
+
+pats = [59, 62, 64, 100]
+pats = [7, 20, 50, 82, 106, 107, 112, 127]
+fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
+
+# 33, 62 previously included
+
+# add column for CD8T in cancer border, CD8T elsewhere, and others
+cell_table_subset = cell_table_clusters.loc[(cell_table_clusters.fov.isin(fovs)), :]
+cell_table_subset['border_plot'] = cell_table_subset.cell_cluster_broad
+cell_table_subset.loc[cell_table_subset.tumor_region != 'cancer_border', 'border_plot'] = 'Other_region'
+
+figure_dir = os.path.join(plot_dir, 'Figure4_border_diversity_neg')
+if not os.path.exists(figure_dir):
+    os.mkdir(figure_dir)
+
+diversity_colormap = pd.DataFrame({'border_plot': ['Cancer', 'Stroma', 'Granulocyte', 'T', 'B', 'Mono_Mac', 'Other', 'NK', 'Other_region'],
+                         'color': ['white', 'lightcoral', 'sandybrown', 'lightgreen', 'aqua', 'dodgerblue', 'darkviolet', 'crimson', 'gray']})
+
+
+for pat in pats:
+    pat_dir = os.path.join(figure_dir, 'patient_{}'.format(pat))
+    if not os.path.exists(pat_dir):
+        os.mkdir(pat_dir)
+    pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == 'on_nivo'), 'fov'].unique()
+    pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
+
+    cohort_cluster_plot(
+        fovs=pat_fovs,
+        seg_dir=seg_dir,
+        save_dir=pat_dir,
+        cell_data=pat_df,
+        erode=True,
+        fov_col=settings.FOV_ID,
+        label_col=settings.CELL_LABEL,
+        cluster_col='border_plot',
+        seg_suffix="_whole_cell.tiff",
+        cmap=diversity_colormap,
+        display_fig=False,
+    )
+
+fovs = ['TONIC_TMA12_R2C4', 'TONIC_TMA14_R11C4'] # 64, 82
+
+subset_dir = os.path.join(plot_dir, 'Figure4_border_diversity_selected')
+if not os.path.exists(subset_dir):
+    os.mkdir(subset_dir)
+
+cohort_cluster_plot(
+    fovs=fovs,
+    seg_dir=seg_dir,
+    save_dir=subset_dir,
+    cell_data=cell_table_subset,
+    erode=True,
+    fov_col=settings.FOV_ID,
+    label_col=settings.CELL_LABEL,
+    cluster_col='border_plot',
+    seg_suffix="_whole_cell.tiff",
+    cmap=diversity_colormap,
+    display_fig=False,
+)
+
+
+# same thing for compartment masks
+compartment_colormap = pd.DataFrame({'tumor_region': ['cancer_core', 'cancer_border', 'stroma_border', 'stroma_core'],
+                         'color': ['blue', 'deepskyblue', 'lightcoral', 'firebrick']})
+subset_mask_dir = os.path.join(plot_dir, 'Figure4_border_diversity_selected_masks')
+if not os.path.exists(subset_mask_dir):
+    os.mkdir(subset_mask_dir)
+
+cohort_cluster_plot(
+    fovs=fovs,
+    seg_dir=seg_dir,
+    save_dir=subset_mask_dir,
+    cell_data=cell_table_subset,
+    erode=True,
+    fov_col=settings.FOV_ID,
+    label_col=settings.CELL_LABEL,
+    cluster_col='tumor_region',
+    seg_suffix="_whole_cell.tiff",
+    cmap=compartment_colormap,
+    display_fig=False,
+)
+
+
+
+
+# crop overlays
+fov1 = fovs[0]
+row_start, col_start = 600, 900
+row_len, col_len = 600, 600
+
+for dir in [subset_dir, subset_mask_dir]:
+    fov1_image = io.imread(os.path.join(dir, 'cluster_masks_colored', fov1 + '.tiff'))
+    fov1_image = fov1_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
+    io.imsave(os.path.join(dir, 'cluster_masks_colored', fov1 + '_crop.tiff'), fov1_image)
+
+fov2 = fovs[1]
+row_start, col_start = 100, 400
+row_len, col_len = 600, 600
+
+for dir in [subset_dir, subset_mask_dir]:
+    fov2_image = io.imread(os.path.join(dir, 'cluster_masks_colored', fov2 + '.tiff'))
+    fov2_image = fov2_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
+    io.imsave(os.path.join(dir, 'cluster_masks_colored', fov2 + '_crop.tiff'), fov2_image)
+
+
+
+
 # # # plot as a barplot
 # # fig, ax = plt.subplots(figsize=(10,8))
 # # sns.barplot(data=enriched_features, x='log2_ratio', y='spatial_feature', color='grey', ax=ax)
@@ -776,7 +1149,7 @@ plt.close()
 #
 #
 # # look at enriched cell types
-# enriched_features = compute_feature_enrichment(feature_df=total_dfs, inclusion_col='top_feature', analysis_col='cell_pop')
+# enriched_features = compute_feature_enrichment(feature_df=ranked_features, inclusion_col='top_feature', analysis_col='cell_pop')
 #
 # # plot as a barplot
 # fig, ax = plt.subplots(figsize=(10,8))
@@ -803,7 +1176,7 @@ plt.close()
 
 
 # plot specific top features
-combined_df = pd.read_csv(os.path.join(data_dir, 'nivo_outcomes/combined_df.csv'))
+combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
 
 # PDL1+__APC in induction
 feature_name = 'PDL1+__APC'
@@ -813,9 +1186,9 @@ plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
                                     (combined_df.Timepoint == timepoint), :]
 
 fig, ax = plt.subplots(1, 1, figsize=(3, 6))
-sns.stripplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
+sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
                 color='black', ax=ax)
-sns.boxplot(data=plot_df, x='iRECIST_response', y='raw_mean', order=['responders', 'non-responders'],
+sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
                 color='grey', ax=ax, showfliers=False)
 ax.set_title(feature_name + ' ' + timepoint)
 ax.set_ylim([0, 1])
@@ -824,7 +1197,7 @@ plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Figure5_feature_{}_{}.pdf'.format(feature_name, timepoint)))
 plt.close()
 
-cell_table_func = pd.read_csv(os.path.join(data_dir, 'post_processing/cell_table_func_single_positive.csv'))
+cell_table_func = pd.read_csv(os.path.join(base_dir, 'analysis_files/cell_table_func_single_positive.csv'))
 
 # corresponding overlays
 subset = plot_df.loc[plot_df.raw_mean < 0.1, :]
@@ -839,8 +1212,8 @@ cell_table_subset.loc[cell_table_subset.cell_cluster != 'APC', 'APC_plot'] = 'Ot
 cell_table_subset.loc[(cell_table_subset.cell_cluster == 'APC') & (cell_table_subset.PDL1.values), 'APC_plot'] = 'APC_PDL1+'
 
 apc_colormap = pd.DataFrame({'APC_plot': ['APC', 'Other', 'APC_PDL1+'],
-                         'color': ['lightsteelblue','grey', 'blue']})
-apc_plot_dir = os.path.join(plot_dir, 'Figure5_APC_overlays')
+                         'color': ['blue','grey', 'lightsteelblue']})
+apc_plot_dir = os.path.join(plot_dir, 'Figure5_APC_overlays_new')
 if not os.path.exists(apc_plot_dir):
     os.mkdir(apc_plot_dir)
 
@@ -1200,7 +1573,7 @@ io.imsave(os.path.join(subset_dir, 'cluster_masks_colored', fov4 + '_crop.tiff')
 #
 
 # plot top features
-top_features = total_dfs.loc[total_dfs.comparison.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
+top_features = ranked_features.loc[ranked_features.comparison.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
 top_features = top_features.iloc[:100, :]
 
 for idx, (feature_name, comparison) in enumerate(zip(top_features.feature_name_unique, top_features.comparison)):
@@ -1301,7 +1674,7 @@ for feature_name, plotting_range in zip(comparison_features, plotting_ranges):
 #
 #     # score of top 5 features
 #     name, comparisons = groupings
-#     # cell_type_features = get_top_x_features_by_list(df=total_dfs.loc[total_dfs.comparison.isin(comparisons)],
+#     # cell_type_features = get_top_x_features_by_list(df=ranked_features.loc[ranked_features.comparison.isin(comparisons)],
 #     #                                                 detail_names=cell_ordering + ['T', 'Mono_Mac'], x=5, plot_val='combined_rank',
 #     #                                                 ascending=True)
 #     #
@@ -1338,7 +1711,7 @@ for feature_name, plotting_range in zip(comparison_features, plotting_ranges):
 # plt.close()
 
 # plot top featurse across all comparisons
-all_top_features = total_dfs.copy()
+all_top_features = ranked_features.copy()
 all_top_features['feature_cat'] = 0
 all_top_features.iloc[:100, -1] = 1
 all_top_features.iloc[100:300, -1] = 0.5
@@ -1354,7 +1727,7 @@ plt.close()
 
 
 # plot top features excluding evolution timepoints
-all_top_features = total_dfs.copy()
+all_top_features = ranked_features.copy()
 all_top_features = all_top_features.loc[all_top_features.comparison.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
 all_top_features['feature_cat'] = 0
 all_top_features.iloc[:100, -1] = 1
@@ -1369,7 +1742,7 @@ plt.close()
 
 
 # same as above, but excluding values for signed importance score that are below threshold
-all_top_features = total_dfs.copy()
+all_top_features = ranked_features.copy()
 all_top_features = all_top_features.loc[all_top_features.comparison.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
 all_top_features.loc[all_top_features.importance_score < 0.85, 'signed_importance_score'] = 0
 all_top_features = all_top_features.loc[all_top_features.feature_name_unique.isin(all_top_features.feature_name_unique.values[:100]), :]
@@ -1394,7 +1767,7 @@ overlap_results = {}
 for overlap_type, comparisons in overlap_type_dict.items():
     static_comparisons, evolution_comparisons = comparisons
 
-    overlap_top_features = total_dfs.copy()
+    overlap_top_features = ranked_features.copy()
     overlap_top_features = overlap_top_features.loc[overlap_top_features.comparison.isin(static_comparisons + evolution_comparisons)]
     overlap_top_features.loc[overlap_top_features.comparison.isin(static_comparisons), 'comparison'] = 'static'
     overlap_top_features.loc[overlap_top_features.comparison.isin(evolution_comparisons), 'comparison'] = 'evolution'
@@ -1493,7 +1866,7 @@ for feature in opposite_features:
     plt.savefig(os.path.join(plot_dir, 'longitudinal_response_raw_{}.png'.format(feature)))
     plt.close()
 
-all_opp_features = total_dfs.loc[total_dfs.feature_name_unique.isin(opposite_features), :]
+all_opp_features = ranked_features.loc[ranked_features.feature_name_unique.isin(opposite_features), :]
 #all_opp_features = all_opp_features.loc[all_opp_features.comparison.isin(['post_induction', 'post_induction__on_nivo']), :]
 all_opp_features = all_opp_features.pivot(index='feature_name_unique', columns='comparison', values='signed_importance_score')
 all_opp_features = all_opp_features.fillna(0)
@@ -1503,7 +1876,7 @@ plt.savefig(os.path.join(plot_dir, 'opposite_clustermap.pdf'))
 plt.close()
 
 # plot induction peak features
-induction_peak_df = total_dfs.loc[total_dfs.feature_name_unique.isin(induction_peak_features), :]
+induction_peak_df = ranked_features.loc[ranked_features.feature_name_unique.isin(induction_peak_features), :]
 induction_peak_df = induction_peak_df.pivot(index='feature_name_unique', columns='comparison', values='signed_importance_score')
 induction_peak_df = induction_peak_df.fillna(0)
 
@@ -1640,15 +2013,15 @@ for feature in induction_peak_features:
 
 
 # Figure 7
-cv_scores = pd.read_csv(os.path.join(data_dir, 'multivariate_lasso', 'results_1112_cv.csv'))
+cv_scores = pd.read_csv(os.path.join(base_dir, 'multivariate_lasso', 'results_1112_cv.csv'))
 cv_scores['fold'] = len(cv_scores)
 
 cv_scores_long = pd.melt(cv_scores, id_vars=['fold'], value_vars=cv_scores.columns)
 
 
-fig, ax = plt.subplots(1, 1, figsize=(5, 8))
-order = ['baseline_post_induction', 'post_induction', 'baseline_on_nivo',
-       'baseline', 'post_induction_on_nivo', 'on_nivo']
+fig, ax = plt.subplots(1, 1, figsize=(3, 4))
+order = ['primary', 'post_induction', 'baseline', 'on_nivo']
+         #'primary_AND_baseline', 'primary_AND_post_induction', 'baseline_AND_post_induction']
 sns.stripplot(data=cv_scores_long, x='variable', y='value', order=order,
                 color='black', ax=ax)
 sns.boxplot(data=cv_scores_long, x='variable', y='value', order=order,
@@ -1660,5 +2033,14 @@ ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
 
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure7_AUC.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure6_AUC.pdf'))
 plt.close()
+
+
+
+# testing args
+# width = 0.8, linewidth=None, gap=0,
+fig, ax = plt.subplots(1, 1, figsize=(3, 4))
+order = ['primary', 'post_induction', 'baseline', 'on_nivo']
+sns.boxplot(data=cv_scores_long, x='variable', y='value', order=order,
+                color='grey', ax=ax, showfliers=False, width=0.3)

@@ -191,7 +191,7 @@ for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_borde
         fov_data.append(cell_type1_df)
 
 # compute ratio of specific cell type abundances
-cell_ratios = [('CD4T', 'CD8T'), ('CD4T', 'Treg'), ('CD8T', 'Treg'), ('M1_Mac', 'M2_Mac')]
+cell_ratios = [('CD8T', 'CD4T'), ('CD4T', 'Treg'), ('CD8T', 'Treg'), ('M1_Mac', 'M2_Mac')]
 input_df = cluster_df_core[cluster_df_core.metric == 'cluster_density'].copy()
 for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
 #for compartment in ['all']:
