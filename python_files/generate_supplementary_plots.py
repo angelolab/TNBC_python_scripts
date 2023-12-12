@@ -1,6 +1,7 @@
 # File with code for generating supplementary plots
 import os
 import shutil
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -30,7 +31,11 @@ import seaborn as sns
 
 
 # Functional marker thresholding
-
+def functional_marker_thresholding(
+    cell_table: pd.DataFrame, populations, List[str], marker: str,
+    pop_col: str = "cell_meta_cluster", threshold: Optional[float] = None,
+    percentile: float = 0.999):
+    pass
 
 
 # Feature extraction
