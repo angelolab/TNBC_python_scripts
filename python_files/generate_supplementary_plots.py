@@ -51,7 +51,7 @@ def validate_panel(
     stitched_img_path = os.path.join(save_dir, f"{fov}_channels_stitched.tiff")
 
     # load the data and get the channel names and image dimensions
-    image_data = load_utils.load_imgs_from_tree(
+    image_data = load_imgs_from_tree(
         data_dir=data_dir, fovs=[fov], img_sub_folder=img_sub_folder
     )[0, ...]
     channels = image_data.channels.values
