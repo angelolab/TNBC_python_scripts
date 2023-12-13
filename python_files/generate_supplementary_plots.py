@@ -92,7 +92,7 @@ def validate_panel(
     # anyone know of an easier way?
     stitched_image_im: Image = Image.fromarray(stitched_image)
     imdraw: ImageDraw = ImageDraw.Draw(stitched_image_im)
-    imfont: ImageFont = ImageFont.truetype("arial.ttf", 40)
+    imfont: ImageFont = ImageFont.truetype("Arial Unicode.ttf", 40)
 
     # annotate each channel
     img_idx = 0
