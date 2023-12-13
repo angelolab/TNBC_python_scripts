@@ -96,13 +96,14 @@ def validate_panel(
 
     # annotate each channel
     img_idx = 0
+    fill_value: int = np.max(stitched_image)
     for row in range(num_rows):
         for col in range(num_cols):
             imdraw.text(
                 (row * img_dim[0] + padding * row, col * img_dim[1] + padding * col),
                 channels[img_idx],
                 font=imfont,
-                fill=255
+                fill=fill_value
             )
             img_idx += 1
             if img_idx == len(channels):
