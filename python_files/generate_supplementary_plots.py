@@ -56,20 +56,21 @@ def validate_panel(
         data_dir=data_dir, fovs=[fov], img_sub_folder=img_sub_folder
     )[0, ...]
     channels: np.ndarray = image_data.channels.values
-    img_dim: Tuple[int, int] = tuple(list(test_img_data.shape[:2]))
 
     # normalize each channel by their 99.9% value, for clearer visualization
-    image_data = image_data / image_data.quantile(0.999, dim="channels")
+    image_data = image_data / image_data.quantile(0.999, dim=["rows", "cols"])
 
     # define the number of rows and columns
     num_cols: int = math.isqrt(len(channels))
     num_rows: int = math.ceil(len(channels) / num_cols)
+    row_len: int = test_img_data.shape[0]
+    col_len: int = test_img_data.shape[1]
 
     # create the blank image, start with a fully white slate
     stitched_image: np.ndarray = np.zeros(
         (
-            num_rows * img_dim[0] + (num_rows - 1) * padding,
-            num_cols * img_dim[1] + (num_rows - 1) * padding
+            num_rows * row_len + (num_rows - 1) * padding,
+            num_cols * col_len + (num_rows - 1) * padding
         )
     )
     stitched_image = stitched_image.fill(255)
@@ -79,8 +80,8 @@ def validate_panel(
     for row in range(num_rows):
         for col in range(num_cols):
             stitched_image[
-                (row * img_dim[0] + padding * row) : ((row + 1) * img_dim[0] + padding * row),
-                (col * img_dim[1] + padding * col) : ((col + 1) * img_dim[1] + padding * col)
+                (row * row_len + padding * row) : ((row + 1) * row_len + padding * row),
+                (col * col_len + padding * col) : ((col + 1) * col_len + padding * col)
             ] = data_xr[..., img_idx]
             img_idx += 1
             if img_idx == len(channels):
@@ -89,7 +90,8 @@ def validate_panel(
     # define a draw instance for annotating the channel name
     # TODO: using PIL, it's most efficient to annotate on a fully-processed array
     # anyone know of an easier way?
-    imdraw: ImageDraw = ImageDraw.Draw(stitched_image)
+    stitched_image_im: Image = Image.fromarray(stitched_image)
+    imdraw: ImageDraw = ImageDraw.Draw(stitched_image_im)
     imfont: ImageFont = ImageFont.truetype("arial.ttf", 40)
 
     # annotate each channel
@@ -107,7 +109,7 @@ def validate_panel(
                 break
 
     # save the stitched image
-    stitched_image.save(stitched_img_path)
+    stitched_image_im.save(stitched_img_path)
 
 
 # ROI selection
