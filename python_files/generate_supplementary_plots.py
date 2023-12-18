@@ -37,7 +37,8 @@ from alpineer.misc_utils import make_iterable, verify_in_list
 def functional_marker_thresholding(
     cell_table: pd.DataFrame, save_dir: Union[str, pathlib.Path], marker: str,
     populations: List[str], threshold: float, pop_col: str = "cell_meta_cluster",
-    percentile: float = 0.999):
+    percentile: float = 0.999, x_range: Optional[Tuple[float, float]] = None,
+    figsize: Optional[Tuple[float, float]] = None):
     """For a particular marker, visualize its distribution across the entire cohort, plus just 
     against the specified populations.
 
@@ -56,9 +57,26 @@ def functional_marker_thresholding(
             Column containing the names of the cell populations
         percentile (float):
             Cap used to control x axis limits of the plot
+        x_range (Optional[Tuple[float, float]]):
+            The range of x-values to visualize
+        fig_size (Optional[Tuple[float, float]]):
+            The figure size to use for the image.
+            If None use default sizing (6.2, 2.2 * len(populations))
     """
     # verify save_dir is valid
     validate_paths([save_dir])
+
+    # verify x_range is valid if set
+    if x_range and (len(x_range) != 2 or x_range[0] >= x_range[1]):
+        raise ValueError(
+            "Invalid x_range: it must be in the form (low, high), low < high"
+        )
+
+    # verify figsize is valid if set
+    if figsize and (len(figsize) != 2 or figsize[0] <= 0 or figsize[1] <= 0):
+        raise ValueError(
+            "Invalid figsize: it must be in the form (size_x, size_y), size_x > 0, size_y > 0"
+        )
 
     # Make populations a list if it's str
     populations: List[str] = make_iterable(populations, ignore_str=True)
@@ -76,11 +94,12 @@ def functional_marker_thresholding(
     )
 
     # define the subplot grid
-    pop_num: int = len(populations)
-    fig, axs = plt.subplots(1 + len(populations), 1, figsize=[6.4, 2.2 * pop_num], squeeze=False)
+    figsize = figsize if figsize else (6.2, 2.2 * len(populations))
+    fig, axs = plt.subplots(1 + len(populations), 1, figsize=figsize, squeeze=False)
 
     # determine max value to show on histograms based on the specified percentile
-    x_max = np.quantile(cell_table[marker].values, percentile)
+    x_range = x_range if x_range else (0, np.quantile(cell_table[marker].values, percentile))
+    print(f"The x_range to use is: {x_range}")
 
     # the first subplot should always be the distribution of the marker against all populations
     axs[0][0].hist(
@@ -89,7 +108,7 @@ def functional_marker_thresholding(
         density=True,
         facecolor='g',
         alpha=0.75,
-        range=(0, x_max)
+        range=x_range
     )
     axs[0][0].set_title("Distribution of {} in all populations".format(marker))
     axs[0][0].axvline(x=threshold)
@@ -105,7 +124,7 @@ def functional_marker_thresholding(
             density=True,
             facecolor='g',
             alpha=0.75,
-            range=(0, x_max)
+            range=x_range
         )
         ax.set_title("Distribution of {} in {}".format(marker, pop))
         ax.axvline(x=threshold)
