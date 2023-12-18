@@ -1,5 +1,6 @@
 # File with code for generating supplementary plots
 import os
+import pathlib
 import shutil
 from typing import List, Optional, Tuple, Union
 
@@ -14,7 +15,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from alpineer.io_utils import validate_paths
-from alpineer.misc_utils import verify_in_list
+from alpineer.misc_utils import make_iterable, verify_in_list
 
 # Panel validation
 
@@ -59,8 +60,8 @@ def functional_marker_thresholding(
     # verify save_dir is valid
     validate_paths([save_dir])
 
-    # Make populations a list if it is a string
-    populations: List[str] = misc_utils.make_iterable(populations, ignore_str=True)
+    # Make populations a list if it's str
+    populations: List[str] = make_iterable(populations, ignore_str=True)
 
     # Verify that the marker and all populations specified are valid
     verify_in_list(
@@ -75,18 +76,23 @@ def functional_marker_thresholding(
     )
 
     # define the subplot grid
+    pop_num: int = len(populations)
     fig, axs = plt.subplots(1 + len(populations), 1, figsize=[6.4, 2.2 * pop_num], squeeze=False)
 
+    # determine max value to show on histograms based on the specified percentile
+    x_max = np.quantile(cell_table[marker].values, percentile)
+
     # the first subplot should always be the distribution of the marker against all populations
-    axs[0].hist(
+    axs[0][0].hist(
         cell_table[marker].values,
         50,
         density=True,
         facecolor='g',
         alpha=0.75,
-        range=(0, np.quantile(cell_table[marker].values))
+        range=(0, x_max)
     )
-    axs[0].axvline(x=threshold)
+    axs[0][0].set_title("Distribution of {} in all populations".format(marker))
+    axs[0][0].axvline(x=threshold)
 
     # add additional subplots to the figure based on the specified populations
     for ax, pop in zip(axs[1:].flat, populations):
@@ -99,9 +105,12 @@ def functional_marker_thresholding(
             density=True,
             facecolor='g',
             alpha=0.75,
-            range=(0, np.quantile(cell_table_marker_sub))
+            range=(0, x_max)
         )
+        ax.set_title("Distribution of {} in {}".format(marker, pop))
         ax.axvline(x=threshold)
+
+    plt.tight_layout()
 
     # save the figure to save_dir
     fig.savefig(
