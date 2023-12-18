@@ -16,8 +16,8 @@ matplotlib.rcParams['ps.fonttype'] = 42
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-from alpineer.data_utils import load_imgs_from_tree
 from alpineer.io_utils import list_folders, list_files, validate_paths
+from alpineer.load_utils import load_imgs_from_tree
 from alpineer.misc_utils import verify_in_list
 
 
@@ -88,8 +88,6 @@ def validate_panel(
                 break
 
     # define a draw instance for annotating the channel name
-    # TODO: using PIL, it's most efficient to annotate on a fully-processed array
-    # anyone know of an easier way?
     stitched_image_im: Image = Image.fromarray(stitched_image)
     imdraw: ImageDraw = ImageDraw.Draw(stitched_image_im)
     imfont: ImageFont = ImageFont.truetype("Arial Unicode.ttf", 40)
