@@ -88,7 +88,7 @@ def validate_panel(
     stitched_image: np.ndarray = np.zeros(
         (
             num_rows * row_len + (num_rows - 1) * padding,
-            num_cols * col_len + (num_rows - 1) * padding
+            num_cols * col_len + (num_cols - 1) * padding
         )
     )
     stitched_image.fill(255)
