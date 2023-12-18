@@ -99,7 +99,6 @@ def functional_marker_thresholding(
 
     # determine max value to show on histograms based on the specified percentile
     x_range = x_range if x_range else (0, np.quantile(cell_table[marker].values, percentile))
-    print(f"The x_range to use is: {x_range}")
 
     # the first subplot should always be the distribution of the marker against all populations
     axs[0][0].hist(
