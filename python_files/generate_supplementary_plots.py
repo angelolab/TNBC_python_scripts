@@ -5,12 +5,13 @@ import random
 import numpy as np
 import pandas as pd
 import matplotlib
-import seaborn as sns
 from ark.utils.plot_utils import cohort_cluster_plot
 
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # Panel validation
 
@@ -26,30 +27,29 @@ matplotlib.rcParams['ps.fonttype'] = 42
 # Cell identification and classification
 cell_table = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/cell_table_clusters.csv')
 cluster_order = {'Cancer': 0, 'Cancer_EMT': 1, 'Cancer_Other': 2, 'CD4T': 3, 'CD8T': 4, 'Treg': 5,
-                'T_Other': 6, 'B': 7, 'NK': 8, 'M1_Mac': 9, 'M2_Mac': 10, 'Mac_Other': 11,
-                'Monocyte': 12, 'APC': 13, 'Mast': 14, 'Neutrophil': 15, 'Fibroblast': 16,
-                'Stroma': 17, 'Endothelium': 18, 'Other': 19, 'Immune_Other': 20
-                }
+                 'T_Other': 6, 'B': 7, 'NK': 8, 'M1_Mac': 9, 'M2_Mac': 10, 'Mac_Other': 11,
+                 'Monocyte': 12, 'APC': 13, 'Mast': 14, 'Neutrophil': 15, 'Fibroblast': 16,
+                 'Stroma': 17, 'Endothelium': 18, 'Other': 19, 'Immune_Other': 20}
 cell_table = cell_table.sort_values(by=['cell_cluster'], key=lambda x: x.map(cluster_order))
 
 save_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs'
 
 ## cell cluster counts
 sns.histplot(data=cell_table, x="cell_cluster")
-matplotlib.pyplot.title("Cell Cluster Counts")
-matplotlib.pyplot.xlabel("Cell Cluster")
-matplotlib.pyplot.xticks(rotation=75)
-matplotlib.pyplot.tight_layout()
-matplotlib.pyplot.savefig(os.path.join(save_dir, "cells_per_cluster.png"), dpi=300)
+plt.title("Cell Cluster Counts")
+plt.xlabel("Cell Cluster")
+plt.xticks(rotation=75)
+plt.tight_layout()
+plt.savefig(os.path.join(save_dir, "cells_per_cluster.png"), dpi=300)
 
 ## fov cell counts
 cluster_counts = np.unique(cell_table.fov, return_counts=True)[1]
-matplotlib.pyplot.figure(figsize=(8, 6))
+plt.figure(figsize=(8, 6))
 g = sns.histplot(data=cluster_counts, kde=True)
-matplotlib.pyplot.title("Histogram of Cell Counts per Image")
-matplotlib.pyplot.xlabel("Number of Cells in an Image")
-matplotlib.pyplot.tight_layout()
-matplotlib.pyplot.savefig(os.path.join(save_dir, "cells_per_fov.png"), dpi=300)
+plt.title("Histogram of Cell Counts per Image")
+plt.xlabel("Number of Cells in an Image")
+plt.tight_layout()
+plt.savefig(os.path.join(save_dir, "cells_per_fov.png"), dpi=300)
 
 ## cell type composition by tissue location of met
 meta_data = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/harmonized_metadata.csv')
@@ -80,14 +80,14 @@ prop_data = prop_data[color_map['cell_cluster_broad']]
 sns.set(rc={'figure.figsize':(14,10)})
 colors = color_map['color']
 prop_data.plot(kind='bar', stacked=True, color=colors)
-matplotlib.pyplot.ticklabel_format(style='plain', useOffset=False, axis='y')
-matplotlib.pyplot.gca().set_ylabel("Cell Proportions")
-matplotlib.pyplot.gca().set_xlabel("Tissue Location")
-matplotlib.pyplot.xticks(rotation=30)
-matplotlib.pyplot.title("Cell Type Composition by Tissue Location")
-matplotlib.pyplot.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
-matplotlib.pyplot.tight_layout()
-matplotlib.pyplot.savefig(os.path.join(save_dir, "cell_props_by_tissue_loc.png"), dpi=300)
+plt.ticklabel_format(style='plain', useOffset=False, axis='y')
+plt.gca().set_ylabel("Cell Proportions")
+plt.gca().set_xlabel("Tissue Location")
+plt.xticks(rotation=30)
+plt.title("Cell Type Composition by Tissue Location")
+plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+plt.tight_layout()
+plt.savefig(os.path.join(save_dir, "cell_props_by_tissue_loc.png"), dpi=300)
 
 ## colored cell cluster masks from random subset of 20 FOVs
 random.seed(13)
