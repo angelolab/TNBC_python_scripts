@@ -26,7 +26,70 @@ import seaborn as sns
 
 
 # Cell identification and classification
+cell_table = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/cell_table_clusters.csv')
+cluster_order = {'Cancer': 0, 'Cancer_EMT': 1, 'Cancer_Other': 2, 'CD4T': 3, 'CD8T': 4, 'Treg': 5,
+                'T_Other': 6, 'B': 7, 'NK': 8, 'M1_Mac': 9, 'M2_Mac': 10, 'Mac_Other': 11,
+                'Monocyte': 12, 'APC': 13, 'Mast': 14, 'Neutrophil': 15, 'Fibroblast': 16,
+                'Stroma': 17, 'Endothelium': 18, 'Other': 19, 'Immune_Other': 20
+                }
+cell_table = cell_table.sort_values(by=['cell_cluster'], key=lambda x: x.map(cluster_order))
 
+save_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs'
+
+## cell cluster counts
+sns.histplot(data=cell_table, x="cell_cluster")
+plt.title("Cell Cluster Counts")
+plt.xlabel("Cell Cluster")
+plt.xticks(rotation=75)
+plt.tight_layout()
+plt.savefig(os.path.join(save_dir, "cells_per_cluster.png"), dpi=300)
+
+## fov cell counts
+cluster_counts = np.unique(cell_table.fov, return_counts=True)[1]
+plt.figure(figsize=(8, 6))
+g = sns.histplot(data=cluster_counts, kde=True)
+plt.title("Histogram of Cell Counts per Image")
+plt.xlabel("Number of Cells in an Image")
+plt.tight_layout()
+plt.savefig(os.path.join(save_dir, "cells_per_fov.png"), dpi=300)
+
+## cell type composition by tissue location of met
+meta_data = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/harmonized_metadata.csv')
+meta_data = meta_data[['fov', 'Patient_ID', 'Timepoint', 'Localization']]
+
+all_data = cell_table.merge(meta_data, on=['fov'], how='left')
+base_data = all_data[all_data.Timepoint == 'baseline']
+
+all_locals = np.unique(base_data.Localization)
+dfs = []
+for region in all_locals:
+    localization_data = base_data[base_data.Localization == region]
+
+    df = localization_data.groupby("cell_cluster_broad").count().reset_index()
+    df = df.set_index('cell_cluster_broad').transpose()
+    sub_df = df.iloc[:1].reset_index(drop=True)
+    sub_df.insert(0, "Localization", [region])
+    sub_df['Localization'] = sub_df['Localization'].map(str)
+    sub_df = sub_df.set_index('Localization')
+
+    dfs.append(sub_df)
+prop_data = pd.concat(dfs).transform(func=lambda row: row / row.sum(), axis=1)
+
+color_map = {'cell_cluster_broad': ['Cancer', 'Stroma', 'Mono_Mac', 'T','Other', 'Granulocyte', 'NK', 'B'],
+             'color': ['dimgrey', 'darksalmon', 'red', 'navajowhite',  'yellowgreen', 'aqua', 'dodgerblue', 'darkviolet']}
+prop_data = prop_data[color_map['cell_cluster_broad']]
+
+sns.set(rc={'figure.figsize':(14,10)})
+colors = color_map['color']
+prop_data.plot(kind='bar', stacked=True, color=colors)
+plt.ticklabel_format(style='plain', useOffset=False, axis='y')
+plt.gca().set_ylabel("Cell Proportions")
+plt.gca().set_xlabel("Tissue Location")
+plt.xticks(rotation=30)
+plt.title("Cell Type Composition by Tissue Location")
+plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+plt.tight_layout()
+plt.savefig(os.path.join(save_dir, "cell_props_by_tissue_loc.png"), dpi=300)
 
 
 # Functional marker thresholding
