@@ -25,7 +25,7 @@ import seaborn as sns
 
 def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
                                    font_size: int = 100):
-    """Stitch an image with (x, y, z) dimensions, and annotate each image with labels contained
+    """Stitch an image with (c, x, y) dimensions, and annotate each image with labels contained
     in the xth dimension.
 
     Args:
@@ -183,6 +183,14 @@ def stitch_before_after_norm(
 
     pre_norm_tiled.save(pre_norm_stitched_path)
     post_norm_tiled.save(post_norm_stitched_path)
+
+run_name = "2022-01-14_TONIC_TMA2_run1"
+pre_norm_dir = f"/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/rosetta"
+post_norm_dir = f"/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/normalized/{run_name}"
+save_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
+
+stitch_before_after_norm(pre_norm_dir, post_norm_dir, save_dir, run_name)
+
 
 # Functional marker thresholding
 
