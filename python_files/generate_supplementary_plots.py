@@ -136,6 +136,27 @@ def functional_marker_thresholding(
         dpi=300
     )
 
+
+cell_table = pd.read_csv(
+    "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/cell_table_clusters.csv"
+)
+save_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
+functional_marker_thresholding(
+    cell_table, save_dir, marker="CD45RO", populations=["CD4T", "Fibroblast"],
+    threshold=0.002, pop_col="cell_cluster"
+)
+
+functional_marker_thresholding(
+    cell_table, save_dir, marker="CD38", populations=["Endothelium", "Cancer_EMT"],
+    threshold=0.004, pop_col="cell_cluster"
+)
+
+functional_marker_thresholding(
+    cell_table, save_dir, marker="PDL1", populations=["Cancer", "Stroma"],
+    threshold=0.004, pop_col="cell_cluster"
+)
+
+
 # Feature extraction
 
 
