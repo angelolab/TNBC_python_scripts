@@ -17,6 +17,10 @@ import seaborn as sns
 from alpineer.io_utils import validate_paths
 from alpineer.misc_utils import make_iterable, verify_in_list
 
+ANALYSIS_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files"
+SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
+
+
 # Panel validation
 
 
@@ -138,21 +142,22 @@ def functional_marker_thresholding(
 
 
 cell_table = pd.read_csv(
-    "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/cell_table_clusters.csv"
+    os.path.join(ANALYSIS_DIR, "combined_cell_table_normalized_cell_labels_updated.csv")
 )
-save_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
+functional_marker_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "functional_marker_dist_thresholds")
+if not os.path.exists(functional_marker_viz_dir):
+    os.makedirs(functional_marker_viz_dir)
+
 functional_marker_thresholding(
-    cell_table, save_dir, marker="CD45RO", populations=["CD4T", "Fibroblast"],
+    cell_table, functional_marker_viz_dir, marker="CD45RO", populations=["CD4T", "Fibroblast"],
     threshold=0.002, pop_col="cell_cluster"
 )
-
 functional_marker_thresholding(
-    cell_table, save_dir, marker="CD38", populations=["Endothelium", "Cancer_EMT"],
+    cell_table, functional_marker_viz_dir, marker="CD38", populations=["Endothelium", "Cancer_EMT"],
     threshold=0.004, pop_col="cell_cluster"
 )
-
 functional_marker_thresholding(
-    cell_table, save_dir, marker="PDL1", populations=["Cancer", "Stroma"],
+    cell_table, functional_marker_viz_dir, marker="PDL1", populations=["Cancer", "Stroma"],
     threshold=0.004, pop_col="cell_cluster"
 )
 
