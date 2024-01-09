@@ -150,15 +150,15 @@ if not os.path.exists(functional_marker_viz_dir):
 
 functional_marker_thresholding(
     cell_table, functional_marker_viz_dir, marker="CD45RO", populations=["CD4T", "Fibroblast"],
-    threshold=0.002, pop_col="cell_cluster"
+    threshold=0.002, pop_col="cell_cluster", figsize=(10, 7), x_range=(0, 0.01)
 )
 functional_marker_thresholding(
     cell_table, functional_marker_viz_dir, marker="CD38", populations=["Endothelium", "Cancer_EMT"],
-    threshold=0.004, pop_col="cell_cluster"
+    threshold=0.004, pop_col="cell_cluster", figsize=(10, 7)
 )
 functional_marker_thresholding(
     cell_table, functional_marker_viz_dir, marker="PDL1", populations=["Cancer", "Stroma"],
-    threshold=0.004, pop_col="cell_cluster"
+    threshold=0.001, pop_col="cell_cluster", figsize=(10, 7), x_range=(0, 0.003)
 )
 
 
