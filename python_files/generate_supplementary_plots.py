@@ -22,6 +22,8 @@ matplotlib.rcParams['ps.fonttype'] = 42
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
+
 
 def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
                                    font_size: int = 100):
@@ -93,7 +95,7 @@ def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
                 fill=fill_value
             )
             img_idx += 1
-            if img_idx == len(channels):
+            if img_idx == len(annotation_labels):
                 break
 
     return stitched_image_im
@@ -113,26 +115,27 @@ def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
 
 # Cell identification and classification
 def stitch_before_after_norm(
-    pre_norm_dir: Union[str, pathlib.Path], norm_dir: Union[str, pathlib.Path],
+    pre_norm_dir: Union[str, pathlib.Path], post_norm_dir: Union[str, pathlib.Path],
     save_dir: Union[str, pathlib.Path],
-    run_name: str, channel: str, pre_norm_subdir: str = "", norm_subdir: str = "",
-    padding: int = 25, font_size: int = 100):
+    run_name: str, channel: str, pre_norm_subdir: str = "", post_norm_subdir: str = "",
+    padding: int = 25, font_size: int = 100
+):
     """Generates two stitched images: before and after normalization
 
     pre_norm_dir (Union[str, pathlib.Path]):
         The directory containing the run data before normalization
-    norm_dir (Union[str, pathlib.Path]):
+    post_norm_dir (Union[str, pathlib.Path]):
         The directory containing the run data after normalization
     save_dir (Union[str, pathlib.Path]):
         The directory to save both the pre- and post-norm tiled images
     run_name (str):
-        The name of the run to tile, should be present in both pre_norm_dir and norm_dir
+        The name of the run to tile, should be present in both pre_norm_dir and post_norm_dir
     channel (str):
         The name of the channel to tile inside run_name
     pre_norm_subdir (str):
         If applicable, the name of the subdirectory inside each FOV folder of the pre-norm data
-    norm_subdir (str):
-        If applicable, the name of the subdirectory inside each FOV folder of the norm data
+    post_norm_subdir (str):
+        If applicable, the name of the subdirectory inside each FOV folder of the post-norm data
     padding (int):
         Amount of padding to add around each channel in the stitched image
     font_size (int):
@@ -140,14 +143,14 @@ def stitch_before_after_norm(
     """
     # verify that the run_name specified appears in both pre and post norm folders
     all_pre_norm_runs: List[str] = list_folders(pre_norm_dir)
-    all_norm_runs: List[str] = list_folders(norm_dir)
+    all_post_norm_runs: List[str] = list_folders(post_norm_dir)
     verify_in_list(
         specified_run=run_name,
-        all_pre_norm_runs=all_pre_runs
+        all_pre_norm_runs=all_pre_norm_runs
     )
     verify_in_list(
         specified_run=run_name,
-        all_post_norm_runs=all_norm_runs
+        all_post_norm_runs=all_post_norm_runs
     )
 
     # verify save_dir is valid before defining the save paths
@@ -158,24 +161,30 @@ def stitch_before_after_norm(
         pathlib.Path(save_dir) / f"{channel}_post_norm_stitched.tiff"
 
     pre_norm_run_path: pathlib.Path = pathlib.Path(pre_norm_dir) / run_name
-    norm_run_path: pathlib.Path = pathlib.Path(norm_dir) / run_name
+    post_norm_run_path: pathlib.Path = pathlib.Path(post_norm_dir) / run_name
 
     # get all the FOVs in natsorted order
-    # NOTE: currently assumed that the FOVs are the same, since the runs are the same
+    # NOTE: assumed that the FOVs are the same pre and post, since the run names are the same
     all_fovs: List[str] = ns.natsorted(list_folders(pre_norm_run_path))
 
     # load pre- and post-norm data in acquisition order, drop channel axis as it's 1-D
     pre_norm_data = load_imgs_from_tree(
-        data_dir=pre_norm_dir, fovs=all_fovs, channels=[channel], img_sub_folder=pre_norm_subdir
+        data_dir=pre_norm_run_path, fovs=all_fovs, channels=[channel],
+        img_sub_folder=pre_norm_subdir, max_image_size=2048
     )[..., 0]
     post_norm_data = load_imgs_from_tree(
-        data_dir=pre_norm_dir, fovs=all_fovs, channels=[channel], img_sub_folder=post_norm_subdir
+        data_dir=post_norm_run_path, fovs=all_fovs, channels=[channel],
+        img_sub_folder=post_norm_subdir, max_image_size=2048
     )[..., 0]
+
+    # normalize each image by their 99.9% value, for clearer visualization
+    pre_norm_data = pre_norm_data / pre_norm_data.quantile(0.999, dim=["rows", "cols"])
+    post_norm_data = post_norm_data / post_norm_data.quantile(0.999, dim=["rows", "cols"])
 
     # reassign coordinate with FOV names that don't contain "-scan-1" or additional dashes
     fovs_condensed: List[str] = [f"FOV{af.split('-')[1]}" for af in all_fovs]
-    pre_norm_data = pre_norm_data.assign_coords({"fov": fovs_condensed})
-    post_norm_data = post_norm_data.assign_coords({"fov": fovs_condensed})
+    pre_norm_data = pre_norm_data.assign_coords({"fovs": fovs_condensed})
+    post_norm_data = post_norm_data.assign_coords({"fovs": fovs_condensed})
 
     # generate and save the pre- and post-norm tiled images
     pre_norm_tiled: Image = stitch_and_annotate_padded_img(pre_norm_data, padding, font_size)
@@ -184,12 +193,19 @@ def stitch_before_after_norm(
     pre_norm_tiled.save(pre_norm_stitched_path)
     post_norm_tiled.save(post_norm_stitched_path)
 
+acquisition_order_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "acquisition_order")
+if not os.path.exists(acquisition_order_viz_dir):
+    os.makedirs(acquisition_order_viz_dir)
+
 run_name = "2022-01-14_TONIC_TMA2_run1"
 pre_norm_dir = f"/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/rosetta"
-post_norm_dir = f"/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/normalized/{run_name}"
+post_norm_dir = f"/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/normalized"
 save_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
 
-stitch_before_after_norm(pre_norm_dir, post_norm_dir, save_dir, run_name)
+stitch_before_after_norm(
+    pre_norm_dir, post_norm_dir, acquisition_order_viz_dir, run_name,
+    "CD45", pre_norm_subdir="normalized"
+)
 
 
 # Functional marker thresholding
