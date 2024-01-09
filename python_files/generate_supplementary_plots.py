@@ -156,9 +156,9 @@ def stitch_before_after_norm(
     # verify save_dir is valid before defining the save paths
     validate_paths([save_dir])
     pre_norm_stitched_path: pathlib.Path = \
-        pathlib.Path(save_dir) / f"{channel}_pre_norm_stitched.tiff"
+        pathlib.Path(save_dir) / f"{run_name}_{channel}_pre_norm_stitched.tiff"
     post_norm_stitched_path: pathlib.Path = \
-        pathlib.Path(save_dir) / f"{channel}_post_norm_stitched.tiff"
+        pathlib.Path(save_dir) / f"{run_name}_{channel}_post_norm_stitched.tiff"
 
     pre_norm_run_path: pathlib.Path = pathlib.Path(pre_norm_dir) / run_name
     post_norm_run_path: pathlib.Path = pathlib.Path(post_norm_dir) / run_name
