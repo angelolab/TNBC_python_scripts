@@ -36,6 +36,7 @@ save_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs'
 
 ## cell cluster counts
 sns.histplot(data=cell_table, x="cell_cluster")
+sns.despine()
 plt.title("Cell Cluster Counts")
 plt.xlabel("Cell Cluster")
 plt.xticks(rotation=75)
@@ -46,6 +47,7 @@ plt.savefig(os.path.join(save_dir, "cells_per_cluster.png"), dpi=300)
 cluster_counts = np.unique(cell_table.fov, return_counts=True)[1]
 plt.figure(figsize=(8, 6))
 g = sns.histplot(data=cluster_counts, kde=True)
+sns.despine()
 plt.title("Histogram of Cell Counts per Image")
 plt.xlabel("Number of Cells in an Image")
 plt.tight_layout()
@@ -77,7 +79,6 @@ color_map = {'cell_cluster_broad': ['Cancer', 'Stroma', 'Mono_Mac', 'T','Other',
              'color': ['dimgrey', 'darksalmon', 'red', 'navajowhite',  'yellowgreen', 'aqua', 'dodgerblue', 'darkviolet']}
 prop_data = prop_data[color_map['cell_cluster_broad']]
 
-sns.set(rc={'figure.figsize':(14,10)})
 colors = color_map['color']
 prop_data.plot(kind='bar', stacked=True, color=colors)
 plt.ticklabel_format(style='plain', useOffset=False, axis='y')
