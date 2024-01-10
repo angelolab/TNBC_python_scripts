@@ -20,24 +20,28 @@ from alpineer.io_utils import list_folders, list_files, remove_file_extensions, 
 from alpineer.load_utils import load_imgs_from_tree
 from alpineer.misc_utils import verify_in_list
 
+SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
+
 
 # Panel validation, must include: all channels tiled in a single image, images scaled down
 def validate_panel(
-    data_dir: Union[str, pathlib.Path], save_dir: Union[str, pathlib.Path], fov: str,
-    channels: Optional[List[str]] = None, img_sub_folder: str = "", padding: int = 25,
-    font_size: int = 100
+    data_dir: Union[str, pathlib.Path], fov: str, save_dir: Union[str, pathlib.Path], 
+    channels: Optional[List[str]] = None, annotation_labels: Optional[List[str]] = None,
+    img_sub_folder: str = "", padding: int = 10, font_size: int = 200
 ):
     """Given a FOV in an image folder, stitch and annotate each channel
 
     Args:
         data_dir (Union[str, pathlib.Path]):
             The directory containing the image data for each FOV
-        save_dir (Union[str, pathlib.Path]):
-            The directory to save the stitched image
         fov (str):
             The name of the FOV to stitch
-        channels (List[str]):
+        save_dir (Union[str, pathlib.Path]):
+            The directory to save the stitched image
+        channels (Optional[List[str]]):
             The list of channels to tile. If None, uses all.
+        annotation_labels (Optional[List[str]]):
+            The list of custom annotations to use. If None, does not annotate.
         img_sub_folder (str):
             The sub folder name inside each FOV directory, set to "" if None
         padding (int):
@@ -68,12 +72,14 @@ def validate_panel(
     # sort the channels to ensure they get tiled in alphabetical order, regardless of case
     channels = sorted(channels, key=str.lower)
 
+    # if annotation labels provided, assert the length of the lists are the same
+    if annotation_labels and len(channels) != len(annotation_labels):
+        raise ValueError("Number of channels and annotation labels provided don't match.")
+
     # load the data and get the channel names and image dimensions
     image_data: xr.DataArray = load_imgs_from_tree(
         data_dir=data_dir, fovs=[fov], channels=channels, img_sub_folder=img_sub_folder
     )[0, ...]
-    print(f"All the channels are: {image_data.channels.values}")
-    print(f"The total number of channels is: {len(image_data.channels.values)}")
 
     # normalize each channel by their 99.9% value, for clearer visualization
     image_data = image_data / image_data.quantile(0.999, dim=["rows", "cols"])
@@ -108,16 +114,16 @@ def validate_panel(
     # define a draw instance for annotating the channel name
     stitched_image_im: Image = Image.fromarray(stitched_image)
     imdraw: ImageDraw = ImageDraw.Draw(stitched_image_im)
-    imfont: ImageFont = ImageFont.truetype("Arial Unicode.ttf", 100)
+    imfont: ImageFont = ImageFont.truetype("Arial Unicode.ttf", font_size)
 
     # annotate each channel
     img_idx = 0
-    fill_value: int = np.max(stitched_image)
+    fill_value: int = 255
     for row in range(num_rows):
         for col in range(num_cols):
             imdraw.text(
                 (col * col_len + padding * col, row * row_len + padding * row),
-                channels[img_idx],
+                annotation_labels[img_idx],
                 font=imfont,
                 fill=fill_value
             )
@@ -128,6 +134,36 @@ def validate_panel(
     # save the stitched image
     stitched_image_im.save(stitched_img_path)
 
+panel_validation_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "panel_validation")
+if not os.path.exists(panel_validation_viz_dir):
+    os.makedirs(panel_validation_viz_dir)
+
+controls_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/controls"
+controls_fov = "TONIC_TMA1_colon_bottom"
+control_annotated_names = sorted(remove_file_extensions(
+    list_files(os.path.join(controls_dir, controls_fov), substrs=".tiff")
+), key=str.lower)
+validate_panel(
+    controls_dir, controls_fov, panel_validation_viz_dir,
+    annotation_labels=control_annotated_names, font_size=180
+)
+
+samples_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"
+samples_fov = "TONIC_TMA1_R4C3"
+sample_channels = sorted(remove_file_extensions(
+    list_files(os.path.join(samples_dir, samples_fov), substrs=".tiff")
+), key=str.lower)
+sample_annotated_names = sample_channels[:]
+unprocessed_chans = ["CD11c", "CK17", "ECAD", "FOXP3"]
+processed_chans = ["CD11c_nuc_exclude", "CK17_smoothed", "ECAD_smoothed", "FOXP3_nuc_include"]
+for uc in unprocessed_chans:
+    sample_channels.remove(uc)
+for pc in processed_chans:
+    sample_annotated_names.remove(pc)
+validate_panel(
+    samples_dir, samples_fov, panel_validation_viz_dir, channels=sample_channels,
+    annotation_labels=sample_annotated_names, font_size=320
+)
 
 # ROI selection
 
