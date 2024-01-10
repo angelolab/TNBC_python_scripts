@@ -197,14 +197,14 @@ acquisition_order_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "acquisition_ord
 if not os.path.exists(acquisition_order_viz_dir):
     os.makedirs(acquisition_order_viz_dir)
 
-run_name = "2022-01-14_TONIC_TMA2_run1"
-pre_norm_dir = f"/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/rosetta"
-post_norm_dir = f"/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/normalized"
+run_name = "2022-02-26_TONIC_TMA13_restart"
+pre_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/rosetta"
+post_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/normalized"
 save_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
 
 stitch_before_after_norm(
     pre_norm_dir, post_norm_dir, acquisition_order_viz_dir, run_name,
-    "CD45", pre_norm_subdir="normalized"
+    "CD69", pre_norm_subdir="normalized"
 )
 
 
