@@ -26,9 +26,9 @@ SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementa
 
 
 def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
-                                   font_size: int = 100):
-    """Stitch an image with (c, x, y) dimensions, and annotate each image with labels contained
-    in the xth dimension.
+                                   font_size: int = 100, annotate=False):
+    """Stitch an image with (c, x, y) dimensions. If specified, annotate each image with labels
+    contained in the cth dimension.
 
     Args:
         image_data (xr.DataArray):
@@ -37,6 +37,8 @@ def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
             Amount of padding to add around each channel in the stitched image
         font_size (int):
             The font size to use for annotations
+        annotate (bool):
+            Whether to annotate the images with labels in dimension c
 
     Returns:
         Image:
@@ -80,23 +82,25 @@ def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
 
     # define a draw instance for annotating the channel name
     stitched_image_im: Image = Image.fromarray(stitched_image)
-    imdraw: ImageDraw = ImageDraw.Draw(stitched_image_im)
-    imfont: ImageFont = ImageFont.truetype("Arial Unicode.ttf", 100)
 
-    # annotate each channel
-    img_idx = 0
-    fill_value: int = np.max(stitched_image)
-    for row in range(num_rows):
-        for col in range(num_cols):
-            imdraw.text(
-                (col * col_len + padding * col, row * row_len + padding * row),
-                annotation_labels[img_idx],
-                font=imfont,
-                fill=fill_value
-            )
-            img_idx += 1
-            if img_idx == len(annotation_labels):
-                break
+    # annotate with labels in c-axis if arg set
+    if annotate:
+        imdraw: ImageDraw = ImageDraw.Draw(stitched_image_im)
+        imfont: ImageFont = ImageFont.truetype("Arial Unicode.ttf", 100)
+
+        img_idx = 0
+        fill_value: int = np.max(stitched_image)
+        for row in range(num_rows):
+            for col in range(num_cols):
+                imdraw.text(
+                    (col * col_len + padding * col, row * row_len + padding * row),
+                    annotation_labels[img_idx],
+                    font=imfont,
+                    fill=fill_value
+                )
+                img_idx += 1
+                if img_idx == len(annotation_labels):
+                    break
 
     return stitched_image_im
 
@@ -177,10 +181,6 @@ def stitch_before_after_norm(
         img_sub_folder=post_norm_subdir, max_image_size=2048
     )[..., 0]
 
-    # normalize each image by their 99.9% value, for clearer visualization
-    pre_norm_data = pre_norm_data / pre_norm_data.quantile(0.999, dim=["rows", "cols"])
-    post_norm_data = post_norm_data / post_norm_data.quantile(0.999, dim=["rows", "cols"])
-
     # reassign coordinate with FOV names that don't contain "-scan-1" or additional dashes
     fovs_condensed: List[str] = [f"FOV{af.split('-')[1]}" for af in all_fovs]
     pre_norm_data = pre_norm_data.assign_coords({"fovs": fovs_condensed})
@@ -197,14 +197,14 @@ acquisition_order_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "acquisition_ord
 if not os.path.exists(acquisition_order_viz_dir):
     os.makedirs(acquisition_order_viz_dir)
 
-run_name = "2022-02-26_TONIC_TMA13_restart"
+run_name = "2022-04-09_TONIC_TMA21_run3"
 pre_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/rosetta"
 post_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/normalized"
 save_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
 
 stitch_before_after_norm(
     pre_norm_dir, post_norm_dir, acquisition_order_viz_dir, run_name,
-    "CD69", pre_norm_subdir="normalized"
+    "H3K27me3", pre_norm_subdir="normalized"
 )
 
 
