@@ -163,7 +163,6 @@ fig_PDL1 = functional_marker_thresholding(
     populations=["Cancer", "Stroma"], threshold=0.001, pop_col="cell_cluster",
     figsize=(10, 7), x_range=(0, 0.003)
 )
-plt.tight_layout()
 plt.show()
 
 
