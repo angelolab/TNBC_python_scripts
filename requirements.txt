@@ -4,5 +4,6 @@
 #scikit-learn>=0.19.1,<1
 #scipy>=1.1.0,<2
 matplotlib_venn
+pylustrator
 #git+https://github.com/angelolab/ark-analysis.git@v0.6.3
 git+https://github.com/angelolab/ark-analysis.git@ce642b04e9a6df750db7dbcf50828417378f8488

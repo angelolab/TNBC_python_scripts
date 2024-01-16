@@ -7,6 +7,7 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 import matplotlib
+import pylustrator
 
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
@@ -39,20 +40,24 @@ SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementa
 
 # Functional marker thresholding
 def functional_marker_thresholding(
-    cell_table: pd.DataFrame, save_dir: Union[str, pathlib.Path], marker: str,
-    populations: List[str], threshold: float, pop_col: str = "cell_meta_cluster",
-    percentile: float = 0.999, x_range: Optional[Tuple[float, float]] = None,
-    figsize: Optional[Tuple[float, float]] = None):
+    cell_table: pd.DataFrame, save_dir: Union[str, pathlib.Path], axs: matplotlib.axes.Axes,
+    axs_col: int, marker: str, populations: List[str], threshold: float,
+    pop_col: str = "cell_meta_cluster", percentile: float = 0.999,
+    x_range: Optional[Tuple[float, float]] = None, figsize: Optional[Tuple[float, float]] = None):
     """For a particular marker, visualize its distribution across the entire cohort, plus just 
     against the specified populations.
 
     Args:
         cell_table (pd.DataFrame):
             Cell table with clustered cell populations
-        marker (str):
-            The marker to visualize the distributions for
         save_dir (Union[str, pathlib.Path]):
             The directory to save the marker distribution histograms
+        axs (matplotlib.axes.Axes):
+            The subplot axes to plot on
+        axs_col (int):
+            The column on the subplot to visualize the specified marker distribution on
+        marker (str):
+            The marker to visualize the distributions for
         populations (List[str]):
             Additional populations to subset on for more distribution plots
         threshold (float):
@@ -97,15 +102,16 @@ def functional_marker_thresholding(
         cell_table_populations=all_populations
     )
 
-    # define the subplot grid
-    figsize = figsize if figsize else (6.2, 2.2 * len(populations))
-    fig, axs = plt.subplots(1 + len(populations), 1, figsize=figsize, squeeze=False)
+    # # define the subplot grid
+    # figsize = figsize if figsize else (6.2, 2.2 * len(populations))
+    # fig, axs = plt.subplots(1 + len(populations), 1, figsize=figsize, squeeze=False)
 
     # determine max value to show on histograms based on the specified percentile
     x_range = x_range if x_range else (0, np.quantile(cell_table[marker].values, percentile))
 
     # the first subplot should always be the distribution of the marker against all populations
-    axs[0][0].hist(
+
+    axs[0][axs_col].hist(
         cell_table[marker].values,
         50,
         density=True,
@@ -113,15 +119,15 @@ def functional_marker_thresholding(
         alpha=0.75,
         range=x_range
     )
-    axs[0][0].set_title("Distribution of {} in all populations".format(marker))
-    axs[0][0].axvline(x=threshold)
+    axs[0][axs_col].set_title("Distribution of {} in all populations".format(marker))
+    axs[0][axs_col].axvline(x=threshold)
 
     # add additional subplots to the figure based on the specified populations
-    for ax, pop in zip(axs[1:].flat, populations):
+    for i, pop in zip(np.arange(1, len(populations) + 1), populations):
         cell_table_marker_sub: pd.DataFrame = cell_table.loc[
             cell_table[pop_col] == pop, marker
         ].values
-        ax.hist(
+        axs[i][axs_col].hist(
             cell_table_marker_sub,
             50,
             density=True,
@@ -129,16 +135,8 @@ def functional_marker_thresholding(
             alpha=0.75,
             range=x_range
         )
-        ax.set_title("Distribution of {} in {}".format(marker, pop))
-        ax.axvline(x=threshold)
-
-    plt.tight_layout()
-
-    # save the figure to save_dir
-    fig.savefig(
-        pathlib.Path(save_dir) / f"{marker}_thresholds_{'_'.join(populations)}.png",
-        dpi=300
-    )
+        axs[i][axs_col].set_title("Distribution of {} in {}".format(marker, pop))
+        axs[i][axs_col].axvline(x=threshold)
 
 
 cell_table = pd.read_csv(
@@ -148,18 +146,25 @@ functional_marker_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "functional_mark
 if not os.path.exists(functional_marker_viz_dir):
     os.makedirs(functional_marker_viz_dir)
 
+pylustrator.start()
+fig, axs = plt.subplots(3, 3, figsize=(30, 21))
 functional_marker_thresholding(
-    cell_table, functional_marker_viz_dir, marker="CD45RO", populations=["CD4T", "Fibroblast"],
-    threshold=0.002, pop_col="cell_cluster", figsize=(10, 7), x_range=(0, 0.02)
+    cell_table, functional_marker_viz_dir, axs=axs, axs_col=0, marker="CD45RO",
+    populations=["CD4T", "Fibroblast"], threshold=0.002, pop_col="cell_cluster",
+    figsize=(10, 7), x_range=(0, 0.02)
 )
-functional_marker_thresholding(
-    cell_table, functional_marker_viz_dir, marker="CD38", populations=["Endothelium", "Cancer_EMT"],
-    threshold=0.004, pop_col="cell_cluster", figsize=(10, 7), x_range=(0, 0.01)
+fig_CD38 = functional_marker_thresholding(
+    cell_table, functional_marker_viz_dir, axs=axs, axs_col=1, marker="CD38",
+    populations=["Endothelium", "Cancer_EMT"], threshold=0.004, pop_col="cell_cluster",
+    figsize=(10, 7), x_range=(0, 0.01)
 )
-functional_marker_thresholding(
-    cell_table, functional_marker_viz_dir, marker="PDL1", populations=["Cancer", "Stroma"],
-    threshold=0.001, pop_col="cell_cluster", figsize=(10, 7), x_range=(0, 0.003)
+fig_PDL1 = functional_marker_thresholding(
+    cell_table, functional_marker_viz_dir, axs=axs, axs_col=2, marker="PDL1",
+    populations=["Cancer", "Stroma"], threshold=0.001, pop_col="cell_cluster",
+    figsize=(10, 7), x_range=(0, 0.003)
 )
+plt.tight_layout()
+plt.show()
 
 
 # Feature extraction
