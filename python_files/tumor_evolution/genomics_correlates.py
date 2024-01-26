@@ -11,86 +11,126 @@ plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
 sequence_dir = os.path.join(base_dir, 'sequencing_data')
 
-
-# load datasets
-genomics_features = pd.read_csv(os.path.join(data_dir, 'genomics/2022-10-04_molecular_summary_table.txt'), sep='\t')
-genomics_features = genomics_features.rename(columns={'Individual.ID': 'Patient_ID', 'timepoint': 'Timepoint'})
-image_feature_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
-#image_features = pd.read_csv(os.path.join(data_dir, 'pca_data_df_grouped.csv'))
-
 harmonized_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/harmonized_metadata.csv'))
-#image_features = image_features.merge(harmonized_metadata[['Patient_ID', 'Timepoint', 'Tissue_ID']].drop_duplicates(), on=['Tissue_ID'], how='left')
 
-drop_idx = genomics_features['Experiment.System.ID'].isna()
-genomics_features = genomics_features[~drop_idx]
-genomics_features['subclonal_clonal_ratio'] = genomics_features['SUBCLONAL'] / genomics_features['CLONAL']
+#
+# clean up genomics features
+#
 
-binarize_muts = ['PIK3CA_SNV', 'TP53_SNV', 'PTEN_SNV', 'RB1_SNV']
+# load data
+genomics_feature_df = pd.read_csv(os.path.join(sequence_dir, 'TONIC_WES_meta_table.tsv'), sep='\t')
+genomics_feature_df = genomics_feature_df.rename(columns={'Individual.ID': 'Patient_ID', 'timepoint': 'Timepoint'})
 
+# drop columns which aren't needed for analysis
+drop_cols = ['Localization', 'induction_arm', 'Experiment.System.ID', 'B2']
+genomics_feature_df = genomics_feature_df.drop(columns=drop_cols)
+
+# check which columns have non-numeric values
+non_numeric_cols = []
+for col in genomics_feature_df.columns:
+    if genomics_feature_df[col].dtype == 'object':
+        non_numeric_cols.append(col)
+
+# recode mutation features to yes/no
+binarize_muts = [col for col in genomics_feature_df.columns if '_SNV' in col]
 for mut in binarize_muts:
-    genomics_features[mut + '_bin'] = (~genomics_features[mut].isna()).astype(int)
+    genomics_feature_df[mut] = (~genomics_feature_df[mut].isna()).astype(int)
+
+# change binary features to 0/1
+genomics_feature_df['tail'] = (genomics_feature_df['tail'] == True).astype(int)
+genomics_feature_df['wgd'] = (genomics_feature_df['wgd'] == True).astype(int)
+genomics_feature_df['hla_loh'] = (genomics_feature_df['hla_loh'] == 'yes').astype(int)
+
+# recode copy number features
+amp_cols = [col for col in genomics_feature_df.columns if '_AMP' in col]
+del_cols = [col for col in genomics_feature_df.columns if '_DEL' in col]
+loh_cols = [col for col in genomics_feature_df.columns if '_LOH' in col]
+cn_cols = amp_cols + del_cols + loh_cols
+
+for col in cn_cols:
+    genomics_feature_df[col] = (genomics_feature_df[col].values == 'yes').astype(int)
 
 # simplify categorical features
-#np.unique(genomics_features[cat_cols[4]].values, return_counts=True)
-keep_dict = {'IC10_rna': [4, 10], 'IC10_rna_cna': [4., 10.], 'PAM50': ['Basal', 'Her2'], 'IntClust': ['ic10', 'ic4']}
+np.unique(genomics_feature_df['IC10_rna'].values, return_counts=True)
+keep_dict = {'IC10_rna': [4, 9, 10], 'IC10_rna_cna': [4., 9., 10.], 'PAM50': ['Basal', 'Her2'],
+             'IntClust': ['ic10', 'ic4', 'ic9'], 'A1': ['A*01:01', 'A*02:01', 'A*03:01'],
+             'A2': ['A*02:01', 'A*03:01', 'A*24:02'], 'B1': ['B*07:02', 'B*08:01', 'B*40:01'],
+             'C1': ['C*03:04', 'C*04:01', 'C*07:01', 'C*07:02'], 'C2': ['C*07:01', 'C*07:02']}
 
 for col in keep_dict.keys():
-    genomics_features[col + '_simplified'] = genomics_features[col].apply(lambda x: x if x in keep_dict[col] else 'Other')
+    genomics_feature_df[col] = genomics_feature_df[col].apply(lambda x: x if x in keep_dict[col] else 'Other')
+    genomics_feature_df[col] = genomics_feature_df[col].astype('category')
 
-# convert categorical to categorical type
-cat_cols = ['wgd', 'IC10_rna_simplified', 'IC10_rna_cna_simplified', 'PAM50_simplified', 'IntClust_simplified']
+# add computed features
+genomics_feature_df['subclonal_clonal_ratio'] = genomics_feature_df['SUBCLONAL'] / genomics_feature_df['CLONAL']
 
-for col in cat_cols:
-    genomics_features[col] = genomics_features[col].astype('category')
+# change categorical features to dummy variables
+genomics_feature_df = pd.get_dummies(genomics_feature_df, columns=keep_dict.keys(), drop_first=True)
 
-# identify features to use for correlations
-genomics_include = ['purity', 'ploidy', 'fga', 'wgd', 'frac_loh', 'missense_count', 'IC10_rna_simplified', 'IC10_rna_cna_simplified', 'PAM50_simplified', 'IntClust_simplified', 'HBMR_norm', 'subclonal_clonal_ratio'] + [mut + '_bin' for mut in binarize_muts]
+# save processed genomics features
+genomics_feature_df.to_csv(os.path.join(sequence_dir, 'TONIC_WES_meta_table_processed.csv'), index=False)
 
-genomics_subset = genomics_features[['Patient_ID', 'Timepoint'] + genomics_include]
+# transform to long format
 
-# preprocess data for primary timepoint
-image_features_primary = image_features[image_features.Timepoint == 'baseline']
+genomics_feature_df = pd.read_csv(os.path.join(sequence_dir, 'TONIC_WES_meta_table_processed.csv'))
 
-shared_patients = np.intersect1d(genomics_subset.Patient_ID, image_features_primary.Patient_ID)
+genomics_feature_df = pd.merge(genomics_feature_df, harmonized_metadata[['Patient_ID', 'Timepoint', 'Tissue_ID']].drop_duplicates(),
+                               on=['Patient_ID', 'Timepoint'], how='left')
 
-genomics_feature_primary = genomics_subset[genomics_subset.Patient_ID.isin(shared_patients)]
-image_features_primary = image_features_primary[image_features_primary.Patient_ID.isin(shared_patients)]
+genomics_feature_df_long = pd.melt(genomics_feature_df, id_vars=['Patient_ID', 'Timepoint', 'Tissue_ID', 'Clinical_benefit'],
+                                   var_name='feature_name', value_name='feature_value')
 
-genomics_feature_primary = pd.get_dummies(genomics_feature_primary, columns=cat_cols, drop_first=True)
 
-# # check for columns with only a single value
-# single_value_cols = []
-# for col in genomics_feature_primary.columns:
-#     if len(genomics_feature_primary[col].unique()) == 1:
-#         single_value_cols.append(col)
-#
-# genomics_feature_primary = genomics_feature_primary.drop(columns=single_value_cols)
+# look at correlatoins with image data
+image_feature_df_wide = image_feature_df.pivot(index=['Patient_ID', 'Timepoint'], columns='feature_name_unique', values='raw_mean')
+image_feature_df_wide = image_feature_df_wide.reset_index()
+image_feature_df_wide.sort_values(by='Patient_ID', inplace=True)
 
-image_features_wide = image_features_primary.pivot(index='Patient_ID', columns='feature_name', values='mean')
-image_features_wide = image_features_wide.reset_index()
-np.all(image_features_wide['Patient_ID'].values == genomics_feature_primary['Patient_ID'].values)
+genomics_feature_df.sort_values(by='Patient_ID', inplace=True)
+DNA_feature_list = [col for col in genomics_feature_df.columns if col not in ['Clinical_benefit', 'Timepoint', 'Patient_ID']]
+image_feature_list = [col for col in image_feature_df_wide.columns if col not in ['Patient_ID', 'Timepoint']]
 
 # calculate all pairwise correlations
-image_feature_list, genomic_feature_list, corr_list, pval_list = [], [], [], []
+
+
+timepoint = 'baseline'
+shared_patients = np.intersect1d(image_feature_df_wide.loc[image_feature_df_wide.Timepoint == timepoint, 'Patient_ID'].values,
+                                 genomics_feature_df.loc[genomics_feature_df.Timepoint == timepoint, 'Patient_ID'].values)
+image_features_shared = image_feature_df_wide.loc[np.logical_and(image_feature_df_wide.Patient_ID.isin(shared_patients),
+                                                                 image_feature_df_wide.Timepoint == timepoint), :]
+DNA_features_shared = genomics_feature_df.loc[np.logical_and(genomics_feature_df.Patient_ID.isin(shared_patients),
+                                                        genomics_feature_df.Timepoint == timepoint), :]
+
+# check for columns with only a single value
+single_value_cols = []
+for col in DNA_feature_list:
+    if len(DNA_features_shared[col].unique()) == 1:
+        single_value_cols.append(col)
+
+DNA_features_shared = DNA_features_shared.drop(columns=single_value_cols)
+DNA_feature_list = [col for col in DNA_feature_list if col not in single_value_cols]
+# calculate all pairwise correlations
+image_features, DNA_features, corr_list, pval_list = [], [], [], []
 min_samples = 10
-for image_col in image_features_wide.columns[1:]:
-    for genomic_col in genomics_feature_primary.columns[2:]:
+
+for image_col in image_feature_list:
+    for DNA_col in DNA_feature_list:
         # drop NaNs
-        combined_df = pd.DataFrame({image_col: image_features_wide[image_col].values, genomic_col: genomics_feature_primary[genomic_col].values})
+        combined_df = pd.DataFrame({image_col: image_features_shared[image_col].values, DNA_col: DNA_features_shared[DNA_col].values})
         combined_df = combined_df.dropna()
 
         # append to lists
-        image_feature_list.append(image_col)
-        genomic_feature_list.append(genomic_col)
+        image_features.append(image_col)
+        DNA_features.append(DNA_col)
         if len(combined_df) > min_samples:
-            corr, pval = spearmanr(combined_df[image_col].values, combined_df[genomic_col].values)
+            corr, pval = spearmanr(combined_df[image_col].values, combined_df[DNA_col].values)
             corr_list.append(corr)
             pval_list.append(pval)
         else:
             corr_list.append(np.nan)
             pval_list.append(np.nan)
 
-corr_df = pd.DataFrame({'image_feature': image_feature_list, 'genomic_feature': genomic_feature_list, 'cor': corr_list, 'pval': pval_list})
+corr_df = pd.DataFrame({'image_feature': image_features, 'DNA_feature': DNA_features, 'cor': corr_list, 'pval': pval_list})
 corr_df['log_pval'] = -np.log10(corr_df.pval)
 
 # combined pval and correlation rank
@@ -106,24 +146,25 @@ corr_df['fdr'] = multipletests(corr_df.pval.values, method='fdr_bh')[1]
 sns.scatterplot(data=corr_df, x='cor', y='log_pval', hue='combined_rank', palette='viridis')
 plt.xlabel('Spearman Correlation')
 plt.ylabel('-log10(p-value)')
-plt.title('Correlation between Genomic and Image Features')
-plt.savefig(os.path.join(plot_dir, 'genomics_correlation_scatter.png'), dpi=300)
+plt.title('Correlation between DNA and Image Features')
+plt.savefig(os.path.join(plot_dir, 'DNA_correlation_scatter.png'), dpi=300)
 plt.close()
 
 corr_df = corr_df.sort_values(by='combined_rank', ascending=True)
 
-# plot top 10 correlations
-top_corr = corr_df.head(20)
+# plot top 100 correlations
+top_corr = corr_df.head(100)
 
 for i in range(top_corr.shape[0]):
     image_col = top_corr.iloc[i].image_feature
-    genomic_col = top_corr.iloc[i].genomic_feature
-    sns.scatterplot(x=image_features_wide[image_col].values, y=genomics_feature_primary[genomic_col].values)
+    DNA_col = top_corr.iloc[i].DNA_feature
+    sns.scatterplot(x=image_features_shared[image_col].values, y=DNA_features_shared[DNA_col].values)
     plt.xlabel(image_col)
-    plt.ylabel(genomic_col)
+    plt.ylabel(DNA_col)
     plt.title('Correlation: ' + str(round(top_corr.iloc[i].cor, 3)) + ', p-value: ' + str(round(top_corr.iloc[i].pval, 3)))
-    plt.savefig(os.path.join(plot_dir, 'genomics_correlation_scatter_met' + str(i) + '.png'), dpi=300)
+    plt.savefig(os.path.join(plot_dir, 'DNA_Image_correlation_' + str(i) + '.png'), dpi=300)
     plt.close()
+
 
 
 # look at RNA correlations with imaging data
