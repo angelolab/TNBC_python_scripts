@@ -1,4 +1,5 @@
 import os
+import re
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -70,6 +71,19 @@ genomics_feature_df = pd.get_dummies(genomics_feature_df, columns=keep_dict.keys
 # save processed genomics features
 genomics_feature_df.to_csv(os.path.join(sequence_dir, 'TONIC_WES_meta_table_processed.csv'), index=False)
 
+
+# process RNA-seq data
+RNA_feature_df = pd.read_csv(os.path.join(sequence_dir, 'TONIC_immune_sig_score_table.tsv'), sep='\t')
+RNA_feature_df_genes = pd.read_csv(os.path.join(sequence_dir, 'TONIC_immune_sig_gene_TPM_table.tsv'), sep='\t')
+RNA_feature_df = pd.merge(RNA_feature_df, RNA_feature_df_genes, on='sample_identifier', how='left')
+RNA_feature_df = RNA_feature_df.rename(columns={'sample_identifier': 'rna_seq_sample_id'})
+RNA_feature_df = RNA_feature_df.merge(harmonized_metadata[['rna_seq_sample_id', 'Clinical_benefit', 'Timepoint', 'Patient_ID', 'Tissue_ID']].drop_duplicates(),
+                                    on='rna_seq_sample_id', how='left')
+RNA_feature_df = RNA_feature_df.drop(columns=['rna_seq_sample_id'])
+RNA_feature_df['TME_subtype'] = RNA_feature_df['TME_subtype'].astype('category')
+RNA_feature_df = pd.get_dummies(RNA_feature_df, columns=['TME_subtype'], drop_first=True)
+RNA_feature_df.to_csv(os.path.join(sequence_dir, 'TONIC_immune_sig_score_and_genes_processed.csv'), index=False)
+
 # transform to long format
 
 genomics_feature_df = pd.read_csv(os.path.join(sequence_dir, 'TONIC_WES_meta_table_processed.csv'))
@@ -80,8 +94,100 @@ genomics_feature_df = pd.merge(genomics_feature_df, harmonized_metadata[['Patien
 genomics_feature_df_long = pd.melt(genomics_feature_df, id_vars=['Patient_ID', 'Timepoint', 'Tissue_ID', 'Clinical_benefit'],
                                    var_name='feature_name', value_name='feature_value')
 
+# label summary metrics
+summary_metrics = ['purity', 'ploidy', 'fga', 'wgd', 'frac_loh']
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(summary_metrics), 'data_type'] = 'DNA'
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(summary_metrics), 'feature_type'] = 'cn_summary'
 
-# look at correlatoins with image data
+# label gene cns
+gene_cns = [col for col in genomics_feature_df.columns if col.endswith('_cn')]
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(gene_cns), 'data_type'] = 'DNA'
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(gene_cns), 'feature_type'] = 'gene_cn'
+
+# label gene rna
+gene_rna = [col for col in genomics_feature_df.columns if col.endswith('_rna')]
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(gene_rna), 'data_type'] = 'RNA'
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(gene_rna), 'feature_type'] = 'gene_rna'
+
+# label mutation summary
+mut_summary = ['snv_count', 'missense_count', 'synonymous_count', 'frameshift_count']
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(mut_summary), 'data_type'] = 'DNA'
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(mut_summary), 'feature_type'] = 'mut_summary'
+
+# label mutations
+mutations = [col for col in genomics_feature_df.columns if col.endswith('_SNV')]
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(mutations), 'data_type'] = 'DNA'
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(mutations), 'feature_type'] = 'mutation'
+
+# label clonality
+clones = ['CLONAL', 'SUBCLONAL', 'INDETERMINATE', 'clones', 'tail', 'subclonal_clonal_ratio']
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(clones), 'data_type'] = 'DNA'
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(clones), 'feature_type'] = 'clonality'
+
+# label antigen information
+antigens = ['antigens', 'antigens_clonal', 'antigens_subclonal', 'antigens_indeterminate',
+             'antigens_variants', 'HBMR_norm', 'HBMR_norm_p', 'HBMR_norm_cilo', 'HBMR_norm_ciup',
+             'hla_tcn', 'hla_lcn', 'hla_loh']
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(antigens), 'data_type'] = 'DNA'
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(antigens), 'feature_type'] = 'antigen'
+
+# label hlas
+hlas = [col for col in genomics_feature_df.columns if re.match('[ABC][12]_', col) is not None]
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(hlas), 'data_type'] = 'DNA'
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(hlas), 'feature_type'] = 'hla'
+
+# label mutation signatures
+mut_signatures = [col for col in genomics_feature_df.columns if col.startswith('Signature')]
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(mut_signatures), 'data_type'] = 'DNA'
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(mut_signatures), 'feature_type'] = 'mut_signature'
+
+# label chromosome changes
+chrom_cn = [col for col in genomics_feature_df.columns if col.endswith('AMP') or col.endswith('DEL') or col.endswith('LOH')]
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(chrom_cn), 'data_type'] = 'DNA'
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(chrom_cn), 'feature_type'] = 'chrom_cn'
+
+# label IC subtypes
+ic_subtypes = [col for col in genomics_feature_df.columns if col.startswith('IC') or col.startswith('IntClust')]
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(ic_subtypes), 'data_type'] = 'RNA'
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(ic_subtypes), 'feature_type'] = 'ic_subtype'
+
+# label PAM50 subtypes
+pam = ['PAM50_Her2', 'PAM50_Other']
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(pam), 'data_type'] = 'RNA'
+genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(pam), 'feature_type'] = 'pam_subtype'
+
+
+# transform RNA features to long format
+RNA_feature_df = pd.read_csv(os.path.join(sequence_dir, 'TONIC_immune_sig_score_and_genes_processed.csv'))
+RNA_feature_df_long = pd.melt(RNA_feature_df, id_vars=['Patient_ID', 'Timepoint', 'Tissue_ID', 'Clinical_benefit'],
+                                   var_name='feature_name', value_name='feature_value')
+
+# label cell type signatures
+cell_signatures = ['NK_cells', 'T_cells', 'B_cells', 'Treg', 'Neutrophil_signature', 'MDSC', 'Macrophages',
+                   'CAF', 'Matrix', 'Endothelium', 'TME_subtype_F', 'TME_subtype_IE', 'TME_subtype_IE/F']
+RNA_feature_df_long.loc[RNA_feature_df_long.feature_name.isin(cell_signatures), 'data_type'] = 'RNA'
+RNA_feature_df_long.loc[RNA_feature_df_long.feature_name.isin(cell_signatures), 'feature_type'] = 'cell_signature'
+
+# label functional signatures
+functional_signatures = ['T_cell_traffic', 'MHCI', 'MHCII', 'Coactivation_molecules', 'Effector_cells',
+                         'T_cell_traffic', 'M1_signatures', 'Th1_signature', 'Antitumor_cytokines',
+                         'Checkpoint_inhibition', 'T_reg_traffic', 'Granulocyte_traffic', 'MDSC_traffic',
+                         'Macrophage_DC_traffic', 'Th2_signature', 'Protumor_cytokines', 'Matrix_remodeling',
+                         'Angiogenesis', 'Proliferation_rate', 'EMT_signature', 'CAscore', 'GEP_mean']
+RNA_feature_df_long.loc[RNA_feature_df_long.feature_name.isin(functional_signatures), 'data_type'] = 'RNA'
+RNA_feature_df_long.loc[RNA_feature_df_long.feature_name.isin(functional_signatures), 'feature_type'] = 'functional_signature'
+
+# label individual genes
+unlabeled = RNA_feature_df_long.loc[RNA_feature_df_long.data_type.isna(), 'feature_name'].unique()
+RNA_feature_df_long.loc[RNA_feature_df_long.feature_name.isin(unlabeled), 'data_type'] = 'RNA'
+RNA_feature_df_long.loc[RNA_feature_df_long.feature_name.isin(unlabeled), 'feature_type'] = 'gene_rna'
+
+# combine together
+genomics_feature_df_long = pd.concat([genomics_feature_df_long, RNA_feature_df_long])
+genomics_feature_df_long.to_csv(os.path.join(sequence_dir, 'processed_genomics_features.csv'), index=False)
+
+
+# look at correlations with image data
 image_feature_df_wide = image_feature_df.pivot(index=['Patient_ID', 'Timepoint'], columns='feature_name_unique', values='raw_mean')
 image_feature_df_wide = image_feature_df_wide.reset_index()
 image_feature_df_wide.sort_values(by='Patient_ID', inplace=True)
