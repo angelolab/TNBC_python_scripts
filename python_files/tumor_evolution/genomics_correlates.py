@@ -186,117 +186,29 @@ RNA_feature_df_long.loc[RNA_feature_df_long.feature_name.isin(unlabeled), 'featu
 genomics_feature_df_long = pd.concat([genomics_feature_df_long, RNA_feature_df_long])
 genomics_feature_df_long.to_csv(os.path.join(sequence_dir, 'processed_genomics_features.csv'), index=False)
 
+#
+# look at correlations with imaging data
+#
 
-# look at correlations with image data
-image_feature_df_wide = image_feature_df.pivot(index=['Patient_ID', 'Timepoint'], columns='feature_name_unique', values='raw_mean')
-image_feature_df_wide = image_feature_df_wide.reset_index()
-image_feature_df_wide.sort_values(by='Patient_ID', inplace=True)
-
-genomics_feature_df.sort_values(by='Patient_ID', inplace=True)
-DNA_feature_list = [col for col in genomics_feature_df.columns if col not in ['Clinical_benefit', 'Timepoint', 'Patient_ID']]
-image_feature_list = [col for col in image_feature_df_wide.columns if col not in ['Patient_ID', 'Timepoint']]
-
-# calculate all pairwise correlations
-
-
-timepoint = 'baseline'
-shared_patients = np.intersect1d(image_feature_df_wide.loc[image_feature_df_wide.Timepoint == timepoint, 'Patient_ID'].values,
-                                 genomics_feature_df.loc[genomics_feature_df.Timepoint == timepoint, 'Patient_ID'].values)
-image_features_shared = image_feature_df_wide.loc[np.logical_and(image_feature_df_wide.Patient_ID.isin(shared_patients),
-                                                                 image_feature_df_wide.Timepoint == timepoint), :]
-DNA_features_shared = genomics_feature_df.loc[np.logical_and(genomics_feature_df.Patient_ID.isin(shared_patients),
-                                                        genomics_feature_df.Timepoint == timepoint), :]
-
-# check for columns with only a single value
-single_value_cols = []
-for col in DNA_feature_list:
-    if len(DNA_features_shared[col].unique()) == 1:
-        single_value_cols.append(col)
-
-DNA_features_shared = DNA_features_shared.drop(columns=single_value_cols)
-DNA_feature_list = [col for col in DNA_feature_list if col not in single_value_cols]
-# calculate all pairwise correlations
-image_features, DNA_features, corr_list, pval_list = [], [], [], []
-min_samples = 10
-
-for image_col in image_feature_list:
-    for DNA_col in DNA_feature_list:
-        # drop NaNs
-        combined_df = pd.DataFrame({image_col: image_features_shared[image_col].values, DNA_col: DNA_features_shared[DNA_col].values})
-        combined_df = combined_df.dropna()
-
-        # append to lists
-        image_features.append(image_col)
-        DNA_features.append(DNA_col)
-        if len(combined_df) > min_samples:
-            corr, pval = spearmanr(combined_df[image_col].values, combined_df[DNA_col].values)
-            corr_list.append(corr)
-            pval_list.append(pval)
-        else:
-            corr_list.append(np.nan)
-            pval_list.append(np.nan)
-
-corr_df = pd.DataFrame({'image_feature': image_features, 'DNA_feature': DNA_features, 'cor': corr_list, 'pval': pval_list})
-corr_df['log_pval'] = -np.log10(corr_df.pval)
-
-# combined pval and correlation rank
-corr_df['pval_rank'] = corr_df.log_pval.rank(ascending=False)
-corr_df['cor_rank'] = corr_df.cor.abs().rank(ascending=False)
-corr_df['combined_rank'] = (corr_df.pval_rank.values + corr_df.cor_rank.values) / 2
-
-# fdr correction
-from statsmodels.stats.multitest import multipletests
-corr_df = corr_df.dropna(axis=0)
-corr_df['fdr'] = multipletests(corr_df.pval.values, method='fdr_bh')[1]
-
-sns.scatterplot(data=corr_df, x='cor', y='log_pval', hue='combined_rank', palette='viridis')
-plt.xlabel('Spearman Correlation')
-plt.ylabel('-log10(p-value)')
-plt.title('Correlation between DNA and Image Features')
-plt.savefig(os.path.join(plot_dir, 'DNA_correlation_scatter.png'), dpi=300)
-plt.close()
-
-corr_df = corr_df.sort_values(by='combined_rank', ascending=True)
-
-# plot top 100 correlations
-top_corr = corr_df.head(100)
-
-for i in range(top_corr.shape[0]):
-    image_col = top_corr.iloc[i].image_feature
-    DNA_col = top_corr.iloc[i].DNA_feature
-    sns.scatterplot(x=image_features_shared[image_col].values, y=DNA_features_shared[DNA_col].values)
-    plt.xlabel(image_col)
-    plt.ylabel(DNA_col)
-    plt.title('Correlation: ' + str(round(top_corr.iloc[i].cor, 3)) + ', p-value: ' + str(round(top_corr.iloc[i].pval, 3)))
-    plt.savefig(os.path.join(plot_dir, 'DNA_Image_correlation_' + str(i) + '.png'), dpi=300)
-    plt.close()
-
-
-
-# look at RNA correlations with imaging data
-RNA_feature_df = pd.read_csv(os.path.join(sequence_dir, 'TONIC_immune_sig_score_table.tsv'), sep='\t')
-RNA_feature_df = RNA_feature_df.rename(columns={'sample_identifier': 'rna_seq_sample_id'})
-RNA_feature_df = RNA_feature_df.merge(harmonized_metadata[['rna_seq_sample_id', 'Clinical_benefit', 'Timepoint', 'Patient_ID']].drop_duplicates(),
-                                    on='rna_seq_sample_id', how='left')
-
-# check which columns are associated with response
-plot_cols = [col for col in RNA_feature_df.columns if col not in ['rna_seq_sample_id', 'Clinical_benefit', 'Timepoint', 'TME_subtype']]
-
-for col in plot_cols:
-    fig, ax = plt.subplots(1, 3)
-    for idx, timepoint in enumerate(['baseline', 'post_induction', 'on_nivo']):
-        sns.stripplot(data=immune_scores.loc[immune_scores.Timepoint == timepoint, :],
-                      x='Clinical_benefit', y=col, ax=ax[idx], color='black')
-        sns.boxplot(data=immune_scores.loc[immune_scores.Timepoint == timepoint, :],
-                    x='Clinical_benefit', y=col, ax=ax[idx], color='grey', showfliers=False)
-        ax[idx].set_title(timepoint)
-        ax[idx].set_xticklabels(ax[idx].get_xticklabels(), rotation=90)
-    plt.tight_layout()
-    sns.despine()
-    plt.savefig(os.path.join(plot_dir, 'RNA_features_{}.png'.format(col)))
-    plt.close()
+# # check which columns are associated with response
+# plot_cols = [col for col in RNA_feature_df.columns if col not in ['rna_seq_sample_id', 'Clinical_benefit', 'Timepoint', 'TME_subtype']]
+#
+# for col in plot_cols:
+#     fig, ax = plt.subplots(1, 3)
+#     for idx, timepoint in enumerate(['baseline', 'post_induction', 'on_nivo']):
+#         sns.stripplot(data=immune_scores.loc[immune_scores.Timepoint == timepoint, :],
+#                       x='Clinical_benefit', y=col, ax=ax[idx], color='black')
+#         sns.boxplot(data=immune_scores.loc[immune_scores.Timepoint == timepoint, :],
+#                     x='Clinical_benefit', y=col, ax=ax[idx], color='grey', showfliers=False)
+#         ax[idx].set_title(timepoint)
+#         ax[idx].set_xticklabels(ax[idx].get_xticklabels(), rotation=90)
+#     plt.tight_layout()
+#     sns.despine()
+#     plt.savefig(os.path.join(plot_dir, 'RNA_features_{}.png'.format(col)))
+#     plt.close()
 
 # look at correlatoins with image data
+image_feature_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
 image_feature_df_wide = image_feature_df.pivot(index=['Patient_ID', 'Timepoint'], columns='feature_name_unique', values='raw_mean')
 image_feature_df_wide = image_feature_df_wide.reset_index()
 image_feature_df_wide.sort_values(by='Patient_ID', inplace=True)
