@@ -45,8 +45,8 @@ def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
             The PIL image instance which contains the stitched (with padding) and annotated image
     """
     # param validation
-    if padding <= 0:
-        raise ValueError("padding must be a positive integer")
+    if padding < 0:
+        raise ValueError("padding must be a non-negative integer")
     if font_size <= 0:
         raise ValueError("font_size must be a positive integer")
 
@@ -118,6 +118,28 @@ def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
 
 
 # Cell identification and classification
+def min_max_normalize(img_data: Image):
+    """Min-max normalizes an image, assumes grayscale (0-255)
+
+    img_data (Image):
+        The image to min-max normalize
+
+    Returns:
+        Image:
+            The min-max normalized image
+    """
+    img_data_np = np.array(img_data)
+
+    min_val = np.min(img_data_np[img_data_np > 0])
+    max_val = np.max(img_data_np[img_data_np < 255])
+    min_max_num = (img_data_np - np.min(img_data_np[img_data_np > 0]) * 255)
+    min_max_den = (np.max(img_data_np[img_data_np < 255]) - np.min(img_data_np[img_data_np > 0]))
+
+    min_max_norm = np.clip(min_max_num / min_max_den, a_min=0, a_max=255)
+    min_max_pil = Image.fromarray(min_max_norm)
+    return min_max_pil
+
+
 def stitch_before_after_norm(
     pre_norm_dir: Union[str, pathlib.Path], post_norm_dir: Union[str, pathlib.Path],
     save_dir: Union[str, pathlib.Path],
@@ -193,18 +215,22 @@ def stitch_before_after_norm(
     pre_norm_tiled.save(pre_norm_stitched_path)
     post_norm_tiled.save(post_norm_stitched_path)
 
-acquisition_order_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "acquisition_order")
+acquisition_order_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "acquisition_order_test")
 if not os.path.exists(acquisition_order_viz_dir):
     os.makedirs(acquisition_order_viz_dir)
 
-run_name = "2022-04-09_TONIC_TMA21_run3"
+run_name = "2022-01-14_TONIC_TMA2_run1"
 pre_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/rosetta"
 post_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/normalized"
 save_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
 
 stitch_before_after_norm(
     pre_norm_dir, post_norm_dir, acquisition_order_viz_dir, run_name,
-    "H3K27me3", pre_norm_subdir="normalized"
+    "H3K9ac", pre_norm_subdir="normalized", padding=0
+)
+stitch_before_after_norm(
+    pre_norm_dir, post_norm_dir, acquisition_order_viz_dir, run_name,
+    "H3K27me3", pre_norm_subdir="normalized", padding=0
 )
 
 
