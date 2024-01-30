@@ -26,7 +26,8 @@ SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementa
 
 
 def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
-                                   font_size: int = 100, annotate=False):
+                                   font_size: int = 100, annotate: bool = False,
+                                   step: int = 1):
     """Stitch an image with (c, x, y) dimensions. If specified, annotate each image with labels
     contained in the cth dimension.
 
@@ -39,6 +40,8 @@ def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
             The font size to use for annotations
         annotate (bool):
             Whether to annotate the images with labels in dimension c
+        step (int):
+            The step size to use before adding an image to the tile
 
     Returns:
         Image:
@@ -49,6 +52,9 @@ def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
         raise ValueError("padding must be a non-negative integer")
     if font_size <= 0:
         raise ValueError("font_size must be a positive integer")
+
+    images_to_select = np.arange(0, image_data.shape[0], step=step)
+    image_data = image_data[images_to_select, ...]
 
     # define the number of rows and columns
     num_cols: int = math.isqrt(image_data.shape[0])
@@ -144,7 +150,7 @@ def stitch_before_after_norm(
     pre_norm_dir: Union[str, pathlib.Path], post_norm_dir: Union[str, pathlib.Path],
     save_dir: Union[str, pathlib.Path],
     run_name: str, channel: str, pre_norm_subdir: str = "", post_norm_subdir: str = "",
-    padding: int = 25, font_size: int = 100
+    padding: int = 25, font_size: int = 100, step: int = 1
 ):
     """Generates two stitched images: before and after normalization
 
@@ -166,6 +172,8 @@ def stitch_before_after_norm(
         Amount of padding to add around each channel in the stitched image
     font_size (int):
         The font size to use for annotations
+    step (int):
+        The step size to use before adding an image to the tile
     """
     # verify that the run_name specified appears in both pre and post norm folders
     all_pre_norm_runs: List[str] = list_folders(pre_norm_dir)
@@ -182,9 +190,9 @@ def stitch_before_after_norm(
     # verify save_dir is valid before defining the save paths
     validate_paths([save_dir])
     pre_norm_stitched_path: pathlib.Path = \
-        pathlib.Path(save_dir) / f"{run_name}_{channel}_pre_norm_stitched.tiff"
+        pathlib.Path(save_dir) / f"{run_name}_{channel}_pre_norm_stitched_{step}.tiff"
     post_norm_stitched_path: pathlib.Path = \
-        pathlib.Path(save_dir) / f"{run_name}_{channel}_post_norm_stitched.tiff"
+        pathlib.Path(save_dir) / f"{run_name}_{channel}_post_norm_stitched_{step}.tiff"
 
     pre_norm_run_path: pathlib.Path = pathlib.Path(pre_norm_dir) / run_name
     post_norm_run_path: pathlib.Path = pathlib.Path(post_norm_dir) / run_name
@@ -209,13 +217,17 @@ def stitch_before_after_norm(
     post_norm_data = post_norm_data.assign_coords({"fovs": fovs_condensed})
 
     # generate and save the pre- and post-norm tiled images
-    pre_norm_tiled: Image = stitch_and_annotate_padded_img(pre_norm_data, padding, font_size)
-    post_norm_tiled: Image = stitch_and_annotate_padded_img(post_norm_data, padding, font_size)
+    pre_norm_tiled: Image = stitch_and_annotate_padded_img(
+        pre_norm_data, padding, font_size, step=step
+    )
+    post_norm_tiled: Image = stitch_and_annotate_padded_img(
+        post_norm_data, padding, font_size, step=step
+    )
 
     pre_norm_tiled.save(pre_norm_stitched_path)
     post_norm_tiled.save(post_norm_stitched_path)
 
-acquisition_order_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "acquisition_order_test")
+acquisition_order_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "acquisition_order_test_step")
 if not os.path.exists(acquisition_order_viz_dir):
     os.makedirs(acquisition_order_viz_dir)
 
@@ -224,14 +236,15 @@ pre_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/rosetta"
 post_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/normalized"
 save_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
 
-stitch_before_after_norm(
-    pre_norm_dir, post_norm_dir, acquisition_order_viz_dir, run_name,
-    "H3K9ac", pre_norm_subdir="normalized", padding=0
-)
-stitch_before_after_norm(
-    pre_norm_dir, post_norm_dir, acquisition_order_viz_dir, run_name,
-    "H3K27me3", pre_norm_subdir="normalized", padding=0
-)
+for step in np.arange(1, 5):
+    stitch_before_after_norm(
+        pre_norm_dir, post_norm_dir, acquisition_order_viz_dir, run_name,
+        "H3K9ac", pre_norm_subdir="normalized", padding=0, step=step
+    )
+    stitch_before_after_norm(
+        pre_norm_dir, post_norm_dir, acquisition_order_viz_dir, run_name,
+        "H3K27me3", pre_norm_subdir="normalized", padding=0, step=step
+    )
 
 
 # Functional marker thresholding
