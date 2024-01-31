@@ -207,46 +207,49 @@ genomics_feature_df_long.to_csv(os.path.join(sequence_dir, 'processed_genomics_f
 #     plt.savefig(os.path.join(plot_dir, 'RNA_features_{}.png'.format(col)))
 #     plt.close()
 
-# look at correlatoins with image data
+# read in  data
+genomics_df = pd.read_csv(os.path.join(sequence_dir, 'processed_genomics_features.csv'))
 image_feature_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
-image_feature_df_wide = image_feature_df.pivot(index=['Patient_ID', 'Timepoint'], columns='feature_name_unique', values='raw_mean')
-image_feature_df_wide = image_feature_df_wide.reset_index()
-image_feature_df_wide.sort_values(by='Patient_ID', inplace=True)
 
-RNA_feature_df.sort_values(by='Patient_ID', inplace=True)
-RNA_feature_list = [col for col in RNA_feature_df.columns if col not in ['rna_seq_sample_id', 'Clinical_benefit', 'Timepoint', 'TME_subtype', 'Patient_ID', 'Tissue_ID']]
-image_feature_list = [col for col in image_feature_df_wide.columns if col not in ['Patient_ID', 'Timepoint']]
+# start with just baseline samples
+genomics_df = genomics_df.loc[genomics_df.Timepoint == 'baseline', :]
+image_feature_df = image_feature_df.loc[image_feature_df.Timepoint == 'baseline', :]
+
+# subset to only include shared samples
+shared_patients = np.intersect1d(image_feature_df.Patient_ID.unique(), genomics_df.Patient_ID.unique())
+image_feature_df = image_feature_df.loc[image_feature_df.Patient_ID.isin(shared_patients), :]
+genomics_df = genomics_df.loc[genomics_df.Patient_ID.isin(shared_patients), :]
+
 
 # calculate all pairwise correlations
-image_features, RNA_features, corr_list, pval_list = [], [], [], []
+image_features, genomics_features, corr_list, pval_list = [], [], [], []
 min_samples = 10
 
-timepoint = 'baseline'
-shared_patients = np.intersect1d(image_feature_df_wide.loc[image_feature_df_wide.Timepoint == timepoint, 'Patient_ID'].values,
-                                 RNA_feature_df.loc[RNA_feature_df.Timepoint == timepoint, 'Patient_ID'].values)
-image_features_shared = image_feature_df_wide.loc[np.logical_and(image_feature_df_wide.Patient_ID.isin(shared_patients),
-                                                                 image_feature_df_wide.Timepoint == timepoint), :]
-RNA_features_shared = RNA_feature_df.loc[np.logical_and(RNA_feature_df.Patient_ID.isin(shared_patients),
-                                                        RNA_feature_df.Timepoint == timepoint), :]
+for image_col in image_feature_df.feature_name_unique.unique():
+    for genom_col in genomics_df.feature_name.unique():
 
-for image_col in image_feature_list:
-    for RNA_col in RNA_feature_list:
-        # drop NaNs
-        combined_df = pd.DataFrame({image_col: image_features_shared[image_col].values, RNA_col: RNA_features_shared[RNA_col].values})
-        combined_df = combined_df.dropna()
+        # subset to specific feature
+        image_features_shared = image_feature_df.loc[image_feature_df.feature_name_unique == image_col, :]
+        genomics_features_shared = genomics_df.loc[genomics_df.feature_name == genom_col, :]
+
+        # merge together
+        combined_df = pd.merge(image_features_shared[['Patient_ID', 'raw_mean']],
+                               genomics_features_shared[['Patient_ID', 'feature_value']],
+                               on='Patient_ID', how='inner')
 
         # append to lists
         image_features.append(image_col)
-        RNA_features.append(RNA_col)
+        genomics_features.append(genom_col)
         if len(combined_df) > min_samples:
-            corr, pval = spearmanr(combined_df[image_col].values, combined_df[RNA_col].values)
+            corr, pval = spearmanr(combined_df.raw_mean.values, combined_df.feature_value.values)
             corr_list.append(corr)
             pval_list.append(pval)
         else:
             corr_list.append(np.nan)
             pval_list.append(np.nan)
 
-corr_df = pd.DataFrame({'image_feature': image_features, 'RNA_feature': RNA_features, 'cor': corr_list, 'pval': pval_list})
+corr_df = pd.DataFrame({'image_feature': image_features, 'genomic_features': genomics_features,
+                        'cor': corr_list, 'pval': pval_list})
 corr_df['log_pval'] = -np.log10(corr_df.pval)
 
 # combined pval and correlation rank
@@ -268,16 +271,30 @@ plt.close()
 
 corr_df = corr_df.sort_values(by='combined_rank', ascending=True)
 
+RNA_feature_list = genomics_df.loc[genomics_df.data_type == 'RNA', 'feature_name'].unique()
+corr_df_dna = corr_df.loc[~corr_df.genomic_features.isin(RNA_feature_list), :]
+
 # plot top 10 correlations
-top_corr = corr_df.head(100)
+top_corr = corr_df_dna.head(100)
 
 for i in range(top_corr.shape[0]):
     image_col = top_corr.iloc[i].image_feature
-    RNA_col = top_corr.iloc[i].RNA_feature
-    sns.scatterplot(x=image_features_shared[image_col].values, y=RNA_features_shared[RNA_col].values)
+    RNA_col = top_corr.iloc[i].genomic_features
+
+    image_features_shared = image_feature_df.loc[image_feature_df.feature_name_unique == image_col, :]
+    genomics_features_shared = genomics_df.loc[genomics_df.feature_name == RNA_col, :]
+
+    # merge together
+    combined_df = pd.merge(image_features_shared[['Patient_ID', 'raw_mean']],
+                           genomics_features_shared[['Patient_ID', 'feature_value']],
+                           on='Patient_ID', how='inner')
+
+    sns.scatterplot(data=combined_df, x='raw_mean', y='feature_value')
+
+
     plt.xlabel(image_col)
     plt.ylabel(RNA_col)
     plt.title('Correlation: ' + str(round(top_corr.iloc[i].cor, 3)) + ', p-value: ' + str(round(top_corr.iloc[i].pval, 3)))
-    plt.savefig(os.path.join(plot_dir, 'RNA_Image_correlation_' + str(i) + '.png'), dpi=300)
+    plt.savefig(os.path.join(plot_dir, 'DNA_Image_correlation_' + str(i) + '.png'), dpi=300)
     plt.close()
 
