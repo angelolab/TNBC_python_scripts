@@ -47,7 +47,7 @@ class MarkerDict(TypedDict):
 
 
 # Functional marker thresholding
-def functional_marker_thresholding_grid(
+def functional_marker_thresholding(
     cell_table: pd.DataFrame, save_dir: Union[str, pathlib.Path],
     marker_info: Dict[str, MarkerDict], pop_col: str = "cell_cluster",
     figsize: Optional[Tuple[float, float]] = None
@@ -133,7 +133,7 @@ def functional_marker_thresholding_grid(
         )
         axs[axs_row][0].set_title(
             "{} in all populations".format(marker),
-            fontsize=26
+            fontsize=28
         )
         axs[axs_row][0].axvline(x=threshold)
 
@@ -160,7 +160,7 @@ def functional_marker_thresholding_grid(
             )
             axs[axs_row][i].set_title(
                 "{} in {}".format(marker, pop),
-                fontsize=26
+                fontsize=28
             )
             axs[axs_row][i].axvline(x=threshold)
 
@@ -179,110 +179,14 @@ def functional_marker_thresholding_grid(
 
     # save the figure to save_dir
     fig.savefig(
-        pathlib.Path(save_dir) / f"functional_marker_thresholds_test_bigger.png",
+        pathlib.Path(save_dir) / f"functional_marker_thresholds.png",
         dpi=300
     )
-
-
-def functional_marker_thresholding(
-    cell_table: pd.DataFrame, save_dir: Union[str, pathlib.Path],
-    marker: str, populations: List[str], threshold: float,
-    pop_col: str = "cell_meta_cluster", percentile: float = 0.999,
-    x_range: Optional[Tuple[float, float]] = None, figsize: Optional[Tuple[float, float]] = None):
-    """For a particular marker, visualize its distribution across the entire cohort, plus just 
-    against the specified populations.
-
-    Args:
-        cell_table (pd.DataFrame):
-            Cell table with clustered cell populations
-        save_dir (Union[str, pathlib.Path]):
-            The directory to save the marker distribution histograms
-        marker (str):
-            The marker to visualize the distributions for
-        populations (List[str]):
-            Additional populations to subset on for more distribution plots
-        threshold (float):
-            Value to plot a horizontal line for visualization, determined from Mantis
-        pop_col (str):
-            Column containing the names of the cell populations
-        percentile (float):
-            Cap used to control x axis limits of the plot
-        x_range (Optional[Tuple[float, float]]):
-            The range of x-values to visualize
-        fig_size (Optional[Tuple[float, float]]):
-            The figure size to use for the image.
-            If None use default sizing (6.2, 2.2 * len(populations))
-    """
-    # verify save_dir is valid
-    validate_paths([save_dir])
-
-    # verify x_range is valid if set
-    if x_range and (len(x_range) != 2 or x_range[0] >= x_range[1]):
-        raise ValueError(
-            "Invalid x_range: it must be in the form (low, high), low < high"
-        )
-
-    # verify figsize is valid if set
-    if figsize and (len(figsize) != 2 or figsize[0] <= 0 or figsize[1] <= 0):
-        raise ValueError(
-            "Invalid figsize: it must be in the form (size_x, size_y), size_x > 0, size_y > 0"
-        )
-
-    # Make populations a list if it's str
-    populations: List[str] = make_iterable(populations, ignore_str=True)
-
-    # Verify that the marker and all populations specified are valid
-    verify_in_list(
-        specified_marker=marker,
-        cell_table_columns=cell_table.columns.values
-    )
-
-    all_populations: np.ndarray = cell_table[pop_col].unique()
-    verify_in_list(
-        specified_populations=populations,
-        cell_table_populations=all_populations
-    )
-
-    # define the subplot grid
-    figsize = figsize if figsize else (6.2, 2.2 * len(populations))
-    fig, axs = plt.subplots(1 + len(populations), 1, figsize=figsize, squeeze=False)
-
-    # determine max value to show on histograms based on the specified percentile
-    x_range = x_range if x_range else (0, np.quantile(cell_table[marker].values, percentile))
-
-    # the first subplot should always be the distribution of the marker against all populations
-    axs[0][axs_col].hist(
-        cell_table[marker].values,
-        50,
-        density=True,
-        facecolor='g',
-        alpha=0.75,
-        range=x_range
-    )
-    axs[0][axs_col].set_title("Distribution of {} in all populations".format(marker))
-    axs[0][axs_col].axvline(x=threshold)
-
-    # add additional subplots to the figure based on the specified populations
-    for i, pop in zip(np.arange(1, len(populations) + 1), populations):
-        cell_table_marker_sub: pd.DataFrame = cell_table.loc[
-            cell_table[pop_col] == pop, marker
-        ].values
-        axs[i][axs_col].hist(
-            cell_table_marker_sub,
-            50,
-            density=True,
-            facecolor='g',
-            alpha=0.75,
-            range=x_range
-        )
-        axs[i][axs_col].set_title("Distribution of {} in {}".format(marker, pop))
-        axs[i][axs_col].axvline(x=threshold)
 
 
 cell_table = pd.read_csv(
     os.path.join(ANALYSIS_DIR, "combined_cell_table_normalized_cell_labels_updated.csv")
 )
-print("Loaded in cell table")
 functional_marker_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "functional_marker_dist_thresholds")
 if not os.path.exists(functional_marker_viz_dir):
     os.makedirs(functional_marker_viz_dir)
@@ -291,9 +195,9 @@ marker_info = {
     "Ki67": {
         "populations": ["Cancer", "Mast"],
         "threshold": 0.002,
-        "x_range": (0, 0.015),
-        "x_ticks": np.array([0, 0.003, 0.006, 0.009, 0.012, 0.015]),
-        "x_tick_labels": np.array([0, 0.03, 0.006, 0.009, 0.012, 0.015]),
+        "x_range": (0, 0.012),
+        "x_ticks": np.array([0, 0.004, 0.008, 0.012]),
+        "x_tick_labels": np.array([0, 0.004, 0.008, 0.012]),
     },
     "CD38": {
         "populations": ["Endothelium", "Cancer_EMT"],
@@ -306,8 +210,8 @@ marker_info = {
         "populations": ["CD4T", "Stroma"],
         "threshold": 0.001,
         "x_range": (0, 0.015),
-        "x_ticks": np.array([0, 0.003, 0.006, 0.009, 0.012, 0.015]),
-        "x_tick_labels": np.array([0, 0.003, 0.006, 0.009, 0.012, 0.015])
+        "x_ticks": np.array([0, 0.005, 0.010, 0.015]),
+        "x_tick_labels": np.array([0, 0.005, 0.010, 0.015])
     },
     "CD45RO": {
         "populations": ["CD4T", "Fibroblast"],
@@ -317,35 +221,35 @@ marker_info = {
         "x_tick_labels": np.array([0, 0.005, 0.01, 0.015, 0.02])
     },
     "CD57": {
-        "populations": ["Cancer", "Mac_Other"],
+        "populations": ["CD8T", "B"],
         "threshold": 0.002,
-        "x_range": (0, 0.02),
-        "x_ticks": np.array([0, 0.005, 0.01, 0.015, 0.02]),
-        "x_tick_labels": np.array([0, 0.005, 0.01, 0.015, 0.02])
+        "x_range": (0, 0.006),
+        "x_ticks": np.array([0, 0.002, 0.004, 0.006]),
+        "x_tick_labels": np.array([0, 0.002, 0.004, 0.006])
     },
     "CD69": {
-        "populations": ["Treg", "APC"],
+        "populations": ["Treg", "Cancer"],
         "threshold": 0.002,
-        "x_range": (0, 0.02),
-        "x_ticks": np.array([0, 0.005, 0.01, 0.015, 0.02]),
-        "x_tick_labels": np.array([0, 0.005, 0.01, 0.015, 0.02])
+        "x_range": (0, 0.008),
+        "x_ticks": np.array([0, 0.002, 0.004, 0.006, 0.008]),
+        "x_tick_labels": np.array([0, 0.002, 0.004, 0.006, 0.008])
     },
     "GLUT1": {
-        "populations": ["M1_Mac", "T_Other"],
+        "populations": ["Cancer_EMT", "M2_Mac"],
         "threshold": 0.002,
         "x_range": (0, 0.02),
         "x_ticks": np.array([0, 0.005, 0.01, 0.015, 0.02]),
         "x_tick_labels": np.array([0, 0.005, 0.01, 0.015, 0.02])
     },
     "IDO": {
-        "populations": ["Immune_Other", "NK"],
+        "populations": ["APC", "M1_Mac"],
         "threshold": 0.001,
         "x_range": (0, 0.003),
         "x_ticks": np.array([0, 0.001, 0.002, 0.003]),
         "x_tick_labels": np.array([0, 0.001, 0.002, 0.003])
     },
     "PD1": {
-        "populations": ["B", "Neutrophil"],
+        "populations": ["CD8T", "Stroma"],
         "threshold": 0.0005,
         "x_range": (0, 0.002),
         "x_ticks": np.array([0, 0.0005, 0.001, 0.0015, 0.002]),
@@ -359,56 +263,56 @@ marker_info = {
         "x_tick_labels": np.array([0, 0.001, 0.002, 0.003]),
     },
     "HLA1": {
-        "populations": ["Monocyte", "Stroma"],
+        "populations": ["APC", "Stroma"],
         "threshold": 0.001,
-        "x_range": (0, 0.003),
-        "x_ticks": np.array([0, 0.001, 0.002, 0.003]),
-        "x_tick_labels": np.array([0, 0.001, 0.002, 0.003])
+        "x_range": (0, 0.025),
+        "x_ticks": np.array([0, 0.0125, 0.025]),
+        "x_tick_labels": np.array([0, 0.0125, 0.025])
     },
     "HLADR": {
-        "populations": ["APC", "Fibroblast"],
+        "populations": ["APC", "Neutrophil"],
         "threshold": 0.001,
-        "x_range": (0, 0.003),
-        "x_ticks": np.array([0, 0.001, 0.002, 0.003]),
-        "x_tick_labels": np.array([0, 0.001, 0.002, 0.003])
+        "x_range": (0, 0.025),
+        "x_ticks": np.array([0, 0.0125, 0.025]),
+        "x_tick_labels": np.array([0, 0.0125, 0.025])
     },
     "TBET": {
-        "populations": ["Cancer", "Mac_Other"],
+        "populations": ["NK", "B"],
         "threshold": 0.0015,
         "x_range": (0, 0.0045),
         "x_ticks": np.array([0, 0.0015, 0.003, 0.0045]),
         "x_tick_labels": np.array([0, 0.0015, 0.003, 0.0045])
     },
     "TCF1": {
-        "populations": ["Cancer_EMT", "Mast"],
+        "populations": ["CD4T", "M1_Mac"],
         "threshold": 0.001,
         "x_range": (0, 0.003),
         "x_ticks": np.array([0, 0.001, 0.002, 0.003]),
         "x_tick_labels": np.array([0, 0.001, 0.002, 0.003])
     },
     "TIM3": {
-        "populations": ["Immune_Other", "Endothelium"],
+        "populations": ["Monocyte", "Endothelium"],
         "threshold": 0.001,
-        "x_range": (0, 0.003),
-        "x_ticks": np.array([0, 0.001, 0.002, 0.003]),
-        "x_tick_labels": np.array([0, 0.001, 0.002, 0.003])
+        "x_range": (0, 0.004),
+        "x_ticks": np.array([0, 0.001, 0.002, 0.003, 0.004]),
+        "x_tick_labels": np.array([0, 0.001, 0.002, 0.003, 0.004])
     },
     "Vim": {
-        "populations": ["M1_Mac", "T_Other"],
+        "populations": ["Endothelium", "B"],
         "threshold": 0.002,
-        "x_range": (0, 0.02),
-        "x_ticks": np.array([0, 0.005, 0.01, 0.015, 0.02]),
-        "x_tick_labels": np.array([0, 0.005, 0.01, 0.015, 0.02])
+        "x_range": (0, 0.06),
+        "x_ticks": np.array([0, 0.02, 0.04, 0.06]),
+        "x_tick_labels": np.array([0, 0.02, 0.04, 0.06])
     },
     "Fe": {
-        "populations": ["M2_Mac", "Cancer"],
+        "populations": ["Fibroblast", "Cancer"],
         "threshold": 0.1,
         "x_range": (0, 0.3),
         "x_ticks": np.array([0, 0.1, 0.2, 0.3]),
         "x_tick_labels": np.array([0, 0.1, 0.2, 0.3]),
     }
 }
-functional_marker_thresholding_grid(
+functional_marker_thresholding(
     cell_table, functional_marker_viz_dir, marker_info=marker_info,
     figsize=(20, 40)
 )
