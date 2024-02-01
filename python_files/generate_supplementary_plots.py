@@ -113,7 +113,9 @@ def functional_marker_thresholding_grid(
         )
 
         # limit x_range to 99.9% of the marker in question if x_range not specified
-        x_range = marker_info[marker].get("x_range", np.quantile(cell_table[marker].values, 0.999))
+        x_range = marker_info[marker].get(
+            "x_range", (0, np.quantile(cell_table[marker].values, 0.999))
+        )
 
         # retrieve the x ticks and x tick labels
         x_ticks = marker_info[marker].get("x_ticks", None)
@@ -131,7 +133,7 @@ def functional_marker_thresholding_grid(
         )
         axs[axs_row][0].set_title(
             "{} in all populations".format(marker),
-            fontsize=24
+            fontsize=26
         )
         axs[axs_row][0].axvline(x=threshold)
 
@@ -139,9 +141,9 @@ def functional_marker_thresholding_grid(
             axs[axs_row][0].set_xticks(x_ticks)
 
         if isinstance(x_tick_labels, np.ndarray):
-            axs[axs_row][0].set_xticklabels(x_tick_labels, fontsize=18)
+            axs[axs_row][0].set_xticklabels(x_tick_labels, fontsize=24)
 
-        axs[axs_row][0].tick_params(axis="y", labelsize=16)
+        axs[axs_row][0].tick_params(axis="y", labelsize=24)
 
         # add additional subplots to the figure based on the specified populations
         for i, pop in zip(np.arange(1, len(populations) + 1), populations):
@@ -158,7 +160,7 @@ def functional_marker_thresholding_grid(
             )
             axs[axs_row][i].set_title(
                 "{} in {}".format(marker, pop),
-                fontsize=24
+                fontsize=26
             )
             axs[axs_row][i].axvline(x=threshold)
 
@@ -166,9 +168,9 @@ def functional_marker_thresholding_grid(
                 axs[axs_row][i].set_xticks(x_ticks)
 
             if isinstance(x_tick_labels, np.ndarray):
-                axs[axs_row][i].set_xticklabels(x_tick_labels, fontsize=18)
+                axs[axs_row][i].set_xticklabels(x_tick_labels, fontsize=24)
 
-            axs[axs_row][i].tick_params(axis="y", labelsize=16)
+            axs[axs_row][i].tick_params(axis="y", labelsize=24)
 
         # update axs_row to the next column
         axs_row += 1
