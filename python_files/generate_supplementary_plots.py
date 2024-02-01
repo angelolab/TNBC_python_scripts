@@ -280,6 +280,8 @@ def functional_marker_thresholding_grid(
         if isinstance(x_tick_labels, np.ndarray):
             axs[axs_row][0].set_xticklabels(x_tick_labels, fontsize=18)
 
+        axs[axs_row][0].set_yticklabels(axs[axs_row][0].get_yticks(), fontsize=18)
+
         # add additional subplots to the figure based on the specified populations
         for i, pop in zip(np.arange(1, len(populations) + 1), populations):
             cell_table_marker_sub: pd.DataFrame = cell_table.loc[
@@ -304,6 +306,8 @@ def functional_marker_thresholding_grid(
 
             if isinstance(x_tick_labels, np.ndarray):
                 axs[axs_row][i].set_xticklabels(x_tick_labels, fontsize=18)
+
+            axs[axs_row][i].set_yticklabels(axs[axs_row][i].get_yticks(), fontsize=18)
 
         # update axs_row to the next column
         axs_row += 1
