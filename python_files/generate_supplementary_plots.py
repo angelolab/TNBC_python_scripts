@@ -172,9 +172,9 @@ def stitch_before_after_norm(
     # verify save_dir is valid before defining the save paths
     validate_paths([save_dir])
     pre_norm_stitched_path: pathlib.Path = \
-        pathlib.Path(save_dir) / f"{run_name}_{channel}_pre_norm_stitched_{step}.tiff"
+        pathlib.Path(save_dir) / f"{run_name}_{channel}_pre_norm_stitched.tiff"
     post_norm_stitched_path: pathlib.Path = \
-        pathlib.Path(save_dir) / f"{run_name}_{channel}_post_norm_stitched_{step}.tiff"
+        pathlib.Path(save_dir) / f"{run_name}_{channel}_post_norm_stitched.tiff"
 
     pre_norm_run_path: pathlib.Path = pathlib.Path(pre_norm_dir) / run_name
     post_norm_run_path: pathlib.Path = pathlib.Path(post_norm_dir) / run_name
@@ -213,7 +213,7 @@ def stitch_before_after_norm(
     pre_norm_tiled.save(pre_norm_stitched_path)
     post_norm_tiled.save(post_norm_stitched_path)
 
-acquisition_order_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "acquisition_order_test_step")
+acquisition_order_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "acquisition_order")
 if not os.path.exists(acquisition_order_viz_dir):
     os.makedirs(acquisition_order_viz_dir)
 
@@ -222,15 +222,15 @@ pre_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/rosetta"
 post_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/normalized"
 save_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
 
-for step in np.arange(1, 5):
-    stitch_before_after_norm(
-        pre_norm_dir, post_norm_dir, acquisition_order_viz_dir, run_name,
-        "H3K9ac", pre_norm_subdir="normalized", padding=0, step=step
-    )
-    stitch_before_after_norm(
-        pre_norm_dir, post_norm_dir, acquisition_order_viz_dir, run_name,
-        "H3K27me3", pre_norm_subdir="normalized", padding=0, step=step
-    )
+step = 1
+stitch_before_after_norm(
+    pre_norm_dir, post_norm_dir, acquisition_order_viz_dir, run_name,
+    "H3K9ac", pre_norm_subdir="normalized", padding=0, step=step
+)
+stitch_before_after_norm(
+    pre_norm_dir, post_norm_dir, acquisition_order_viz_dir, run_name,
+    "H3K27me3", pre_norm_subdir="normalized", padding=0, step=step
+)
 
 
 # Functional marker thresholding
