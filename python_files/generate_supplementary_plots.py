@@ -222,6 +222,7 @@ pre_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/rosetta"
 post_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/normalized"
 save_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
 
+# NOTE: image not scaled up, this happens in Photoshop
 step = 1
 stitch_before_after_norm(
     pre_norm_dir, post_norm_dir, acquisition_order_viz_dir, run_name,
