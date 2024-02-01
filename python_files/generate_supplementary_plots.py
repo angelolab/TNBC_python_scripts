@@ -23,6 +23,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
+ACQUISITION_INDICES = [
+    11, 12, 13, 14, 15, 17, 18, 20, 22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 35,
+    36, 39, 40, 41, 42, 43, 44, 45, 46, 47
+]
 
 
 def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
@@ -124,28 +128,6 @@ def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
 
 
 # Cell identification and classification
-def min_max_normalize(img_data: Image):
-    """Min-max normalizes an image, assumes grayscale (0-255)
-
-    img_data (Image):
-        The image to min-max normalize
-
-    Returns:
-        Image:
-            The min-max normalized image
-    """
-    img_data_np = np.array(img_data)
-
-    min_val = np.min(img_data_np[img_data_np > 0])
-    max_val = np.max(img_data_np[img_data_np < 255])
-    min_max_num = (img_data_np - np.min(img_data_np[img_data_np > 0]) * 255)
-    min_max_den = (np.max(img_data_np[img_data_np < 255]) - np.min(img_data_np[img_data_np > 0]))
-
-    min_max_norm = np.clip(min_max_num / min_max_den, a_min=0, a_max=255)
-    min_max_pil = Image.fromarray(min_max_norm)
-    return min_max_pil
-
-
 def stitch_before_after_norm(
     pre_norm_dir: Union[str, pathlib.Path], post_norm_dir: Union[str, pathlib.Path],
     save_dir: Union[str, pathlib.Path],
@@ -210,6 +192,9 @@ def stitch_before_after_norm(
         data_dir=post_norm_run_path, fovs=all_fovs, channels=[channel],
         img_sub_folder=post_norm_subdir, max_image_size=2048
     )[..., 0]
+
+    pre_norm_data = pre_norm_data[ACQUISITION_INDICES, ...]
+    post_norm_data = post_norm_data[ACQUISITION_INDICES, ...]
 
     # reassign coordinate with FOV names that don't contain "-scan-1" or additional dashes
     fovs_condensed: List[str] = [f"FOV{af.split('-')[1]}" for af in all_fovs]
