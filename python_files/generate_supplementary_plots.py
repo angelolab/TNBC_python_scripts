@@ -184,11 +184,11 @@ def stitch_before_after_norm(
     all_fovs: List[str] = ns.natsorted(list_folders(pre_norm_run_path))
 
     # load pre- and post-norm data in acquisition order, drop channel axis as it's 1-D
-    pre_norm_data = load_imgs_from_tree(
+    pre_norm_data: xr.DataArray = load_imgs_from_tree(
         data_dir=pre_norm_run_path, fovs=all_fovs, channels=[channel],
         img_sub_folder=pre_norm_subdir, max_image_size=2048
     )[..., 0]
-    post_norm_data = load_imgs_from_tree(
+    post_norm_data: xr.DataArray = load_imgs_from_tree(
         data_dir=post_norm_run_path, fovs=all_fovs, channels=[channel],
         img_sub_folder=post_norm_subdir, max_image_size=2048
     )[..., 0]
@@ -197,7 +197,8 @@ def stitch_before_after_norm(
     post_norm_data = post_norm_data[ACQUISITION_INDICES, ...]
 
     # reassign coordinate with FOV names that don't contain "-scan-1" or additional dashes
-    fovs_condensed: List[str] = [f"FOV{af.split('-')[1]}" for af in all_fovs]
+    fovs_condensed: np.ndarray = np.array([f"FOV{af.split('-')[1]}" for af in all_fovs])
+    fovs_condensed = fovs_condensed[ACQUISITION_INDICES]
     pre_norm_data = pre_norm_data.assign_coords({"fovs": fovs_condensed})
     post_norm_data = post_norm_data.assign_coords({"fovs": fovs_condensed})
 
