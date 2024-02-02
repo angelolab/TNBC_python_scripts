@@ -165,6 +165,7 @@ RNA_feature_df_long = pd.melt(RNA_feature_df, id_vars=['Patient_ID', 'Timepoint'
 # label cell type signatures
 cell_signatures = ['NK_cells', 'T_cells', 'B_cells', 'Treg', 'Neutrophil_signature', 'MDSC', 'Macrophages',
                    'CAF', 'Matrix', 'Endothelium', 'TME_subtype_F', 'TME_subtype_IE', 'TME_subtype_IE/F']
+# recode fibrotic to immune yes/no, fibrotic yes/no
 RNA_feature_df_long.loc[RNA_feature_df_long.feature_name.isin(cell_signatures), 'data_type'] = 'RNA'
 RNA_feature_df_long.loc[RNA_feature_df_long.feature_name.isin(cell_signatures), 'feature_type'] = 'cell_signature'
 
@@ -237,6 +238,7 @@ for image_col in image_feature_df.feature_name_unique.unique():
                                genomics_features_shared[['Patient_ID', 'feature_value']],
                                on='Patient_ID', how='inner')
 
+        # checks: number of unique values overall, number of unique values per condition, number of samples per condition
         # append to lists
         image_features.append(image_col)
         genomics_features.append(genom_col)
@@ -275,7 +277,7 @@ RNA_feature_list = genomics_df.loc[genomics_df.data_type == 'RNA', 'feature_name
 corr_df_dna = corr_df.loc[~corr_df.genomic_features.isin(RNA_feature_list), :]
 
 # plot top 10 correlations
-top_corr = corr_df_dna.head(100)
+top_corr = corr_df.head(100)
 
 for i in range(top_corr.shape[0]):
     image_col = top_corr.iloc[i].image_feature
@@ -295,6 +297,76 @@ for i in range(top_corr.shape[0]):
     plt.xlabel(image_col)
     plt.ylabel(RNA_col)
     plt.title('Correlation: ' + str(round(top_corr.iloc[i].cor, 3)) + ', p-value: ' + str(round(top_corr.iloc[i].pval, 3)))
-    plt.savefig(os.path.join(plot_dir, 'DNA_Image_correlation_' + str(i) + '.png'), dpi=300)
+    plt.savefig(os.path.join(plot_dir, 'RNA_Image_correlation_' + str(i) + '.png'), dpi=300)
     plt.close()
+
+# look for association with outcome
+from python_files.utils import compare_populations
+from statsmodels.stats.multitest import multipletests
+
+
+plot_hits = False
+method = 'ttest'
+
+genomics_df = genomics_df.loc[genomics_df.Timepoint != 'on_nivo_1_cycle', :]
+genomics_df = genomics_df.rename(columns={'feature_name': 'feature_name_unique', 'feature_value': 'raw_mean'})
+genomics_df['normalized_mean'] = genomics_df['raw_mean']
+
+# placeholder for all values
+total_dfs = []
+
+for comparison in genomics_df.Timepoint.unique():
+    population_df = compare_populations(feature_df=genomics_df, pop_col='Clinical_benefit',
+                                        timepoints=[comparison], pop_1='No', pop_2='Yes', method=method)
+
+    if plot_hits:
+        current_plot_dir = os.path.join(plot_dir, 'responders_nonresponders_{}'.format(comparison))
+        if not os.path.exists(current_plot_dir):
+            os.makedirs(current_plot_dir)
+        summarize_population_enrichment(input_df=population_df, feature_df=combined_df, timepoints=[comparison],
+                                        pop_col='Clinical_benefit', output_dir=current_plot_dir, sort_by='med_diff')
+
+    if np.sum(~population_df.log_pval.isna()) == 0:
+        continue
+    long_df = population_df[['feature_name_unique', 'log_pval', 'mean_diff', 'med_diff']]
+    long_df['comparison'] = comparison
+    long_df = long_df.dropna()
+    long_df['pval'] = 10 ** (-long_df.log_pval)
+    long_df['fdr_pval'] = multipletests(long_df.pval, method='fdr_bh')[1]
+    total_dfs.append(long_df)
+
+# summarize hits from all comparisons
+ranked_features_df = pd.concat(total_dfs)
+ranked_features_df['log10_qval'] = -np.log10(ranked_features_df.fdr_pval)
+
+# create importance score
+# get ranking of each row by log_pval
+ranked_features_df['pval_rank'] = ranked_features_df.log_pval.rank(ascending=False)
+ranked_features_df['cor_rank'] = ranked_features_df.med_diff.abs().rank(ascending=False)
+ranked_features_df['combined_rank'] = (ranked_features_df.pval_rank.values + ranked_features_df.cor_rank.values) / 2
+
+ranked_features_df = ranked_features_df.sort_values(by='combined_rank', ascending=True)
+
+
+# plot top X features per comparison
+num_features = 50
+
+for comparison in ranked_features_df.comparison.unique():
+    current_plot_dir = os.path.join(plot_dir, 'top_features_{}'.format(comparison))
+    if not os.path.exists(current_plot_dir):
+        os.makedirs(current_plot_dir)
+
+    current_df = ranked_features_df.loc[ranked_features_df.comparison == comparison, :]
+    current_df = current_df.sort_values('combined_rank', ascending=True)
+    current_df = current_df.iloc[:num_features, :]
+
+    # plot results
+    for feature_name, rank in zip(current_df.feature_name_unique.values, current_df.combined_rank.values):
+        plot_df = genomics_df.loc[(genomics_df.feature_name_unique == feature_name) &
+                                  (genomics_df.Timepoint == comparison), :]
+
+        g = sns.catplot(data=plot_df, x='Clinical_benefit', y='raw_mean', kind='strip')
+        g.fig.suptitle(feature_name)
+        g.savefig(os.path.join(current_plot_dir, 'rank_{}_feature_{}.png'.format(rank, feature_name)))
+        plt.close()
 
