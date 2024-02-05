@@ -188,6 +188,21 @@ fig.savefig(fname=os.path.join(qc_control_metrics_dir, "figures/log2_avgs.png"),
 
 
 # Image processing
+## show a run with images stitched in acquisition order pre- and post-normalization
+acquisition_order_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "acquisition_order")
+if not os.path.exists(acquisition_order_viz_dir):
+    os.makedirs(acquisition_order_viz_dir)
+
+run_name = "2022-01-14_TONIC_TMA2_run1"
+pre_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/rosetta"
+post_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/normalized"
+save_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
+
+# NOTE: image not scaled up, this happens in Photoshop
+supplementary_plot_helpers.stitch_before_after_norm(
+    pre_norm_dir, post_norm_dir, acquisition_order_viz_dir, run_name,
+    "H3K9ac", pre_norm_subdir="normalized", padding=0, step=1
+)
 
 
 # Cell identification and classification
