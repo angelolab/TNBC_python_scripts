@@ -145,7 +145,7 @@ print(core_missing)
 harmonized_metadata = core_metadata[['fov', 'Tissue_ID', 'MIBI_data_generated']]
 
 # select and merge relevant columns from timepoints
-harmonized_metadata = pd.merge(harmonized_metadata, timepoint_metadata.loc[:, ['Tissue_ID', 'Patient_ID', 'Timepoint', 'Localization']], on='Tissue_ID', how='left')
+harmonized_metadata = pd.merge(harmonized_metadata, timepoint_metadata.loc[:, ['Tissue_ID', 'Patient_ID', 'Timepoint', 'Localization', 'rna_seq_sample_id']], on='Tissue_ID', how='left')
 assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
 
 # select and merge relevant columns from patients
