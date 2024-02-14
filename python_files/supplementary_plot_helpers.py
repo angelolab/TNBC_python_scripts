@@ -427,6 +427,6 @@ def visualize_occupancy_statistics(
 
     # save the figure to save_dir
     fig.savefig(
-        pathlib.Path(save_dir) / f"occupancy_stats_ts{tiles_per_row_col}_pt{positive_threshold}.png"
+        pathlib.Path(save_dir) / f"occupancy_stats_{tiles_per_row_col}_{positive_threshold}.png",
         dpi=300
     )
