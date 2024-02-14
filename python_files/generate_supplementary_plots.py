@@ -297,7 +297,7 @@ cohort_cluster_plot(
 cell_table = pd.read_csv(
     os.path.join(ANALYSIS_DIR, "combined_cell_table_normalized_cell_labels_updated.csv")
 )
-functional_marker_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "functional_marker_dist_thresholds_test")
+functional_marker_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "functional_marker_dist_thresholds")
 if not os.path.exists(functional_marker_viz_dir):
     os.makedirs(functional_marker_viz_dir)
 
@@ -431,3 +431,19 @@ supplementary_plot_helpers.functional_marker_thresholding(
 # Feature extraction
 
 
+# Occupancy statistics
+# TODO: make a constant in supplementary_plot_helpers
+cell_table = pd.read_csv(
+    os.path.join(ANALYSIS_DIR, "combined_cell_table_normalized_cell_labels_updated.csv")
+)
+occupancy_stats_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "occupancy_stats")
+if not os.path.exists(occupancy_stats_viz_dir):
+    os.makedirs(occupancy_stats_viz_dir)
+
+# massive GridSearch
+for tiles_per_row_col in [2, 4, 8, 16, 32, 64, 128]:
+    for positive_threshold in np.arange(1, 26):
+        supplementary_plot_helpers.visualize_occupancy_statistics(
+            cell_table, occupancy_stats_viz_dir, tiles_per_row_col=tiles_per_row_col,
+            positive_threshold=positive_threshold,
+        )
