@@ -410,7 +410,7 @@ def visualize_occupancy_statistics(
         aspect="auto",
         origin="lower"
     )
-    for x, y in itertools.pairwise(occupancy_stats_positivity.tile_row.values)
+    for x, y in itertools.pairwise(occupancy_stats_positivity.tile_row.values):
         axs[1].text(y, x, f"R{x}C{y}", ha="center", va="center", color="black")
     fig.colorbar(c_positivity, ax=axs[1])
 
@@ -421,7 +421,7 @@ def visualize_occupancy_statistics(
         cmap=cmap_counts,
         aspect="auto"
     )
-    for x, y in itertools.pairwise(occupancy_stats.tile_row.values)
+    for x, y in itertools.pairwise(occupancy_stats.tile_row.values):
         axs[2].text(y, x, f"R{x}C{y}", ha="center", va="center", color="black")
     fig.colorbar(c_positivity, ax=axs[2])
 
