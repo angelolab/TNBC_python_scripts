@@ -343,7 +343,7 @@ def stitch_before_after_norm(
 
 # occupancy statistic helpers
 def visualize_occupancy_statistics(
-    cell_table: pd.DataFrame, save_dir: Union[str, pathlib.Path]max_image_size: int = 2048,
+    cell_table: pd.DataFrame, save_dir: Union[str, pathlib.Path], max_image_size: int = 2048,
     tiles_per_row_col: int = 8, positive_threshold: int = 5
 ):
     """Define occupancy statistics over a cohort, and visualize distribution of positive
