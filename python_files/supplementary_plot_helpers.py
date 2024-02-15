@@ -344,7 +344,7 @@ def stitch_before_after_norm(
 # occupancy statistic helpers
 def visualize_occupancy_statistics(
     cell_table: pd.DataFrame, save_dir: Union[str, pathlib.Path], max_image_size: int = 2048,
-    tiles_per_row_col: int = 8, positive_threshold: int = 5
+    tiles_per_row_col: int = 8, positive_threshold: int = 20
 ):
     """Define occupancy statistics over a cohort, and visualize distribution of positive
     tile counts across FOV.
@@ -367,32 +367,34 @@ def visualize_occupancy_statistics(
     # define the tile size in pixels
     tile_size: int = max_image_size // tiles_per_row_col
 
+    cell_table["tile_row"] = (cell_table["centroid-1"] // tile_size).astype(int)
+    cell_table["tile_col"] = (cell_table["centroid-0"] // tile_size).astype(int)
+
+    # Group by FOV and tile positions, then count occupancy
+    occupancy_counts: pd.DataFrame = cell_table.groupby(
+        ["fov", "tile_row", "tile_col"]
+    ).size().reset_index(name="occupancy")
+
     # define the occupancy_stats array
-    occupancy_stats: xr.DataArray = xr.DataArray(
-        np.zeros((len(fov_names), tile_size, tile_size), dtype=np.int16),
-        coords=[fov_names, np.zeros(tile_size), np.zeros(tile_size)],
+    occupancy_stats = xr.DataArray(
+        np.zeros((len(fov_names), tiles_per_row_col, tiles_per_row_col), dtype=np.int16),
+        coords=[fov_names, np.arange(tiles_per_row_col), np.arange(tiles_per_row_col)],
         dims=["fov", "x", "y"]
     )
 
-    # for each FOV, update the corresponding tile count
-    for fov in fov_names:
-        cell_table_fov: pd.DataFrame = cell_table[cell_table["fov"] == fov].copy()
-        cell_table_fov["tile_row"] = cell_table_fov["centroid-1"] // tile_size
-        cell_table_row["tile_col"] = cell_table_fov["centroid-0"] // tile_size
-        fov_occupancy_table: pd.DataFrame = cell_table_fov.groupby(
-            ["tile_row", "tile_col"]
-        ).size().reset_index(name="occupancy")
-        occupancy_stats.loc[
-            fov, fov_occupancy_table["tile_row"].values, fov_occupancy_table["tile_col"].values
-        ] += fov_occupancy_table["occupancy"].values
+    # Update the DataArray based on occupancy_counts without explicit Python loops
+    for index, row in occupancy_counts.iterrows():
+        occupancy_stats.loc[row["fov"], row["tile_row"], row["tile_col"]] = row["occupancy"]
 
     # define the tiles that are positive based on threshold
     occupancy_stats_positivity: xr.DataArray = occupancy_stats > positive_threshold
 
     # count number of positive tiles per FOV
-    fov_positive_tiles: Dict[str, int] = occupancy_stats_positivity.sum(
-        dim=["tile_row", "tile_col"]
-    ).to_dict()["data"]
+    fov_positive_tiles: xr.DataArray = occupancy_stats_positivity.sum(dim=["x", "y"])
+    print(fov_positive_tiles)
+    fov_positive_tile_counts: Dict[str, int] = dict(
+        zip(fov_positive_tiles.fov.values, fov_positive_tiles.values)
+    )
 
     # 1. visualize histogram of positive tile counts across cohort
     fig, axs = plt.subplots(
@@ -400,7 +402,9 @@ def visualize_occupancy_statistics(
         1,
         figsize=(10, 10)
     )
-    axs[0].hist(list(fov_positive_tiles.values()))
+    print(list(fov_positive_tile_counts.values()))
+    axs[0].hist(list(fov_positive_tile_counts.values()))
+    axs[0].set_title("Distribution of tile positivity")
 
     # 2. visualize heatmap of average positivity of tiles across FOVs
     cmap_positivity = mcolors.LinearSegmentedColormap.from_list("", ["white", "red"])
@@ -408,22 +412,33 @@ def visualize_occupancy_statistics(
         occupancy_stats_positivity.mean(dim="fov").values,
         cmap=cmap_positivity,
         aspect="auto",
-        origin="lower"
+        vmin=0,
+        vmax=1
     )
-    for x, y in itertools.pairwise(occupancy_stats_positivity.tile_row.values):
-        axs[1].text(y, x, f"R{x}C{y}", ha="center", va="center", color="black")
-    fig.colorbar(c_positivity, ax=axs[1])
+    axs[1].set_xticks([])
+    axs[1].set_yticks([])
+    axs[1].set_title("Mean positivity per tile")
+    fig.colorbar(c_positivity, ax=axs[1], ticks=[0, 0.25, 0.5, 0.75, 1])
 
     # 3. visualize heatmap of average number of counts across FOVs
     cmap_counts = mcolors.LinearSegmentedColormap.from_list("", ["white", "red"])
+    max_occupancy_stat = np.round(np.max(occupancy_stats.mean(dim="fov").values), 2)
     c_counts = axs[2].imshow(
         occupancy_stats.mean(dim="fov").values,
         cmap=cmap_counts,
-        aspect="auto"
+        aspect="auto",
+        vmin=0,
+        vmax=max_occupancy_stat
     )
-    for x, y in itertools.pairwise(occupancy_stats.tile_row.values):
-        axs[2].text(y, x, f"R{x}C{y}", ha="center", va="center", color="black")
-    fig.colorbar(c_positivity, ax=axs[2])
+    axs[2].set_xticks([])
+    axs[2].set_yticks([])
+    axs[2].set_title("Mean num cells per tile")
+    fig.colorbar(c_counts, ax=axs[2], ticks=np.round(np.linspace(0, max_occupancy_stat, 4), 2))
+
+    fig.suptitle(
+        f"Stats for # tiles: {tiles_per_row_col}, positive threshold: {positive_threshold}",
+        fontsize=24
+    )
 
     # save the figure to save_dir
     fig.savefig(
