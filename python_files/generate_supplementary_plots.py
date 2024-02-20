@@ -259,11 +259,15 @@ for metric in ['Localization', 'Timepoint']:
         dfs.append(sub_df)
     prop_data = pd.concat(dfs).transform(func=lambda row: row / row.sum(), axis=1)
 
-    color_map = {'cell_cluster_broad': ['Cancer', 'Stroma', 'Mono_Mac', 'T', 'Other', 'Granulocyte', 'NK', 'B'],
-                 'color': ['dimgrey', 'darksalmon', 'red', 'navajowhite',  'yellowgreen', 'aqua', 'dodgerblue', 'darkviolet']}
-    prop_data = prop_data[color_map['cell_cluster_broad']]
+    color_map = {'Cancer': 'dimgrey', 'Stroma': 'darksalmon', 'T': 'navajowhite',
+                 'Mono_Mac': 'red', 'B': 'darkviolet', 'Other': 'yellowgreen',
+                 'Granulocyte': 'aqua', 'NK': 'dodgerblue'}
 
-    colors = color_map['color']
+    means = prop_data.mean(axis=0).reset_index()
+    means = means.sort_values(by=[0], ascending=False)
+    prop_data = prop_data[means.cell_cluster_broad]
+
+    colors = [color_map[cluster] for cluster in means.cell_cluster_broad]
     prop_data.plot(kind='bar', stacked=True, color=colors)
     sns.despine()
     plt.ticklabel_format(style='plain', useOffset=False, axis='y')
@@ -272,7 +276,9 @@ for metric in ['Localization', 'Timepoint']:
     plt.gca().set_xlabel(xlabel)
     plt.xticks(rotation=30)
     plt.title(f"Cell Type Composition by {xlabel}")
-    plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+    handles, labels = plt.gca().get_legend_handles_labels()
+    plt.legend(handles[::-1], labels[::-1],
+               bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0)
     plt.tight_layout()
     plot_name = "cell_props_by_tissue_loc.png" if metric == 'Localization' else "cell_props_by_timepoint.png"
     plt.savefig(os.path.join(save_dir, plot_name), dpi=300)
