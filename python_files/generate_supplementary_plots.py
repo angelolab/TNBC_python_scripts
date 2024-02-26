@@ -234,42 +234,54 @@ plt.xlabel("Number of Cells in an Image")
 plt.tight_layout()
 plt.savefig(os.path.join(save_dir, "cells_per_fov.png"), dpi=300)
 
-## cell type composition by tissue location of met
+## cell type composition by tissue location of met and timepoint
 meta_data = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/harmonized_metadata.csv')
 meta_data = meta_data[['fov', 'Patient_ID', 'Timepoint', 'Localization']]
 
 all_data = cell_table.merge(meta_data, on=['fov'], how='left')
-base_data = all_data[all_data.Timepoint == 'baseline']
 
-all_locals = np.unique(base_data.Localization)
-dfs = []
-for region in all_locals:
-    localization_data = base_data[base_data.Localization == region]
+for metric in ['Localization', 'Timepoint']:
+    data = all_data[all_data.Timepoint == 'baseline'] if metric == 'Localization' else all_data
 
-    df = localization_data.groupby("cell_cluster_broad").count().reset_index()
-    df = df.set_index('cell_cluster_broad').transpose()
-    sub_df = df.iloc[:1].reset_index(drop=True)
-    sub_df.insert(0, "Localization", [region])
-    sub_df['Localization'] = sub_df['Localization'].map(str)
-    sub_df = sub_df.set_index('Localization')
+    groups = np.unique(data.Localization) if metric == 'Localization' else \
+        ['primary', 'baseline', 'post_induction', 'on_nivo']
+    dfs = []
+    for group in groups:
+        sub_data = data[data[metric] == group]
 
-    dfs.append(sub_df)
-prop_data = pd.concat(dfs).transform(func=lambda row: row / row.sum(), axis=1)
+        df = sub_data.groupby("cell_cluster_broad").count().reset_index()
+        df = df.set_index('cell_cluster_broad').transpose()
+        sub_df = df.iloc[:1].reset_index(drop=True)
+        sub_df.insert(0, metric, [group])
+        sub_df[metric] = sub_df[metric].map(str)
+        sub_df = sub_df.set_index(metric)
 
-color_map = {'cell_cluster_broad': ['Cancer', 'Stroma', 'Mono_Mac', 'T','Other', 'Granulocyte', 'NK', 'B'],
-             'color': ['dimgrey', 'darksalmon', 'red', 'navajowhite',  'yellowgreen', 'aqua', 'dodgerblue', 'darkviolet']}
-prop_data = prop_data[color_map['cell_cluster_broad']]
+        dfs.append(sub_df)
+    prop_data = pd.concat(dfs).transform(func=lambda row: row / row.sum(), axis=1)
 
-colors = color_map['color']
-prop_data.plot(kind='bar', stacked=True, color=colors)
-plt.ticklabel_format(style='plain', useOffset=False, axis='y')
-plt.gca().set_ylabel("Cell Proportions")
-plt.gca().set_xlabel("Tissue Location")
-plt.xticks(rotation=30)
-plt.title("Cell Type Composition by Tissue Location")
-plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
-plt.tight_layout()
-plt.savefig(os.path.join(save_dir, "cell_props_by_tissue_loc.png"), dpi=300)
+    color_map = {'Cancer': 'dimgrey', 'Stroma': 'darksalmon', 'T': 'navajowhite',
+                 'Mono_Mac': 'red', 'B': 'darkviolet', 'Other': 'yellowgreen',
+                 'Granulocyte': 'aqua', 'NK': 'dodgerblue'}
+
+    means = prop_data.mean(axis=0).reset_index()
+    means = means.sort_values(by=[0], ascending=False)
+    prop_data = prop_data[means.cell_cluster_broad]
+
+    colors = [color_map[cluster] for cluster in means.cell_cluster_broad]
+    prop_data.plot(kind='bar', stacked=True, color=colors)
+    sns.despine()
+    plt.ticklabel_format(style='plain', useOffset=False, axis='y')
+    plt.gca().set_ylabel("Cell Proportions")
+    xlabel = "Tissue Location" if metric == 'Localization' else "Timepoint"
+    plt.gca().set_xlabel(xlabel)
+    plt.xticks(rotation=30)
+    plt.title(f"Cell Type Composition by {xlabel}")
+    handles, labels = plt.gca().get_legend_handles_labels()
+    plt.legend(handles[::-1], labels[::-1],
+               bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0)
+    plt.tight_layout()
+    plot_name = "cell_props_by_tissue_loc.png" if metric == 'Localization' else "cell_props_by_timepoint.png"
+    plt.savefig(os.path.join(save_dir, plot_name), dpi=300)
 
 ## colored cell cluster masks from random subset of 20 FOVs
 random.seed(13)
