@@ -445,8 +445,8 @@ if not os.path.exists(occupancy_stats_viz_dir):
 # )
 
 # massive GridSearch
-for tiles_per_row_col in [32, 64, 128, 256, 512]:
-    for positive_threshold in [1, 2, 5, 10]:
+for tiles_per_row_col in [4, 8, 16]:
+    for positive_threshold in [10, 25, 50, 100, 200, 500]:
         supplementary_plot_helpers.visualize_occupancy_statistics(
             cell_table, occupancy_stats_viz_dir, tiles_per_row_col=tiles_per_row_col,
             positive_threshold=positive_threshold,

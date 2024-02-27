@@ -391,7 +391,6 @@ def visualize_occupancy_statistics(
 
     # count number of positive tiles per FOV
     fov_positive_tiles: xr.DataArray = occupancy_stats_positivity.sum(dim=["x", "y"])
-    print(fov_positive_tiles)
     fov_positive_tile_counts: Dict[str, int] = dict(
         zip(fov_positive_tiles.fov.values, fov_positive_tiles.values)
     )
