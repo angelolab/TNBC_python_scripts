@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import matplotlib
 from ark.utils.plot_utils import cohort_cluster_plot
-from toffy import qc_comp, qc_metrics_plots
+# from toffy import qc_comp, qc_metrics_plots
 from alpineer import io_utils
 
 
@@ -25,6 +25,29 @@ SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementa
 
 
 # Panel validation
+panel_validation_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "panel_validation")
+if not os.path.exists(panel_validation_viz_dir):
+    os.makedirs(panel_validation_viz_dir)
+
+controls_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/controls"
+controls_fov = "TONIC_TMA1_colon_bottom"
+supplementary_plot_helpers.validate_panel(
+    controls_dir, controls_fov, panel_validation_viz_dir, font_size=180
+)
+
+samples_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"
+samples_fov = "TONIC_TMA2_R5C4"
+samples_channels = sorted(io_utils.remove_file_extensions(
+    io_utils.list_files(os.path.join(samples_dir, samples_fov), substrs=".tiff")
+))
+exclude_chans = ["CD11c_nuc_exclude", "CK17_smoothed", "ECAD_smoothed", "FOXP3_nuc_include",
+                 "chan_39", "chan_45", "chan_48", "chan_115", "chan_141"]
+for ec in exclude_chans:
+    if ec in samples_channels:
+        samples_channels.remove(ec)
+supplementary_plot_helpers.validate_panel(
+    samples_dir, samples_fov, panel_validation_viz_dir, channels=samples_channels, font_size=320
+)
 
 
 # ROI selection
