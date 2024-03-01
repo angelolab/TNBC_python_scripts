@@ -8,6 +8,7 @@ import matplotlib
 from ark.utils.plot_utils import cohort_cluster_plot
 # from toffy import qc_comp, qc_metrics_plots
 from alpineer import io_utils
+from alpineer.load_utils import load_imgs_from_tree
 
 
 matplotlib.rcParams['pdf.fonttype'] = 42
@@ -21,6 +22,7 @@ from matplotlib.colors import ListedColormap, Normalize
 import supplementary_plot_helpers
 
 ANALYSIS_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files"
+IMAGE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"
 SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
 
 
@@ -436,19 +438,56 @@ SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementa
 cell_table = pd.read_csv(
     os.path.join(ANALYSIS_DIR, "combined_cell_table_normalized_cell_labels_updated.csv")
 )
+
 occupancy_stats_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "occupancy_stats")
 if not os.path.exists(occupancy_stats_viz_dir):
     os.makedirs(occupancy_stats_viz_dir)
 
-# supplementary_plot_helpers.visualize_occupancy_statistics(
-#     cell_table, occupancy_stats_viz_dir
-# )
+# because not all of the images are of the same size, make sure to append that as a feature
+# NOTE: this is expensive to create, load in a previously-generated version if it exists
+if os.path.exists(os.path.join(occupancy_stats_viz_dir, "cell_table_with_pixel_size.csv")):
+    cell_table = pd.read_csv(
+        os.path.join(occupancy_stats_viz_dir, "cell_table_with_pixel_size.csv")
+    )
+else:
+    cell_table = pd.read_csv(
+        os.path.join(ANALYSIS_DIR, "combined_cell_table_normalized_cell_labels_updated.csv")
+    )
+    fov_sizes = {
+        fov: load_imgs_from_tree(
+            IMAGE_DIR, img_sub_folder=None, fovs=[fov], channels=["CD20"]
+        ).shape[1]
+        for fov in list(cell_table["fov"].unique())
+    }
+    fov_sizes = pd.DataFrame(
+        {"fov": list(fov_sizes.keys()), "fov_pixel_size": list(fov_sizes.values())}
+    )
+
+    cell_table = cell_table.merge(fov_sizes, on="fov")
+    cell_table.to_csv(
+        os.path.join(occupancy_stats_viz_dir, "cell_table_with_pixel_size.csv"),
+        index=False
+    )
 
 # massive GridSearch
+total_occupancy_stats_df = pd.DataFrame()
 for tiles_per_row_col in [4, 8, 16]:
-    for positive_threshold in [10, 25, 50, 100, 200, 500]:
-        supplementary_plot_helpers.visualize_occupancy_statistics(
-            cell_table, occupancy_stats_viz_dir, tiles_per_row_col=tiles_per_row_col,
-            positive_threshold=positive_threshold,
+    for positive_threshold in [5, 10, 15, 20]:
+        occupancy_stats = supplementary_plot_helpers.compute_occupancy_statistics(
+            cell_table, pop_subset=["CD4T", "CD8T", "Treg", "T_Other"],
+            tiles_per_row_col=tiles_per_row_col, positive_threshold=positive_threshold
         )
-        print(f"Generated plot for # tiles {tiles_per_row_col} and threshold {positive_threshold}")
+        occupancy_stats_df = pd.DataFrame(
+            {
+                "fov": list(occupancy_stats.keys()),
+                "percent_positive_tiles": list(occupancy_stats.values())
+            }
+        )
+        occupancy_stats_df["num_tiles"] = tiles_per_row_col ** 2
+        occupancy_stats_df["positive_threshold"] = positive_threshold
+
+        total_occupancy_stats_df = pd.concat([total_occupancy_stats_df, occupancy_stats_df])
+
+total_occupancy_stats_df.to_csv(
+    os.path.join(occupancy_stats_viz_dir, "occupancy_stats_trials_t_cells_updated.csv"), index=False
+)
