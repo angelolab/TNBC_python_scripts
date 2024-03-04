@@ -486,4 +486,8 @@ def generate_patient_paired_timepoints(
                     patient_id, f"{tp[0]} to {tp[1]} difference"
                 ] = col_difference
 
+    # add patient ID as a column, and reindex just for consistency
+    timepoint_comparisons["Patient_ID"] = timepoint_comparisons.index.values
+    timepoint_comparisons = timepoint_comparisons.reset_index(drop=True)
+
     return timepoint_comparisons
