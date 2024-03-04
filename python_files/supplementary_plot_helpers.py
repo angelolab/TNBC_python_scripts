@@ -434,7 +434,6 @@ def generate_patient_paired_timepoints(
     """
     # define each timepoint pair to work with
     timepoint_pairs = list(pairwise(TIMEPOINT_INDICES))
-    print(timepoint_pairs)
 
     # define a DataFrame that contains each patient and corresponding timepoint difference columns
     timepoint_comparisons = pd.DataFrame(
