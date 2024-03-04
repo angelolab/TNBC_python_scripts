@@ -481,5 +481,5 @@ patient_paired_comparisons = supplementary_plot_helpers.generate_patient_paired_
 )
 
 patient_paired_comparisons.to_csv(
-    os.path.join(paired_timepoint_data_dir, "paired_timepoint_data.csv", index=False)
+    os.path.join(paired_timepoint_data_dir, "paired_timepoint_data.csv"), index=False
 )
