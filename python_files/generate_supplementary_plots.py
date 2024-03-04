@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import matplotlib
 from ark.utils.plot_utils import cohort_cluster_plot
-# from toffy import qc_comp, qc_metrics_plots
+from toffy import qc_comp, qc_metrics_plots
 from alpineer import io_utils
 
 
@@ -21,6 +21,7 @@ from matplotlib.colors import ListedColormap, Normalize
 import supplementary_plot_helpers
 
 ANALYSIS_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files"
+METADATA_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/metadata"
 SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
 
 
@@ -466,3 +467,19 @@ supplementary_plot_helpers.functional_marker_thresholding(
 # Feature extraction
 
 
+
+# Paired Timepoint Divergence
+paired_timepoint_data_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "paired_timepoint_comparisons")
+if not os.path.exists(paired_timepoint_data_dir):
+    os.makedirs(paired_timepoint_data_dir)
+
+harmonized_metadata_df = pd.read_csv(os.path.join(METADATA_DIR, "harmonized_metadata.csv"))
+timepoint_df = pd.read_csv(os.path.join(ANALYSIS_DIR, "timepoint_features.csv"))
+
+patient_paired_comparisons = supplementary_plot_helpers.generate_patient_paired_timepoints(
+    harmonized_metadata_df, timepoint_df
+)
+
+patient_paired_comparisons.to_csv(
+    os.path.join(paired_timepoint_data_dir, "paired_timepoint_data.csv", index=False)
+)
