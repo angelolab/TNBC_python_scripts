@@ -10,7 +10,7 @@ import warnings
 
 from itertools import pairwise
 from PIL import Image, ImageDraw, ImageFont
-from typing import Dict, List, Optional, Tuple, TypedDict, Union
+from typing import Callable, Dict, List, Optional, Tuple, TypedDict, Union
 
 from alpineer.io_utils import list_folders, list_files, remove_file_extensions, validate_paths
 from alpineer.load_utils import load_imgs_from_tree
@@ -411,11 +411,28 @@ def stitch_before_after_norm(
     post_norm_tiled.save(post_norm_stitched_path)
 
 
+def euclidean_timepoint(tp_one_data: pd.Series, tp_two_data: pd.Series) -> float:
+    """Compute the Euclidean distance between two timepoint data
+
+    Args:
+        tp_one_data (pd.Series):
+            The data for the first timepoint
+        tp_two_data (pd.Series):
+            The data for the second timepoint
+
+    Returns:
+        float:
+            The Euclidean distance between the two timepoint datapoints
+    """
+    return np.abs(tp_two_data - tp_one_data).mean()
+
+
 def generate_patient_paired_timepoints(
-    harmonized_metadata: pd.DataFrame, timepoint_df: pd.DataFrame, tissue_id_col: str = "Tissue_ID",
+    harmonized_metadata: pd.DataFrame, timepoint_df: pd.DataFrame,
+    distance_metric: Callable[[pd.Series, pd.Series], float], tissue_id_col: str = "Tissue_ID",
     patient_id_col: str = "Patient_ID", timepoint_col: str = "Timepoint",
     feature_to_pair_by: str = "normalized_mean"
-):
+) -> pd.DataFrame:
     """For each patient, generate the paired comparisons between different timepoints.
 
     Args:
@@ -423,6 +440,8 @@ def generate_patient_paired_timepoints(
             Maps each FOV and Tissue ID to the corresponding patient and timepoint
         timepoint_df (pd.DataFrame):
             Maps the features measured for each Tissue ID
+        distance_metric: Callable[[pd.Series, pd.Series], float]:
+            A custom distance metric used to compute the distance between timepoint data
         tissue_id_col (str):
             The column to index into the tissue ID
         patient_id_col (str):
@@ -431,6 +450,8 @@ def generate_patient_paired_timepoints(
             The column containing the timepoint value
         feature_to_pair_by (str):
             The feature to generate paired distances for
+        distance_metric (str):
+            The distance metric to use
     """
     # define each timepoint pair to work with
     timepoint_pairs = list(pairwise(TIMEPOINT_INDICES))
@@ -479,9 +500,9 @@ def generate_patient_paired_timepoints(
         # if a specific timepoint pair exists, then compute the mean difference across all features
         for tp in timepoint_pairs:
             if tp[0] in wide_timepoint.columns.values and tp[1] in wide_timepoint.columns.values:
-                col_difference = np.abs(
-                    wide_timepoint.loc[:, tp[1]] - wide_timepoint.loc[:, tp[0]]
-                ).mean()
+                col_difference = distance_metric(
+                    wide_timepoint.loc[:, tp[0]], wide_timepoint.loc[:, tp[1]]
+                )
                 timepoint_comparisons.loc[
                     patient_id, f"{tp[0]} to {tp[1]} difference"
                 ] = col_difference

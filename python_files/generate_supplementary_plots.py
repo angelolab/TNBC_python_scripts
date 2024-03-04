@@ -477,7 +477,8 @@ harmonized_metadata_df = pd.read_csv(os.path.join(METADATA_DIR, "harmonized_meta
 timepoint_df = pd.read_csv(os.path.join(ANALYSIS_DIR, "timepoint_features.csv"))
 
 patient_paired_comparisons = supplementary_plot_helpers.generate_patient_paired_timepoints(
-    harmonized_metadata_df, timepoint_df
+    harmonized_metadata_df, timepoint_df,
+    distance_metric=supplementary_plot_helpers.euclidean_timepoint
 )
 
 patient_paired_comparisons.to_csv(
