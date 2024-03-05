@@ -489,5 +489,5 @@ for tiles_per_row_col in [4, 8, 16]:
         total_occupancy_stats_df = pd.concat([total_occupancy_stats_df, occupancy_stats_df])
 
 total_occupancy_stats_df.to_csv(
-    os.path.join(occupancy_stats_viz_dir, "occupancy_stats_trials_t_cells_updated.csv"), index=False
+    os.path.join(occupancy_stats_viz_dir, "occupancy_stats_trials_t_cells.csv"), index=False
 )
