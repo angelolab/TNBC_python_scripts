@@ -450,8 +450,6 @@ def generate_patient_paired_timepoints(
             The column containing the timepoint value
         feature_to_pair_by (str):
             The feature to generate paired distances for
-        distance_metric (str):
-            The distance metric to use
     """
     # define each timepoint pair to work with
     timepoint_pairs = list(pairwise(TIMEPOINT_INDICES))
