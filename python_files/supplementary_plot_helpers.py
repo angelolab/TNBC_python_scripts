@@ -15,7 +15,7 @@ from alpineer.load_utils import load_imgs_from_tree
 from alpineer.misc_utils import verify_in_list
 
 
-ACQUISITION_ORDER_INDICES = [
+ACQUISITION_ORDER_INDICES_NORM = [
     11, 12, 13, 14, 15, 17, 18, 20, 22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 35,
     36, 39, 40, 41, 42, 43, 44, 45, 46, 47
 ]
@@ -322,6 +322,102 @@ def functional_marker_thresholding(
 
 
 # acquisition order helpers
+def stitch_before_after_rosetta(
+    pre_rosetta_dir: Union[str, pathlib.Path], post_rosetta_dir: Union[str, pathlib.Path],
+    save_dir: Union[str, pathlib.Path],
+    run_name: str, channel: str, pre_rosetta_subdir: str = "", post_rosetta_subdir: str = "",
+    padding: int = 25, font_size: int = 100, step: int = 1
+):
+    """Generates two stitched images: before and after Rosetta
+
+    pre_rosetta_dir (Union[str, pathlib.Path]):
+        The directory containing the run data before Rosetta
+    post_rosetta_dir (Union[str, pathlib.Path]):
+        The directory containing the run data after Rosetta
+    save_dir (Union[str, pathlib.Path]):
+        The directory to save both the pre- and post-Rosetta tiled images
+    run_name (str):
+        The name of the run to tile, should be present in both pre_rosetta_dir and post_rosetta_dir
+    channel (str):
+        The name of the channel to tile inside run_name
+    pre_rosetta_subdir (str):
+        If applicable, the name of the subdirectory inside each FOV folder of the pre-Rosetta data
+    post_rosetta_subdir (str):
+        If applicable, the name of the subdirectory inside each FOV folder of the post-Rosetta data
+    padding (int):
+        Amount of padding to add around each channel in the stitched image
+    font_size (int):
+        The font size to use for annotations
+    step (int):
+        The step size to use before adding an image to the tile
+    """
+    # verify that the run_name specified appears in both pre and post norm folders
+    all_pre_rosetta_runs: List[str] = list_folders(pre_rosetta_dir)
+    all_post_rosetta_runs: List[str] = list_folders(post_rosetta_dir)
+    verify_in_list(
+        specified_run=run_name,
+        all_pre_norm_runs=all_pre_rosetta_runs
+    )
+    verify_in_list(
+        specified_run=run_name,
+        all_post_norm_runs=all_post_rosetta_runs
+    )
+
+    # verify save_dir is valid before defining the save paths
+    validate_paths([save_dir])
+    noodle_stitched_path: pathlib.Path = \
+        pathlib.Path(save_dir) / f"{run_name}_noodle_stitched.tiff"
+    pre_rosetta_stitched_path: pathlib.Path = \
+        pathlib.Path(save_dir) / f"{run_name}_{channel}_pre_rosetta_stitched.tiff"
+    post_rosetta_stitched_path: pathlib.Path = \
+        pathlib.Path(save_dir) / f"{run_name}_{channel}_post_rosetta_stitched.tiff"
+
+    pre_rosetta_run_path: pathlib.Path = pathlib.Path(pre_rosetta_dir) / run_name
+    post_rosetta_run_path: pathlib.Path = pathlib.Path(post_rosetta_dir) / run_name
+
+    # get all the FOVs in natsorted order
+    # NOTE: assumed that the FOVs are the same pre and post, since the run names are the same
+    all_fovs: List[str] = ns.natsorted(list_folders(pre_rosetta_run_path))
+
+    # load pre- and post-Rosetta data in acquisition order, drop channel axis as it's 1-D
+    noodle_data: xr.DataArray = load_imgs_from_tree(
+        data_dir=pre_rosetta_run_path, fovs=all_fovs, channels=["Noodle"],
+        img_sub_folder=pre_rosetta_subdir, max_image_size=2048
+    )[..., 0]
+    pre_rosetta_data: xr.DataArray = load_imgs_from_tree(
+        data_dir=pre_rosetta_run_path, fovs=all_fovs, channels=[channel],
+        img_sub_folder=pre_rosetta_subdir, max_image_size=2048
+    )[..., 0]
+    post_rosetta_data: xr.DataArray = load_imgs_from_tree(
+        data_dir=post_rosetta_run_path, fovs=all_fovs, channels=[channel],
+        img_sub_folder=post_rosetta_subdir, max_image_size=2048
+    )[..., 0]
+
+    # pre_rosetta_data = pre_norm_data[ACQUISITION_ORDER_INDICES, ...]
+    # post_rosetta_data = post_norm_data[ACQUISITION_ORDER_INDICES, ...]
+
+    # reassign coordinate with FOV names that don't contain "-scan-1" or additional dashes
+    fovs_condensed: np.ndarray = np.array([f"FOV{af.split('-')[1]}" for af in all_fovs])
+    # fovs_condensed = fovs_condensed[ACQUISITION_ORDER_INDICES]
+    pre_rosetta_data = pre_rosetta_data.assign_coords({"fovs": fovs_condensed})
+    post_rosetta_data = post_rosetta_data.assign_coords({"fovs": fovs_condensed})
+
+    # generate and save the pre- and post-Rosetta tiled images
+    noodle_tiled: Image = stitch_and_annotate_padded_img(
+        noodle_data, padding, font_size, step=step
+    )
+    pre_rosetta_tiled: Image = stitch_and_annotate_padded_img(
+        pre_rosetta_data, padding, font_size, step=step
+    )
+    post_rosetta_tiled: Image = stitch_and_annotate_padded_img(
+        post_rosetta_data, padding, font_size, step=step
+    )
+
+    noodle_tiled.save(noodle_stitched_path)
+    pre_rosetta_tiled.save(pre_rosetta_stitched_path)
+    post_rosetta_tiled.save(post_rosetta_stitched_path)
+
+
 def stitch_before_after_norm(
     pre_norm_dir: Union[str, pathlib.Path], post_norm_dir: Union[str, pathlib.Path],
     save_dir: Union[str, pathlib.Path],
@@ -387,12 +483,12 @@ def stitch_before_after_norm(
         img_sub_folder=post_norm_subdir, max_image_size=2048
     )[..., 0]
 
-    pre_norm_data = pre_norm_data[ACQUISITION_ORDER_INDICES, ...]
-    post_norm_data = post_norm_data[ACQUISITION_ORDER_INDICES, ...]
+    pre_norm_data = pre_norm_data[ACQUISITION_ORDER_INDICES_NORM, ...]
+    post_norm_data = post_norm_data[ACQUISITION_ORDER_INDICES_NORM, ...]
 
     # reassign coordinate with FOV names that don't contain "-scan-1" or additional dashes
     fovs_condensed: np.ndarray = np.array([f"FOV{af.split('-')[1]}" for af in all_fovs])
-    fovs_condensed = fovs_condensed[ACQUISITION_ORDER_INDICES]
+    fovs_condensed = fovs_condensed[ACQUISITION_ORDER_INDICES_NORM]
     pre_norm_data = pre_norm_data.assign_coords({"fovs": fovs_condensed})
     post_norm_data = post_norm_data.assign_coords({"fovs": fovs_condensed})
 
