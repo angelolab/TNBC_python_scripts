@@ -238,6 +238,10 @@ cell_table = cell_table.sort_values(by=['cell_cluster'], key=lambda x: x.map(clu
 
 save_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs'
 
+cluster_stats_dir = os.path.join(save_dir, "cluster_stats")
+if not os.path.exists(cluster_stats_dir):
+    os.makedirs(cluster_stats_dir)
+
 ## cell cluster counts
 sns.histplot(data=cell_table, x="cell_cluster")
 sns.despine()
@@ -245,7 +249,7 @@ plt.title("Cell Cluster Counts")
 plt.xlabel("Cell Cluster")
 plt.xticks(rotation=75)
 plt.tight_layout()
-plt.savefig(os.path.join(save_dir, "cells_per_cluster.png"), dpi=300)
+plt.savefig(os.path.join(cluster_stats_dir, "cells_per_cluster.png"), dpi=300)
 
 ## fov cell counts
 cluster_counts = np.unique(cell_table.fov, return_counts=True)[1]
@@ -255,7 +259,7 @@ sns.despine()
 plt.title("Histogram of Cell Counts per Image")
 plt.xlabel("Number of Cells in an Image")
 plt.tight_layout()
-plt.savefig(os.path.join(save_dir, "cells_per_fov.png"), dpi=300)
+plt.savefig(os.path.join(cluster_stats_dir, "cells_per_fov.png"), dpi=300)
 
 ## cell type composition by tissue location of met and timepoint
 meta_data = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/harmonized_metadata.csv')
@@ -304,7 +308,7 @@ for metric in ['Localization', 'Timepoint']:
                bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0)
     plt.tight_layout()
     plot_name = "cell_props_by_tissue_loc.png" if metric == 'Localization' else "cell_props_by_timepoint.png"
-    plt.savefig(os.path.join(save_dir, plot_name), dpi=300)
+    plt.savefig(os.path.join(cluster_stats_dir, plot_name), dpi=300)
 
 ## colored cell cluster masks from random subset of 20 FOVs
 random.seed(13)
