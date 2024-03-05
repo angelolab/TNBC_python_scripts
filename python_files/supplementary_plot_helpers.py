@@ -424,7 +424,7 @@ def euclidean_timepoint(tp_one_data: pd.Series, tp_two_data: pd.Series) -> float
         float:
             The Euclidean distance between the two timepoint datapoints
     """
-    return np.abs(tp_two_data - tp_one_data).mean()
+    return np.sqrt(np.sum(np.power(tp_two_data - tp_one_data, 2)))
 
 
 def generate_patient_paired_timepoints(
