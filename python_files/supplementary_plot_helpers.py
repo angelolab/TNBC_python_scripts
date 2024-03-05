@@ -4,6 +4,7 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import natsort as ns
 import numpy as np
+import os
 import pandas as pd
 import pathlib
 import xarray as xr
@@ -20,6 +21,160 @@ ACQUISITION_ORDER_INDICES = [
     11, 12, 13, 14, 15, 17, 18, 20, 22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 35,
     36, 39, 40, 41, 42, 43, 44, 45, 46, 47
 ]
+
+
+# generate stitching/annotation function, used by panel validation and acquisition order tiling
+def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
+                                   font_size: int = 100, annotate: bool = False,
+                                   step: int = 1):
+    """Stitch an image with (c, x, y) dimensions. If specified, annotate each image with labels
+    contained in the cth dimension.
+
+    Args:
+        image_data (xr.DataArray):
+            The image data to tile, should be 3D
+        padding (int):
+            Amount of padding to add around each channel in the stitched image
+        font_size (int):
+            The font size to use for annotations
+        annotate (bool):
+            Whether to annotate the images with labels in dimension c
+        step (int):
+            The step size to use before adding an image to the tile
+
+    Returns:
+        Image:
+            The PIL image instance which contains the stitched (with padding) and annotated image
+    """
+    # param validation
+    if padding < 0:
+        raise ValueError("padding must be a non-negative integer")
+    if font_size <= 0:
+        raise ValueError("font_size must be a positive integer")
+
+    images_to_select = np.arange(0, image_data.shape[0], step=step)
+    image_data = image_data[images_to_select, ...]
+
+    # define the number of rows and columns
+    num_cols: int = math.isqrt(image_data.shape[0])
+    num_rows: int = math.ceil(image_data.shape[0] / num_cols)
+    row_len: int = image_data.shape[1]
+    col_len: int = image_data.shape[2]
+
+    # create the blank image, start with a fully white slate
+    stitched_image: np.ndarray = np.zeros(
+        (
+            num_rows * row_len + (num_rows - 1) * padding,
+            num_cols * col_len + (num_cols - 1) * padding
+        )
+    )
+    stitched_image.fill(255)
+
+    # retrieve the annotation labels
+    annotation_labels: List[Any] = list(image_data.coords[image_data.dims[0]].values)
+
+    # stitch the channels
+    img_idx: int = 0
+    for row in range(num_rows):
+        for col in range(num_cols):
+            stitched_image[
+                (row * row_len + padding * row) : ((row + 1) * row_len + padding * row),
+                (col * col_len + padding * col) : ((col + 1) * col_len + padding * col)
+            ] = image_data[img_idx, ...]
+            img_idx += 1
+            if img_idx == len(annotation_labels):
+                break
+
+    # define a draw instance for annotating the channel name
+    stitched_image_im: Image = Image.fromarray(stitched_image)
+
+    # annotate with labels in c-axis if arg set
+    if annotate:
+        imdraw: ImageDraw = ImageDraw.Draw(stitched_image_im)
+        imfont: ImageFont = ImageFont.truetype("Arial Unicode.ttf", font_size)
+
+        img_idx = 0
+        fill_value: int = np.max(stitched_image)
+        for row in range(num_rows):
+            for col in range(num_cols):
+                imdraw.text(
+                    (col * col_len + padding * col, row * row_len + padding * row),
+                    annotation_labels[img_idx],
+                    font=imfont,
+                    fill=fill_value
+                )
+                img_idx += 1
+                if img_idx == len(annotation_labels):
+                    break
+
+    return stitched_image_im
+
+
+# panel validation helpers
+def validate_panel(
+    data_dir: Union[str, pathlib.Path], fov: str, save_dir: Union[str, pathlib.Path], 
+    channels: Optional[List[str]] = None, img_sub_folder: str = "", padding: int = 10,
+    font_size: int = 200
+):
+    """Given a FOV in an image folder, stitch and annotate each channel
+
+    Args:
+        data_dir (Union[str, pathlib.Path]):
+            The directory containing the image data for each FOV
+        fov (str):
+            The name of the FOV to stitch
+        save_dir (Union[str, pathlib.Path]):
+            The directory to save the stitched image
+        channels (Optional[List[str]]):
+            The list of channels to tile. If None, uses all.
+        img_sub_folder (str):
+            The sub folder name inside each FOV directory, set to "" if None
+        padding (int):
+            Amount of padding to add around each channel in the stitched image
+        font_size (int):
+            The font size to use for annotations
+    """
+    # verify the FOV is valid
+    all_fovs: List[str] = list_folders(data_dir)
+    verify_in_list(
+        specified_fov=fov,
+        valid_fovs=all_fovs
+    )
+
+    # verify save_dir is valid before defining the save path
+    validate_paths([save_dir])
+    stitched_img_path: pathlib.Path = pathlib.Path(save_dir) / f"{fov}_channels_stitched.tiff"
+
+    # validate the channels provided, or set to all if None
+    all_channels = remove_file_extensions(list_files(os.path.join(data_dir, fov), substrs=".tiff"))
+    if not channels:
+        channels = all_channels
+    verify_in_list(
+        specified_channels=channels,
+        valid_channels=all_channels
+    )
+
+    # sort the channels to ensure they get tiled in alphabetical order, regardless of case
+    channels = sorted(channels, key=str.lower)
+
+    # load the data and get the channel names and image dimensions
+    image_data: xr.DataArray = load_imgs_from_tree(
+        data_dir=data_dir, fovs=[fov], channels=channels, img_sub_folder=img_sub_folder
+    )[0, ...]
+
+    # normalize each channel by their 99.9% value, for clearer visualization
+    image_data = image_data / image_data.quantile(0.999, dim=["rows", "cols"])
+
+    # ensure the channels dimension is the 0th for annotation purposes
+    image_data = image_data.transpose("channels", "rows", "cols")
+
+    # generate the stitched image and save
+    print(f"Font size is: {font_size}")
+    panel_tiled: Image = stitch_and_annotate_padded_img(
+        image_data, padding=padding, font_size=font_size, annotate=True
+    )
+
+    panel_tiled.save(stitched_img_path)
 
 
 # functional marker thresholding helpers
@@ -169,92 +324,6 @@ def functional_marker_thresholding(
 
 
 # acquisition order helpers
-def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
-                                   font_size: int = 100, annotate: bool = False,
-                                   step: int = 1):
-    """Stitch an image with (c, x, y) dimensions. If specified, annotate each image with labels
-    contained in the cth dimension.
-
-    Args:
-        image_data (xr.DataArray):
-            The image data to tile, should be 3D
-        padding (int):
-            Amount of padding to add around each channel in the stitched image
-        font_size (int):
-            The font size to use for annotations
-        annotate (bool):
-            Whether to annotate the images with labels in dimension c
-        step (int):
-            The step size to use before adding an image to the tile
-
-    Returns:
-        Image:
-            The PIL image instance which contains the stitched (with padding) and annotated image
-    """
-    # param validation
-    if padding < 0:
-        raise ValueError("padding must be a non-negative integer")
-    if font_size <= 0:
-        raise ValueError("font_size must be a positive integer")
-
-    images_to_select = np.arange(0, image_data.shape[0], step=step)
-    image_data = image_data[images_to_select, ...]
-
-    # define the number of rows and columns
-    num_cols: int = math.isqrt(image_data.shape[0])
-    num_rows: int = math.ceil(image_data.shape[0] / num_cols)
-    row_len: int = image_data.shape[1]
-    col_len: int = image_data.shape[2]
-
-    # create the blank image, start with a fully white slate
-    stitched_image: np.ndarray = np.zeros(
-        (
-            num_rows * row_len + (num_rows - 1) * padding,
-            num_cols * col_len + (num_cols - 1) * padding
-        )
-    )
-    stitched_image.fill(255)
-
-    # retrieve the annotation labels
-    annotation_labels: List[Any] = list(image_data.coords[image_data.dims[0]].values)
-
-    # stitch the channels
-    img_idx: int = 0
-    for row in range(num_rows):
-        for col in range(num_cols):
-            stitched_image[
-                (row * row_len + padding * row) : ((row + 1) * row_len + padding * row),
-                (col * col_len + padding * col) : ((col + 1) * col_len + padding * col)
-            ] = image_data[img_idx, ...]
-            img_idx += 1
-            if img_idx == len(annotation_labels):
-                break
-
-    # define a draw instance for annotating the channel name
-    stitched_image_im: Image = Image.fromarray(stitched_image)
-
-    # annotate with labels in c-axis if arg set
-    if annotate:
-        imdraw: ImageDraw = ImageDraw.Draw(stitched_image_im)
-        imfont: ImageFont = ImageFont.truetype("Arial Unicode.ttf", 100)
-
-        img_idx = 0
-        fill_value: int = np.max(stitched_image)
-        for row in range(num_rows):
-            for col in range(num_cols):
-                imdraw.text(
-                    (col * col_len + padding * col, row * row_len + padding * row),
-                    annotation_labels[img_idx],
-                    font=imfont,
-                    fill=fill_value
-                )
-                img_idx += 1
-                if img_idx == len(annotation_labels):
-                    break
-
-    return stitched_image_im
-
-
 def stitch_before_after_norm(
     pre_norm_dir: Union[str, pathlib.Path], post_norm_dir: Union[str, pathlib.Path],
     save_dir: Union[str, pathlib.Path],
