@@ -8,7 +8,6 @@ import pathlib
 import xarray as xr
 import warnings
 
-from itertools import pairwise
 from PIL import Image, ImageDraw, ImageFont
 from typing import Callable, Dict, List, Optional, Tuple, TypedDict, Union
 
@@ -22,6 +21,12 @@ ACQUISITION_ORDER_INDICES = [
     36, 39, 40, 41, 42, 43, 44, 45, 46, 47
 ]
 TIMEPOINT_INDICES = ["primary", "baseline", "post_induction", "on_nivo"]
+TIMEPOINT_PAIRS = [
+    ("primary", "baseline"),
+    ("baseline", "post_induction"),
+    ("baseline", "on_nivo"),
+    ("post_induction", "on_nivo")
+]
 
 
 # generate stitching/annotation function, used by panel validation and acquisition order tiling
@@ -451,13 +456,10 @@ def generate_patient_paired_timepoints(
         feature_to_pair_by (str):
             The feature to generate paired distances for
     """
-    # define each timepoint pair to work with
-    timepoint_pairs = list(pairwise(TIMEPOINT_INDICES))
-
     # define a DataFrame that contains each patient and corresponding timepoint difference columns
     timepoint_comparisons = pd.DataFrame(
         index=np.sort(harmonized_metadata[patient_id_col].unique()),
-        columns=[f"{tp[0]} to {tp[1]} difference" for tp in timepoint_pairs]
+        columns=[f"{tp[0]} to {tp[1]} difference" for tp in TIMEPOINT_PAIRS]
     )
 
     # group the metadata by patient ID
@@ -496,7 +498,7 @@ def generate_patient_paired_timepoints(
         ).rename(tissue_id_timepoint_map, axis=1)
 
         # if a specific timepoint pair exists, then compute the mean difference across all features
-        for tp in timepoint_pairs:
+        for tp in TIMEPOINT_PAIRS:
             if tp[0] in wide_timepoint.columns.values and tp[1] in wide_timepoint.columns.values:
                 col_difference = distance_metric(
                     wide_timepoint.loc[:, tp[0]], wide_timepoint.loc[:, tp[1]]
