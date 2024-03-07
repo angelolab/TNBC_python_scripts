@@ -20,13 +20,6 @@ ACQUISITION_ORDER_INDICES = [
     11, 12, 13, 14, 15, 17, 18, 20, 22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 35,
     36, 39, 40, 41, 42, 43, 44, 45, 46, 47
 ]
-TIMEPOINT_INDICES = ["primary", "baseline", "post_induction", "on_nivo"]
-TIMEPOINT_PAIRS = [
-    ("primary", "baseline"),
-    ("baseline", "post_induction"),
-    ("baseline", "on_nivo"),
-    ("post_induction", "on_nivo")
-]
 
 
 # generate stitching/annotation function, used by panel validation and acquisition order tiling
@@ -175,7 +168,6 @@ def validate_panel(
     image_data = image_data.transpose("channels", "rows", "cols")
 
     # generate the stitched image and save
-    print(f"Font size is: {font_size}")
     panel_tiled: Image = stitch_and_annotate_padded_img(
         image_data, padding=padding, font_size=font_size, annotate=True
     )
@@ -429,6 +421,15 @@ def euclidean_timepoint(tp_one_data: pd.Series, tp_two_data: pd.Series) -> float
         float:
             The Euclidean distance between the two timepoint datapoints
     """
+    # drop nans just to be safe
+    tp_one_data = tp_one_data.dropna(axis=0)
+    tp_two_data = tp_two_data.dropna(axis=0)
+
+    # unit normalize
+    tp_one_data = tp_one_data / np.linalg.norm(tp_one_data)
+    tp_two_data = tp_two_data / np.linalg.norm(tp_two_data)
+
+    # unit normalize 
     return np.sqrt(np.sum(np.power(tp_two_data - tp_one_data, 2)))
 
 
@@ -456,10 +457,18 @@ def generate_patient_paired_timepoints(
         feature_to_pair_by (str):
             The feature to generate paired distances for
     """
+    # define the timepoint pairs to use
+    timepoint_pairs = [
+        ("primary_untreated", "baseline"),
+        ("baseline", "post_induction"),
+        ("baseline", "on_nivo"),
+        ("post_induction", "on_nivo")
+    ]
+
     # define a DataFrame that contains each patient and corresponding timepoint difference columns
     timepoint_comparisons = pd.DataFrame(
         index=np.sort(harmonized_metadata[patient_id_col].unique()),
-        columns=[f"{tp[0]} to {tp[1]} difference" for tp in TIMEPOINT_PAIRS]
+        columns=[f"{tp[0]} to {tp[1]} difference" for tp in timepoint_pairs]
     )
 
     # group the metadata by patient ID
@@ -471,7 +480,9 @@ def generate_patient_paired_timepoints(
     for patient_id, patient_data in patient_groups:
         # get the unique tissue samples for each timepoint
         patient_data_dedup = patient_data[
-            patient_data[timepoint_col].isin(TIMEPOINT_INDICES)
+            patient_data[timepoint_col].isin(
+                ["primary_untreated", "baseline", "post_induction", "on_nivo"]
+            )
         ].drop_duplicates()
 
         # define which tissue ID maps to which timepoint, this will help with sorting
@@ -498,7 +509,7 @@ def generate_patient_paired_timepoints(
         ).rename(tissue_id_timepoint_map, axis=1)
 
         # if a specific timepoint pair exists, then compute the mean difference across all features
-        for tp in TIMEPOINT_PAIRS:
+        for tp in timepoint_pairs:
             if tp[0] in wide_timepoint.columns.values and tp[1] in wide_timepoint.columns.values:
                 col_difference = distance_metric(
                     wide_timepoint.loc[:, tp[0]], wide_timepoint.loc[:, tp[1]]
