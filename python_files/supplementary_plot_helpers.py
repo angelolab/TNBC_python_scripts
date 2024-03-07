@@ -421,16 +421,17 @@ def euclidean_timepoint(tp_one_data: pd.Series, tp_two_data: pd.Series) -> float
         float:
             The Euclidean distance between the two timepoint datapoints
     """
-    # drop nans just to be safe
-    tp_one_data = tp_one_data.dropna(axis=0)
-    tp_two_data = tp_two_data.dropna(axis=0)
+    # combine the two series into one df
+    tp_combined: pd.DataFrame = pd.concat([tp_one_data, tp_two_data], axis=1)
 
-    # unit normalize
-    tp_one_data = tp_one_data / np.linalg.norm(tp_one_data)
-    tp_two_data = tp_two_data / np.linalg.norm(tp_two_data)
+    # drop nans across both columns
+    tp_combined = tp_combined.dropna(axis=0)
 
-    # unit normalize 
-    return np.sqrt(np.sum(np.power(tp_two_data - tp_one_data, 2)))
+    # unit normalize each column
+    tp_combined = tp_combined.apply(lambda x: (x / np.linalg.norm(x)), axis=0)
+
+    # return Euclidean distance
+    return np.linalg.norm(tp_combined.values[:, :1] - tp_combined.values[:, 1:])
 
 
 def generate_patient_paired_timepoints(
