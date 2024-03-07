@@ -1,7 +1,7 @@
 # File with code for generating supplementary plots
 import os
 import random
-
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -331,6 +331,35 @@ cohort_cluster_plot(
     cmap=color_map,
     display_fig=False,
 )
+
+## Segmentation Channels and Overlays
+
+cohort_path = Path("/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples")
+seg_dir = Path("/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/")
+
+save_dir = Path(SUPPLEMENTARY_FIG_DIR) / "segmentation_chans_overlays"
+save_dir.mkdir(exist_ok=True, parents=True)
+
+membrane_channels = ["CD14", "CD38", "CD45", "ECAD", "CK17"]
+overlay_channels = ["membrane_channel", "nuclear_channel"]
+
+fovs = random.sample(io_utils.list_folders(cohort_path), k=20)
+
+
+for fov in fovs:
+    p = supplementary_plot_helpers.MembraneMarkersOverlaysPlot(
+        fov = fov,
+        image_data=cohort_path,
+        segmentation_dir=seg_dir,
+        membrane_channels=membrane_channels,
+        overlay_channels=overlay_channels,
+        q=(0.05, 0.95),
+        clip=False,
+        figsize=(8,4),
+        layout="constrained",
+        image_type="pdf"
+    )
+    p.make_plot(save_dir = save_dir)
 
 # Functional marker thresholding
 cell_table = pd.read_csv(

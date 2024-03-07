@@ -1,4 +1,10 @@
+from collections.abc import Iterable
 import itertools
+from typing import Literal
+from matplotlib import ticker
+from matplotlib.axis import Axis
+from matplotlib.colors import Normalize
+from matplotlib.figure import Figure
 import numpy as np
 import os
 import pandas as pd
@@ -919,3 +925,110 @@ def compute_feature_enrichment(feature_df, inclusion_col, analysis_col):
     return feature_props
 
 
+class QuantileNormalization(Normalize):
+    def __init__(self,
+                 vmin: float = None,
+                 vmax: float = None,
+                 q: tuple[float, float] = (0.01, 0.99),
+                 clip: bool = False,
+                 eps: float = 1e-20,
+    ) -> None:
+        """Normalizes the input data by the qth quantile.
+
+        Args
+        ----------
+        vmin : float, optional
+            If vmin is not given it is initilaized from the minimum value of the
+            array, by default None
+        vmax : float, optional
+            If vmax is not given it is initilaized from the maximum value of the
+            array, by default None
+        q : tuple[float, float], optional
+            A tuple of quatiles where the smallest element is the minimum quantile
+            and the largest element is the maximum percentile, by default (0.01, 0.99). Must
+            be between 0 and 1 inclusive.
+        clip: bool, optional
+            If True, the normalized values are clipped to the range [0, 1], by default False
+        eps: float, optional
+            Small value to add to the denominator to avoid division by zero, by default 1e-20
+        """
+        super().__init__(vmin, vmax)
+        if isinstance(q, tuple):
+            if len(q) != 2:
+                raise ValueError("q must be a tuple of length 2")
+            if not all(0 <= i <= 1 for i in q):
+                raise ValueError("q's elements must be between 0 and 1 inclusive")
+        else:
+            raise ValueError("q must be a tuple")
+        
+        self.qmin = min(q)
+        self.qmax = max(q)
+        self.clip = clip
+        self.eps = eps
+
+    def __call__(self, value):
+        val_qmin, val_qmax = np.quantile(value, [self.qmin, self.qmax])
+        
+        norm = (value - val_qmin) / (val_qmax - val_qmin + self.eps)
+        if self.clip:
+            norm = np.clip(norm, 0, 1)
+            
+        return norm
+
+
+def _remove_x_axis_ticks(ax: plt.Axes) -> None:
+    ax.xaxis.set_major_locator(ticker.NullLocator())
+    ax.xaxis.set_major_formatter(ticker.NullFormatter())
+    ax.xaxis.set_minor_locator(ticker.NullLocator())
+    ax.xaxis.set_minor_formatter(ticker.NullFormatter())
+
+
+def _remove_y_axis_ticks(ax: plt.Axes) -> None:
+    ax.yaxis.set_major_locator(ticker.NullLocator())
+    ax.yaxis.set_major_formatter(ticker.NullFormatter())
+    ax.yaxis.set_minor_locator(ticker.NullLocator())
+    ax.yaxis.set_minor_formatter(ticker.NullFormatter())
+
+
+def _set_locator_formatter(ax: plt.Axes, axis: Literal["x", "y", "xy", "yx"]) -> None:
+    match axis:
+        case "x":
+            _remove_x_axis_ticks(ax)
+        case "y":
+            _remove_y_axis_ticks(ax)
+        case "xy" | "yx":
+            _remove_x_axis_ticks(ax)
+            _remove_y_axis_ticks(ax)
+        case _:
+            raise ValueError("axis must be 'x', 'y' or 'xy' or 'yx'")
+
+
+def remove_ticks(f: Figure | Axis | Iterable[Axis], axis: Literal["x", "y", "xy", "yx"]) -> None:
+    """Removes ticks from the axis of a figure or axis object. If a figure is passed,
+    the function will remove the axis-ticks of all the figure's axes.
+
+    Args
+    ----------
+    f : Figure | Axis | Iterable[Axis]
+        The figure or axis object to remove the ticks from.
+    axis : Literal["x", "y", "xy", "yx"]
+        The axis to remove the ticks from. If "xy" or "yx" is passed, the function will remove
+        the ticks from both axes.
+
+    Raises
+    ------
+    ValueError
+        If f is not a Figure or Axis object.
+    """
+    match f:
+        case Figure():
+            axes = f.axes
+            map(lambda a: _set_locator_formatter(a, axis), axes)
+        case plt.Axes():
+            _set_locator_formatter(f, axis)
+        case Iterable() | list() | np.ndarray():
+            assert all(isinstance(a, plt.Axes) for a in f), "f must be an iterable of Axes objects"
+            for a in f:
+                _set_locator_formatter(a, axis)
+        case _:
+            raise ValueError("f must be a Figure or Axes object")

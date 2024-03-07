@@ -6,14 +6,14 @@ import os
 import pandas as pd
 import pathlib
 import xarray as xr
-
+from os import PathLike
 from PIL import Image, ImageDraw, ImageFont
-from typing import Dict, List, Optional, Tuple, TypedDict, Union
-
+from typing import Dict, List, Optional, Tuple, TypedDict, Union, Literal
+from ark.utils import plot_utils
 from alpineer.io_utils import list_folders, list_files, remove_file_extensions, validate_paths
 from alpineer.load_utils import load_imgs_from_tree
 from alpineer.misc_utils import verify_in_list
-
+from utils import remove_ticks, QuantileNormalization
 
 ACQUISITION_ORDER_INDICES = [
     11, 12, 13, 14, 15, 17, 18, 20, 22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 35,
@@ -406,3 +406,149 @@ def stitch_before_after_norm(
 
     pre_norm_tiled.save(pre_norm_stitched_path)
     post_norm_tiled.save(post_norm_stitched_path)
+
+
+class MembraneMarkersOverlaysPlot:
+    def __init__(
+        self,
+        fov: str,
+        image_data: PathLike,
+        segmentation_dir: PathLike,
+        membrane_channels: List[str],
+        overlay_channels: str | List[str],
+        q: tuple[float, float] = (0.05, 0.95),
+        clip: bool = False,
+        figsize: Tuple[int, int] = (8, 4),
+        layout: Literal["constrained", "tight"] = None,
+        image_type: Literal["png", "pdf"] = "pdf",
+    ):
+        """Creates a figure with two subplots, one for each membrane marker used for segmentation,
+        and one for the overlay of the membrane and nuclear markers.
+
+        Args
+        ----------
+        fov : str
+            The name of the FOV to be plotted
+        image_data : PathLike
+            The directory containing the image data.
+        segmentation_dir : PathLike
+            The directory containing the segmentation data.
+        membrane_channels : List[str]
+            The names of the membrane markers to be plotted.
+        overlay_channels : str | List[str]
+            The overlay channels to be plotted, can be either "nuclear_channel",
+            "membrane_channel", or both.
+        q : tuple[float, float], optional
+            A tuple of quatiles where the smallest element is the minimum quantile
+            and the largest element is the maximum percentile, by default (0.05, 0.95). Must
+            be between 0 and 1 inclusive.
+        clip : bool, optional
+            If True, the normalized values are clipped to the range [0, 1], by default False
+        figsize : Tuple[int, int], optional
+            The size of the figure, by default (8, 4)
+        layout : Literal["constrained", "tight"], optional
+            The layout engine, defaults to None, by default None
+        image_type : Literal["png", "pdf"], optional
+            The file type to save the plot as, by default "pdf"
+        """
+        self.fov_name = fov
+        self.membrane_channels = membrane_channels
+        self.overlay_channels = overlay_channels
+        self.figsize = figsize
+        self.layout = layout
+        self.n_chans = len(set(membrane_channels))
+        self.q = q
+        self.image_data = image_data
+        self.seg_dir = segmentation_dir
+        self.image_type = image_type
+        self.clip = clip
+
+        self.fig = plt.figure(figsize=figsize, layout=layout)
+        self.subfigs = self.fig.subfigures(nrows=1, ncols=2, wspace=0.05, width_ratios=[2, 1])
+
+    def make_plot(self, save_dir: PathLike):
+        """Plots the membrane markers and overlay and saves the figure to the specified directory.
+
+        Args
+        ----------
+        save_dir : PathLike
+            The directory to save the figure to.
+        """
+        self.fov_xr = load_imgs_from_tree(
+            data_dir=self.image_data, fovs=[self.fov_name], channels=self.membrane_channels
+        )
+        
+        self.fov_overlay = plot_utils.create_overlay(
+            fov=self.fov_name,
+            segmentation_dir = self.seg_dir / "deepcell_output",
+            data_dir=self.seg_dir / "deepcell_input",
+            img_overlay_chans=self.overlay_channels,
+            seg_overlay_comp="whole_cell",
+        )
+        
+        self.fig.suptitle(t=f"{self.fov_name} Membrane Markers and Overlay", fontsize=8)
+    
+        self._plot_mem_markers()
+        self._plot_overlay()
+        self.fig.savefig(save_dir / f"{self.fov_name}_membrane_markers_overlay.{self.image_type}")
+        
+    def _plot_mem_markers(self):
+        self.subfigs[0].suptitle("Membrane Markers", fontsize=6)
+
+        markers_subplots = self.subfigs[0].subplots(
+            nrows=2,
+            ncols=int(np.ceil((self.n_chans + 1) / 2)),
+            sharex=True,
+            sharey=True,
+            gridspec_kw={"wspace": 0.05, "hspace": 0.05},
+        )
+        
+        channel_axes = markers_subplots.flat[:self.n_chans]
+        
+        self.subfigs[0].add_subplot
+        
+        for ax, channel in zip(channel_axes, ns.natsorted(self.membrane_channels)):
+            chan_data = self.fov_xr.sel({"channels": channel}).squeeze()
+            
+            ax.imshow(
+                X=chan_data,
+                cmap="gray",
+                norm=QuantileNormalization(q = self.q, clip=self.clip),
+                interpolation='none',
+                aspect="equal",
+            )
+            ax.set_title(channel, fontsize=6)
+            remove_ticks(ax, "xy")
+            
+        ax_sum = markers_subplots.flat[self.n_chans]
+        
+        ax_sum.imshow(
+            X=self.fov_xr.sum("channels").squeeze(),
+            cmap="gray",
+            norm=QuantileNormalization(q = self.q, clip=self.clip),
+            interpolation='none',
+            aspect="equal",
+        )
+        
+        ax_sum.set_title("Sum", fontsize=6)
+        
+        remove_ticks(ax_sum, "xy")
+        
+        # Clean up and remove the empty subplots
+        for ax in markers_subplots.flat[self.n_chans + 1:]:
+            ax.remove()
+        
+    def _plot_overlay(self):
+        
+        subfigs_overaly_ax = self.subfigs[1].subplots(
+            nrows=1, ncols=1, sharex=True, sharey=True
+        )
+        subfigs_overaly_ax.set_title("Nuclear and Membrane Overlay", fontsize=6)
+        subfigs_overaly_ax.imshow(
+            X=self.fov_overlay,
+            norm=QuantileNormalization(q = self.q, clip=self.clip),
+            interpolation='none',
+            aspect="equal",
+        )
+        
+        remove_ticks(subfigs_overaly_ax, "xy")
