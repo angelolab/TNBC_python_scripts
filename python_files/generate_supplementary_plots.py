@@ -223,7 +223,7 @@ post_rosetta_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/rosetta"
 # NOTE: image not scaled up, this happens in Photoshop
 supplementary_plot_helpers.stitch_before_after_rosetta(
     pre_rosetta_dir, post_rosetta_dir, acquisition_order_viz_dir_rosetta, run_name,
-    "H3K9ac", post_rosetta_subdir="normalized", padding=0, step=1
+    "CD8", post_rosetta_subdir="normalized", padding=0, step=1
 )
 
 
