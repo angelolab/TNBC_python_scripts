@@ -2,7 +2,7 @@ from collections.abc import Iterable
 import itertools
 from typing import Literal
 from matplotlib import ticker
-from matplotlib.axis import Axis
+from matplotlib.axes import Axes
 from matplotlib.colors import Normalize
 from matplotlib.figure import Figure
 import numpy as np
@@ -1003,13 +1003,13 @@ def _set_locator_formatter(ax: plt.Axes, axis: Literal["x", "y", "xy", "yx"]) ->
             raise ValueError("axis must be 'x', 'y' or 'xy' or 'yx'")
 
 
-def remove_ticks(f: Figure | Axis | Iterable[Axis], axis: Literal["x", "y", "xy", "yx"]) -> None:
+def remove_ticks(f: Figure | Axes | Iterable[Axes], axis: Literal["x", "y", "xy", "yx"]) -> None:
     """Removes ticks from the axis of a figure or axis object. If a figure is passed,
     the function will remove the axis-ticks of all the figure's axes.
 
     Args
     ----------
-    f : Figure | Axis | Iterable[Axis]
+    f : Figure | Axes | Iterable[Axes]
         The figure or axis object to remove the ticks from.
     axis : Literal["x", "y", "xy", "yx"]
         The axis to remove the ticks from. If "xy" or "yx" is passed, the function will remove
