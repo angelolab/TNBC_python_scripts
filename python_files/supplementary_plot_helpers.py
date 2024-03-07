@@ -402,8 +402,8 @@ def stitch_before_after_rosetta(
     pre_rosetta_data = pre_rosetta_data[ACQUISITION_ORDER_INDICES_NORM, ...]
     post_rosetta_data = post_rosetta_data[ACQUISITION_ORDER_INDICES_NORM, ...]
 
-    # multiple post-Rosetta by 200 to ensure same scale
-    post_rosetta_data = post_rosetta_data * 200
+    # divide pre-Rosetta by 200 to ensure same scale
+    pre_rosetta_data = pre_rosetta_data / 200
 
     # reassign coordinate with FOV names that don't contain "-scan-1" or additional dashes
     fovs_condensed: np.ndarray = np.array([f"FOV{af.split('-')[1]}" for af in all_fovs])
@@ -438,41 +438,15 @@ def stitch_before_after_rosetta(
         source_percentile: float = np.percentile(stitched_noodle, percent_norm)
         non_source_percentile: float = np.percentile(stitched_pre_post_rosetta, percent_norm)
         perc_ratio: float = source_percentile / non_source_percentile
-        print(f"The perc_ratio used is: {perc_ratio}")
         stitched_noodle = stitched_noodle / perc_ratio
 
     # combine the Noodle data with the stitched data, swap so that Noodle is in the middle
     stitched_pre_post_rosetta = np.vstack(
         (stitched_pre_post_rosetta[:2048, :], stitched_noodle, stitched_pre_post_rosetta[2048:, :])
     )
-    # stitched_pre_post_rosetta = np.concatenate([stitched_pre_post_rosetta, stitched_noodle])
-    # stitched_pre_post_rosetta[2048:4096], stitched_pre_post_rosetta[4096:8192] = \
-    #     stitched_pre_post_rosetta[4096:8192], stitched_pre_post_rosetta[2048:4096]
 
-    # annotate tiled image to indicate what the rows mean
+    # save the image
     stitched_rosetta_pil: Image = Image.fromarray(np.round(stitched_pre_post_rosetta, 3))
-    imdraw: ImageDraw = ImageDraw.Draw(stitched_rosetta_pil)
-    imfont: ImageFont = ImageFont.truetype("Arial Unicode.ttf", font_size)
-    min_fill_value: int = np.min(stitched_pre_post_rosetta)
-    max_fill_value: int = np.max(stitched_pre_post_rosetta)
-    imdraw.text(
-        (5, 5),
-        f"{target_channel} pre-Rosetta",
-        font=imfont,
-        fill=max_fill_value
-    )
-    imdraw.text(
-        (5, 2053),
-        f"{source_channel} (noise to remove)",
-        font=imfont,
-        fill=max_fill_value
-    )
-    imdraw.text(
-        (5, 4101),
-        f"{target_channel} post-Rosetta",
-        font=imfont,
-        fill=max_fill_value
-    )
     stitched_rosetta_pil.save(rosetta_stitched_path)
 
 
