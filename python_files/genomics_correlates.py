@@ -7,6 +7,9 @@ import pandas as pd
 import seaborn as sns
 from python_files.utils import compare_populations
 from statsmodels.stats.multitest import multipletests
+from alpineer import io_utils, load_utils
+from tqdm.notebook import tqdm
+import skimage.io as io
 
 from scipy.stats import spearmanr
 
@@ -487,3 +490,102 @@ plt.title('Correlation between DNA and Image Features')
 plt.ylim(0, 10)
 plt.savefig(os.path.join(plot_dir, 'DNA_correlation_volcano.png'), dpi=300)
 plt.close()
+
+
+## protein vs rna plots
+# calculate total (cell) signal in each image & normalize by cell area
+'''
+img_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples'
+seg_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
+
+fovs = io_utils.list_folders(img_dir, substrs='TONIC')
+chans = io_utils.list_files(os.path.join(img_dir, fovs[0]), substrs='.tiff')
+chans = io_utils.remove_file_extensions(chans)
+for chan in ['FOXP3_nuc_include', 'ECAD_smoothed', 'chan_141', 'CD11c_nuc_exclude',
+             'CK17_smoothed', 'chan_48', 'chan_45', 'Noodle', 'chan_115', 'chan_39']:
+    chans.remove(chan)
+
+# calculate total cell signal in images
+total_df = []
+with tqdm(total=len(fovs), desc="Signal Calculation", unit="FOVs") as progress:
+    for fov in fovs:
+        # read in channel img and cell mask
+        seg_path = os.path.join(seg_dir, fov + '_whole_cell.tiff')
+        img_data = load_utils.load_imgs_from_tree(data_dir=img_dir, fovs=[fov], channels=chans)
+        seg_mask = io.imread(seg_path)
+
+        # binarize cell mask and calculate area
+        seg_mask[seg_mask > 0] = 1
+        fov_area = np.sum(seg_mask)
+        chan_signal = []
+
+        for chan in chans:
+            img = np.array(img_data.loc[fov, :, :, chan])
+
+            # remove signal outside of cells and get total intensity
+            cell_img = img * seg_mask
+            cell_signal = np.sum(cell_img)
+
+            if chan == chans[0]:
+                chan_df = pd.DataFrame({'fov': [fov],
+                                        'cell_areas': [fov_area],
+                                        f'{chan}_cell_total_intensity': [cell_signal]})
+                fov_df = chan_df
+            else:
+                fov_df[f'{chan}_cell_total_intensity'] = [cell_signal]
+
+        total_df.append(fov_df)
+        progress.update(1)
+
+total_df = pd.concat(total_df)
+for chan in chans:
+    total_df[f'{chan}_normalized'] = total_df[f'{chan}_cell_total_intensity'] / total_df['cell_areas']
+total_df.to_csv(os.path.join(sequence_dir, 'analysis/MIBI_cell_signal_stats_all.csv'), index=False)
+'''
+
+# map of mibi channel name to gene name
+marker_to_rna = {'CD14': 'CD14', 'CD38': 'CD38', 'HLA1': 'HLA-A', 'PDL1': 'CD274',
+                 'HLADR': 'HLA-DRA', 'Ki67': 'MKI67', 'FAP': 'FAP',
+                 'Collagen1': 'COL1A1' , 'CD45': 'PTPRC', 'GLUT1': 'SLC2A1',
+                 'CD69': 'CD69', 'CK17': 'KRT17', 'CD68': 'CD68',
+                 'TBET': 'TBX21', 'CD163': 'CD163', 'FOXP3': 'FOXP3',
+                 'Fibronectin': 'FN1', 'CD11c': 'ITGAX', 'Vim': 'VIM', 'CD8': 'CD8A',
+                 'CD4': 'CD4', 'H3K9ac': 'KAT2A', 'ECAD': 'CDH1', 'Calprotectin': 'S100A8',
+                 'LAG3': 'LAG3', 'SMA': 'SMN1', 'CD31': 'PECAM1', 'IDO': 'IDO1',
+                 'TCF1': 'TCF7', 'CD57': 'B3GAT1', 'CD20': 'MS4A1', 'TIM3': 'HAVCR2',
+                 'CD56': 'NCAM1', 'PD1': 'PDCD1', 'CD3': 'CD3D', 'ChyTr': 'CMA1'}
+
+
+meta_data = pd.read_csv(os.path.join(base_dir, 'analysis_files/harmonized_metadata.csv'))
+meta_data_baseline = meta_data[meta_data.Timepoint == 'baseline'].dropna(subset=['rna_seq_sample_id'])
+meta_data_baseline = meta_data_baseline[['fov', 'rna_seq_sample_id', 'Timepoint']]
+
+rna_data = pd.read_csv(os.path.join(sequence_dir, 'analysis/TONIC_gene_expression_sub.csv'))
+rna_baseline = rna_data.merge(meta_data_baseline[['rna_seq_sample_id', 'Timepoint']], on=['rna_seq_sample_id']).drop_duplicates()
+
+mibi_data = pd.read_csv(os.path.join(sequence_dir, 'analysis/MIBI_cell_signal_stats_all.csv'))
+norm_cols = [col for col in mibi_data.columns if '_normalized' in col]
+mibi_baseline = mibi_data[['fov'] + norm_cols].merge(meta_data_baseline, on=['fov'])
+
+# create correlation plots
+markers = list(marker_to_rna.keys())
+for chan in markers:
+    rna = marker_to_rna[chan]
+
+    # average fov values across patients
+    mibi = mibi_baseline[[f'{chan}_normalized', 'rna_seq_sample_id']]
+    mibi = mibi.groupby('rna_seq_sample_id').mean()
+
+    rna_data = rna_baseline[['rna_seq_sample_id', rna]]
+    combined_df = mibi.merge(rna_data, on=['rna_seq_sample_id'])
+
+    x = combined_df[f'{chan}_normalized']
+    y = combined_df[rna]
+    r, p = spearmanr(x, y)
+
+    plt.figure()
+    plt.scatter(x=x, y=y, s=15)
+    plt.title(f'Correlation: {round(r, 3)}')
+    plt.xlabel(f'{chan} normalized total intensity')
+    plt.ylabel(f'{rna} expression')
+    plt.savefig(os.path.join(sequence_dir, f'analysis/plots/{chan}_{rna}_comparison.png'))
