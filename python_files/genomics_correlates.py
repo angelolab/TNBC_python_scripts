@@ -95,6 +95,23 @@ RNA_feature_df = RNA_feature_df.drop(columns=['TME_subtype'])
 
 RNA_feature_df.to_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_immune_sig_score_and_genes_processed.csv'), index=False)
 
+# proccess other gene scores files
+msigdb_scores = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/msigdb_ssgsea_es.csv'))
+msigdb_scores = msigdb_scores.rename(columns={'Name': 'rna_seq_sample_id', 'Term': 'feature_name', 'NES': 'feature_value'})
+msigdb_scores = msigdb_scores.merge(harmonized_metadata[['rna_seq_sample_id', 'Clinical_benefit', 'Timepoint', 'Patient_ID', 'Tissue_ID']].drop_duplicates(),
+                                    on='rna_seq_sample_id', how='left')
+msigdb_scores = msigdb_scores.drop(columns=['ES', 'rna_seq_sample_id'])
+
+other_scores = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/misc_gene_set_scores.csv'))
+other_scores_long = pd.melt(other_scores, id_vars=['rna_seq_sample_id'], var_name='feature_name', value_name='feature_value')
+other_scores_long = other_scores_long.merge(harmonized_metadata[['rna_seq_sample_id', 'Clinical_benefit', 'Timepoint', 'Patient_ID', 'Tissue_ID']].drop_duplicates(),
+                                    on='rna_seq_sample_id', how='left')
+other_scores_long = other_scores_long.drop(columns=['rna_seq_sample_id'])
+
+# combine together
+combined_rna_scores = pd.concat([msigdb_scores, other_scores_long])
+combined_rna_scores.to_csv(os.path.join(sequence_dir, 'preprocessing/msigdb_misc_processed.csv'), index=False)
+
 # transform to long format
 
 genomics_feature_df = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_WES_meta_table_processed.csv'))
@@ -199,9 +216,14 @@ RNA_feature_df_long.loc[RNA_feature_df_long.feature_type == 'gene_rna', 'feature
 RNA_names = genomics_feature_df_long.loc[genomics_feature_df_long.feature_type == 'gene_rna', 'feature_name'].unique()
 RNA_feature_df_long = RNA_feature_df_long.loc[~RNA_feature_df_long.feature_name.isin(RNA_names), :]
 
+# read in other RNA features
+other_rna_features = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/msigdb_misc_processed.csv'))
+other_rna_features['data_type'] = 'RNA'
+other_rna_features['feature_type'] = 'functional_signature_2'
+
 # combine together
-genomics_feature_df_long = pd.concat([genomics_feature_df_long, RNA_feature_df_long])
-genomics_feature_df_long.to_csv(os.path.join(sequence_dir, 'processed_genomics_features.csv'), index=False)
+genomics_feature_df_long_combined = pd.concat([genomics_feature_df_long, RNA_feature_df_long, other_rna_features])
+genomics_feature_df_long_combined.to_csv(os.path.join(sequence_dir, 'processed_genomics_features.csv'), index=False)
 
 #
 # look at correlations with imaging data
@@ -360,7 +382,8 @@ ranked_features_df.to_csv(os.path.join(sequence_dir, 'genomics_outcome_ranking.c
 # show breakdown of top features
 ranked_features_df = pd.read_csv(os.path.join(sequence_dir, 'genomics_outcome_ranking.csv'))
 ranked_features_df = pd.merge(genomics_df[['feature_name_unique', 'feature_type', 'data_type']].drop_duplicates(), ranked_features_df, on='feature_name_unique', how='left')
-top_features = ranked_features_df.iloc[:25, :]
+ranked_features_df = ranked_features_df.sort_values(by='combined_rank', ascending=True)
+top_features = ranked_features_df.iloc[:50, :]
 top_features = ranked_features_df.loc[ranked_features_df.fdr_pval < 0.1, :]
 
 
