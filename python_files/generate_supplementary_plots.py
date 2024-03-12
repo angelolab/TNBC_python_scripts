@@ -220,11 +220,16 @@ run_name = "2022-01-14_TONIC_TMA2_run1"
 pre_rosetta_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/extracted"
 post_rosetta_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/rosetta"
 
-# NOTE: image not scaled up, this happens in Photoshop
-supplementary_plot_helpers.stitch_before_after_rosetta(
-    pre_rosetta_dir, post_rosetta_dir, acquisition_order_viz_dir_rosetta, run_name,
-    "CD8", post_rosetta_subdir="normalized", padding=0, step=1
-)
+channels = [
+    "CD8", "CD20", "CD3", "CD163", "CD38", "CD56", "TIM3", "GLUT1", "HLADR", "CD31", "FOXP3",
+    "CD11c", "IDO", "CD69", "CD4", "PD1", "CD4"
+]
+for channel in channels:
+    # NOTE: image not scaled up, this happens in Photoshop
+    supplementary_plot_helpers.stitch_before_after_rosetta(
+        pre_rosetta_dir, post_rosetta_dir, acquisition_order_viz_dir_rosetta, run_name,
+        channel, post_rosetta_subdir="normalized", padding=0, step=1
+    )
 
 
 ## show a run with images stitched in acquisition order pre- and post-normalization
