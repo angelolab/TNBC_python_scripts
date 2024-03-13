@@ -19,6 +19,190 @@ sequence_dir = os.path.join(base_dir, 'sequencing_data')
 
 harmonized_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/harmonized_metadata.csv'))
 
+# calculate gene set enrichment scores
+import pandas as pd
+import gseapy as gp
+from gseapy import Msigdb
+
+# Load gene expression data
+gene_features = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_gene_expression_TPM_table.tsv'), sep='\t', index_col=0)
+
+# Calculate msigdb genesets
+msig = Msigdb()
+categories_keep = ["h.all", "c2.all", "c5.go"]
+all_gene_sets = {}
+for one_category in categories_keep:
+    one_set = msig.get_gmt(category=one_category, dbver="2023.2.Hs")
+    all_gene_sets.update(one_set)
+
+# Keep specific gene sets
+gene_sets_keep = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/msigdb_genesets.csv'))
+gene_sets_names_keep = gene_sets_keep['name'].values
+gene_sets = {x: all_gene_sets[x] for x in gene_sets_names_keep}
+
+# Do ssgsea
+ss = gp.ssgsea(data = gene_features,
+               gene_sets = gene_sets,
+               sample_norm_method = 'rank')
+
+ss.res2d.to_csv(os.path.join(sequence_dir, 'preprocessing/msigdb_ssgsea_es.csv'), index=False)
+
+# calculate other gene sets
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+import seaborn as sns
+import scipy.stats as sp
+import numpy as np
+
+# Load data
+metadata_sub = harmonized_metadata[["rna_seq_sample_id","Timepoint","Clinical_benefit"]]
+metadata_sub = metadata_sub.dropna()
+metadata_sub = metadata_sub.drop_duplicates()
+
+all_genes = gene_features.index.to_list()
+
+# Initialize data table to store all the gene signature scores
+all_gene_scores_dt = pd.DataFrame({'rna_seq_sample_id':metadata_sub.rna_seq_sample_id.values})
+
+# TGFb signature from Mariathasan et al.
+# TGFb in fibroblasts
+geneset_name = "pan_f_tbrs"
+# Direct from paper
+gene_set = ["ACTA2", "ACTG2", "ADAM12", "ADAM19", "CNN1", "COL4A1", "CTGF", "CTPS1", "FAM101B", "FSTL3", "HSPB1", "IGFBP3", "PXDC1", "SEMA7A", "SH3PXD2A", "TAGLN", "TGFBI", "TNS1", "TPM1"]
+# Change a few gene names to match data, CTGF -> CCN2, FAM101B -> RFLNB
+gene_set = ["ACTA2", "ACTG2", "ADAM12", "ADAM19", "CNN1", "COL4A1", "CCN2", "CTPS1", "RFLNB", "FSTL3", "HSPB1", "IGFBP3", "PXDC1", "SEMA7A", "SH3PXD2A", "TAGLN", "TGFBI", "TNS1", "TPM1"]
+# Check to make sure they are all included in feature table
+set(gene_set) <= set(all_genes)
+
+
+# First PC as gene score (as described in paper)
+# Subset data for gene set
+gene_features_sub = gene_features.loc[gene_set]
+# Take transpose
+gene_features_sub = gene_features_sub.transpose()
+
+# PCA
+pca_in = StandardScaler().fit_transform(gene_features_sub)
+pca = PCA(n_components=2)
+pca_out = pca.fit_transform(pca_in)
+
+# Save as dataframe
+out_dat = pd.DataFrame({"rna_seq_sample_id":gene_features_sub.index.values,
+                        "pc1":pca_out[:,0]})
+
+# Save to dataframe to store all outputs
+all_gene_scores_dt = pd.merge(all_gene_scores_dt, out_dat, on='rna_seq_sample_id')
+all_gene_scores_dt = all_gene_scores_dt.rename(columns={'pc1':'tgfb_pc1'})
+
+# Merge with metadata
+out_dat = pd.merge(out_dat, metadata_sub, on='rna_seq_sample_id')
+
+# Get average of genes
+gene_features_sub = gene_features.loc[gene_set]
+means = gene_features_sub.mean()
+
+# Save as dataframe
+means_df = pd.DataFrame({"rna_seq_sample_id":gene_features_sub.columns.values,
+                         "avg_exp":means.values})
+
+# Save to dataframe to store all outputs
+all_gene_scores_dt = pd.merge(all_gene_scores_dt, means_df, on='rna_seq_sample_id')
+all_gene_scores_dt = all_gene_scores_dt.rename(columns={'avg_exp':'tgfb_avg_exp'})
+
+# Merge with metadata
+out_dat = pd.merge(out_dat, means_df, on='rna_seq_sample_id')
+
+# cDC1/cDC2 signatures
+cDC1_genes = ["IRF8","BATF3","THBD"]
+cDC2_genes = ["ZEB2","IRF4","KLF4","CD1C","ITGAX","ITGAM"]
+
+# Get average of genes
+#gene_set = cDC1_genes
+gene_set = cDC2_genes
+gene_features_sub = gene_features.loc[gene_set]
+means = gene_features_sub.mean()
+
+# Save as dataframe
+means_df = pd.DataFrame({"rna_seq_sample_id":gene_features_sub.columns.values,
+                         "avg_exp":means.values})
+
+# Save to dataframe to store all outputs
+all_gene_scores_dt = pd.merge(all_gene_scores_dt, means_df, on='rna_seq_sample_id')
+#all_gene_scores_dt = all_gene_scores_dt.rename(columns={'avg_exp':'cDC1_avg_exp'})
+all_gene_scores_dt = all_gene_scores_dt.rename(columns={'avg_exp':'cDC2_avg_exp'})
+
+# Trm signature
+# from Savas et al, https://doi.org/10.1038/s41591-018-0078-7
+trm_sig = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/trm_sig_savas.csv'))
+gene_set = trm_sig['gene_names'].values
+
+# Check to make sure they are all included in feature table
+set(gene_set) <= set(all_genes)
+# Only keep those that exist in our dataset
+gene_set = [x for x in gene_set if x in all_genes]
+set(gene_set) <= set(all_genes)
+
+# Get average of genes
+gene_features_sub = gene_features.loc[gene_set]
+means = gene_features_sub.mean()
+
+# Save as dataframe
+means_df = pd.DataFrame({"rna_seq_sample_id":gene_features_sub.columns.values,
+                         "avg_exp":means.values})
+
+# Save to dataframe to store all outputs
+all_gene_scores_dt = pd.merge(all_gene_scores_dt, means_df, on=['rna_seq_sample_id'])
+all_gene_scores_dt = all_gene_scores_dt.rename(columns={'avg_exp':'Trm_avg_exp'})
+
+# Merge with metadata
+out_dat = pd.merge(metadata_sub, means_df, on='rna_seq_sample_id')
+
+# from Tietscher et al, https://doi.org/10.1038/s41467-022-35238-w
+t_cell_attractive = ["CCL21","CCL17","CCL2","CXCL9","CXCL10","CXCL11","CXCL12","CCL3","CCL4","CCL5","CXCL16"]
+t_cell_suppressive = ["IDO1","CD274","PDCD1LG2","TNFSF10","HLA-E","HLA-G","VTCN1","IL10","TGFB1","TGFB2","PTGS2","PTGES","LGALS9","CCL22","CD80","CD86"]
+
+# Get average of genes
+#gene_set = t_cell_attractive
+gene_set = t_cell_suppressive
+gene_features_sub = gene_features.loc[gene_set]
+means = gene_features_sub.mean()
+
+# Save as dataframe and merge with metadata
+means_df = pd.DataFrame({"rna_seq_sample_id":gene_features_sub.columns.values,
+                         "avg_exp":means.values})
+
+# Save to dataframe to store all outputs
+all_gene_scores_dt = pd.merge(all_gene_scores_dt, means_df, on=['rna_seq_sample_id'])
+#all_gene_scores_dt = all_gene_scores_dt.rename(columns={'avg_exp':'tcell_attractive_avg_exp'})
+all_gene_scores_dt = all_gene_scores_dt.rename(columns={'avg_exp':'tcell_suppressive_avg_exp'})
+
+## T cell exhaustion
+# from Doering et al, https://doi.org/10.1016/j.immuni.2012.08.021
+gene_set = ["RTP4", "FOXP1", "IKZF2", "ZEB2", "LASS6", "TOX", "EOMES"]
+set(gene_set) <= set(all_genes)
+# change one gene name
+gene_set = ["RTP4", "FOXP1", "IKZF2", "ZEB2", "CERS6", "TOX", "EOMES"]
+set(gene_set) <= set(all_genes)
+
+# Get average of genes
+gene_features_sub = gene_features.loc[gene_set]
+means = gene_features_sub.mean()
+
+# Save as dataframe
+means_df = pd.DataFrame({"rna_seq_sample_id":gene_features_sub.columns.values,
+                         "avg_exp":means.values})
+# Save to dataframe to store all outputs
+all_gene_scores_dt = pd.merge(all_gene_scores_dt, means_df, on=['rna_seq_sample_id'])
+all_gene_scores_dt = all_gene_scores_dt.rename(columns={'avg_exp':'tcell_exhaustion_avg_exp'})
+
+# Merge with metadata
+out_dat = pd.merge(metadata_sub, means_df, on='rna_seq_sample_id')
+
+all_gene_scores_dt.to_csv(os.path.join(sequence_dir, 'preprocessing/misc_gene_set_scores.csv'), index=False)
+
+
 #
 # clean up genomics features
 #
@@ -97,6 +281,23 @@ RNA_feature_df['TME_subtype_fibrotic'] = RNA_feature_df['TME_subtype'].apply(lam
 RNA_feature_df = RNA_feature_df.drop(columns=['TME_subtype'])
 
 RNA_feature_df.to_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_immune_sig_score_and_genes_processed.csv'), index=False)
+
+# proccess other gene scores files
+msigdb_scores = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/msigdb_ssgsea_es.csv'))
+msigdb_scores = msigdb_scores.rename(columns={'Name': 'rna_seq_sample_id', 'Term': 'feature_name', 'NES': 'feature_value'})
+msigdb_scores = msigdb_scores.merge(harmonized_metadata[['rna_seq_sample_id', 'Clinical_benefit', 'Timepoint', 'Patient_ID', 'Tissue_ID']].drop_duplicates(),
+                                    on='rna_seq_sample_id', how='left')
+msigdb_scores = msigdb_scores.drop(columns=['ES', 'rna_seq_sample_id'])
+
+other_scores = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/misc_gene_set_scores.csv'))
+other_scores_long = pd.melt(other_scores, id_vars=['rna_seq_sample_id'], var_name='feature_name', value_name='feature_value')
+other_scores_long = other_scores_long.merge(harmonized_metadata[['rna_seq_sample_id', 'Clinical_benefit', 'Timepoint', 'Patient_ID', 'Tissue_ID']].drop_duplicates(),
+                                    on='rna_seq_sample_id', how='left')
+other_scores_long = other_scores_long.drop(columns=['rna_seq_sample_id'])
+
+# combine together
+combined_rna_scores = pd.concat([msigdb_scores, other_scores_long])
+combined_rna_scores.to_csv(os.path.join(sequence_dir, 'preprocessing/msigdb_misc_processed.csv'), index=False)
 
 # transform to long format
 
@@ -202,9 +403,14 @@ RNA_feature_df_long.loc[RNA_feature_df_long.feature_type == 'gene_rna', 'feature
 RNA_names = genomics_feature_df_long.loc[genomics_feature_df_long.feature_type == 'gene_rna', 'feature_name'].unique()
 RNA_feature_df_long = RNA_feature_df_long.loc[~RNA_feature_df_long.feature_name.isin(RNA_names), :]
 
+# read in other RNA features
+other_rna_features = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/msigdb_misc_processed.csv'))
+other_rna_features['data_type'] = 'RNA'
+other_rna_features['feature_type'] = 'functional_signature_2'
+
 # combine together
-genomics_feature_df_long = pd.concat([genomics_feature_df_long, RNA_feature_df_long])
-genomics_feature_df_long.to_csv(os.path.join(sequence_dir, 'processed_genomics_features.csv'), index=False)
+genomics_feature_df_long_combined = pd.concat([genomics_feature_df_long, RNA_feature_df_long, other_rna_features])
+genomics_feature_df_long_combined.to_csv(os.path.join(sequence_dir, 'processed_genomics_features.csv'), index=False)
 
 #
 # look at correlations with imaging data
@@ -363,7 +569,8 @@ ranked_features_df.to_csv(os.path.join(sequence_dir, 'genomics_outcome_ranking.c
 # show breakdown of top features
 ranked_features_df = pd.read_csv(os.path.join(sequence_dir, 'genomics_outcome_ranking.csv'))
 ranked_features_df = pd.merge(genomics_df[['feature_name_unique', 'feature_type', 'data_type']].drop_duplicates(), ranked_features_df, on='feature_name_unique', how='left')
-top_features = ranked_features_df.iloc[:25, :]
+ranked_features_df = ranked_features_df.sort_values(by='combined_rank', ascending=True)
+top_features = ranked_features_df.iloc[:50, :]
 top_features = ranked_features_df.loc[ranked_features_df.fdr_pval < 0.1, :]
 
 
