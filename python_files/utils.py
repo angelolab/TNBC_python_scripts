@@ -6,10 +6,12 @@ from matplotlib.axes import Axes
 from matplotlib.colors import Normalize
 from matplotlib.figure import Figure
 import numpy as np
+import xarray as xr
 import os
 import pandas as pd
 from skimage import morphology
 from scipy.ndimage import gaussian_filter
+from skimage.segmentation import find_boundaries
 from skimage.measure import label
 import skimage.io as io
 
@@ -1028,7 +1030,34 @@ def remove_ticks(f: Figure | Axes | Iterable[Axes], axis: Literal["x", "y", "xy"
             _set_locator_formatter(f, axis)
         case Iterable() | list() | np.ndarray():
             assert all(isinstance(a, plt.Axes) for a in f), "f must be an iterable of Axes objects"
-            for a in f:
-                _set_locator_formatter(a, axis)
+            map(lambda a: _set_locator_formatter(a, axis), f)
         case _:
-            raise ValueError("f must be a Figure or Axes object")
+            raise ValueError("f must be a Figure, an Axes object, or a lis tof Axes objects")
+
+
+def mask_erosion_ufunc(
+    x: xr.DataArray,
+    connectivity: int = 2,
+    mode: Literal["thick", "inner", "outer", "subpixel"] = "thick",
+):
+    """_summary_
+
+    Parameters
+    ----------
+    x : xr.DataArray
+        The input label image
+    connectivity : int, optional
+        The connectivity used to find boundaries, by default 2
+    mode : Literal["thick", "inner", "outer", "subpixel"], optional
+        How to mark the boundaries , by default "thick"
+
+    Returns
+    -------
+    NDArray
+        The mask of the segmentation with eroded boundaries.
+    """
+    edges = find_boundaries(
+        label_img=x, connectivity=connectivity, mode=mode, background=0
+    )
+    seg_mask = np.where(edges == 0, x, 0)
+    return seg_mask

@@ -9,11 +9,11 @@ import xarray as xr
 from os import PathLike
 from PIL import Image, ImageDraw, ImageFont
 from typing import Dict, List, Optional, Tuple, TypedDict, Union, Literal
-from ark.utils import plot_utils
+from ark.utils import plot_utils, data_utils
 from alpineer.io_utils import list_folders, list_files, remove_file_extensions, validate_paths
-from alpineer.load_utils import load_imgs_from_tree
+from alpineer.load_utils import load_imgs_from_tree, load_imgs_from_dir
 from alpineer.misc_utils import verify_in_list
-from utils import remove_ticks, QuantileNormalization
+from .utils import remove_ticks, QuantileNormalization, mask_erosion_ufunc
 
 ACQUISITION_ORDER_INDICES = [
     11, 12, 13, 14, 15, 17, 18, 20, 22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 35,
@@ -407,8 +407,7 @@ def stitch_before_after_norm(
     pre_norm_tiled.save(pre_norm_stitched_path)
     post_norm_tiled.save(post_norm_stitched_path)
 
-
-class MembraneMarkersOverlaysPlot:
+class MembraneMarkersSegmentationPlot:
     def __init__(
         self,
         fov: str,
@@ -418,7 +417,7 @@ class MembraneMarkersOverlaysPlot:
         overlay_channels: str | List[str],
         q: tuple[float, float] = (0.05, 0.95),
         clip: bool = False,
-        figsize: Tuple[int, int] = (8, 4),
+        figsize: Tuple[int, int] = (12, 4),
         layout: Literal["constrained", "tight"] = None,
         image_type: Literal["png", "pdf"] = "pdf",
     ):
@@ -464,7 +463,9 @@ class MembraneMarkersOverlaysPlot:
         self.clip = clip
 
         self.fig = plt.figure(figsize=figsize, layout=layout)
-        self.subfigs = self.fig.subfigures(nrows=1, ncols=2, wspace=0.05, width_ratios=[2, 1])
+        self.subfigs = self.fig.subfigures(
+            nrows=1, ncols=2, wspace=0.05, width_ratios=[1, 1]
+        )
 
     def make_plot(self, save_dir: PathLike):
         """Plots the membrane markers and overlay and saves the figure to the specified directory.
@@ -475,23 +476,34 @@ class MembraneMarkersOverlaysPlot:
             The directory to save the figure to.
         """
         self.fov_xr = load_imgs_from_tree(
-            data_dir=self.image_data, fovs=[self.fov_name], channels=self.membrane_channels
+            data_dir=self.image_data,
+            fovs=[self.fov_name],
+            channels=self.membrane_channels,
         )
-        
+
         self.fov_overlay = plot_utils.create_overlay(
             fov=self.fov_name,
-            segmentation_dir = self.seg_dir / "deepcell_output",
+            segmentation_dir=self.seg_dir / "deepcell_output",
             data_dir=self.seg_dir / "deepcell_input",
             img_overlay_chans=self.overlay_channels,
             seg_overlay_comp="whole_cell",
         )
-        
-        self.fig.suptitle(t=f"{self.fov_name} Membrane Markers and Overlay", fontsize=8)
-    
+
+        self.fov_cell_segmentation = load_imgs_from_dir(
+            data_dir=self.seg_dir / "deepcell_output",
+            files=[f"{self.fov_name}_whole_cell.tiff"],
+        )
+
+        self.fig.suptitle(
+            t=f"{self.fov_name} Membrane Markers and Segmentation", fontsize=8
+        )
+
         self._plot_mem_markers()
-        self._plot_overlay()
-        self.fig.savefig(save_dir / f"{self.fov_name}_membrane_markers_overlay.{self.image_type}")
-        
+        self._plot_overlay_segmentation()
+        self.fig.savefig(
+            save_dir / f"{self.fov_name}_membrane_markers_overlay.{self.image_type}"
+        )
+
     def _plot_mem_markers(self):
         self.subfigs[0].suptitle("Membrane Markers", fontsize=6)
 
@@ -502,53 +514,146 @@ class MembraneMarkersOverlaysPlot:
             sharey=True,
             gridspec_kw={"wspace": 0.05, "hspace": 0.05},
         )
-        
-        channel_axes = markers_subplots.flat[:self.n_chans]
-        
+
+        channel_axes = markers_subplots.flat[: self.n_chans]
+
         self.subfigs[0].add_subplot
-        
+
         for ax, channel in zip(channel_axes, ns.natsorted(self.membrane_channels)):
             chan_data = self.fov_xr.sel({"channels": channel}).squeeze()
-            
+
             ax.imshow(
                 X=chan_data,
                 cmap="gray",
-                norm=QuantileNormalization(q = self.q, clip=self.clip),
-                interpolation='none',
+                norm=QuantileNormalization(q=self.q, clip=self.clip),
+                interpolation="none",
                 aspect="equal",
             )
             ax.set_title(channel, fontsize=6)
             remove_ticks(ax, "xy")
-            
+
         ax_sum = markers_subplots.flat[self.n_chans]
-        
+
         ax_sum.imshow(
             X=self.fov_xr.sum("channels").squeeze(),
             cmap="gray",
-            norm=QuantileNormalization(q = self.q, clip=self.clip),
-            interpolation='none',
+            norm=QuantileNormalization(q=self.q, clip=self.clip),
+            interpolation="none",
             aspect="equal",
         )
-        
+
         ax_sum.set_title("Sum", fontsize=6)
-        
         remove_ticks(ax_sum, "xy")
-        
+
         # Clean up and remove the empty subplots
-        for ax in markers_subplots.flat[self.n_chans + 1:]:
+        for ax in markers_subplots.flat[self.n_chans + 1 :]:
             ax.remove()
-        
-    def _plot_overlay(self):
-        
-        subfigs_overaly_ax = self.subfigs[1].subplots(
-            nrows=1, ncols=1, sharex=True, sharey=True
+
+    def _plot_overlay_segmentation(self):
+        cell_seg_ax, overlay_ax = self.subfigs[1].subplots(
+            nrows=1, ncols=2, sharex=True, sharey=True
         )
-        subfigs_overaly_ax.set_title("Nuclear and Membrane Overlay", fontsize=6)
-        subfigs_overaly_ax.imshow(
+        overlay_ax.set_title("Nuclear and Membrane Overlay", fontsize=6)
+        overlay_ax.imshow(
             X=self.fov_overlay,
-            norm=QuantileNormalization(q = self.q, clip=self.clip),
-            interpolation='none',
+            norm=QuantileNormalization(q=self.q, clip=self.clip),
+            interpolation="none",
             aspect="equal",
         )
-        
-        remove_ticks(subfigs_overaly_ax, "xy")
+
+        cell_seg_ax.set_title("Cell Segmentation", fontsize=6)
+        cell_seg_ax.imshow(
+            X=xr.apply_ufunc(
+                mask_erosion_ufunc,
+                self.fov_cell_segmentation.squeeze(),
+                input_core_dims=[["rows", "cols"]],
+                output_core_dims=[["rows", "cols"]],
+                kwargs={"connectivity": 2, "mode": "thick"},
+            ).pipe(lambda x: x.where(cond=x < 1, other=0.5)),
+            cmap="grey",
+            interpolation="none",
+            aspect="equal",
+            vmin=0,
+            vmax=1,
+        )
+
+        remove_ticks(overlay_ax, "xy")
+        remove_ticks(cell_seg_ax, "xy")
+
+
+class SegmentationOverlayPlot:
+    def __init__(
+        self,
+        fov: str,
+        segmentation_dir: PathLike,
+        overlay_channels: str | List[str],
+        q: tuple[float, float] = (0.05, 0.95),
+        clip: bool = False,
+        figsize: tuple[float, float] =(8, 4),
+        layout: Literal["constrained", "tight"] = "constrained",
+        image_type: Literal["png", "pdf"] = "pdf",
+    ) -> None:
+        self.fov_name = fov
+        self.seg_dir = segmentation_dir
+        self.overlay_channels = overlay_channels
+        self.q = q
+        self.clip = clip
+        self.figsize = figsize
+        self.layout = layout
+        self.image_type = image_type
+
+        self.fig = plt.figure(figsize=self.figsize, layout=layout)
+
+    def make_plot(self, save_dir: PathLike) -> None:
+        self.fov_overlay = plot_utils.create_overlay(
+            fov=self.fov_name,
+            segmentation_dir=self.seg_dir / "deepcell_output",
+            data_dir=self.seg_dir / "deepcell_input",
+            img_overlay_chans=self.overlay_channels,
+            seg_overlay_comp="whole_cell",
+        )
+
+        self.fov_cell_segmentation = load_imgs_from_dir(
+            data_dir=self.seg_dir / "deepcell_output",
+            files=[f"{self.fov_name}_whole_cell.tiff"],
+        )
+        self.fig.suptitle(
+            t=f"{self.fov_name} Cell Segmentation and Overlay", fontsize=8
+        )
+
+        self._plot_overlay_segmentation()
+
+        self.fig.savefig(
+            save_dir / f"{self.fov_name}_segmentation_overlay.{self.image_type}"
+        )
+
+    def _plot_overlay_segmentation(self):
+        cell_seg_ax, overlay_ax = self.fig.subplots(
+            nrows=1, ncols=2, sharex=True, sharey=True
+        )
+        overlay_ax.set_title("Nuclear and Membrane Overlay", fontsize=6)
+        overlay_ax.imshow(
+            X=self.fov_overlay,
+            norm=QuantileNormalization(q=self.q, clip=self.clip),
+            interpolation="none",
+            aspect="equal",
+        )
+
+        cell_seg_ax.set_title("Cell Segmentation", fontsize=6)
+        cell_seg_ax.imshow(
+            X=xr.apply_ufunc(
+                mask_erosion_ufunc,
+                self.fov_cell_segmentation.squeeze(),
+                input_core_dims=[["rows", "cols"]],
+                output_core_dims=[["rows", "cols"]],
+                kwargs={"connectivity": 2, "mode": "thick"},
+            ).pipe(lambda x: x.where(cond=x < 1, other=0.5)),
+            cmap="grey",
+            interpolation="none",
+            aspect="equal",
+            vmin=0,
+            vmax=1,
+        )
+
+        remove_ticks(overlay_ax, "xy")
+        remove_ticks(cell_seg_ax, "xy")
