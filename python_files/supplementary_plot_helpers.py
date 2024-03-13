@@ -6,10 +6,9 @@ import os
 import pandas as pd
 import pathlib
 import xarray as xr
-import warnings
 
 from PIL import Image, ImageDraw, ImageFont
-from typing import Callable, Dict, List, Optional, Tuple, TypedDict, Union
+from typing import Dict, List, Optional, Tuple, TypedDict, Union
 
 from alpineer.io_utils import list_folders, list_files, remove_file_extensions, validate_paths
 from alpineer.load_utils import load_imgs_from_tree
@@ -406,121 +405,3 @@ def stitch_before_after_norm(
 
     pre_norm_tiled.save(pre_norm_stitched_path)
     post_norm_tiled.save(post_norm_stitched_path)
-
-
-def euclidean_timepoint(tp_one_data: pd.Series, tp_two_data: pd.Series) -> float:
-    """Compute the Euclidean distance between two timepoint data
-
-    Args:
-        tp_one_data (pd.Series):
-            The data for the first timepoint
-        tp_two_data (pd.Series):
-            The data for the second timepoint
-
-    Returns:
-        float:
-            The Euclidean distance between the two timepoint datapoints
-    """
-    # combine the two series into one df
-    tp_combined: pd.DataFrame = pd.concat([tp_one_data, tp_two_data], axis=1)
-
-    # drop nans across both columns
-    tp_combined = tp_combined.dropna(axis=0)
-
-    # unit normalize each column
-    tp_combined = tp_combined.apply(lambda x: (x / np.linalg.norm(x)), axis=0)
-
-    # return Euclidean distance
-    return np.linalg.norm(tp_combined.values[:, :1] - tp_combined.values[:, 1:])
-
-
-def generate_patient_paired_timepoints(
-    harmonized_metadata: pd.DataFrame, timepoint_df: pd.DataFrame,
-    distance_metric: Callable[[pd.Series, pd.Series], float], tissue_id_col: str = "Tissue_ID",
-    patient_id_col: str = "Patient_ID", timepoint_col: str = "Timepoint",
-    feature_to_pair_by: str = "normalized_mean"
-) -> pd.DataFrame:
-    """For each patient, generate the paired comparisons between different timepoints.
-
-    Args:
-        harmonized_metadata (pd.DataFrame):
-            Maps each FOV and Tissue ID to the corresponding patient and timepoint
-        timepoint_df (pd.DataFrame):
-            Maps the features measured for each Tissue ID
-        distance_metric: Callable[[pd.Series, pd.Series], float]:
-            A custom distance metric used to compute the distance between timepoint data
-        tissue_id_col (str):
-            The column to index into the tissue ID
-        patient_id_col (str):
-            The column to index into the patient ID
-        timepoint_col (str):
-            The column containing the timepoint value
-        feature_to_pair_by (str):
-            The feature to generate paired distances for
-    """
-    # define the timepoint pairs to use
-    timepoint_pairs = [
-        ("primary_untreated", "baseline"),
-        ("baseline", "post_induction"),
-        ("baseline", "on_nivo"),
-        ("post_induction", "on_nivo")
-    ]
-
-    # define a DataFrame that contains each patient and corresponding timepoint difference columns
-    timepoint_comparisons = pd.DataFrame(
-        index=np.sort(harmonized_metadata[patient_id_col].unique()),
-        columns=[f"{tp[0]} to {tp[1]} difference" for tp in timepoint_pairs]
-    )
-
-    # group the metadata by patient ID
-    patient_groups = harmonized_metadata[
-        [tissue_id_col, patient_id_col, timepoint_col]
-    ].groupby(patient_id_col)
-
-    # iterate through each patient and their timepoint data
-    for patient_id, patient_data in patient_groups:
-        # get the unique tissue samples for each timepoint
-        patient_data_dedup = patient_data[
-            patient_data[timepoint_col].isin(
-                ["primary_untreated", "baseline", "post_induction", "on_nivo"]
-            )
-        ].drop_duplicates()
-
-        # define which tissue ID maps to which timepoint, this will help with sorting
-        tissue_id_timepoint_map = dict(
-            zip(patient_data_dedup[tissue_id_col], patient_data_dedup[timepoint_col])
-        )
-
-        # get the corresponding timepoint data
-        timepoint_subset = timepoint_df.loc[
-            timepoint_df[tissue_id_col].isin(patient_data_dedup[tissue_id_col].values), :
-        ]
-
-        # in the case there aren't any corresponding tissue IDs, continue
-        # NOTE: this can happen because the tissue IDs between harmonized_metadata and timepoint_df
-        # don't always match up
-        if len(timepoint_subset) == 0:
-            warnings.warn(f"Skipping patient {patient_id}, no corresponding timepoint values")
-            continue
-
-        # group into specific columns by tissue, then rename columns to corresponding timepoint
-        wide_timepoint = pd.pivot(
-            timepoint_subset, index="feature_name_unique", columns=tissue_id_col,
-            values=feature_to_pair_by
-        ).rename(tissue_id_timepoint_map, axis=1)
-
-        # if a specific timepoint pair exists, then compute the mean difference across all features
-        for tp in timepoint_pairs:
-            if tp[0] in wide_timepoint.columns.values and tp[1] in wide_timepoint.columns.values:
-                col_difference = distance_metric(
-                    wide_timepoint.loc[:, tp[0]], wide_timepoint.loc[:, tp[1]]
-                )
-                timepoint_comparisons.loc[
-                    patient_id, f"{tp[0]} to {tp[1]} difference"
-                ] = col_difference
-
-    # add patient ID as a column, and reindex just for consistency
-    timepoint_comparisons["Patient_ID"] = timepoint_comparisons.index.values
-    timepoint_comparisons = timepoint_comparisons.reset_index(drop=True)
-
-    return timepoint_comparisons
