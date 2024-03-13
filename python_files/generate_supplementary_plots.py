@@ -471,20 +471,3 @@ supplementary_plot_helpers.functional_marker_thresholding(
 # Feature extraction
 
 
-
-# Paired Timepoint Divergence
-paired_timepoint_data_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "paired_timepoint_comparisons")
-if not os.path.exists(paired_timepoint_data_dir):
-    os.makedirs(paired_timepoint_data_dir)
-
-harmonized_metadata_df = pd.read_csv(os.path.join(METADATA_DIR, "harmonized_metadata.csv"))
-timepoint_df = pd.read_csv(os.path.join(ANALYSIS_DIR, "timepoint_features.csv"))
-
-patient_paired_comparisons = supplementary_plot_helpers.generate_patient_paired_timepoints(
-    harmonized_metadata_df, timepoint_df,
-    distance_metric=supplementary_plot_helpers.euclidean_timepoint
-)
-
-patient_paired_comparisons.to_csv(
-    os.path.join(paired_timepoint_data_dir, "paired_timepoint_data.csv"), index=False
-)
