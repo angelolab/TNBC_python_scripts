@@ -16,6 +16,36 @@ sequence_dir = os.path.join(base_dir, 'sequencing_data')
 
 harmonized_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/harmonized_metadata.csv'))
 
+# calculate gene set enrichment scores
+import pandas as pd
+import gseapy as gp
+from gseapy import Msigdb
+
+# Load gene expression data
+gene_features = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_gene_expression_TPM_table.tsv'), sep='\t', index_col=0)
+
+# Calculate msigdb genesets
+msig = Msigdb()
+categories_keep = ["h.all", "c2.all", "c5.go"]
+all_gene_sets = {}
+for one_category in categories_keep:
+    one_set = msig.get_gmt(category=one_category, dbver="2023.2.Hs")
+    all_gene_sets.update(one_set)
+
+# Keep specific gene sets
+gene_sets_keep = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/msigdb_genesets.csv'))
+gene_sets_names_keep = gene_sets_keep['name'].values
+gene_sets = {x: all_gene_sets[x] for x in gene_sets_names_keep}
+
+# Do ssgsea
+ss = gp.ssgsea(data = gene_features,
+               gene_sets = gene_sets,
+               sample_norm_method = 'rank')
+
+ss.res2d.to_csv(os.path.join(sequence_dir, 'preprocessing/msigdb_ssgsea_es.csv'), index=False)
+
+
+
 #
 # clean up genomics features
 #
