@@ -249,7 +249,7 @@ plt.title("Cell Cluster Counts")
 plt.xlabel("Cell Cluster")
 plt.xticks(rotation=75)
 plt.tight_layout()
-plt.savefig(os.path.join(cluster_stats_dir, "cells_per_cluster.png"), dpi=300)
+plt.savefig(os.path.join(cluster_stats_dir, "cells_per_cluster.pdf"), dpi=300)
 
 ## fov cell counts
 cluster_counts = np.unique(cell_table.fov, return_counts=True)[1]
@@ -259,7 +259,7 @@ sns.despine()
 plt.title("Histogram of Cell Counts per Image")
 plt.xlabel("Number of Cells in an Image")
 plt.tight_layout()
-plt.savefig(os.path.join(cluster_stats_dir, "cells_per_fov.png"), dpi=300)
+plt.savefig(os.path.join(cluster_stats_dir, "cells_per_fov.pdf"), dpi=300)
 
 ## cell type composition by tissue location of met and timepoint
 meta_data = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/harmonized_metadata.csv')
@@ -307,7 +307,7 @@ for metric in ['Localization', 'Timepoint']:
     plt.legend(handles[::-1], labels[::-1],
                bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0)
     plt.tight_layout()
-    plot_name = "cell_props_by_tissue_loc.png" if metric == 'Localization' else "cell_props_by_timepoint.png"
+    plot_name = "cell_props_by_tissue_loc.pdf" if metric == 'Localization' else "cell_props_by_timepoint.pdf"
     plt.savefig(os.path.join(cluster_stats_dir, plot_name), dpi=300)
 
 ## colored cell cluster masks from random subset of 20 FOVs
