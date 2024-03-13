@@ -209,7 +209,6 @@ aggregate_euclidean_subsetted = evolution_df[["Patient_ID", "comparison"]].drop_
 
 evolution_df_cats = evolution_df[["Patient_ID", "comparison"]].drop_duplicates().sort_values(by=["Patient_ID", "comparison"])
 aggregate_euclidean_cats = aggregate_euclidean_subsetted[["Patient_ID", "comparison"]].drop_duplicates().sort_values(by=["Patient_ID", "comparison"])
-# assert np.all(evolution_df_cats.values == aggregate_euclidean_cats.values)
 evolution_df = pd.concat([evolution_df, aggregate_euclidean_subsetted])
 evolution_df.to_csv(os.path.join(output_dir, 'timepoint_evolution_features_test_aggregate.csv'), index=False)
 
