@@ -16,12 +16,6 @@ from alpineer.misc_utils import verify_in_list
 from toffy.image_stitching import rescale_images
 
 
-ACQUISITION_ORDER_INDICES_NORM = [
-    11, 12, 13, 14, 15, 17, 18, 20, 22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 35,
-    36, 39, 40, 41, 42, 43, 44, 45, 46, 47
-]
-
-
 # generate stitching/annotation function, used by panel validation and acquisition order tiling
 def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
                                    font_size: int = 100, annotate: bool = False,
@@ -325,7 +319,7 @@ def functional_marker_thresholding(
 def stitch_before_after_rosetta(
     pre_rosetta_dir: Union[str, pathlib.Path], post_rosetta_dir: Union[str, pathlib.Path],
     save_dir: Union[str, pathlib.Path],
-    run_name: str, target_channel: str, source_channel: str = "Noodle",
+    run_name: str, fov_indices: Optional[List[int]], target_channel: str, source_channel: str = "Noodle",
     pre_rosetta_subdir: str = "", post_rosetta_subdir: str = "",
     img_size_scale: float = 0.5, percent_norm: Optional[float] = 99.999,
     padding: int = 25, font_size: int = 175, step: int = 1
@@ -340,6 +334,8 @@ def stitch_before_after_rosetta(
         The directory to save both the pre- and post-Rosetta tiled images
     run_name (str):
         The name of the run to tile, should be present in both pre_rosetta_dir and post_rosetta_dir
+    fov_indices (Optional[List[int]]):
+        The list of indices to select. If None, use all.
     target_channel (str):
         The name of the channel to tile inside run_name
     source_channel (str):
@@ -398,16 +394,12 @@ def stitch_before_after_rosetta(
         data_dir=post_rosetta_run_path, fovs=all_fovs, channels=[target_channel],
         img_sub_folder=post_rosetta_subdir, max_image_size=2048
     )[..., 0]
-    noodle_data = noodle_data[ACQUISITION_ORDER_INDICES_NORM, ...]
-    pre_rosetta_data = pre_rosetta_data[ACQUISITION_ORDER_INDICES_NORM, ...]
-    post_rosetta_data = post_rosetta_data[ACQUISITION_ORDER_INDICES_NORM, ...]
 
     # divide pre-Rosetta by 200 to ensure same scale
     pre_rosetta_data = pre_rosetta_data / 200
 
     # reassign coordinate with FOV names that don't contain "-scan-1" or additional dashes
     fovs_condensed: np.ndarray = np.array([f"FOV{af.split('-')[1]}" for af in all_fovs])
-    fovs_condensed = fovs_condensed[ACQUISITION_ORDER_INDICES_NORM]
     noodle_data = noodle_data.assign_coords({"fovs": fovs_condensed})
     pre_rosetta_data = pre_rosetta_data.assign_coords({"fovs": fovs_condensed})
     post_rosetta_data = post_rosetta_data.assign_coords({"fovs": fovs_condensed})
@@ -445,6 +437,15 @@ def stitch_before_after_rosetta(
         (stitched_pre_post_rosetta[:2048, :], stitched_noodle, stitched_pre_post_rosetta[2048:, :])
     )
 
+    # subset on just the FOV indices selected
+    # NOTE: because of how percent norm works, better to run on all FOVs first to ensure brightness
+    # as opposed to subsetting first, which often leads to dimmer images
+    if fov_indices:
+        indices_select = []
+        for fi in fov_indices:
+            indices_select.extend(list(np.arange(2048 * fi, 2048 * (fi + 1))))
+        stitched_pre_post_rosetta = stitched_pre_post_rosetta[:, indices_select]
+
     # save the image
     stitched_rosetta_pil: Image = Image.fromarray(np.round(stitched_pre_post_rosetta, 3))
     stitched_rosetta_pil.save(rosetta_stitched_path)
@@ -452,8 +453,8 @@ def stitch_before_after_rosetta(
 
 def stitch_before_after_norm(
     pre_norm_dir: Union[str, pathlib.Path], post_norm_dir: Union[str, pathlib.Path],
-    save_dir: Union[str, pathlib.Path],
-    run_name: str, channel: str, pre_norm_subdir: str = "", post_norm_subdir: str = "",
+    save_dir: Union[str, pathlib.Path], run_name: str,
+    fov_indices: Optional[List[int]], channel: str, pre_norm_subdir: str = "", post_norm_subdir: str = "",
     padding: int = 25, font_size: int = 100, step: int = 1
 ):
     """Generates two stitched images: before and after normalization
@@ -466,6 +467,8 @@ def stitch_before_after_norm(
         The directory to save both the pre- and post-norm tiled images
     run_name (str):
         The name of the run to tile, should be present in both pre_norm_dir and post_norm_dir
+    fov_indices (Optional[List[int]]):
+        The list of indices to select. If None, use all.
     channel (str):
         The name of the channel to tile inside run_name
     pre_norm_subdir (str):
@@ -515,12 +518,14 @@ def stitch_before_after_norm(
         img_sub_folder=post_norm_subdir, max_image_size=2048
     )[..., 0]
 
-    pre_norm_data = pre_norm_data[ACQUISITION_ORDER_INDICES_NORM, ...]
-    post_norm_data = post_norm_data[ACQUISITION_ORDER_INDICES_NORM, ...]
+    if fov_indices:
+        pre_norm_data = pre_norm_data[fov_indices, ...]
+        post_norm_data = post_norm_data[fov_indices, ...]
 
     # reassign coordinate with FOV names that don't contain "-scan-1" or additional dashes
     fovs_condensed: np.ndarray = np.array([f"FOV{af.split('-')[1]}" for af in all_fovs])
-    fovs_condensed = fovs_condensed[ACQUISITION_ORDER_INDICES_NORM]
+    if fov_indices:
+        fovs_condensed = fovs_condensed[fov_indices]
     pre_norm_data = pre_norm_data.assign_coords({"fovs": fovs_condensed})
     post_norm_data = post_norm_data.assign_coords({"fovs": fovs_condensed})
 

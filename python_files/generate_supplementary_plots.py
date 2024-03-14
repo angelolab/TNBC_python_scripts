@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import matplotlib
 from ark.utils.plot_utils import cohort_cluster_plot
-# from toffy import qc_comp, qc_metrics_plots
+from toffy import qc_comp, qc_metrics_plots
 from alpineer import io_utils
 
 
@@ -220,17 +220,23 @@ run_name = "2022-01-14_TONIC_TMA2_run1"
 pre_rosetta_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/extracted"
 post_rosetta_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/rosetta"
 
-channels = [
-    "CD8", "CD20", "CD3", "CD163", "CD38", "CD56", "TIM3", "GLUT1", "HLADR", "CD31", "FOXP3",
-    "CD11c", "IDO", "CD69", "CD4", "PD1", "CD4"
-]
-for channel in channels:
-    # NOTE: image not scaled up, this happens in Photoshop
-    supplementary_plot_helpers.stitch_before_after_rosetta(
-        pre_rosetta_dir, post_rosetta_dir, acquisition_order_viz_dir_rosetta, run_name,
-        channel, post_rosetta_subdir="normalized", padding=0, step=1
-    )
-
+# NOTE: images not scaled up programmatically, this happens manually in Photoshop
+supplementary_plot_helpers.stitch_before_after_rosetta(
+    pre_rosetta_dir, post_rosetta_dir, acquisition_order_viz_dir_rosetta, run_name,
+    [11, 20, 35], "CD4", post_rosetta_subdir="normalized", padding=0, step=1
+)
+supplementary_plot_helpers.stitch_before_after_rosetta(
+    pre_rosetta_dir, post_rosetta_dir, acquisition_order_viz_dir_rosetta, run_name,
+    [17, 18, 39], "CD56", post_rosetta_subdir="normalized", padding=0, step=1
+)
+supplementary_plot_helpers.stitch_before_after_rosetta(
+    pre_rosetta_dir, post_rosetta_dir, acquisition_order_viz_dir_rosetta, run_name,
+    [30, 45], "CD31", post_rosetta_subdir="normalized", padding=0, step=1
+)
+supplementary_plot_helpers.stitch_before_after_rosetta(
+    pre_rosetta_dir, post_rosetta_dir, acquisition_order_viz_dir_rosetta, run_name,
+    [11, 15, 17, 20, 30, 42, 43], "CD8", post_rosetta_subdir="normalized", padding=0, step=1
+)
 
 ## show a run with images stitched in acquisition order pre- and post-normalization
 acquisition_order_viz_dir_norm = os.path.join(SUPPLEMENTARY_FIG_DIR, "acquisition_order_norm")
@@ -241,10 +247,13 @@ run_name = "2022-01-14_TONIC_TMA2_run1"
 pre_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/rosetta"
 post_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/normalized"
 
-# NOTE: image not scaled up, this happens in Photoshop
+# NOTE: images not scaled up programmatically, this happens manually in Photoshop
 supplementary_plot_helpers.stitch_before_after_norm(
     pre_norm_dir, post_norm_dir, acquisition_order_viz_dir_norm, run_name,
-    "H3K9ac", pre_norm_subdir="normalized", padding=0, step=1
+    [
+        11, 12, 13, 14, 15, 17, 18, 20, 22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 35,
+        36, 39, 40, 41, 42, 43, 44, 45, 46, 47
+    ], "H3K9ac", pre_norm_subdir="normalized", padding=0, step=1
 )
 
 
