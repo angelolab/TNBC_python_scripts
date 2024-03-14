@@ -322,7 +322,8 @@ def stitch_before_after_rosetta(
     run_name: str, fov_indices: Optional[List[int]], target_channel: str, source_channel: str = "Noodle",
     pre_rosetta_subdir: str = "", post_rosetta_subdir: str = "",
     img_size_scale: float = 0.5, percent_norm: Optional[float] = 99.999,
-    padding: int = 25, font_size: int = 175, step: int = 1
+    padding: int = 25, font_size: int = 175, step: int = 1,
+    save_separate: bool = False
 ):
     """Generates two stitched images: before and after Rosetta
 
@@ -354,6 +355,8 @@ def stitch_before_after_rosetta(
         The font size to use for annotations
     step (int):
         The step size to use before adding an image to the tile
+    save_separate (bool):
+        If set, then save each FOV separately, otherwise save full tile
     """
     # verify that the run_name specified appears in both pre and post norm folders
     all_pre_rosetta_runs: List[str] = list_folders(pre_rosetta_dir)
@@ -446,16 +449,27 @@ def stitch_before_after_rosetta(
             indices_select.extend(list(np.arange(2048 * fi, 2048 * (fi + 1))))
         stitched_pre_post_rosetta = stitched_pre_post_rosetta[:, indices_select]
 
-    # save the image
-    stitched_rosetta_pil: Image = Image.fromarray(np.round(stitched_pre_post_rosetta, 3))
-    stitched_rosetta_pil.save(rosetta_stitched_path)
+    if save_separate:
+        # save each individual image separately
+        for fov_i, fov_num in enumerate(fov_indices):
+            stitched_rosetta_pil: Image = Image.fromarray(
+                stitched_pre_post_rosetta[:, (2048 * fov_i):(2048 * (fov_i + 1))]
+            )
+            rosetta_stitched_path: pathlib.Path = \
+                pathlib.Path(save_dir) / f"{target_channel}_image_{fov_num}.tiff"
+            stitched_rosetta_pil.save(rosetta_stitched_path)
+
+    else:
+        # save the full stitched image
+        stitched_rosetta_pil: Image = Image.fromarray(np.round(stitched_pre_post_rosetta, 3))
+        stitched_rosetta_pil.save(rosetta_stitched_path)
 
 
 def stitch_before_after_norm(
     pre_norm_dir: Union[str, pathlib.Path], post_norm_dir: Union[str, pathlib.Path],
     save_dir: Union[str, pathlib.Path], run_name: str,
-    fov_indices: Optional[List[int]], channel: str, pre_norm_subdir: str = "", post_norm_subdir: str = "",
-    padding: int = 25, font_size: int = 100, step: int = 1
+    fov_indices: Optional[List[int]], channel: str, pre_norm_subdir: str = "",
+    post_norm_subdir: str = "", padding: int = 25, font_size: int = 100, step: int = 1
 ):
     """Generates two stitched images: before and after normalization
 
