@@ -168,7 +168,7 @@ analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
 harmonized_metadata = pd.read_csv(os.path.join(analysis_dir, 'harmonized_metadata.csv'))
 timepoint_features = pd.read_csv(os.path.join(analysis_dir, 'timepoint_features_filtered.csv'))
 evolution_cats = ['primary__baseline', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']
-timepoint_features = timepoint_features.merge(harmonized_metadata[['Tissue_ID', 'Timepoint', 'Localization', 'Patient_ID'] + evolution_cats].drop_duplicates(), on='Tissue_ID', how='left')
+timepoint_features_agg = timepoint_features.merge(harmonized_metadata[['Tissue_ID', 'Timepoint', 'Localization', 'Patient_ID'] + evolution_cats].drop_duplicates(), on='Tissue_ID', how='left')
 patient_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata/TONIC_data_per_patient.csv'))
 
 evolution_dfs = []
@@ -177,7 +177,7 @@ for evolution_col in evolution_cats:
     timepoint_1, timepoint_2 = evolution_col.split('__')
     if timepoint_1 == 'primary':
         timepoint_1 = 'primary_untreated'
-    evolution_df = timepoint_features[timepoint_features[evolution_col]].copy()
+    evolution_df = timepoint_features_agg[timepoint_features_agg[evolution_col]].copy()
     evolution_df = evolution_df.loc[evolution_df.Timepoint.isin([timepoint_1, timepoint_2])]
 
     # get the paired features
