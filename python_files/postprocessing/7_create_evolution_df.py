@@ -41,10 +41,14 @@ def generate_patient_paired_timepoints(
     harmonized_metadata: pd.DataFrame, timepoint_df: pd.DataFrame,
     distance_metric: Callable[[pd.Series, pd.Series], float], tissue_id_col: str = "Tissue_ID",
     patient_id_col: str = "Patient_ID", timepoint_col: str = "Timepoint",
-    feature_to_pair_by: str = "normalized_mean", feature_name: str = "euclidean_distance_all_features",
-    column_val: str = "normalized_value"
+    feature_to_compare: str = "normalized_mean", feature_to_create: str = "euclidean_distance_all_features"
 ) -> pd.DataFrame:
-    """For each patient, generate the paired comparisons between different timepoints.
+    """Compute distance metric between timepoints aggregated across all evolution table features.
+
+    Both raw_value (direct output of the distance metric) and normalized_value (the output z-scored) are computed.
+
+    This table gets appended to the evolution table and combined into the final timepoint features table as an 
+    additional feature.
 
     Args:
         harmonized_metadata (pd.DataFrame):
@@ -58,14 +62,16 @@ def generate_patient_paired_timepoints(
         patient_id_col (str):
             The column to index into the patient ID
         timepoint_col (str):
-            The column containing the timepoint value
-        feature_to_pair_by (str):
-            The feature to generate paired distances for
-        feature_name (str):
-            The name of the feature to store in the table
-        column_val (str):
-            The name of the corresponding column to create for the feature,
-            should be either normalized_value or raw_value
+            The column to index into the timepoint
+        feature_to_compare (str):
+            The feature to compare across different timepoints in timepoint_col
+        feature_to_create (str):
+            The name of the feature to append to the existing evolution table
+
+    Returns:
+        pd.DataFrame:
+            The table defining feature_to_create across all other features, appended to the evolution table as 
+            an aggregated feature.
     """
     # define the timepoint pairs to use, these index into harmonized_metadata
     timepoint_pairs = [
@@ -82,7 +88,7 @@ def generate_patient_paired_timepoints(
 
     # define a DataFrame that stores the distance metric feature between all other features
     col_names = [
-        "feature_name_unique", "Patient_ID", "comparison", column_val
+        "feature_name_unique", "Patient_ID", "comparison", "raw_value"
     ]
     timepoint_comparisons = pd.DataFrame(columns=col_names)
 
@@ -120,7 +126,7 @@ def generate_patient_paired_timepoints(
         # group into specific columns by tissue, then rename columns to corresponding timepoint
         wide_timepoint = pd.pivot(
             timepoint_subset, index="feature_name_unique", columns=tissue_id_col,
-            values=feature_to_pair_by
+            values=feature_to_compare
         ).rename(tissue_id_timepoint_map, axis=1)
 
         # if a specific timepoint pair exists, then compute the mean difference across all features
@@ -136,7 +142,7 @@ def generate_patient_paired_timepoints(
                         timepoint_comparisons,
                         pd.DataFrame(
                             [[
-                                feature_name,
+                                feature_to_create,
                                 patient_id,
                                 f"{feature_0}__{feature_1}",
                                 col_difference
@@ -146,7 +152,123 @@ def generate_patient_paired_timepoints(
                     ]
                 )
 
+    # z-score the raw_values and store in normalized_value
+    timepoint_comparisons["normalized_value"] = (
+        timepoint_comparisons["raw_value"] - timepoint_comparisons["raw_value"].mean()
+    ) / timepoint_comparisons["raw_value"].std()
+
     return timepoint_comparisons
+
+# def generate_patient_paired_timepoints(
+#     harmonized_timepoint_comb: pd.DataFrame, distance_metric: Callable[[pd.Series, pd.Series], float],
+#     patient_id_col: str = "Patient_ID", timepoint_col: str = "Timepoint",
+#     feature_to_compare: str = "normalized_mean", feature_to_create: str = "euclidean_distance_norm_mean_all_features"
+# ) -> pd.DataFrame:
+#     """Compute distance metric between timepoints aggregated across all evolution table features.
+
+#     Both raw_value (direct output of the distance metric) and normalized_value (the output z-scored) are computed.
+
+#     This table gets appended to the evolution table and combined into the final timepoint features table as an 
+#     additional feature.
+
+#     Args:
+#         harmonized_timepoint_comb (pd.DataFrame):
+#             Aggregate table across all patients, timepoints, and features with raw and normalized means
+#         timepoint_df (pd.DataFrame):
+#             Maps the features measured for each Tissue ID
+#         distance_metric: Callable[[pd.Series, pd.Series], float]:
+#             A custom distance metric used to compute the distance between timepoint data
+#         tissue_id_col (str):
+#             The column to index into the tissue ID
+#         patient_id_col (str):
+#             The column to index into the patient ID
+#         timepoint_col (str):
+#             The column to index into the timepoint
+#         feature_to_compare (str):
+#             The feature to compare across different timepoints in timepoint_col
+#         feature_to_create (str):
+#             The name of the feature to append to the existing evolution table
+
+#     Returns:
+#         pd.DataFrame:
+#             The table defining feature_to_create across all other features, appended to the evolution table as 
+#             an aggregated feature.
+#     """
+#     # define the timepoint pairs to use, these index into harmonized_metadata
+#     timepoint_pairs = [
+#         ("primary_untreated", "baseline"),
+#         ("baseline", "post_induction"),
+#         ("baseline", "on_nivo"),
+#         ("post_induction", "on_nivo")
+#     ]
+
+#     # define the timepoint columns as they appear in timepoint_df
+#     timepoint_columns = [
+#         "primary__baseline", "baseline__post_induction", "baseline__on_nivo", "post_induction__on_nivo"
+#     ]
+
+#     # define a DataFrame that stores the distance metric feature between all other features
+#     # NOTE: this will ultimately be appended to the final evolution DataFrame
+#     final_col_names = [
+#         "feature_name_unique", "Patient_ID", "comparison", "raw_value"
+#     ]
+#     timepoint_comparisons = pd.DataFrame(columns=final_col_names)
+
+#     # iterate over each timepoint column
+#     for tp in timepoint_columns:
+#         # subset on the data where the timepoint comparison was marked True
+#         # NOTE: this ensures we only generate data for timepoints that exist in the evolution table
+#         timepoint_comp_sub = harmonized_timepoint_comb[harmonized_timepoint_comb[tp]].copy()
+
+#         # define the two individual timepoints, correct primary to primary_untreated for Timepoint column
+#         tp_1, tp_2 = tp.split("__")
+#         tp_1 = "primary_untreated" if tp_1 == "primary" else tp_1
+
+#         timepoint_comp_sub_tp = timepoint_comp_sub[
+#             (timepoint_comp_sub[timepoint_col].isin([tp_1, tp_2]))
+#         ]
+
+#         # iterate over each patient, compute distance of feature_to_compare between both timepoints
+#         for patient_id in timepoint_comp_sub_tp[patient_id_col].unique():
+#             # # subset on feature_to_compare for each patient and desired timepoint
+#             # timepoint_comp_sub_pid_tp1 = timepoint_comp_sub[
+#             #     (timepoint_comp_sub[patient_id_col] == patient_id) &
+#             #     (timepoint_comp_sub[timepoint_col] == tp_1)
+#             # ][feature_to_compare].reset_index(drop=True)
+#             # timepoint_comp_sub_pid_tp2 = timepoint_comp_sub[
+#             #     (timepoint_comp_sub[patient_id_col] == patient_id) &
+#             #     (timepoint_comp_sub[timepoint_col] == tp_2)
+#             # ][feature_to_compare].reset_index(drop=True)
+
+#             # print(timepoint_comp_sub_pid_tp1)
+#             # print(timepoint_comp_sub_pid_tp2)
+
+#             # compute the desired distance between tp_1 and tp_2
+#             timepoint_distance = distance_metric(timepoint_comp_sub_pid_tp1, timepoint_comp_sub_pid_tp2)
+#             print(timepoint_distance)
+
+#             # append this computation to the timepoint_comparisons dataframe
+#             timepoint_comparisons = pd.concat(
+#                 [
+#                     timepoint_comparisons,
+#                     pd.DataFrame(
+#                         [[
+#                             feature_to_create,
+#                             patient_id,
+#                             f"{tp_1}__{tp_2}",
+#                             timepoint_distance
+#                         ]],
+#                         columns=final_col_names
+#                     )
+#                 ]
+#             )
+
+#     # z-score the raw_values and store in normalized_value
+#     timepoint_comparisons["normalized_value"] = (
+#         timepoint_comparisons["raw_value"] - timepoint_comparisons["raw_value"].mean()
+#     ) / timepoint_comparisons["raw_value"].std()
+
+#     return timepoint_comparisons
 
 
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
@@ -183,34 +305,24 @@ for evolution_col in evolution_cats:
 
     evolution_dfs.append(evolution_df_wide)
 
-# add the Euclidean distance between all normalized and raw features across all patients
-aggregate_euclidean_normalized = generate_patient_paired_timepoints(
-    harmonized_metadata, timepoint_features,
-    distance_metric=euclidean_timepoint,
-    feature_to_pair_by="normalized_mean", feature_name="euclidean_distance_all_features",
-    column_val="normalized_value"
-)
-aggregate_euclidean_raw = generate_patient_paired_timepoints(
-    harmonized_metadata, timepoint_features,
-    distance_metric=euclidean_timepoint,
-    feature_to_pair_by="raw_mean", feature_name="euclidean_distance_all_features",
-    column_val="raw_value"
-)
-aggregate_euclidean = aggregate_euclidean_normalized.merge(
-    aggregate_euclidean_raw, on=["feature_name_unique", "Patient_ID", "comparison"]
-)
-
-aggregate_euclidean.to_csv(os.path.join(output_dir, "timepoint_evolution_features_test_aggregate_intermediate.csv"), index=False)
 evolution_df = pd.concat(evolution_dfs)
 
-aggregate_euclidean_subsetted = evolution_df[["Patient_ID", "comparison"]].drop_duplicates().merge(
+# add the Euclidean distance between all normalized and raw features across all patients
+aggregate_euclidean = generate_patient_paired_timepoints(
+    harmonized_metadata, timepoint_features,
+    distance_metric=euclidean_timepoint,
+    feature_to_compare="normalized_mean", feature_to_create="euclidean_distance_normalized_mean_all_features"
+)
+# aggregate_euclidean.to_csv(os.path.join(output_dir, "timepoint_evolution_features_test_aggregate_intermediate.csv"), index=False)
+aggregate_euclidean = evolution_df[["Patient_ID", "comparison"]].drop_duplicates().merge(
     aggregate_euclidean, on=["Patient_ID", "comparison"]
 )[aggregate_euclidean.columns]
 
 evolution_df_cats = evolution_df[["Patient_ID", "comparison"]].drop_duplicates().sort_values(by=["Patient_ID", "comparison"])
-aggregate_euclidean_cats = aggregate_euclidean_subsetted[["Patient_ID", "comparison"]].drop_duplicates().sort_values(by=["Patient_ID", "comparison"])
-evolution_df = pd.concat([evolution_df, aggregate_euclidean_subsetted])
-evolution_df.to_csv(os.path.join(output_dir, 'timepoint_evolution_features_test_aggregate.csv'), index=False)
+aggregate_euclidean_cats = aggregate_euclidean[["Patient_ID", "comparison"]].drop_duplicates().sort_values(by=["Patient_ID", "comparison"])
+assert np.all(evolution_df_cats.values == aggregate_euclidean_cats.values)
+evolution_df = pd.concat([evolution_df, aggregate_euclidean])
+evolution_df.to_csv(os.path.join(output_dir, "timepoint_evolution_features_test_aggregate.csv"), index=False)
 
 
 # create combined df
