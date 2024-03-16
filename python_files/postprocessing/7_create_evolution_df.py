@@ -41,7 +41,7 @@ def generate_patient_paired_timepoints(
     harmonized_metadata: pd.DataFrame, timepoint_df: pd.DataFrame,
     distance_metric: Callable[[pd.Series, pd.Series], float], tissue_id_col: str = "Tissue_ID",
     patient_id_col: str = "Patient_ID", timepoint_col: str = "Timepoint",
-    feature_to_compare: str = "normalized_mean", feature_to_create: str = "euclidean_distance_normalized_mean_all_features"
+    feature_to_compare: str = "normalized_mean", feature_to_create: str = "euclidean_distance_normalized_mean_filtered_features"
 ) -> pd.DataFrame:
     """Compute distance metric between timepoints aggregated across all evolution table features.
 
