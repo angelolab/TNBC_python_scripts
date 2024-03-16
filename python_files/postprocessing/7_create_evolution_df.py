@@ -313,14 +313,9 @@ aggregate_euclidean = generate_patient_paired_timepoints(
     distance_metric=euclidean_timepoint,
     feature_to_compare="normalized_mean", feature_to_create="euclidean_distance_normalized_mean_all_features"
 )
-# aggregate_euclidean.to_csv(os.path.join(output_dir, "timepoint_evolution_features_test_aggregate_intermediate.csv"), index=False)
 aggregate_euclidean = evolution_df[["Patient_ID", "comparison"]].drop_duplicates().merge(
     aggregate_euclidean, on=["Patient_ID", "comparison"]
 )[aggregate_euclidean.columns]
-
-evolution_df_cats = evolution_df[["Patient_ID", "comparison"]].drop_duplicates().sort_values(by=["Patient_ID", "comparison"])
-aggregate_euclidean_cats = aggregate_euclidean[["Patient_ID", "comparison"]].drop_duplicates().sort_values(by=["Patient_ID", "comparison"])
-assert np.all(evolution_df_cats.values == aggregate_euclidean_cats.values)
 evolution_df = pd.concat([evolution_df, aggregate_euclidean])
 evolution_df.to_csv(os.path.join(output_dir, "timepoint_evolution_features_test_aggregate.csv"), index=False)
 
@@ -337,7 +332,6 @@ timepoint_features = timepoint_features.loc[timepoint_features.Timepoint.isin(['
 timepoint_features = timepoint_features[['Tissue_ID', 'feature_name', 'feature_name_unique', 'raw_mean', 'raw_std', 'normalized_mean', 'normalized_std', 'Patient_ID', 'Timepoint', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]
 
 # look at evolution
-# evolution_df = pd.read_csv(os.path.join(analysis_dir, 'timepoint_evolution_features.csv'))
 evolution_df = pd.read_csv(os.path.join(output_dir, 'timepoint_evolution_features_test_aggregate.csv'))
 evolution_df = evolution_df.merge(patient_metadata[['Patient_ID', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']].drop_duplicates(), on='Patient_ID', how='left')
 evolution_df = evolution_df.rename(columns={'raw_value': 'raw_mean', 'normalized_value': 'normalized_mean', 'comparison': 'Timepoint'})
