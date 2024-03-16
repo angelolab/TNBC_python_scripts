@@ -199,8 +199,7 @@ evolution_df = pd.concat(evolution_dfs)
 # add the Euclidean distance between all normalized and raw features across all patients
 aggregate_euclidean = generate_patient_paired_timepoints(
     harmonized_metadata, timepoint_features,
-    distance_metric=euclidean_timepoint,
-    feature_to_compare="normalized_mean", feature_to_create="euclidean_distance_normalized_mean_all_features"
+    distance_metric=euclidean_timepoint
 )
 aggregate_euclidean = evolution_df[["Patient_ID", "comparison"]].drop_duplicates().merge(
     aggregate_euclidean, on=["Patient_ID", "comparison"]
