@@ -474,531 +474,530 @@ extraction_pipeline_tuning_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "extraction
 if not os.path.exists(extraction_pipeline_tuning_dir):
     os.makedirs(extraction_pipeline_tuning_dir)
 
-# ## 1: vary the features for each marker threshold
-# cell_table_full = pd.read_csv(
-#     os.path.join(ANALYSIS_DIR, "combined_cell_table_normalized_cell_labels_updated.csv")
-# )
+## 1: vary the features for each marker threshold
+cell_table_full = pd.read_csv(
+    os.path.join(ANALYSIS_DIR, "combined_cell_table_normalized_cell_labels_updated.csv")
+)
 
-# threshold_mults = [1/4, 1/2, 3/4, 7/8, 1, 8/7, 4/3, 2, 4]
-# marker_threshold_data = {}
+threshold_mults = [1/4, 1/2, 3/4, 7/8, 1, 8/7, 4/3, 2, 4]
+marker_threshold_data = {}
 
-# for marker in marker_info:
-#     marker_threshold_data[marker] = {}
+for marker in marker_info:
+    marker_threshold_data[marker] = {}
 
-#     for threshold in threshold_mults:
-#         multiplied_threshold = marker_info[marker]["threshold"] * threshold
-#         marker_threshold_data[marker][threshold] = {
-#             "multiplied_threshold": multiplied_threshold,
-#             "num_positive_cells": np.sum(cell_table_full[marker].values >= multiplied_threshold)
-#         }
+    for threshold in threshold_mults:
+        multiplied_threshold = marker_info[marker]["threshold"] * threshold
+        marker_threshold_data[marker][threshold] = {
+            "multiplied_threshold": multiplied_threshold,
+            "num_positive_cells": np.sum(cell_table_full[marker].values >= multiplied_threshold)
+        }
 
-# fig, axs = plt.subplots(
-#     len(marker_threshold_data),
-#     1,
-#     figsize=(20, 40)
-# )
-# threshold_mult_strs = ["1/4x", "1/2x", "3/4x", "7/8x", "1x", "8/7x", "4/3x", "2x", "4x"]
+fig, axs = plt.subplots(
+    len(marker_threshold_data),
+    1,
+    figsize=(10, 30)
+)
+threshold_mult_strs = ["1/4x", "1/2x", "3/4x", "7/8x", "1x", "8/7x", "4/3x", "2x", "4x"]
 
-# for i, marker in enumerate(marker_threshold_data):
-#     _ = axs[i].set_title(
-#         f"Positive {marker} cells per threshold (1x = {marker_info[marker]['threshold']})"
-#     )
+for i, marker in enumerate(marker_threshold_data):
+    _ = axs[i].set_title(
+        f"Positive {marker} cells per threshold (1x = {marker_info[marker]['threshold']})"
+    )
 
-#     mult_data = [mtd["num_positive_cells"] for mtd in marker_threshold_data[marker].values()]
-#     print(mult_data)
-#     _ = axs[i].scatter(
-#         threshold_mult_strs,
-#         mult_data
-#     )
+    mult_data = [mtd["num_positive_cells"] for mtd in marker_threshold_data[marker].values()]
+    _ = axs[i].scatter(
+        threshold_mult_strs,
+        mult_data
+    )
 
-#     # turn off scientific notation to ensure consistency
-#     _ = axs[i].yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
-#     _ = axs[i].yaxis.get_major_formatter().set_scientific(False)
+    # turn off scientific notation to ensure consistency
+    _ = axs[i].yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+    _ = axs[i].yaxis.get_major_formatter().set_scientific(False)
 
-# plt.tight_layout()
+plt.tight_layout()
+
+# save the figure to save_dir
+fig.savefig(
+    pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_marker_threshold_experiments.png",
+    dpi=300
+)
+
+
+# ## 2. vary min cell param for functional, morphology, diversity, and distance DataFrames
+# min_cell_tests = [1, 3, 5, 10, 20]
+# total_fovs = len(list_folders("/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"))
+
+# ### 2.1: functional tests
+# print("Starting functional tests")
+# total_df_func = pd.read_csv(os.path.join(OUTPUT_DIR, "functional_df_per_core.csv"))
+# total_df = pd.read_csv(os.path.join(OUTPUT_DIR, "cluster_df_per_core.csv"))
+# harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, "harmonized_metadata.csv"))
+
+# functional_feature_fov_counts = {}
+# for min_cells in min_cell_tests:
+#     filtered_dfs = []
+#     metrics = [['cluster_broad_count', 'cluster_broad_freq'],
+#                ['cluster_count', 'cluster_freq'],
+#                ['meta_cluster_count', 'meta_cluster_freq']]
+#     for metric in metrics:
+#         # subset count df to include cells at the relevant clustering resolution
+#         for compartment in ["all"]:
+#             count_df = total_df[total_df.metric == metric[0]]
+#             count_df = count_df[count_df.subset == compartment]
+
+#             # subset functional df to only include functional markers at this resolution
+#             func_df = total_df_func[total_df_func.metric.isin(metric)]
+#             func_df = func_df[func_df.subset == compartment]
+
+#             # for each cell type, determine which FOVs have high enough counts to be included
+#             for cell_type in count_df.cell_type.unique():
+#                 keep_df = count_df[count_df.cell_type == cell_type]
+#                 keep_df = keep_df[keep_df.value >= min_cells]
+#                 keep_fovs = keep_df.fov.unique()
+
+#                 # subset functional df to only include FOVs with high enough counts
+#                 keep_markers = func_df[func_df.cell_type == cell_type]
+#                 keep_markers = keep_markers[keep_markers.fov.isin(keep_fovs)]
+
+#                 # append to list of filtered dfs
+#                 filtered_dfs.append(keep_markers)
+
+#     filtered_func_df = pd.concat(filtered_dfs)
+
+#     # load matrices
+#     broad_df_include = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_broad.csv'), index_col=0)
+#     med_df_include = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_med.csv'), index_col=0)
+#     meta_df_include = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_meta.csv'), index_col=0)
+
+#     # identify metrics and dfs that will be filtered
+#     filtering = [['cluster_broad_count', 'cluster_broad_freq', broad_df_include],
+#                ['cluster_count', 'cluster_freq', med_df_include],
+#                ['meta_cluster_count', 'meta_cluster_freq', meta_df_include]]
+
+#     combo_dfs = []
+
+#     for filters in filtering:
+#         # get variables
+#         metric_names = filters[:2]
+#         metric_df = filters[2]
+
+#         # subset functional df to only include functional markers at this resolution
+#         func_df = filtered_func_df[filtered_func_df.metric.isin(metric_names)]
+
+#         # loop over each cell type, and get the corresponding markers
+#         for cell_type in metric_df.index:
+#             markers = metric_df.columns[metric_df.loc[cell_type] == True]
+
+#             # subset functional df to only include this cell type
+#             func_df_cell = func_df[func_df.cell_type == cell_type]
+
+#             # subset functional df to only include markers for this cell type
+#             func_df_cell = func_df_cell[func_df_cell.functional_marker.isin(markers)]
+
+#             # append to list of dfs
+#             combo_dfs.append(func_df_cell)
+
+#     # load inclusion matrices
+#     broad_df_include_dp = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_broad_dp.csv'), index_col=0)
+#     med_df_include_dp = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_med_dp.csv'), index_col=0)
+#     meta_df_include_dp = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_meta_dp.csv'), index_col=0)
+
+#     # identify metrics and dfs that will be filtered
+#     filtering = [['cluster_broad_count', 'cluster_broad_freq', broad_df_include_dp],
+#                ['cluster_count', 'cluster_freq', med_df_include_dp],
+#                ['meta_cluster_count', 'meta_cluster_freq', meta_df_include_dp]]
+
+#     for filters in filtering:
+#         # get variables
+#         metric_names = filters[:2]
+#         metric_df = filters[2]
+
+#         # subset functional df to only include functional markers at this resolution
+#         func_df = filtered_func_df[filtered_func_df.metric.isin(metric_names)]
+
+#         # loop over each cell type, and get the corresponding markers
+#         for cell_type in metric_df.index:
+#             markers = metric_df.columns[metric_df.loc[cell_type] == True]
+
+#             # subset functional df to only include this cell type
+#             func_df_cell = func_df[func_df.cell_type == cell_type]
+
+#             # subset functional df to only include markers for this cell type
+#             func_df_cell = func_df_cell[func_df_cell.functional_marker.isin(markers)]
+
+#             # append to list of dfs
+#             combo_dfs.append(func_df_cell)
+
+#     # append to list of dfs
+#     long_df = pd.read_csv(os.path.join(OUTPUT_DIR, 'total_func_per_core.csv'))
+#     combo_dfs.append(long_df)
+
+#     # combine
+#     combo_df = pd.concat(combo_dfs)
+
+#     fovs_per_metric = combo_df.groupby("metric")["fov"].nunique().reset_index(name="unique_fov_count")
+#     fovs_per_metric["unique_fov_count"] = total_fovs - fovs_per_metric["unique_fov_count"]
+#     functional_feature_fov_counts[min_cells] = fovs_per_metric.set_index("metric")["unique_fov_count"].to_dict()
+
+# # Flattening the dictionary and creating a DataFrame
+# flat_data_functional = []
+# for min_cells, metrics in functional_feature_fov_counts.items():
+#     for metric, unique_fov_count in metrics.items():
+#         flat_data_functional.append((min_cells, unique_fov_count))
+
+# df_functional_viz = pd.DataFrame(flat_data_functional, columns=['min_cells', 'unique_fov_count'])
+
+# # Ensuring 'min_cells' is treated as a categorical variable
+# df_functional_viz['min_cells'] = pd.Categorical(df_functional_viz['min_cells'])
+
+# # Creating a box plot
+# plt.figure(figsize=(10, 6))
+# sns.boxplot(x='min_cells', y='unique_fov_count', data=df_functional_viz)
+# plt.title('FOVs Excluded for Functional Features per min_cells')
 
 # # save the figure to save_dir
-# fig.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_marker_threshold_experiments.png",
+# plt.savefig(
+#     pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_features_min_cells_boxplot.png",
+#     dpi=300
+# )
+
+# # Creating a violin plot
+# plt.figure(figsize=(10, 6))
+# sns.violinplot(x='min_cells', y='unique_fov_count', data=df_functional_viz)
+# plt.title('FOVs Excluded for Functional Features per min_cells')
+
+# # save the figure to save_dir
+# plt.savefig(
+#     pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_features_min_cells_violinplot.png",
 #     dpi=300
 # )
 
 
-## 2. vary min cell param for functional, morphology, diversity, and distance DataFrames
-min_cell_tests = [1, 3, 5, 10, 20]
-total_fovs = len(list_folders("/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"))
-
-### 2.1: functional tests
-print("Starting functional tests")
-total_df_func = pd.read_csv(os.path.join(OUTPUT_DIR, "functional_df_per_core.csv"))
-total_df = pd.read_csv(os.path.join(OUTPUT_DIR, "cluster_df_per_core.csv"))
-harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, "harmonized_metadata.csv"))
-
-functional_feature_fov_counts = {}
-for min_cells in min_cell_tests:
-    filtered_dfs = []
-    metrics = [['cluster_broad_count', 'cluster_broad_freq'],
-               ['cluster_count', 'cluster_freq'],
-               ['meta_cluster_count', 'meta_cluster_freq']]
-    for metric in metrics:
-        # subset count df to include cells at the relevant clustering resolution
-        for compartment in ["all"]:
-            count_df = total_df[total_df.metric == metric[0]]
-            count_df = count_df[count_df.subset == compartment]
-
-            # subset functional df to only include functional markers at this resolution
-            func_df = total_df_func[total_df_func.metric.isin(metric)]
-            func_df = func_df[func_df.subset == compartment]
-
-            # for each cell type, determine which FOVs have high enough counts to be included
-            for cell_type in count_df.cell_type.unique():
-                keep_df = count_df[count_df.cell_type == cell_type]
-                keep_df = keep_df[keep_df.value >= min_cells]
-                keep_fovs = keep_df.fov.unique()
-
-                # subset functional df to only include FOVs with high enough counts
-                keep_markers = func_df[func_df.cell_type == cell_type]
-                keep_markers = keep_markers[keep_markers.fov.isin(keep_fovs)]
-
-                # append to list of filtered dfs
-                filtered_dfs.append(keep_markers)
-
-    filtered_func_df = pd.concat(filtered_dfs)
-
-    # load matrices
-    broad_df_include = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_broad.csv'), index_col=0)
-    med_df_include = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_med.csv'), index_col=0)
-    meta_df_include = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_meta.csv'), index_col=0)
-
-    # identify metrics and dfs that will be filtered
-    filtering = [['cluster_broad_count', 'cluster_broad_freq', broad_df_include],
-               ['cluster_count', 'cluster_freq', med_df_include],
-               ['meta_cluster_count', 'meta_cluster_freq', meta_df_include]]
-
-    combo_dfs = []
-
-    for filters in filtering:
-        # get variables
-        metric_names = filters[:2]
-        metric_df = filters[2]
-
-        # subset functional df to only include functional markers at this resolution
-        func_df = filtered_func_df[filtered_func_df.metric.isin(metric_names)]
-
-        # loop over each cell type, and get the corresponding markers
-        for cell_type in metric_df.index:
-            markers = metric_df.columns[metric_df.loc[cell_type] == True]
-
-            # subset functional df to only include this cell type
-            func_df_cell = func_df[func_df.cell_type == cell_type]
-
-            # subset functional df to only include markers for this cell type
-            func_df_cell = func_df_cell[func_df_cell.functional_marker.isin(markers)]
-
-            # append to list of dfs
-            combo_dfs.append(func_df_cell)
-
-    # load inclusion matrices
-    broad_df_include_dp = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_broad_dp.csv'), index_col=0)
-    med_df_include_dp = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_med_dp.csv'), index_col=0)
-    meta_df_include_dp = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_meta_dp.csv'), index_col=0)
-
-    # identify metrics and dfs that will be filtered
-    filtering = [['cluster_broad_count', 'cluster_broad_freq', broad_df_include_dp],
-               ['cluster_count', 'cluster_freq', med_df_include_dp],
-               ['meta_cluster_count', 'meta_cluster_freq', meta_df_include_dp]]
-
-    for filters in filtering:
-        # get variables
-        metric_names = filters[:2]
-        metric_df = filters[2]
-
-        # subset functional df to only include functional markers at this resolution
-        func_df = filtered_func_df[filtered_func_df.metric.isin(metric_names)]
-
-        # loop over each cell type, and get the corresponding markers
-        for cell_type in metric_df.index:
-            markers = metric_df.columns[metric_df.loc[cell_type] == True]
-
-            # subset functional df to only include this cell type
-            func_df_cell = func_df[func_df.cell_type == cell_type]
-
-            # subset functional df to only include markers for this cell type
-            func_df_cell = func_df_cell[func_df_cell.functional_marker.isin(markers)]
-
-            # append to list of dfs
-            combo_dfs.append(func_df_cell)
-
-    # append to list of dfs
-    long_df = pd.read_csv(os.path.join(OUTPUT_DIR, 'total_func_per_core.csv'))
-    combo_dfs.append(long_df)
-
-    # combine
-    combo_df = pd.concat(combo_dfs)
-
-    fovs_per_metric = combo_df.groupby("metric")["fov"].nunique().reset_index(name="unique_fov_count")
-    fovs_per_metric["unique_fov_count"] = total_fovs - fovs_per_metric["unique_fov_count"]
-    functional_feature_fov_counts[min_cells] = fovs_per_metric.set_index("metric")["unique_fov_count"].to_dict()
-
-# Flattening the dictionary and creating a DataFrame
-flat_data_functional = []
-for min_cells, metrics in functional_feature_fov_counts.items():
-    for metric, unique_fov_count in metrics.items():
-        flat_data_functional.append((min_cells, unique_fov_count))
-
-df_functional_viz = pd.DataFrame(flat_data_functional, columns=['min_cells', 'unique_fov_count'])
-
-# Ensuring 'min_cells' is treated as a categorical variable
-df_functional_viz['min_cells'] = pd.Categorical(df_functional_viz['min_cells'])
-
-# Creating a box plot
-plt.figure(figsize=(10, 6))
-sns.boxplot(x='min_cells', y='unique_fov_count', data=df_functional_viz)
-plt.title('FOVs Excluded for Functional Features per min_cells')
-
-# save the figure to save_dir
-plt.savefig(
-    pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_features_min_cells_boxplot.png",
-    dpi=300
-)
-
-# Creating a violin plot
-plt.figure(figsize=(10, 6))
-sns.violinplot(x='min_cells', y='unique_fov_count', data=df_functional_viz)
-plt.title('FOVs Excluded for Functional Features per min_cells')
-
-# save the figure to save_dir
-plt.savefig(
-    pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_features_min_cells_violinplot.png",
-    dpi=300
-)
-
-
-### 2.2: morphology tests
-print("Starting morphology tests")
-total_df_morph = pd.read_csv(os.path.join(OUTPUT_DIR, "morph_df_per_core.csv"))
-morphology_feature_fov_counts = {}
-for min_cells in min_cell_tests:
-    filtered_dfs = []
-    metrics = [['cluster_broad_count', 'cluster_broad_freq'],
-               ['cluster_count', 'cluster_freq'],
-               ['meta_cluster_count', 'meta_cluster_freq']]
-    for metric in metrics:
-        # subset count df to include cells at the relevant clustering resolution
-        for compartment in ['all']:
-            count_df = total_df[total_df.metric == metric[0]]
-            count_df = count_df[count_df.subset == compartment]
-
-            # subset morphology df to only include morphology metrics at this resolution
-            morph_df = total_df_morph[total_df_morph.metric == metric[1]]
-            morph_df = morph_df[morph_df.subset == compartment]
-
-            # for each cell type, determine which FOVs have high enough counts to be included
-            for cell_type in count_df.cell_type.unique():
-                keep_df = count_df[count_df.cell_type == cell_type]
-                keep_df = keep_df[keep_df.value >= min_cells]
-                keep_fovs = keep_df.fov.unique()
-
-                # subset morphology df to only include FOVs with high enough counts
-                keep_features = morph_df[morph_df.cell_type == cell_type]
-                keep_features = keep_features[keep_features.fov.isin(keep_fovs)]
-
-                # append to list of filtered dfs
-                filtered_dfs.append(keep_features)
-
-    filtered_dfs.append(long_df)
-    filtered_morph_df = pd.concat(filtered_dfs)
-
-    # # # save filtered df, CHECKPOINT
-    # # filtered_morph_df.to_csv(os.path.join(output_dir, 'morph_df_per_core_filtered.csv'), index=False)
-    # results_df.loc["morphology", f"num_fovs_min_cell_{min_cells}"] = len(filtered_morph_df["fov"].unique())
-
-    # # create version aggregated by timepoint
-    # filtered_morph_df_grouped = filtered_morph_df.groupby(['Tissue_ID', 'cell_type', 'morphology_feature', 'metric', 'subset'])
-    # filtered_morph_df_timepoint = filtered_morph_df_grouped['value'].agg([np.mean, np.std])
-    # filtered_morph_df_timepoint.reset_index(inplace=True)
-    # filtered_morph_df_timepoint = filtered_morph_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
-
-    # # # save timepoint df, CHECKPOINT
-    # # filtered_morph_df_timepoint.to_csv(os.path.join(output_dir, 'morph_df_per_timepoint_filtered.csv'), index=False)
-    # results_df.loc["morphology", f"num_tissue_ids_min_cell_{min_cells}"] = len(filtered_morph_df_timepoint["Tissue_ID"].unique())
-
-    # remove redundant morphology features
-    block1 = ['area', 'major_axis_length', 'minor_axis_length', 'perimeter', 'convex_area', 'equivalent_diameter']
-
-    block2 = ['area_nuclear', 'major_axis_length_nuclear', 'minor_axis_length_nuclear', 'perimeter_nuclear', 'convex_area_nuclear', 'equivalent_diameter_nuclear']
-
-    block3 = ['eccentricity', 'major_axis_equiv_diam_ratio']
-
-    block4 = ['eccentricity_nuclear', 'major_axis_equiv_diam_ratio_nuclear', 'perim_square_over_area_nuclear']
-
-    deduped_morph_df = filtered_morph_df.loc[~filtered_morph_df.morphology_feature.isin(block1[1:] + block2[1:] + block3[1:] + block4[1:]), :]
-
-    # only keep complex morphology features for cancer cells, remove everything except area and nc for others
-    cancer_clusters = ['Cancer', 'Cancer_EMT', 'Cancer_Other', 'Cancer_CD56', 'Cancer_CK17',
-                       'Cancer_Ecad', 'Cancer_Mono', 'Cancer_SMA', 'Cancer_Vim']
-    basic_morph_features = ['area', 'area_nuclear', 'nc_ratio']
-
-    deduped_morph_df = deduped_morph_df.loc[~(~(deduped_morph_df.cell_type.isin(cancer_clusters)) & ~(deduped_morph_df.morphology_feature.isin(basic_morph_features))), :]
-
-    fovs_per_metric = deduped_morph_df.groupby("metric")["fov"].nunique().reset_index(name="unique_fov_count")
-    fovs_per_metric["unique_fov_count"] = total_fovs - fovs_per_metric["unique_fov_count"]
-    morphology_feature_fov_counts[min_cells] = fovs_per_metric.set_index("metric")["unique_fov_count"].to_dict()
-
-    # # # saved deduped, CHECKPOINT
-    # # deduped_morph_df.to_csv(os.path.join(output_dir, 'morph_df_per_core_filtered_deduped.csv'), index=False)
-    # results_df.loc["morphology", f"num_fovs_deduped_min_cell_{min_cells}"] = len(deduped_morph_df["fov"].unique())
-
-    # # same for timepoints
-    # deduped_morph_df_timepoint = filtered_morph_df_timepoint.loc[~filtered_morph_df_timepoint.morphology_feature.isin(block1[1:] + block2[1:] + block3[1:] + block4[1:]), :]
-    # deduped_morph_df_timepoint = deduped_morph_df_timepoint.loc[~(~(deduped_morph_df_timepoint.cell_type.isin(cancer_clusters)) & ~(deduped_morph_df_timepoint.morphology_feature.isin(basic_morph_features))), :]
-
-    # # save morph timepoint, CHECKPOINT
-    # # deduped_morph_df_timepoint.to_csv(os.path.join(output_dir, 'morph_df_per_timepoint_filtered_deduped.csv'), index=False)
-    # results_df.loc["morphology", f"num_tissue_ids_deduped_min_cell_{min_cells}"] = len(deduped_morph_df_timepoint["Tissue_ID"].unique())
-
-# Flattening the dictionary and creating a DataFrame
-flat_data_morphology = []
-for min_cells, metrics in morphology_feature_fov_counts.items():
-    for metric, unique_fov_count in metrics.items():
-        flat_data_morphology.append((min_cells, unique_fov_count))
-
-df_morphology_viz = pd.DataFrame(flat_data_morphology, columns=['min_cells', 'unique_fov_count'])
-
-# Ensuring 'min_cells' is treated as a categorical variable
-df_morphology_viz['min_cells'] = pd.Categorical(df_morphology_viz['min_cells'])
-
-# Creating a box plot
-plt.figure(figsize=(10, 6))
-sns.boxplot(x='min_cells', y='unique_fov_count', data=df_morphology_viz)
-plt.title('FOVs Excluded for Morphology Features per min_cells')
-
-# save the figure to save_dir
-plt.savefig(
-    pathlib.Path(extraction_pipeline_tuning_dir) / f"morph_features_min_cells_boxplot.png",
-    dpi=300
-)
-
-# Creating a violin plot
-plt.figure(figsize=(10, 6))
-sns.violinplot(x='min_cells', y='unique_fov_count', data=df_morphology_viz)
-plt.title('FOVs Excluded for Morphology Features per min_cells')
-
-# save the figure to save_dir
-plt.savefig(
-    pathlib.Path(extraction_pipeline_tuning_dir) / f"morph_features_min_cells_violinplot.png",
-    dpi=300
-)
-
-### 2.3: diversity tests
-print("Starting diversity tests")
-total_df_diversity = pd.read_csv(os.path.join(OUTPUT_DIR, 'diversity_df_per_core.csv'))
-diversity_feature_fov_counts = {}
-for min_cells in min_cell_tests:
-    filtered_dfs = []
-    metrics = [['cluster_broad_count', 'cluster_broad_freq'],
-               ['cluster_count', 'cluster_freq'],
-               ['meta_cluster_count', 'meta_cluster_freq']]
-    for metric in metrics:
-        # subset count df to include cells at the relevant clustering resolution
-        for compartment in ['all']:
-            count_df = total_df[total_df.metric == metric[0]]
-            count_df = count_df[count_df.subset == compartment]
-
-            # subset diversity df to only include diversity metrics at this resolution
-            diversity_df = total_df_diversity[total_df_diversity.metric == metric[1]]
-            diversity_df = diversity_df[diversity_df.subset == compartment]
-
-            # for each cell type, determine which FOVs have high enough counts to be included
-            for cell_type in count_df.cell_type.unique():
-                keep_df = count_df[count_df.cell_type == cell_type]
-                keep_df = keep_df[keep_df.value >= min_cells]
-                keep_fovs = keep_df.fov.unique()
-
-                # subset morphology df to only include FOVs with high enough counts
-                keep_features = diversity_df[diversity_df.cell_type == cell_type]
-                keep_features = keep_features[keep_features.fov.isin(keep_fovs)]
-
-                # append to list of filtered dfs
-                filtered_dfs.append(keep_features)
-
-    filtered_diversity_df = pd.concat(filtered_dfs)
-
-    # # save filtered df, CHECKPOINT
-    # filtered_diversity_df.to_csv(os.path.join(output_dir, 'diversity_df_per_core_filtered.csv'), index=False)
-
-    # # create version aggregated by timepoint
-    # filtered_diversity_df_grouped = filtered_diversity_df.groupby(['Tissue_ID', 'cell_type', 'diversity_feature', 'metric', 'subset'])
-    # filtered_diversity_df_timepoint = filtered_diversity_df_grouped['value'].agg([np.mean, np.std])
-    # filtered_diversity_df_timepoint.reset_index(inplace=True)
-    # filtered_diversity_df_timepoint = filtered_diversity_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
-
-    # # save timepoint df, CHECKPOINT
-    # filtered_diversity_df_timepoint.to_csv(os.path.join(output_dir, 'diversity_df_per_timepoint_filtered.csv'), index=False)
-    # results_df.loc["diversity", f"num_tissue_ids_min_cell_{min_cells}"] = len(filtered_diversity_df_timepoint["Tissue_ID"].unique())
-
-    # investigate correlation between diversity scores
-    fov_data = filtered_diversity_df.copy()
-    fov_data['feature_name_unique'] = fov_data['cell_type'] + '_' + fov_data['diversity_feature']
-    fov_data = fov_data.loc[(fov_data.subset == 'all') & (fov_data.metric == 'cluster_freq')]
-    fov_data = fov_data.loc[fov_data.diversity_feature != 'diversity_cell_meta_cluster']
-    fov_data_wide = fov_data.pivot(index='fov', columns='feature_name_unique', values='value')
-
-    corr_df = fov_data_wide.corr(method='spearman')
-
-    # replace Nans
-    corr_df = corr_df.fillna(0)
-    clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
-
-    # save deduped df that excludes cell meta cluster, CHECKPOINT
-    deduped_diversity_df = filtered_diversity_df.loc[filtered_diversity_df.diversity_feature != 'diversity_cell_meta_cluster']
-
-    fovs_per_metric = deduped_diversity_df.groupby("metric")["fov"].nunique().reset_index(name="unique_fov_count")
-    fovs_per_metric["unique_fov_count"] = total_fovs - fovs_per_metric["unique_fov_count"]
-    diversity_feature_fov_counts[min_cells] = fovs_per_metric.set_index("metric")["unique_fov_count"].to_dict()
-    # deduped_diversity_df.to_csv(os.path.join(output_dir, 'diversity_df_per_core_filtered_deduped.csv'), index=False)
-    # results_df.loc["diversity", f"num_fovs_deduped_min_cell_{min_cells}"] = len(deduped_diversity_df["fov"].unique())
-
-    # # create version aggregated by timepoint
-    # deduped_diversity_df_grouped = deduped_diversity_df.groupby(['Tissue_ID', 'cell_type', 'diversity_feature', 'metric', 'subset'])
-    # deduped_diversity_df_timepoint = deduped_diversity_df_grouped['value'].agg([np.mean, np.std])
-    # deduped_diversity_df_timepoint.reset_index(inplace=True)
-    # deduped_diversity_df_timepoint = deduped_diversity_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
-
-    # # # save timepoint df, CHECKPOINT
-    # # deduped_diversity_df_timepoint.to_csv(os.path.join(output_dir, 'diversity_df_per_timepoint_filtered_deduped.csv'), index=False)
-    # results_df.loc["diversity", f"num_tissue_ids_deduped_min_cell_{min_cells}"] = len(deduped_diversity_df_timepoint["Tissue_ID"].unique())
-
-# Flattening the dictionary and creating a DataFrame
-flat_data_diversity = []
-for min_cells, metrics in diversity_feature_fov_counts.items():
-    for metric, unique_fov_count in metrics.items():
-        flat_data_diversity.append((min_cells, unique_fov_count))
-
-df_diversity_viz = pd.DataFrame(flat_data_diversity, columns=['min_cells', 'unique_fov_count'])
-
-# Ensuring 'min_cells' is treated as a categorical variable
-df_diversity_viz['min_cells'] = pd.Categorical(df_diversity_viz['min_cells'])
-
-# Creating a box plot
-plt.figure(figsize=(10, 6))
-sns.boxplot(x='min_cells', y='unique_fov_count', data=df_diversity_viz)
-plt.title('FOVs Excluded for Diversity Features per min_cells')
-
-# save the figure to save_dir
-plt.savefig(
-    pathlib.Path(extraction_pipeline_tuning_dir) / f"diversity_features_min_cells_boxplot.png",
-    dpi=300
-)
-
-# Creating a violin plot
-plt.figure(figsize=(10, 6))
-sns.violinplot(x='min_cells', y='unique_fov_count', data=df_diversity_viz)
-plt.title('FOVs Excluded for Diversity Features per min_cells')
-
-# save the figure to save_dir
-plt.savefig(
-    pathlib.Path(extraction_pipeline_tuning_dir) / f"diversity_features_min_cells_violinplot.png",
-    dpi=300
-)
-
-### 2.4: distance tests
-print("Starting distance tests")
-total_df_distance = pd.read_csv(os.path.join(OUTPUT_DIR, "distance_df_per_core.csv"))
-distance_feature_fov_counts = {}
-for min_cells in min_cell_tests:
-    filtered_dfs = []
-    metrics = [['cluster_broad_count', 'cluster_broad_freq']]
-
-    for metric in metrics:
-        # subset count df to include cells at the relevant clustering resolution
-        for compartment in ['all']:
-            count_df = total_df[total_df.metric == metric[0]]
-            count_df = count_df[count_df.subset == compartment]
-
-            # subset distance df to only include distance metrics at this resolution
-            distance_df = total_df_distance[total_df_distance.metric == metric[1]]
-            distance_df = distance_df[distance_df.subset == compartment]
-
-            # for each cell type, determine which FOVs have high enough counts to be included
-            for cell_type in count_df.cell_type.unique():
-                keep_df = count_df[count_df.cell_type == cell_type]
-                keep_df = keep_df[keep_df.value >= min_cells]
-                keep_fovs = keep_df.fov.unique()
-
-                # subset morphology df to only include FOVs with high enough counts
-                keep_features = distance_df[distance_df.cell_type == cell_type]
-                keep_features = keep_features[keep_features.fov.isin(keep_fovs)]
-
-                # append to list of filtered dfs
-                filtered_dfs.append(keep_features)
-
-    filtered_distance_df = pd.concat(filtered_dfs)
-
-    # # # save filtered df, CHECKPOINT
-    # # filtered_distance_df.to_csv(os.path.join(output_dir, 'distance_df_per_core_filtered.csv'), index=False)
-    # results_df.loc["distance", f"num_fovs_min_cell_{min_cells}"] = len(filtered_distance_df["fov"].unique())
-
-    # filter distance df to only include features with low correlation with abundance
-    keep_df = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'distance_df_keep_features.csv'))
-
-    deduped_dfs = []
-    for cell_type in keep_df.cell_type.unique():
-        keep_features = keep_df.loc[keep_df.cell_type == cell_type, 'feature_name'].unique()
-        if len(keep_features) > 0:
-            keep_df_subset = filtered_distance_df.loc[filtered_distance_df.cell_type == cell_type]
-            keep_df_subset = keep_df_subset.loc[keep_df_subset.linear_distance.isin(keep_features)]
-            deduped_dfs.append(keep_df_subset)
-
-    deduped_distance_df = pd.concat(deduped_dfs)
-
-    fovs_per_metric = deduped_distance_df.groupby("metric")["fov"].nunique().reset_index(name="unique_fov_count")
-    fovs_per_metric["unique_fov_count"] = total_fovs - fovs_per_metric["unique_fov_count"]
-    distance_feature_fov_counts[min_cells] = fovs_per_metric.set_index("metric")["unique_fov_count"].to_dict()
-
-    # # # save filtered df, CHECKPOINT
-    # # deduped_distance_df.to_csv(os.path.join(output_dir, 'distance_df_per_core_deduped.csv'), index=False)
-    # results_df.loc["distance", f"num_fovs_deduped_min_cell_{min_cells}"] = len(deduped_distance_df["Tissue_ID"].unique())
-
-    # # create version aggregated by timepoint
-    # deduped_distance_df_grouped = deduped_distance_df.groupby(['Tissue_ID', 'cell_type', 'linear_distance', 'metric', 'subset'])
-    # deduped_distance_df_timepoint = deduped_distance_df_grouped['value'].agg([np.mean, np.std])
-    # deduped_distance_df_timepoint.reset_index(inplace=True)
-    # deduped_distance_df_timepoint = deduped_distance_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
-
-    # # # save timepoint df, CHECKPOINT
-    # # deduped_distance_df_timepoint.to_csv(os.path.join(output_dir, 'distance_df_per_timepoint_deduped.csv'), index=False)
-    # results_df.loc["distance", f"num_tissue_ids_deduped_min_cell_{min_cells}"] = len(filtered_distance_df["fov"].unique())
-
-# Flattening the dictionary and creating a DataFrame
-flat_data_distance = []
-for min_cells, metrics in distance_feature_fov_counts.items():
-    for metric, unique_fov_count in metrics.items():
-        flat_data_distance.append((min_cells, unique_fov_count))
-
-df_distance_viz = pd.DataFrame(flat_data_distance, columns=['min_cells', 'unique_fov_count'])
-
-# Ensuring 'min_cells' is treated as a categorical variable
-df_distance_viz['min_cells'] = pd.Categorical(df_distance_viz['min_cells'])
-
-# Creating a box plot
-plt.figure(figsize=(10, 6))
-sns.boxplot(x='min_cells', y='unique_fov_count', data=df_distance_viz)
-plt.title('FOVs Excluded for Distance Features per min_cells')
-
-# save the figure to save_dir
-plt.savefig(
-    pathlib.Path(extraction_pipeline_tuning_dir) / f"distance_features_min_cells_boxplot.png",
-    dpi=300
-)
-
-# Creating a violin plot
-plt.figure(figsize=(10, 6))
-sns.violinplot(x='min_cells', y='unique_fov_count', data=df_distance_viz)
-plt.title('FOVs Excluded for Distance Features per min_cells')
-
-# save the figure to save_dir
-plt.savefig(
-    pathlib.Path(extraction_pipeline_tuning_dir) / f"distance_features_min_cells_violinplot.png",
-    dpi=300
-)
+# ### 2.2: morphology tests
+# print("Starting morphology tests")
+# total_df_morph = pd.read_csv(os.path.join(OUTPUT_DIR, "morph_df_per_core.csv"))
+# morphology_feature_fov_counts = {}
+# for min_cells in min_cell_tests:
+#     filtered_dfs = []
+#     metrics = [['cluster_broad_count', 'cluster_broad_freq'],
+#                ['cluster_count', 'cluster_freq'],
+#                ['meta_cluster_count', 'meta_cluster_freq']]
+#     for metric in metrics:
+#         # subset count df to include cells at the relevant clustering resolution
+#         for compartment in ['all']:
+#             count_df = total_df[total_df.metric == metric[0]]
+#             count_df = count_df[count_df.subset == compartment]
+
+#             # subset morphology df to only include morphology metrics at this resolution
+#             morph_df = total_df_morph[total_df_morph.metric == metric[1]]
+#             morph_df = morph_df[morph_df.subset == compartment]
+
+#             # for each cell type, determine which FOVs have high enough counts to be included
+#             for cell_type in count_df.cell_type.unique():
+#                 keep_df = count_df[count_df.cell_type == cell_type]
+#                 keep_df = keep_df[keep_df.value >= min_cells]
+#                 keep_fovs = keep_df.fov.unique()
+
+#                 # subset morphology df to only include FOVs with high enough counts
+#                 keep_features = morph_df[morph_df.cell_type == cell_type]
+#                 keep_features = keep_features[keep_features.fov.isin(keep_fovs)]
+
+#                 # append to list of filtered dfs
+#                 filtered_dfs.append(keep_features)
+
+#     filtered_dfs.append(long_df)
+#     filtered_morph_df = pd.concat(filtered_dfs)
+
+#     # # # save filtered df, CHECKPOINT
+#     # # filtered_morph_df.to_csv(os.path.join(output_dir, 'morph_df_per_core_filtered.csv'), index=False)
+#     # results_df.loc["morphology", f"num_fovs_min_cell_{min_cells}"] = len(filtered_morph_df["fov"].unique())
+
+#     # # create version aggregated by timepoint
+#     # filtered_morph_df_grouped = filtered_morph_df.groupby(['Tissue_ID', 'cell_type', 'morphology_feature', 'metric', 'subset'])
+#     # filtered_morph_df_timepoint = filtered_morph_df_grouped['value'].agg([np.mean, np.std])
+#     # filtered_morph_df_timepoint.reset_index(inplace=True)
+#     # filtered_morph_df_timepoint = filtered_morph_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+#     # # # save timepoint df, CHECKPOINT
+#     # # filtered_morph_df_timepoint.to_csv(os.path.join(output_dir, 'morph_df_per_timepoint_filtered.csv'), index=False)
+#     # results_df.loc["morphology", f"num_tissue_ids_min_cell_{min_cells}"] = len(filtered_morph_df_timepoint["Tissue_ID"].unique())
+
+#     # remove redundant morphology features
+#     block1 = ['area', 'major_axis_length', 'minor_axis_length', 'perimeter', 'convex_area', 'equivalent_diameter']
+
+#     block2 = ['area_nuclear', 'major_axis_length_nuclear', 'minor_axis_length_nuclear', 'perimeter_nuclear', 'convex_area_nuclear', 'equivalent_diameter_nuclear']
+
+#     block3 = ['eccentricity', 'major_axis_equiv_diam_ratio']
+
+#     block4 = ['eccentricity_nuclear', 'major_axis_equiv_diam_ratio_nuclear', 'perim_square_over_area_nuclear']
+
+#     deduped_morph_df = filtered_morph_df.loc[~filtered_morph_df.morphology_feature.isin(block1[1:] + block2[1:] + block3[1:] + block4[1:]), :]
+
+#     # only keep complex morphology features for cancer cells, remove everything except area and nc for others
+#     cancer_clusters = ['Cancer', 'Cancer_EMT', 'Cancer_Other', 'Cancer_CD56', 'Cancer_CK17',
+#                        'Cancer_Ecad', 'Cancer_Mono', 'Cancer_SMA', 'Cancer_Vim']
+#     basic_morph_features = ['area', 'area_nuclear', 'nc_ratio']
+
+#     deduped_morph_df = deduped_morph_df.loc[~(~(deduped_morph_df.cell_type.isin(cancer_clusters)) & ~(deduped_morph_df.morphology_feature.isin(basic_morph_features))), :]
+
+#     fovs_per_metric = deduped_morph_df.groupby("metric")["fov"].nunique().reset_index(name="unique_fov_count")
+#     fovs_per_metric["unique_fov_count"] = total_fovs - fovs_per_metric["unique_fov_count"]
+#     morphology_feature_fov_counts[min_cells] = fovs_per_metric.set_index("metric")["unique_fov_count"].to_dict()
+
+#     # # # saved deduped, CHECKPOINT
+#     # # deduped_morph_df.to_csv(os.path.join(output_dir, 'morph_df_per_core_filtered_deduped.csv'), index=False)
+#     # results_df.loc["morphology", f"num_fovs_deduped_min_cell_{min_cells}"] = len(deduped_morph_df["fov"].unique())
+
+#     # # same for timepoints
+#     # deduped_morph_df_timepoint = filtered_morph_df_timepoint.loc[~filtered_morph_df_timepoint.morphology_feature.isin(block1[1:] + block2[1:] + block3[1:] + block4[1:]), :]
+#     # deduped_morph_df_timepoint = deduped_morph_df_timepoint.loc[~(~(deduped_morph_df_timepoint.cell_type.isin(cancer_clusters)) & ~(deduped_morph_df_timepoint.morphology_feature.isin(basic_morph_features))), :]
+
+#     # # save morph timepoint, CHECKPOINT
+#     # # deduped_morph_df_timepoint.to_csv(os.path.join(output_dir, 'morph_df_per_timepoint_filtered_deduped.csv'), index=False)
+#     # results_df.loc["morphology", f"num_tissue_ids_deduped_min_cell_{min_cells}"] = len(deduped_morph_df_timepoint["Tissue_ID"].unique())
+
+# # Flattening the dictionary and creating a DataFrame
+# flat_data_morphology = []
+# for min_cells, metrics in morphology_feature_fov_counts.items():
+#     for metric, unique_fov_count in metrics.items():
+#         flat_data_morphology.append((min_cells, unique_fov_count))
+
+# df_morphology_viz = pd.DataFrame(flat_data_morphology, columns=['min_cells', 'unique_fov_count'])
+
+# # Ensuring 'min_cells' is treated as a categorical variable
+# df_morphology_viz['min_cells'] = pd.Categorical(df_morphology_viz['min_cells'])
+
+# # Creating a box plot
+# plt.figure(figsize=(10, 6))
+# sns.boxplot(x='min_cells', y='unique_fov_count', data=df_morphology_viz)
+# plt.title('FOVs Excluded for Morphology Features per min_cells')
+
+# # save the figure to save_dir
+# plt.savefig(
+#     pathlib.Path(extraction_pipeline_tuning_dir) / f"morph_features_min_cells_boxplot.png",
+#     dpi=300
+# )
+
+# # Creating a violin plot
+# plt.figure(figsize=(10, 6))
+# sns.violinplot(x='min_cells', y='unique_fov_count', data=df_morphology_viz)
+# plt.title('FOVs Excluded for Morphology Features per min_cells')
+
+# # save the figure to save_dir
+# plt.savefig(
+#     pathlib.Path(extraction_pipeline_tuning_dir) / f"morph_features_min_cells_violinplot.png",
+#     dpi=300
+# )
+
+# ### 2.3: diversity tests
+# print("Starting diversity tests")
+# total_df_diversity = pd.read_csv(os.path.join(OUTPUT_DIR, 'diversity_df_per_core.csv'))
+# diversity_feature_fov_counts = {}
+# for min_cells in min_cell_tests:
+#     filtered_dfs = []
+#     metrics = [['cluster_broad_count', 'cluster_broad_freq'],
+#                ['cluster_count', 'cluster_freq'],
+#                ['meta_cluster_count', 'meta_cluster_freq']]
+#     for metric in metrics:
+#         # subset count df to include cells at the relevant clustering resolution
+#         for compartment in ['all']:
+#             count_df = total_df[total_df.metric == metric[0]]
+#             count_df = count_df[count_df.subset == compartment]
+
+#             # subset diversity df to only include diversity metrics at this resolution
+#             diversity_df = total_df_diversity[total_df_diversity.metric == metric[1]]
+#             diversity_df = diversity_df[diversity_df.subset == compartment]
+
+#             # for each cell type, determine which FOVs have high enough counts to be included
+#             for cell_type in count_df.cell_type.unique():
+#                 keep_df = count_df[count_df.cell_type == cell_type]
+#                 keep_df = keep_df[keep_df.value >= min_cells]
+#                 keep_fovs = keep_df.fov.unique()
+
+#                 # subset morphology df to only include FOVs with high enough counts
+#                 keep_features = diversity_df[diversity_df.cell_type == cell_type]
+#                 keep_features = keep_features[keep_features.fov.isin(keep_fovs)]
+
+#                 # append to list of filtered dfs
+#                 filtered_dfs.append(keep_features)
+
+#     filtered_diversity_df = pd.concat(filtered_dfs)
+
+#     # # save filtered df, CHECKPOINT
+#     # filtered_diversity_df.to_csv(os.path.join(output_dir, 'diversity_df_per_core_filtered.csv'), index=False)
+
+#     # # create version aggregated by timepoint
+#     # filtered_diversity_df_grouped = filtered_diversity_df.groupby(['Tissue_ID', 'cell_type', 'diversity_feature', 'metric', 'subset'])
+#     # filtered_diversity_df_timepoint = filtered_diversity_df_grouped['value'].agg([np.mean, np.std])
+#     # filtered_diversity_df_timepoint.reset_index(inplace=True)
+#     # filtered_diversity_df_timepoint = filtered_diversity_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+#     # # save timepoint df, CHECKPOINT
+#     # filtered_diversity_df_timepoint.to_csv(os.path.join(output_dir, 'diversity_df_per_timepoint_filtered.csv'), index=False)
+#     # results_df.loc["diversity", f"num_tissue_ids_min_cell_{min_cells}"] = len(filtered_diversity_df_timepoint["Tissue_ID"].unique())
+
+#     # investigate correlation between diversity scores
+#     fov_data = filtered_diversity_df.copy()
+#     fov_data['feature_name_unique'] = fov_data['cell_type'] + '_' + fov_data['diversity_feature']
+#     fov_data = fov_data.loc[(fov_data.subset == 'all') & (fov_data.metric == 'cluster_freq')]
+#     fov_data = fov_data.loc[fov_data.diversity_feature != 'diversity_cell_meta_cluster']
+#     fov_data_wide = fov_data.pivot(index='fov', columns='feature_name_unique', values='value')
+
+#     corr_df = fov_data_wide.corr(method='spearman')
+
+#     # replace Nans
+#     corr_df = corr_df.fillna(0)
+#     clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+
+#     # save deduped df that excludes cell meta cluster, CHECKPOINT
+#     deduped_diversity_df = filtered_diversity_df.loc[filtered_diversity_df.diversity_feature != 'diversity_cell_meta_cluster']
+
+#     fovs_per_metric = deduped_diversity_df.groupby("metric")["fov"].nunique().reset_index(name="unique_fov_count")
+#     fovs_per_metric["unique_fov_count"] = total_fovs - fovs_per_metric["unique_fov_count"]
+#     diversity_feature_fov_counts[min_cells] = fovs_per_metric.set_index("metric")["unique_fov_count"].to_dict()
+#     # deduped_diversity_df.to_csv(os.path.join(output_dir, 'diversity_df_per_core_filtered_deduped.csv'), index=False)
+#     # results_df.loc["diversity", f"num_fovs_deduped_min_cell_{min_cells}"] = len(deduped_diversity_df["fov"].unique())
+
+#     # # create version aggregated by timepoint
+#     # deduped_diversity_df_grouped = deduped_diversity_df.groupby(['Tissue_ID', 'cell_type', 'diversity_feature', 'metric', 'subset'])
+#     # deduped_diversity_df_timepoint = deduped_diversity_df_grouped['value'].agg([np.mean, np.std])
+#     # deduped_diversity_df_timepoint.reset_index(inplace=True)
+#     # deduped_diversity_df_timepoint = deduped_diversity_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+#     # # # save timepoint df, CHECKPOINT
+#     # # deduped_diversity_df_timepoint.to_csv(os.path.join(output_dir, 'diversity_df_per_timepoint_filtered_deduped.csv'), index=False)
+#     # results_df.loc["diversity", f"num_tissue_ids_deduped_min_cell_{min_cells}"] = len(deduped_diversity_df_timepoint["Tissue_ID"].unique())
+
+# # Flattening the dictionary and creating a DataFrame
+# flat_data_diversity = []
+# for min_cells, metrics in diversity_feature_fov_counts.items():
+#     for metric, unique_fov_count in metrics.items():
+#         flat_data_diversity.append((min_cells, unique_fov_count))
+
+# df_diversity_viz = pd.DataFrame(flat_data_diversity, columns=['min_cells', 'unique_fov_count'])
+
+# # Ensuring 'min_cells' is treated as a categorical variable
+# df_diversity_viz['min_cells'] = pd.Categorical(df_diversity_viz['min_cells'])
+
+# # Creating a box plot
+# plt.figure(figsize=(10, 6))
+# sns.boxplot(x='min_cells', y='unique_fov_count', data=df_diversity_viz)
+# plt.title('FOVs Excluded for Diversity Features per min_cells')
+
+# # save the figure to save_dir
+# plt.savefig(
+#     pathlib.Path(extraction_pipeline_tuning_dir) / f"diversity_features_min_cells_boxplot.png",
+#     dpi=300
+# )
+
+# # Creating a violin plot
+# plt.figure(figsize=(10, 6))
+# sns.violinplot(x='min_cells', y='unique_fov_count', data=df_diversity_viz)
+# plt.title('FOVs Excluded for Diversity Features per min_cells')
+
+# # save the figure to save_dir
+# plt.savefig(
+#     pathlib.Path(extraction_pipeline_tuning_dir) / f"diversity_features_min_cells_violinplot.png",
+#     dpi=300
+# )
+
+# ### 2.4: distance tests
+# print("Starting distance tests")
+# total_df_distance = pd.read_csv(os.path.join(OUTPUT_DIR, "distance_df_per_core.csv"))
+# distance_feature_fov_counts = {}
+# for min_cells in min_cell_tests:
+#     filtered_dfs = []
+#     metrics = [['cluster_broad_count', 'cluster_broad_freq']]
+
+#     for metric in metrics:
+#         # subset count df to include cells at the relevant clustering resolution
+#         for compartment in ['all']:
+#             count_df = total_df[total_df.metric == metric[0]]
+#             count_df = count_df[count_df.subset == compartment]
+
+#             # subset distance df to only include distance metrics at this resolution
+#             distance_df = total_df_distance[total_df_distance.metric == metric[1]]
+#             distance_df = distance_df[distance_df.subset == compartment]
+
+#             # for each cell type, determine which FOVs have high enough counts to be included
+#             for cell_type in count_df.cell_type.unique():
+#                 keep_df = count_df[count_df.cell_type == cell_type]
+#                 keep_df = keep_df[keep_df.value >= min_cells]
+#                 keep_fovs = keep_df.fov.unique()
+
+#                 # subset morphology df to only include FOVs with high enough counts
+#                 keep_features = distance_df[distance_df.cell_type == cell_type]
+#                 keep_features = keep_features[keep_features.fov.isin(keep_fovs)]
+
+#                 # append to list of filtered dfs
+#                 filtered_dfs.append(keep_features)
+
+#     filtered_distance_df = pd.concat(filtered_dfs)
+
+#     # # # save filtered df, CHECKPOINT
+#     # # filtered_distance_df.to_csv(os.path.join(output_dir, 'distance_df_per_core_filtered.csv'), index=False)
+#     # results_df.loc["distance", f"num_fovs_min_cell_{min_cells}"] = len(filtered_distance_df["fov"].unique())
+
+#     # filter distance df to only include features with low correlation with abundance
+#     keep_df = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'distance_df_keep_features.csv'))
+
+#     deduped_dfs = []
+#     for cell_type in keep_df.cell_type.unique():
+#         keep_features = keep_df.loc[keep_df.cell_type == cell_type, 'feature_name'].unique()
+#         if len(keep_features) > 0:
+#             keep_df_subset = filtered_distance_df.loc[filtered_distance_df.cell_type == cell_type]
+#             keep_df_subset = keep_df_subset.loc[keep_df_subset.linear_distance.isin(keep_features)]
+#             deduped_dfs.append(keep_df_subset)
+
+#     deduped_distance_df = pd.concat(deduped_dfs)
+
+#     fovs_per_metric = deduped_distance_df.groupby("metric")["fov"].nunique().reset_index(name="unique_fov_count")
+#     fovs_per_metric["unique_fov_count"] = total_fovs - fovs_per_metric["unique_fov_count"]
+#     distance_feature_fov_counts[min_cells] = fovs_per_metric.set_index("metric")["unique_fov_count"].to_dict()
+
+#     # # # save filtered df, CHECKPOINT
+#     # # deduped_distance_df.to_csv(os.path.join(output_dir, 'distance_df_per_core_deduped.csv'), index=False)
+#     # results_df.loc["distance", f"num_fovs_deduped_min_cell_{min_cells}"] = len(deduped_distance_df["Tissue_ID"].unique())
+
+#     # # create version aggregated by timepoint
+#     # deduped_distance_df_grouped = deduped_distance_df.groupby(['Tissue_ID', 'cell_type', 'linear_distance', 'metric', 'subset'])
+#     # deduped_distance_df_timepoint = deduped_distance_df_grouped['value'].agg([np.mean, np.std])
+#     # deduped_distance_df_timepoint.reset_index(inplace=True)
+#     # deduped_distance_df_timepoint = deduped_distance_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+#     # # # save timepoint df, CHECKPOINT
+#     # # deduped_distance_df_timepoint.to_csv(os.path.join(output_dir, 'distance_df_per_timepoint_deduped.csv'), index=False)
+#     # results_df.loc["distance", f"num_tissue_ids_deduped_min_cell_{min_cells}"] = len(filtered_distance_df["fov"].unique())
+
+# # Flattening the dictionary and creating a DataFrame
+# flat_data_distance = []
+# for min_cells, metrics in distance_feature_fov_counts.items():
+#     for metric, unique_fov_count in metrics.items():
+#         flat_data_distance.append((min_cells, unique_fov_count))
+
+# df_distance_viz = pd.DataFrame(flat_data_distance, columns=['min_cells', 'unique_fov_count'])
+
+# # Ensuring 'min_cells' is treated as a categorical variable
+# df_distance_viz['min_cells'] = pd.Categorical(df_distance_viz['min_cells'])
+
+# # Creating a box plot
+# plt.figure(figsize=(10, 6))
+# sns.boxplot(x='min_cells', y='unique_fov_count', data=df_distance_viz)
+# plt.title('FOVs Excluded for Distance Features per min_cells')
+
+# # save the figure to save_dir
+# plt.savefig(
+#     pathlib.Path(extraction_pipeline_tuning_dir) / f"distance_features_min_cells_boxplot.png",
+#     dpi=300
+# )
+
+# # Creating a violin plot
+# plt.figure(figsize=(10, 6))
+# sns.violinplot(x='min_cells', y='unique_fov_count', data=df_distance_viz)
+# plt.title('FOVs Excluded for Distance Features per min_cells')
+
+# # save the figure to save_dir
+# plt.savefig(
+#     pathlib.Path(extraction_pipeline_tuning_dir) / f"distance_features_min_cells_violinplot.png",
+#     dpi=300
+# )
