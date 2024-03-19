@@ -243,7 +243,7 @@ supplementary_plot_helpers.stitch_before_after_rosetta(
 )
 
 ## show a run with images stitched in acquisition order pre- and post-normalization
-norm_tiling = os.path.join(SUPPLEMENTARY_FIG_DIR, "norm_tiling")
+norm_tiling = os.path.join(SUPPLEMENTARY_FIG_DIR, "acquisition_order")
 if not os.path.exists(acquisition_order_viz_dir_norm):
     os.makedirs(acquisition_order_viz_dir_norm)
 
