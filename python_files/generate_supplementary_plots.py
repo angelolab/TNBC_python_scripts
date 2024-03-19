@@ -21,6 +21,7 @@ from matplotlib.colors import ListedColormap, Normalize
 import supplementary_plot_helpers
 
 ANALYSIS_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files"
+METADATA_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/metadata"
 SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
 
 
@@ -36,12 +37,12 @@ supplementary_plot_helpers.validate_panel(
 )
 
 samples_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"
-samples_fov = "TONIC_TMA2_R5C4"
+samples_fov = "TONIC_TMA24_R8C1"
 samples_channels = sorted(io_utils.remove_file_extensions(
     io_utils.list_files(os.path.join(samples_dir, samples_fov), substrs=".tiff")
 ))
-exclude_chans = ["CD11c_nuc_exclude", "CK17_smoothed", "ECAD_smoothed", "FOXP3_nuc_include",
-                 "chan_39", "chan_45", "chan_48", "chan_115", "chan_141"]
+exclude_chans = ["Au", "CD11c_nuc_exclude", "CK17_smoothed", "ECAD_smoothed", "FOXP3_nuc_include",
+                 "LAG", "Noodle", "chan_39", "chan_45", "chan_48", "chan_115", "chan_141"]
 for ec in exclude_chans:
     if ec in samples_channels:
         samples_channels.remove(ec)
