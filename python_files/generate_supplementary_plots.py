@@ -495,13 +495,14 @@ for marker in marker_info:
 fig, axs = plt.subplots(
     len(marker_threshold_data),
     1,
-    figsize=(10, 30)
+    figsize=(20, 30)
 )
-threshold_mult_strs = ["1/4x", "1/2x", "3/4x", "7/8x", "1x", "8/7x", "4/3x", "2x", "4x"]
+threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
 
 for i, marker in enumerate(marker_threshold_data):
     _ = axs[i].set_title(
-        f"Positive {marker} cells per threshold (1x = {marker_info[marker]['threshold']})"
+        f"Positive {marker} cells per threshold (1x = {marker_info[marker]['threshold']})",
+        fontsize=24
     )
 
     mult_data = [mtd["num_positive_cells"] for mtd in marker_threshold_data[marker].values()]
@@ -514,10 +515,18 @@ for i, marker in enumerate(marker_threshold_data):
     _ = axs[i].yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
     _ = axs[i].yaxis.get_major_formatter().set_scientific(False)
 
+_ = fig.supxlabel("log2(threshold multiplier)", fontsize=24)
+_ = fig.supylabel("positive cell counts", fontsize=24)
+
+# Increase font size for x-axis and y-axis ticks
+for ax in axs.flat:
+    ax.tick_params(axis="x", labelsize=24)
+    ax.tick_params(axis="y", labelsize=24)
+
 plt.tight_layout()
 
 # save the figure to save_dir
-fig.savefig(
+_ = fig.savefig(
     pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_marker_threshold_experiments.png",
     dpi=300
 )
