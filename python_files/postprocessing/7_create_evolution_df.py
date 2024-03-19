@@ -55,7 +55,7 @@ def generate_patient_paired_timepoints(
             Maps each FOV and Tissue ID to the corresponding patient and timepoint
         timepoint_df (pd.DataFrame):
             Maps the features measured for each Tissue ID
-        distance_metric: Callable[[pd.Series, pd.Series], float]:
+        distance_metric (Callable[[pd.Series, pd.Series], float]):
             A custom distance metric used to compute the distance between timepoint data
         tissue_id_col (str):
             The column to index into the tissue ID
