@@ -149,6 +149,28 @@ ranked_features_df['feature_type_broad'] = ranked_features_df.feature_type.map(f
 ranked_features_df['top_feature'] = False
 ranked_features_df.iloc[:100, -1] = True
 
+# get ranking of each feature
+ranked_features_df['feature_rank_global_evolution'] = ranked_features_df.importance_score.rank(ascending=False)
+
+# get ranking of non-evolution features
+ranked_features_no_evo = ranked_features_df.loc[ranked_features_df.comparison.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
+ranked_features_no_evo['feature_rank_global'] = ranked_features_no_evo.importance_score.rank(ascending=False)
+ranked_features_df = ranked_features_df.merge(ranked_features_no_evo.loc[:, ['feature_name_unique', 'comparison', 'feature_rank_global']], on=['feature_name_unique', 'comparison'], how='left')
+
+# get ranking for each comparison
+ranked_features_df['feature_rank_comparison'] = np.nan
+for comparison in ranked_features_df.comparison.unique():
+    # get subset of features from given comparison
+    ranked_features_comp = ranked_features_df.loc[ranked_features_df.comparison == comparison, :]
+    ranked_features_comp['temp_comparison'] = ranked_features_comp.importance_score.rank(ascending=False)
+
+    # merge with placeholder column
+    ranked_features_df = ranked_features_df.merge(ranked_features_comp.loc[:, ['feature_name_unique', 'comparison', 'temp_comparison']], on=['feature_name_unique', 'comparison'], how='left')
+
+    # replace with values from placeholder, then delete
+    ranked_features_df['feature_rank_comparison'] = ranked_features_df['temp_comparison'].fillna(ranked_features_df['feature_rank_comparison'])
+    ranked_features_df.drop(columns='temp_comparison', inplace=True)
+
 # saved formatted df
 ranked_features_df.to_csv(os.path.join(base_dir, 'analysis_files/feature_ranking.csv'), index=False)
 
