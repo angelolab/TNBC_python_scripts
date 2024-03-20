@@ -489,47 +489,106 @@ for marker in marker_info:
         multiplied_threshold = marker_info[marker]["threshold"] * threshold
         marker_threshold_data[marker][threshold] = {
             "multiplied_threshold": multiplied_threshold,
-            "num_positive_cells": np.sum(cell_table_full[marker].values >= multiplied_threshold)
+            "num_positive_cells": np.sum(cell_table_full[marker].values >= multiplied_threshold),
+            "num_positive_cells_norm": np.sum(
+                cell_table_full[marker].values >= multiplied_threshold
+            ) / np.sum(
+                cell_table_full[marker].values >= marker_info[marker]["threshold"]
+            )
         }
 
-fig, axs = plt.subplots(
-    len(marker_threshold_data),
-    1,
-    figsize=(20, 30)
-)
+# fig = plt.figure()
+# ax = fig.add_subplot(1, 1, 1)
+# threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
+# threshold_colors = plt.cm.tab20(range(len(marker_threshold_data)))
+
+# for i, marker in enumerate(marker_threshold_data):
+#     # mult_data = [mtd["num_positive_cells"] for mtd in marker_threshold_data[marker].values()]
+#     mult_data = [mtd["num_positive_cells_norm"] for mtd in marker_threshold_data[marker].values()]
+#     _ = ax.plot(threshold_mult_strs, mult_data, color=threshold_colors[i], label=marker)
+#     # _ = ax.plot(threshold_mult_strs, mult_data, color="red", label=marker)
+
+# _ = ax.set_title(
+#     f"Positive cells per threshold, normalized by 1x",
+#     fontsize=11
+# )
+# _ = ax.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+# _ = ax.yaxis.get_major_formatter().set_scientific(False)
+# _ = ax.set_xlabel("log2(threshold multiplier)", fontsize=7)
+# _ = ax.set_ylabel("Positive cell counts, normalized by 1x", fontsize=7)
+# _ = ax.tick_params(axis="both", which="major", labelsize=7)
+
+# # save the figure to save_dir
+# _ = fig.savefig(
+#     pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_marker_threshold_experiments_norm.png",
+#     dpi=300
+# )
+
+fig = plt.figure()
+ax = fig.add_subplot(1, 1, 1)
 threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
+threshold_colors = plt.cm.tab20(range(len(marker_threshold_data)))
 
 for i, marker in enumerate(marker_threshold_data):
-    _ = axs[i].set_title(
-        f"Positive {marker} cells per threshold (1x = {marker_info[marker]['threshold']})",
-        fontsize=24
-    )
-
     mult_data = [mtd["num_positive_cells"] for mtd in marker_threshold_data[marker].values()]
-    _ = axs[i].scatter(
-        threshold_mult_strs,
-        mult_data
-    )
+    _ = ax.plot(threshold_mult_strs, mult_data, color=threshold_colors[i], label=marker)
+    # _ = ax.plot(threshold_mult_strs, mult_data, color="red", label=marker)
 
-    # turn off scientific notation to ensure consistency
-    _ = axs[i].yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
-    _ = axs[i].yaxis.get_major_formatter().set_scientific(False)
-
-_ = fig.supxlabel("log2(threshold multiplier)", fontsize=24)
-_ = fig.supylabel("positive cell counts", fontsize=24)
-
-# Increase font size for x-axis and y-axis ticks
-for ax in axs.flat:
-    ax.tick_params(axis="x", labelsize=24)
-    ax.tick_params(axis="y", labelsize=24)
-
-plt.tight_layout()
+_ = ax.set_title(
+    f"Positive cells per threshold",
+    fontsize=11
+)
+_ = ax.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+_ = ax.yaxis.get_major_formatter().set_scientific(False)
+_ = ax.set_xlabel("log2(threshold multiplier)", fontsize=7)
+_ = ax.set_ylabel("Positive cell counts", fontsize=7)
+_ = ax.tick_params(axis="both", which="major", labelsize=7)
 
 # save the figure to save_dir
 _ = fig.savefig(
     pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_marker_threshold_experiments.png",
     dpi=300
 )
+
+
+# fig, axs = plt.subplots(
+#     len(marker_threshold_data),
+#     1,
+#     figsize=(20, 30)
+# )
+# threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
+
+# for i, marker in enumerate(marker_threshold_data):
+#     _ = axs[i].set_title(
+#         f"Positive {marker} cells per threshold (1x = {marker_info[marker]['threshold']})",
+#         fontsize=24
+#     )
+
+#     mult_data = [mtd["num_positive_cells"] for mtd in marker_threshold_data[marker].values()]
+#     _ = axs[i].scatter(
+#         threshold_mult_strs,
+#         mult_data
+#     )
+
+#     # turn off scientific notation to ensure consistency
+#     _ = axs[i].yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+#     _ = axs[i].yaxis.get_major_formatter().set_scientific(False)
+
+# _ = fig.supxlabel("log2(threshold multiplier)", fontsize=24)
+# _ = fig.supylabel("positive cell counts", fontsize=24)
+
+# # Increase font size for x-axis and y-axis ticks
+# for ax in axs.flat:
+#     ax.tick_params(axis="x", labelsize=24)
+#     ax.tick_params(axis="y", labelsize=24)
+
+# plt.tight_layout()
+
+# # save the figure to save_dir
+# _ = fig.savefig(
+#     pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_marker_threshold_experiments.png",
+#     dpi=300
+# )
 
 
 # ## 2. vary min cell param for functional, morphology, diversity, and distance DataFrames
