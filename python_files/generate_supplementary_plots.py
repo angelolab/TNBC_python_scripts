@@ -500,13 +500,10 @@ for marker in marker_info:
 # fig = plt.figure()
 # ax = fig.add_subplot(1, 1, 1)
 # threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
-# threshold_colors = plt.cm.tab20(range(len(marker_threshold_data)))
 
 # for i, marker in enumerate(marker_threshold_data):
-#     # mult_data = [mtd["num_positive_cells"] for mtd in marker_threshold_data[marker].values()]
 #     mult_data = [mtd["num_positive_cells_norm"] for mtd in marker_threshold_data[marker].values()]
-#     _ = ax.plot(threshold_mult_strs, mult_data, color=threshold_colors[i], label=marker)
-#     # _ = ax.plot(threshold_mult_strs, mult_data, color="red", label=marker)
+#     _ = ax.plot(threshold_mult_strs, mult_data, color="gray", label=marker)
 
 # _ = ax.set_title(
 #     f"Positive cells per threshold, normalized by 1x",
@@ -527,11 +524,10 @@ for marker in marker_info:
 fig = plt.figure()
 ax = fig.add_subplot(1, 1, 1)
 threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
-threshold_colors = plt.cm.tab20(range(len(marker_threshold_data)))
 
 for i, marker in enumerate(marker_threshold_data):
     mult_data = [mtd["num_positive_cells"] for mtd in marker_threshold_data[marker].values()]
-    _ = ax.plot(threshold_mult_strs, mult_data, color=threshold_colors[i], label=marker)
+    _ = ax.plot(threshold_mult_strs, mult_data, color="gray", label=marker)
 
 _ = ax.set_title(
     f"Positive cells per threshold",
