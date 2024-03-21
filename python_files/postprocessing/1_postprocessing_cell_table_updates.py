@@ -318,15 +318,6 @@ for marker, threshold in threshold_list:
     cell_table_func[marker] = cell_table_full[marker].values >= threshold
 
 
-# set specific threshold for PDL1+ dim tumor cells
-PDL1_mask = np.logical_and(cell_table_full['PDL1'].values >= 0.0005, cell_table_full['PDL1'].values < 0.001)
-tumor_mask = cell_table_full['cell_cluster_broad'] == 'Cancer'
-PDL1_cancer_dim_threshold = np.logical_and(PDL1_mask, tumor_mask)
-
-# set threshold for all PDL1+ cells
-cell_table_func['PDL1'] = np.logical_or(cell_table_func['PDL1'].values, PDL1_cancer_dim_threshold)
-
-
 # create ratios of relevant markers
 
 # # first define minimum values for each marker
