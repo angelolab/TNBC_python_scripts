@@ -416,6 +416,7 @@ cell_table_counts.to_csv(os.path.join(analysis_dir, 'cell_table_counts.csv'), in
 #  'TONIC_TMA1_R8C3',
 #  'TONIC_TMA1_R8C4',
 #  'TONIC_TMA1_R8C5',
+#  'TONIC_TMA1_R8C6',
 #  'TONIC_TMA1_R10C2',
 #  'TONIC_TMA1_R10C3']
 #
@@ -443,6 +444,7 @@ cell_table_counts.to_csv(os.path.join(analysis_dir, 'cell_table_counts.csv'), in
 #     'TONIC_TMA1_R11C3',
 #     'TONIC_TMA1_R11C4',
 #     'TONIC_TMA1_R11C5',
+#     'TONIC_TMA1_R11C6',
 #     'TONIC_TMA1_R13C2',
 #     'TONIC_TMA1_R13C3']
 #
