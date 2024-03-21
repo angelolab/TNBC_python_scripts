@@ -158,16 +158,8 @@ for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_borde
         cell_type1_df = compartment_df[compartment_df.cell_type == cell_type1].copy()
         cell_type2_df = compartment_df[compartment_df.cell_type == cell_type2].copy()
 
-        # only keep FOVS with at least one cell type over the minimum density
-        minimum_density = 0.0005
-        cell_type1_mask = cell_type1_df.value > minimum_density
-        cell_type2_mask = cell_type2_df.value > minimum_density
-        cell_mask = cell_type1_mask.values | cell_type2_mask.values
-
-        cell_type1_df = cell_type1_df[cell_mask]
-        cell_type2_df = cell_type2_df[cell_mask]
-
         # add minimum density to avoid log2(0)
+        minimum_density = 0.0005
         cell_type1_df['ratio'] = np.log2((cell_type1_df.value.values + minimum_density) /
                                          (cell_type2_df.value.values + minimum_density))
 
