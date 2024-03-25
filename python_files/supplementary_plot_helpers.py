@@ -13,12 +13,8 @@ from ark.utils import plot_utils, data_utils
 from alpineer.io_utils import list_folders, list_files, remove_file_extensions, validate_paths
 from alpineer.load_utils import load_imgs_from_tree, load_imgs_from_dir
 from alpineer.misc_utils import verify_in_list
+from toffy.image_stitching import recale_images
 from .utils import remove_ticks, QuantileNormalization, mask_erosion_ufunc
-
-ACQUISITION_ORDER_INDICES = [
-    11, 12, 13, 14, 15, 17, 18, 20, 22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 35,
-    36, 39, 40, 41, 42, 43, 44, 45, 46, 47
-]
 
 
 # generate stitching/annotation function, used by panel validation and acquisition order tiling
@@ -167,7 +163,6 @@ def validate_panel(
     image_data = image_data.transpose("channels", "rows", "cols")
 
     # generate the stitched image and save
-    print(f"Font size is: {font_size}")
     panel_tiled: Image = stitch_and_annotate_padded_img(
         image_data, padding=padding, font_size=font_size, annotate=True
     )
@@ -322,11 +317,160 @@ def functional_marker_thresholding(
 
 
 # acquisition order helpers
+def stitch_before_after_rosetta(
+    pre_rosetta_dir: Union[str, pathlib.Path], post_rosetta_dir: Union[str, pathlib.Path],
+    save_dir: Union[str, pathlib.Path],
+    run_name: str, fov_indices: Optional[List[int]], target_channel: str, source_channel: str = "Noodle",
+    pre_rosetta_subdir: str = "", post_rosetta_subdir: str = "",
+    img_size_scale: float = 0.5, percent_norm: Optional[float] = 99.999,
+    padding: int = 25, font_size: int = 175, step: int = 1,
+    save_separate: bool = False
+):
+    """Generates two stitched images: before and after Rosetta
+
+    pre_rosetta_dir (Union[str, pathlib.Path]):
+        The directory containing the run data before Rosetta
+    post_rosetta_dir (Union[str, pathlib.Path]):
+        The directory containing the run data after Rosetta
+    save_dir (Union[str, pathlib.Path]):
+        The directory to save both the pre- and post-Rosetta tiled images
+    run_name (str):
+        The name of the run to tile, should be present in both pre_rosetta_dir and post_rosetta_dir
+    fov_indices (Optional[List[int]]):
+        The list of indices to select. If None, use all.
+    target_channel (str):
+        The name of the channel to tile inside run_name
+    source_channel (str):
+        The name of the source channel that was subtracted from target_channel
+    pre_rosetta_subdir (str):
+        If applicable, the name of the subdirectory inside each FOV folder of the pre-Rosetta data
+    post_rosetta_subdir (str):
+        If applicable, the name of the subdirectory inside each FOV folder of the post-Rosetta data
+    percent_norm (int):
+        Percentile normalization param to enable easy visualization, if None then skips this step
+    img_size_scale (float):
+        Amount to scale down image. Set to None for no scaling
+    padding (int):
+        Amount of padding to add around each channel in the stitched image
+    font_size (int):
+        The font size to use for annotations
+    step (int):
+        The step size to use before adding an image to the tile
+    save_separate (bool):
+        If set, then save each FOV separately, otherwise save full tile
+    """
+    # verify that the run_name specified appears in both pre and post norm folders
+    all_pre_rosetta_runs: List[str] = list_folders(pre_rosetta_dir)
+    all_post_rosetta_runs: List[str] = list_folders(post_rosetta_dir)
+    verify_in_list(
+        specified_run=run_name,
+        all_pre_norm_runs=all_pre_rosetta_runs
+    )
+    verify_in_list(
+        specified_run=run_name,
+        all_post_norm_runs=all_post_rosetta_runs
+    )
+
+    # verify save_dir is valid before defining the save paths
+    validate_paths([save_dir])
+    rosetta_stitched_path: pathlib.Path = \
+        pathlib.Path(save_dir) / f"{run_name}_{target_channel}_pre_post_Rosetta.tiff"
+
+    # define full paths to pre- and post-Rosetta data
+    pre_rosetta_run_path: pathlib.Path = pathlib.Path(pre_rosetta_dir) / run_name
+    post_rosetta_run_path: pathlib.Path = pathlib.Path(post_rosetta_dir) / run_name
+
+    # get all the FOVs in natsorted order
+    # NOTE: assumed that the FOVs are the same pre and post, since the run names are the same
+    all_fovs: List[str] = ns.natsorted(list_folders(pre_rosetta_run_path))
+
+    # load Noodle, pre-, and post-Rosetta data in acquisition order, drop channel axis as it's 1-D
+    # ensure the pre-Rosetta Noodle is loaded
+    noodle_data: xr.DataArray = load_imgs_from_tree(
+        data_dir=pre_rosetta_run_path, fovs=all_fovs, channels=[source_channel],
+        img_sub_folder=pre_rosetta_subdir, max_image_size=2048
+    )[..., 0]
+    pre_rosetta_data: xr.DataArray = load_imgs_from_tree(
+        data_dir=pre_rosetta_run_path, fovs=all_fovs, channels=[target_channel],
+        img_sub_folder=pre_rosetta_subdir, max_image_size=2048
+    )[..., 0]
+    post_rosetta_data: xr.DataArray = load_imgs_from_tree(
+        data_dir=post_rosetta_run_path, fovs=all_fovs, channels=[target_channel],
+        img_sub_folder=post_rosetta_subdir, max_image_size=2048
+    )[..., 0]
+
+    # divide pre-Rosetta by 200 to ensure same scale
+    pre_rosetta_data = pre_rosetta_data / 200
+
+    # reassign coordinate with FOV names that don't contain "-scan-1" or additional dashes
+    fovs_condensed: np.ndarray = np.array([f"FOV{af.split('-')[1]}" for af in all_fovs])
+    noodle_data = noodle_data.assign_coords({"fovs": fovs_condensed})
+    pre_rosetta_data = pre_rosetta_data.assign_coords({"fovs": fovs_condensed})
+    post_rosetta_data = post_rosetta_data.assign_coords({"fovs": fovs_condensed})
+
+    # the top should be original, middle Noodle, bottom Rosetta-ed
+    # NOTE: leave out Noodle row from dimensions for now for proper rescaling and percentile norm
+    stitched_pre_post_rosetta: np.ndarray = np.zeros(
+        (2048 * 2, 2048 * len(fovs_condensed))
+    )
+    for fov_i, fov_name in enumerate(fovs_condensed):
+        # add the rescaled pre- and post-Rosetta images first
+        stitched_pre_post_rosetta[
+            0:2048, (2048 * fov_i):(2048 * (fov_i + 1))
+        ] = pre_rosetta_data[fov_i, ...].values
+        stitched_pre_post_rosetta[
+            2048:4096, (2048 * fov_i):(2048 * (fov_i + 1))
+        ] = post_rosetta_data[fov_i, ...].values
+
+    # define the Noodle row
+    stitched_noodle: np.ndarray = np.zeros((2048, 2048 * len(fovs_condensed)))
+    for fov_i, fov_name in enumerate(fovs_condensed):
+        stitched_noodle[
+            :, (2048 * fov_i):(2048 * (fov_i + 1))
+        ] = noodle_data[fov_i, ...].values
+
+    # run percent normalization on Noodle data if specified
+    if percent_norm:
+        source_percentile: float = np.percentile(stitched_noodle, percent_norm)
+        non_source_percentile: float = np.percentile(stitched_pre_post_rosetta, percent_norm)
+        perc_ratio: float = source_percentile / non_source_percentile
+        stitched_noodle = stitched_noodle / perc_ratio
+
+    # combine the Noodle data with the stitched data, swap so that Noodle is in the middle
+    stitched_pre_post_rosetta = np.vstack(
+        (stitched_pre_post_rosetta[:2048, :], stitched_noodle, stitched_pre_post_rosetta[2048:, :])
+    )
+
+    # subset on just the FOV indices selected
+    # NOTE: because of how percent norm works, better to run on all FOVs first to ensure brightness
+    # as opposed to subsetting first, which often leads to dimmer images
+    if fov_indices:
+        indices_select = []
+        for fi in fov_indices:
+            indices_select.extend(list(np.arange(2048 * fi, 2048 * (fi + 1))))
+        stitched_pre_post_rosetta = stitched_pre_post_rosetta[:, indices_select]
+
+    if save_separate:
+        # save each individual image separately
+        for fov_i, fov_num in enumerate(fov_indices):
+            stitched_rosetta_pil: Image = Image.fromarray(
+                stitched_pre_post_rosetta[:, (2048 * fov_i):(2048 * (fov_i + 1))]
+            )
+            rosetta_stitched_path: pathlib.Path = \
+                pathlib.Path(save_dir) / f"{target_channel}_image_{fov_num}.tiff"
+            stitched_rosetta_pil.save(rosetta_stitched_path)
+
+    else:
+        # save the full stitched image
+        stitched_rosetta_pil: Image = Image.fromarray(np.round(stitched_pre_post_rosetta, 3))
+        stitched_rosetta_pil.save(rosetta_stitched_path)
+
+
 def stitch_before_after_norm(
     pre_norm_dir: Union[str, pathlib.Path], post_norm_dir: Union[str, pathlib.Path],
-    save_dir: Union[str, pathlib.Path],
-    run_name: str, channel: str, pre_norm_subdir: str = "", post_norm_subdir: str = "",
-    padding: int = 25, font_size: int = 100, step: int = 1
+    save_dir: Union[str, pathlib.Path], run_name: str,
+    fov_indices: Optional[List[int]], channel: str, pre_norm_subdir: str = "",
+    post_norm_subdir: str = "", padding: int = 25, font_size: int = 100, step: int = 1
 ):
     """Generates two stitched images: before and after normalization
 
@@ -338,6 +482,8 @@ def stitch_before_after_norm(
         The directory to save both the pre- and post-norm tiled images
     run_name (str):
         The name of the run to tile, should be present in both pre_norm_dir and post_norm_dir
+    fov_indices (Optional[List[int]]):
+        The list of indices to select. If None, use all.
     channel (str):
         The name of the channel to tile inside run_name
     pre_norm_subdir (str):
@@ -387,12 +533,14 @@ def stitch_before_after_norm(
         img_sub_folder=post_norm_subdir, max_image_size=2048
     )[..., 0]
 
-    pre_norm_data = pre_norm_data[ACQUISITION_ORDER_INDICES, ...]
-    post_norm_data = post_norm_data[ACQUISITION_ORDER_INDICES, ...]
+    if fov_indices:
+        pre_norm_data = pre_norm_data[fov_indices, ...]
+        post_norm_data = post_norm_data[fov_indices, ...]
 
     # reassign coordinate with FOV names that don't contain "-scan-1" or additional dashes
     fovs_condensed: np.ndarray = np.array([f"FOV{af.split('-')[1]}" for af in all_fovs])
-    fovs_condensed = fovs_condensed[ACQUISITION_ORDER_INDICES]
+    if fov_indices:
+        fovs_condensed = fovs_condensed[fov_indices]
     pre_norm_data = pre_norm_data.assign_coords({"fovs": fovs_condensed})
     post_norm_data = post_norm_data.assign_coords({"fovs": fovs_condensed})
 
