@@ -419,7 +419,7 @@ class MembraneMarkersSegmentationPlot:
         clip: bool = False,
         figsize: Tuple[int, int] = (12, 4),
         layout: Literal["constrained", "tight"] = None,
-        image_type: Literal["png", "pdf"] = "pdf",
+        image_type: Literal["png", "pdf", "svg"] = "pdf",
     ):
         """Creates a figure with two subplots, one for each membrane marker used for segmentation,
         and one for the overlay of the membrane and nuclear markers.
@@ -447,7 +447,7 @@ class MembraneMarkersSegmentationPlot:
             The size of the figure, by default (8, 4)
         layout : Literal["constrained", "tight"], optional
             The layout engine, defaults to None, by default None
-        image_type : Literal["png", "pdf"], optional
+        image_type : Literal["png", "pdf", "svg"], optional
             The file type to save the plot as, by default "pdf"
         """
         self.fov_name = fov
@@ -501,8 +501,9 @@ class MembraneMarkersSegmentationPlot:
         self._plot_mem_markers()
         self._plot_overlay_segmentation()
         self.fig.savefig(
-            save_dir / f"{self.fov_name}_membrane_markers_overlay.{self.image_type}"
+            fname=save_dir / f"{self.fov_name}_membrane_markers_overlay.{self.image_type}",
         )
+        plt.close(self.fig)
 
     def _plot_mem_markers(self):
         self.subfigs[0].suptitle("Membrane Markers", fontsize=6)
@@ -549,7 +550,7 @@ class MembraneMarkersSegmentationPlot:
         for ax in markers_subplots.flat[self.n_chans + 1 :]:
             ax.remove()
 
-    def _plot_overlay_segmentation(self):
+    def _plot_overlay_segmentation(self)-> None:
         cell_seg_ax, overlay_ax = self.subfigs[1].subplots(
             nrows=1, ncols=2, sharex=True, sharey=True
         )
@@ -568,7 +569,7 @@ class MembraneMarkersSegmentationPlot:
                 self.fov_cell_segmentation.squeeze(),
                 input_core_dims=[["rows", "cols"]],
                 output_core_dims=[["rows", "cols"]],
-                kwargs={"connectivity": 2, "mode": "thick"},
+                kwargs={"connectivity": 1, "mode": "thick"},
             ).pipe(lambda x: x.where(cond=x < 1, other=0.5)),
             cmap="grey",
             interpolation="none",
@@ -591,7 +592,7 @@ class SegmentationOverlayPlot:
         clip: bool = False,
         figsize: tuple[float, float] =(8, 4),
         layout: Literal["constrained", "tight"] = "constrained",
-        image_type: Literal["png", "pdf"] = "pdf",
+        image_type: Literal["png", "pdf", "svg"] = "svg",
     ) -> None:
         self.fov_name = fov
         self.seg_dir = segmentation_dir
@@ -612,7 +613,6 @@ class SegmentationOverlayPlot:
             img_overlay_chans=self.overlay_channels,
             seg_overlay_comp="whole_cell",
         )
-
         self.fov_cell_segmentation = load_imgs_from_dir(
             data_dir=self.seg_dir / "deepcell_output",
             files=[f"{self.fov_name}_whole_cell.tiff"],
@@ -620,12 +620,12 @@ class SegmentationOverlayPlot:
         self.fig.suptitle(
             t=f"{self.fov_name} Cell Segmentation and Overlay", fontsize=8
         )
-
         self._plot_overlay_segmentation()
-
         self.fig.savefig(
             save_dir / f"{self.fov_name}_segmentation_overlay.{self.image_type}"
         )
+        
+        plt.close(self.fig)
 
     def _plot_overlay_segmentation(self):
         cell_seg_ax, overlay_ax = self.fig.subplots(
