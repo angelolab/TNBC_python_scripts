@@ -15,6 +15,10 @@ from alpineer.load_utils import load_imgs_from_tree, load_imgs_from_dir
 from alpineer.misc_utils import verify_in_list
 from toffy.image_stitching import recale_images
 from .utils import remove_ticks, QuantileNormalization, mask_erosion_ufunc
+ACQUISITION_ORDER_INDICES = [
+    11, 12, 13, 14, 15, 17, 18, 20, 22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 35,
+    36, 39, 40, 41, 42, 43, 44, 45, 46, 47
+]
 
 
 # generate stitching/annotation function, used by panel validation and acquisition order tiling
