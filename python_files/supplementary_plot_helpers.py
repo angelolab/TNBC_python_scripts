@@ -13,7 +13,7 @@ from ark.utils import plot_utils, data_utils
 from alpineer.io_utils import list_folders, list_files, remove_file_extensions, validate_paths
 from alpineer.load_utils import load_imgs_from_tree, load_imgs_from_dir
 from alpineer.misc_utils import verify_in_list
-from toffy.image_stitching import recale_images
+from toffy.image_stitching import rescale_images
 from .utils import remove_ticks, QuantileNormalization, mask_erosion_ufunc
 ACQUISITION_ORDER_INDICES = [
     11, 12, 13, 14, 15, 17, 18, 20, 22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 35,
@@ -589,6 +589,8 @@ class MembraneMarkersSegmentationPlot:
         overlay_channels : str | List[str]
             The overlay channels to be plotted, can be either "nuclear_channel",
             "membrane_channel", or both.
+        overlay_cmap: str, optional
+            The colormap to use for the overlay, by default "viridis_r"
         q : tuple[float, float], optional
             A tuple of quatiles where the smallest element is the minimum quantile
             and the largest element is the maximum percentile, by default (0.05, 0.95). Must
@@ -746,6 +748,29 @@ class SegmentationOverlayPlot:
         layout: Literal["constrained", "tight"] = "constrained",
         image_type: Literal["png", "pdf", "svg"] = "svg",
     ) -> None:
+        """Creates a figure with two subplots, one for the cell segmentation and one for the overlay
+
+        Parameters
+        ----------
+        fov : str
+            The name of the FOV to be plotted
+        segmentation_dir : PathLike
+            The directory containing the segmentation data.
+        overlay_channels : str | List[str]
+            The overlay channels to be plotted, can be either "nuclear_channel",
+        q : tuple[float, float], optional
+            A tuple of quatiles where the smallest element is the minimum quantile
+            and the largest element is the maximum percentile, by default (0.05, 0.95). Must
+            be between 0 and 1 inclusive.
+        clip : bool, optional
+            If True, the normalized values are clipped to the range [0, 1], by default False
+        figsize : Tuple[int, int], optional
+            The size of the figure, by default (8, 4)
+        layout : Literal["constrained", "tight"], optional
+            The layout engine, defaults to None, by default None
+        image_type : Literal["png", "pdf", "svg"], optional
+            The file type to save the plot as, by default "pdf"
+        """
         self.fov_name = fov
         self.seg_dir = segmentation_dir
         self.overlay_channels = overlay_channels
