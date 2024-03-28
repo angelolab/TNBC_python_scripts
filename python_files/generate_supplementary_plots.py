@@ -504,7 +504,7 @@ supplementary_plot_helpers.functional_marker_thresholding(
 # False positive analysis
 ## Analyse the significance scores of top features after randomization compared to the TONIC data.
 fp_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'false_positive_analysis')
-if not os.path.exits(fp_dir):
+if not os.path.exists(fp_dir):
     os.makedirs(fp_dir)
 
 # compute random feature sets
