@@ -9,6 +9,8 @@ import xarray as xr
 from os import PathLike
 from PIL import Image, ImageDraw, ImageFont
 from typing import Dict, List, Optional, Tuple, TypedDict, Union, Literal
+from skimage.io import imread
+import geopandas as gpd
 from ark.utils import plot_utils, data_utils
 from alpineer.io_utils import list_folders, list_files, remove_file_extensions, validate_paths
 from alpineer.load_utils import load_imgs_from_tree, load_imgs_from_dir
@@ -741,7 +743,7 @@ class SegmentationOverlayPlot:
         self,
         fov: str,
         segmentation_dir: PathLike,
-        overlay_channels: str | List[str],
+        overlay_channels: str | List[str] = ["nuclear_channel", "membrane_channel"],
         q: tuple[float, float] = (0.05, 0.95),
         clip: bool = False,
         figsize: tuple[float, float] =(8, 4),
@@ -757,7 +759,8 @@ class SegmentationOverlayPlot:
         segmentation_dir : PathLike
             The directory containing the segmentation data.
         overlay_channels : str | List[str]
-            The overlay channels to be plotted, can be either "nuclear_channel",
+            The overlay channels to be plotted, can be either/both "nuclear_channel" or "membrane_channel",
+            defaults to ["nuclear_channel", "membrane_channel"].
         q : tuple[float, float], optional
             A tuple of quatiles where the smallest element is the minimum quantile
             and the largest element is the maximum percentile, by default (0.05, 0.95). Must
@@ -834,3 +837,111 @@ class SegmentationOverlayPlot:
 
         remove_ticks(overlay_ax, "xy")
         remove_ticks(cell_seg_ax, "xy")
+
+
+class CorePlot:
+    def __init__(
+        self,
+        fov: str,
+        hne_path: PathLike,
+        seg_dir: PathLike,
+        overlay_channels: list[str] = ["nuclear_channel", "membrane_channel"],
+        figsize: tuple[float, float] = (13, 4),
+        layout: Literal["constrained", "tight"] = "constrained",
+        image_type: Literal["png", "pdf", "svg"] = "pdf",
+    ):
+        """Generates a figure with three subplots: one for the HnE core, one for the HnE FOV crop,
+        and one for the overlay of the nuclear and membrane channels.
+
+        Parameters
+        ----------
+        fov : str
+            The name of the FOV to be plotted
+        hne_path : PathLike
+            The directory containing the fovs with their HnE OME-TIFFs.
+        seg_dir : PathLike
+            The directory containing the segmentation data.
+        overlay_channels : str | List[str]
+            The overlay channels to be plotted, can be either/both "nuclear_channel" or "membrane_channel",
+            defaults to ["nuclear_channel", "membrane_channel"].
+        figsize : Tuple[int, int], optional
+            The size of the figure, by default (8, 4)
+        layout : Literal["constrained", "tight"], optional
+            The layout engine, defaults to None, by default None
+        image_type : Literal["png", "pdf", "svg"], optional
+            The file type to save the plot as, by default "pdf"
+        """
+        self.fov_name = fov
+        self.hne_path = hne_path
+        self.seg_dir = seg_dir
+        self.overlay_channels = overlay_channels
+        self.figsize = figsize
+        self.layout = layout
+        self.image_type = image_type
+
+        self.fig = plt.figure(figsize=self.figsize, layout=self.layout)
+
+        self.axes = self.fig.subplots(nrows=1, ncols=3, width_ratios=[1, 1, 1])
+
+    def make_plot(self, save_dir: PathLike):
+        self.hne_core = imread(
+            self.hne_path / self.fov_name / "core.ome.tiff",
+            plugin="tifffile",
+            is_ome=True,
+        )
+
+        self.hne_fov = imread(
+            self.hne_path / self.fov_name / "fov.ome.tiff",
+            plugin="tifffile",
+            is_ome=True,
+        )
+        self.fov_loc = gpd.read_file(self.hne_path / self.fov_name / "loc.geojson")
+        self.fov_overlay = plot_utils.create_overlay(
+            fov=self.fov_name,
+            segmentation_dir=self.seg_dir / "deepcell_output",
+            data_dir=self.seg_dir / "deepcell_input",
+            img_overlay_chans=self.overlay_channels,
+            seg_overlay_comp="whole_cell",
+        )
+
+        self.fig.suptitle(
+            t=f"{self.fov_name} HnE Core and Cell Segmentation and Overlay", fontsize=8
+        )
+
+        self._plot_core()
+        self._plot_fov_overlay()
+
+        self.fig.savefig(
+            save_dir / f"{self.fov_name}_hne_core_overlay.{self.image_type}"
+        )
+        plt.close(self.fig)
+
+    def _plot_core(self):
+        hne_core_ax = self.axes[0]
+        hne_core_ax.set_title(label="HnE Core", fontsize=6)
+        hne_core_ax.imshow(X=self.hne_core, aspect="equal", interpolation="none")
+        self.fov_loc.buffer(0.1, cap_style=1, join_style=1, resolution=32).plot(
+            ax=hne_core_ax,
+            facecolor="none",
+            edgecolor="black",
+            linewidth=1,
+            aspect="equal",
+        )
+
+        remove_ticks(hne_core_ax, axis="xy")
+
+    def _plot_fov_overlay(self):
+        hne_fov_ax = self.axes[1]
+        hne_fov_ax.set_title(label="HnE FOV Crop", fontsize=6)
+        hne_fov_ax.imshow(X=self.hne_fov, aspect="equal", interpolation="none")
+
+        overlay_ax = self.axes[2]
+        overlay_ax.set_title("Nuclear and Membrane Channel Overlay", fontsize=6)
+        overlay_ax.imshow(
+            X=self.fov_overlay,
+            interpolation="none",
+            aspect="equal",
+        )
+
+        remove_ticks(hne_fov_ax, axis="xy")
+        remove_ticks(overlay_ax, axis="xy")
