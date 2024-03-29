@@ -18,7 +18,7 @@ import seaborn as sns
 import matplotlib.gridspec as gridspec
 from matplotlib.colors import ListedColormap, Normalize
 
-import supplementary_plot_helpers
+import python_files.supplementary_plot_helpers as supplementary_plot_helpers
 
 ANALYSIS_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files"
 METADATA_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/metadata"
@@ -52,7 +52,20 @@ supplementary_plot_helpers.validate_panel(
 
 
 # ROI selection
+metadata = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/harmonized_metadata.csv')
+metadata = metadata.loc[metadata.MIBI_data_generated, :]
+metadata = metadata.loc[metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
 
+fov_counts = metadata.groupby('Tissue_ID').size().values
+fov_counts = pd.DataFrame(fov_counts, columns=['FOV Count'])
+sns.histplot(data=fov_counts, x='FOV Count')
+sns.despine()
+plt.title("Number of FOVs per Tissue Type")
+plt.xlabel("Number of FOVs")
+plt.tight_layout()
+
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR,'hne_core_fov_plots', "fov_counts_per_timepoint.pdf"), dpi=300)
+plt.close()
 
 # QC
 qc_metrics = ["Non-zero mean intensity"]
