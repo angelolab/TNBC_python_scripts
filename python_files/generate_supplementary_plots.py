@@ -430,6 +430,22 @@ for fov in fovs_seg:
     )
     p.make_plot(save_dir = save_dir)
 
+# HnE Core, FOV and Segmentation Overlays
+hne_fovs = [
+    "TONIC_TMA2_R7C4",
+    "TONIC_TMA4_R11C2",
+    "TONIC_TMA4_R12C4",
+    "TONIC_TMA24_R2C3",
+]
+hne_path = Path(SUPPLEMENTARY_FIG_DIR) / "hne_core_fov_plots" / " cores_fov_seg_maps"
+seg_dir = Path("/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/")
+
+save_dir = Path(SUPPLEMENTARY_FIG_DIR) / "hne_core_fov_plots" / "figures"
+save_dir.mkdir(exist_ok=True, parents=True)
+for fov in hne_fovs:
+    supplementary_plot_helpers.CorePlot(
+        fov=fov, hne_path=hne_path, seg_dir=seg_dir
+    ).make_plot(save_dir=save_dir)
 
 # Functional marker thresholding
 cell_table = pd.read_csv(
