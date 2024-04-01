@@ -6,19 +6,21 @@ import os
 import pandas as pd
 import pathlib
 import xarray as xr
-
+from os import PathLike
 from PIL import Image, ImageDraw, ImageFont
-from typing import Dict, List, Optional, Tuple, TypedDict, Union
-
+from typing import Dict, List, Optional, Tuple, TypedDict, Union, Literal
+from skimage.io import imread
+import geopandas as gpd
+from ark.utils import plot_utils, data_utils
 from alpineer.io_utils import list_folders, list_files, remove_file_extensions, validate_paths
-from alpineer.load_utils import load_imgs_from_tree
+from alpineer.load_utils import load_imgs_from_tree, load_imgs_from_dir
 from alpineer.misc_utils import verify_in_list
 from toffy.image_stitching import rescale_images
-from python_files.utils import compare_populations
-from statsmodels.stats.multitest import multipletests
-
-import warnings
-warnings.filterwarnings('ignore')
+from .utils import remove_ticks, QuantileNormalization, mask_erosion_ufunc
+ACQUISITION_ORDER_INDICES = [
+    11, 12, 13, 14, 15, 17, 18, 20, 22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 35,
+    36, 39, 40, 41, 42, 43, 44, 45, 46, 47
+]
 
 
 # generate stitching/annotation function, used by panel validation and acquisition order tiling
@@ -647,3 +649,388 @@ def random_feature_generation(combined_df, seed_num, tonic_features_df, feature_
     jaccard_score = len(intersection_of_features) / len(union_of_features)
 
     return intersection_of_features, jaccard_score, ranked_features_df[:len(tonic_features_df)]
+
+class MembraneMarkersSegmentationPlot:
+    def __init__(
+        self,
+        fov: str,
+        image_data: PathLike,
+        segmentation_dir: PathLike,
+        membrane_channels: List[str],
+        overlay_channels: str | List[str],
+        q: tuple[float, float] = (0.05, 0.95),
+        clip: bool = False,
+        figsize: Tuple[int, int] = (12, 4),
+        layout: Literal["constrained", "tight"] = None,
+        image_type: Literal["png", "pdf", "svg"] = "pdf",
+    ):
+        """Creates a figure with two subplots, one for each membrane marker used for segmentation,
+        and one for the overlay of the membrane and nuclear markers.
+
+        Args
+        ----------
+        fov : str
+            The name of the FOV to be plotted
+        image_data : PathLike
+            The directory containing the image data.
+        segmentation_dir : PathLike
+            The directory containing the segmentation data.
+        membrane_channels : List[str]
+            The names of the membrane markers to be plotted.
+        overlay_channels : str | List[str]
+            The overlay channels to be plotted, can be either "nuclear_channel",
+            "membrane_channel", or both.
+        overlay_cmap: str, optional
+            The colormap to use for the overlay, by default "viridis_r"
+        q : tuple[float, float], optional
+            A tuple of quatiles where the smallest element is the minimum quantile
+            and the largest element is the maximum percentile, by default (0.05, 0.95). Must
+            be between 0 and 1 inclusive.
+        clip : bool, optional
+            If True, the normalized values are clipped to the range [0, 1], by default False
+        figsize : Tuple[int, int], optional
+            The size of the figure, by default (8, 4)
+        layout : Literal["constrained", "tight"], optional
+            The layout engine, defaults to None, by default None
+        image_type : Literal["png", "pdf", "svg"], optional
+            The file type to save the plot as, by default "pdf"
+        """
+        self.fov_name = fov
+        self.membrane_channels = membrane_channels
+        self.overlay_channels = overlay_channels
+        self.figsize = figsize
+        self.layout = layout
+        self.n_chans = len(set(membrane_channels))
+        self.q = q
+        self.image_data = image_data
+        self.seg_dir = segmentation_dir
+        self.image_type = image_type
+        self.clip = clip
+
+        self.fig = plt.figure(figsize=figsize, layout=layout)
+        self.subfigs = self.fig.subfigures(
+            nrows=1, ncols=2, wspace=0.05, width_ratios=[1, 1]
+        )
+
+    def make_plot(self, save_dir: PathLike):
+        """Plots the membrane markers and overlay and saves the figure to the specified directory.
+
+        Args
+        ----------
+        save_dir : PathLike
+            The directory to save the figure to.
+        """
+        self.fov_xr = load_imgs_from_tree(
+            data_dir=self.image_data,
+            fovs=[self.fov_name],
+            channels=self.membrane_channels,
+        )
+
+        self.fov_overlay = plot_utils.create_overlay(
+            fov=self.fov_name,
+            segmentation_dir=self.seg_dir / "deepcell_output",
+            data_dir=self.seg_dir / "deepcell_input",
+            img_overlay_chans=self.overlay_channels,
+            seg_overlay_comp="whole_cell",
+        )
+
+        self.fov_cell_segmentation = load_imgs_from_dir(
+            data_dir=self.seg_dir / "deepcell_output",
+            files=[f"{self.fov_name}_whole_cell.tiff"],
+        )
+
+        self.fig.suptitle(
+            t=f"{self.fov_name} Membrane Markers and Segmentation", fontsize=8
+        )
+
+        self._plot_mem_markers()
+        self._plot_overlay_segmentation()
+        self.fig.savefig(
+            fname=save_dir / f"{self.fov_name}_membrane_markers_overlay.{self.image_type}",
+        )
+        plt.close(self.fig)
+
+    def _plot_mem_markers(self):
+        self.subfigs[0].suptitle("Membrane Markers", fontsize=6)
+
+        markers_subplots = self.subfigs[0].subplots(
+            nrows=2,
+            ncols=int(np.ceil((self.n_chans + 1) / 2)),
+            sharex=True,
+            sharey=True,
+            gridspec_kw={"wspace": 0.05, "hspace": 0.05},
+        )
+
+        channel_axes = markers_subplots.flat[: self.n_chans]
+
+        self.subfigs[0].add_subplot
+
+        for ax, channel in zip(channel_axes, ns.natsorted(self.membrane_channels)):
+            chan_data = self.fov_xr.sel({"channels": channel}).squeeze()
+
+            ax.imshow(
+                X=chan_data,
+                cmap="gray",
+                norm=QuantileNormalization(q=self.q, clip=self.clip),
+                interpolation="none",
+                aspect="equal",
+            )
+            ax.set_title(channel, fontsize=6)
+            remove_ticks(ax, "xy")
+
+        ax_sum = markers_subplots.flat[self.n_chans]
+
+        ax_sum.imshow(
+            X=self.fov_xr.sum("channels").squeeze(),
+            cmap="gray",
+            norm=QuantileNormalization(q=self.q, clip=self.clip),
+            interpolation="none",
+            aspect="equal",
+        )
+
+        ax_sum.set_title("Sum", fontsize=6)
+        remove_ticks(ax_sum, "xy")
+
+        # Clean up and remove the empty subplots
+        for ax in markers_subplots.flat[self.n_chans + 1 :]:
+            ax.remove()
+
+    def _plot_overlay_segmentation(self)-> None:
+        cell_seg_ax, overlay_ax = self.subfigs[1].subplots(
+            nrows=1, ncols=2, sharex=True, sharey=True
+        )
+        overlay_ax.set_title("Nuclear and Membrane Overlay", fontsize=6)
+        overlay_ax.imshow(
+            X=self.fov_overlay,
+            norm=QuantileNormalization(q=self.q, clip=self.clip),
+            interpolation="none",
+            aspect="equal",
+        )
+
+        cell_seg_ax.set_title("Cell Segmentation", fontsize=6)
+        cell_seg_ax.imshow(
+            X=xr.apply_ufunc(
+                mask_erosion_ufunc,
+                self.fov_cell_segmentation.squeeze(),
+                input_core_dims=[["rows", "cols"]],
+                output_core_dims=[["rows", "cols"]],
+                kwargs={"connectivity": 1, "mode": "thick"},
+            ).pipe(lambda x: x.where(cond=x < 1, other=0.5)),
+            cmap="grey",
+            interpolation="none",
+            aspect="equal",
+            vmin=0,
+            vmax=1,
+        )
+
+        remove_ticks(overlay_ax, "xy")
+        remove_ticks(cell_seg_ax, "xy")
+
+
+class SegmentationOverlayPlot:
+    def __init__(
+        self,
+        fov: str,
+        segmentation_dir: PathLike,
+        overlay_channels: str | List[str] = ["nuclear_channel", "membrane_channel"],
+        q: tuple[float, float] = (0.05, 0.95),
+        clip: bool = False,
+        figsize: tuple[float, float] =(8, 4),
+        layout: Literal["constrained", "tight"] = "constrained",
+        image_type: Literal["png", "pdf", "svg"] = "svg",
+    ) -> None:
+        """Creates a figure with two subplots, one for the cell segmentation and one for the overlay
+
+        Parameters
+        ----------
+        fov : str
+            The name of the FOV to be plotted
+        segmentation_dir : PathLike
+            The directory containing the segmentation data.
+        overlay_channels : str | List[str]
+            The overlay channels to be plotted, can be either/both "nuclear_channel" or "membrane_channel",
+            defaults to ["nuclear_channel", "membrane_channel"].
+        q : tuple[float, float], optional
+            A tuple of quatiles where the smallest element is the minimum quantile
+            and the largest element is the maximum percentile, by default (0.05, 0.95). Must
+            be between 0 and 1 inclusive.
+        clip : bool, optional
+            If True, the normalized values are clipped to the range [0, 1], by default False
+        figsize : Tuple[int, int], optional
+            The size of the figure, by default (8, 4)
+        layout : Literal["constrained", "tight"], optional
+            The layout engine, defaults to None, by default None
+        image_type : Literal["png", "pdf", "svg"], optional
+            The file type to save the plot as, by default "pdf"
+        """
+        self.fov_name = fov
+        self.seg_dir = segmentation_dir
+        self.overlay_channels = overlay_channels
+        self.q = q
+        self.clip = clip
+        self.figsize = figsize
+        self.layout = layout
+        self.image_type = image_type
+
+        self.fig = plt.figure(figsize=self.figsize, layout=layout)
+
+    def make_plot(self, save_dir: PathLike) -> None:
+        self.fov_overlay = plot_utils.create_overlay(
+            fov=self.fov_name,
+            segmentation_dir=self.seg_dir / "deepcell_output",
+            data_dir=self.seg_dir / "deepcell_input",
+            img_overlay_chans=self.overlay_channels,
+            seg_overlay_comp="whole_cell",
+        )
+        self.fov_cell_segmentation = load_imgs_from_dir(
+            data_dir=self.seg_dir / "deepcell_output",
+            files=[f"{self.fov_name}_whole_cell.tiff"],
+        )
+        self.fig.suptitle(
+            t=f"{self.fov_name} Cell Segmentation and Overlay", fontsize=8
+        )
+        self._plot_overlay_segmentation()
+        self.fig.savefig(
+            save_dir / f"{self.fov_name}_segmentation_overlay.{self.image_type}"
+        )
+
+        plt.close(self.fig)
+
+    def _plot_overlay_segmentation(self):
+        cell_seg_ax, overlay_ax = self.fig.subplots(
+            nrows=1, ncols=2, sharex=True, sharey=True
+        )
+        overlay_ax.set_title("Nuclear and Membrane Overlay", fontsize=6)
+        overlay_ax.imshow(
+            X=self.fov_overlay,
+            norm=QuantileNormalization(q=self.q, clip=self.clip),
+            interpolation="none",
+            aspect="equal",
+        )
+
+        cell_seg_ax.set_title("Cell Segmentation", fontsize=6)
+        cell_seg_ax.imshow(
+            X=xr.apply_ufunc(
+                mask_erosion_ufunc,
+                self.fov_cell_segmentation.squeeze(),
+                input_core_dims=[["rows", "cols"]],
+                output_core_dims=[["rows", "cols"]],
+                kwargs={"connectivity": 2, "mode": "thick"},
+            ).pipe(lambda x: x.where(cond=x < 1, other=0.5)),
+            cmap="grey",
+            interpolation="none",
+            aspect="equal",
+            vmin=0,
+            vmax=1,
+        )
+
+        remove_ticks(overlay_ax, "xy")
+        remove_ticks(cell_seg_ax, "xy")
+
+
+class CorePlot:
+    def __init__(
+        self,
+        fov: str,
+        hne_path: PathLike,
+        seg_dir: PathLike,
+        overlay_channels: list[str] = ["nuclear_channel", "membrane_channel"],
+        figsize: tuple[float, float] = (13, 4),
+        layout: Literal["constrained", "tight"] = "constrained",
+        image_type: Literal["png", "pdf", "svg"] = "pdf",
+    ):
+        """Generates a figure with three subplots: one for the HnE core, one for the HnE FOV crop,
+        and one for the overlay of the nuclear and membrane channels.
+
+        Parameters
+        ----------
+        fov : str
+            The name of the FOV to be plotted
+        hne_path : PathLike
+            The directory containing the fovs with their HnE OME-TIFFs.
+        seg_dir : PathLike
+            The directory containing the segmentation data.
+        overlay_channels : str | List[str]
+            The overlay channels to be plotted, can be either/both "nuclear_channel" or "membrane_channel",
+            defaults to ["nuclear_channel", "membrane_channel"].
+        figsize : Tuple[int, int], optional
+            The size of the figure, by default (8, 4)
+        layout : Literal["constrained", "tight"], optional
+            The layout engine, defaults to None, by default None
+        image_type : Literal["png", "pdf", "svg"], optional
+            The file type to save the plot as, by default "pdf"
+        """
+        self.fov_name = fov
+        self.hne_path = hne_path
+        self.seg_dir = seg_dir
+        self.overlay_channels = overlay_channels
+        self.figsize = figsize
+        self.layout = layout
+        self.image_type = image_type
+
+        self.fig = plt.figure(figsize=self.figsize, layout=self.layout)
+
+        self.axes = self.fig.subplots(nrows=1, ncols=3, width_ratios=[1, 1, 1])
+
+    def make_plot(self, save_dir: PathLike):
+        self.hne_core = imread(
+            self.hne_path / self.fov_name / "core.ome.tiff",
+            plugin="tifffile",
+            is_ome=True,
+        )
+
+        self.hne_fov = imread(
+            self.hne_path / self.fov_name / "fov.ome.tiff",
+            plugin="tifffile",
+            is_ome=True,
+        )
+        self.fov_loc = gpd.read_file(self.hne_path / self.fov_name / "loc.geojson")
+        self.fov_overlay = plot_utils.create_overlay(
+            fov=self.fov_name,
+            segmentation_dir=self.seg_dir / "deepcell_output",
+            data_dir=self.seg_dir / "deepcell_input",
+            img_overlay_chans=self.overlay_channels,
+            seg_overlay_comp="whole_cell",
+        )
+
+        self.fig.suptitle(
+            t=f"{self.fov_name} HnE Core and Cell Segmentation and Overlay", fontsize=8
+        )
+
+        self._plot_core()
+        self._plot_fov_overlay()
+
+        self.fig.savefig(
+            save_dir / f"{self.fov_name}_hne_core_overlay.{self.image_type}"
+        )
+        plt.close(self.fig)
+
+    def _plot_core(self):
+        hne_core_ax = self.axes[0]
+        hne_core_ax.set_title(label="HnE Core", fontsize=6)
+        hne_core_ax.imshow(X=self.hne_core, aspect="equal", interpolation="none")
+        self.fov_loc.buffer(0.1, cap_style=1, join_style=1, resolution=32).plot(
+            ax=hne_core_ax,
+            facecolor="none",
+            edgecolor="black",
+            linewidth=1,
+            aspect="equal",
+        )
+
+        remove_ticks(hne_core_ax, axis="xy")
+
+    def _plot_fov_overlay(self):
+        hne_fov_ax = self.axes[1]
+        hne_fov_ax.set_title(label="HnE FOV Crop", fontsize=6)
+        hne_fov_ax.imshow(X=self.hne_fov, aspect="equal", interpolation="none")
+
+        overlay_ax = self.axes[2]
+        overlay_ax.set_title("Nuclear and Membrane Channel Overlay", fontsize=6)
+        overlay_ax.imshow(
+            X=self.fov_overlay,
+            interpolation="none",
+            aspect="equal",
+        )
+
+        remove_ticks(hne_fov_ax, axis="xy")
+        remove_ticks(overlay_ax, axis="xy")

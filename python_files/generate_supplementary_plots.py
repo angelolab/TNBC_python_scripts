@@ -1,7 +1,7 @@
 # File with code for generating supplementary plots
 import os
 import random
-
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -365,6 +365,87 @@ cohort_cluster_plot(
     cmap=color_map,
     display_fig=False,
 )
+
+## Segmentation Channels and Overlays
+
+cohort_path = Path("/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples")
+seg_dir = Path("/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/")
+
+save_dir = Path(SUPPLEMENTARY_FIG_DIR) / "segmentation_chans_overlays"
+save_dir.mkdir(exist_ok=True, parents=True)
+
+membrane_channels = ["CD14", "CD38", "CD45", "ECAD", "CK17"]
+overlay_channels = ["membrane_channel", "nuclear_channel"]
+
+fovs_mem_markers = [
+    "TONIC_TMA3_R5C2",
+    "TONIC_TMA3_R11C2",
+    "TONIC_TMA10_R3C3",
+    "TONIC_TMA11_R1C6",
+    "TONIC_TMA13_R1C5",
+    "TONIC_TMA16_R12C1",
+    "TONIC_TMA23_R10C2",
+    "TONIC_TMA24_R10C2",
+]
+for fov in fovs_mem_markers:
+    p = supplementary_plot_helpers.MembraneMarkersSegmentationPlot(
+        fov = fov,
+        image_data=cohort_path,
+        segmentation_dir=seg_dir,
+        membrane_channels=membrane_channels,
+        overlay_channels=overlay_channels,
+        q=(0.05, 0.95),
+        clip=False,
+        figsize=(8,4),
+        layout="constrained",
+        image_type="pdf"
+    )
+    p.make_plot(save_dir = save_dir)
+
+fovs_seg = [
+    "TONIC_TMA3_R2C5",
+    "TONIC_TMA4_R10C4",
+    "TONIC_TMA5_R3C4",
+    "TONIC_TMA8_R1C2",
+    "TONIC_TMA9_R4C4",
+    "TONIC_TMA12_R4C1",
+    "TONIC_TMA12_R7C6",
+    "TONIC_TMA18_R4C5",
+    "TONIC_TMA21_R2C1",
+    "TONIC_TMA21_R9C1",
+    "TONIC_TMA23_R1C3",
+    "TONIC_TMA24_R2C6",
+]
+
+for fov in fovs_seg:
+    p = supplementary_plot_helpers.SegmentationOverlayPlot(
+        fov=fov,
+        segmentation_dir=seg_dir,
+        overlay_channels=overlay_channels,
+        q=(0.05, 0.95),
+        figsize=(8, 4),
+        clip=False,
+        layout="constrained",
+        image_type="pdf",
+    )
+    p.make_plot(save_dir = save_dir)
+
+# HnE Core, FOV and Segmentation Overlays
+hne_fovs = [
+    "TONIC_TMA2_R7C4",
+    "TONIC_TMA4_R11C2",
+    "TONIC_TMA4_R12C4",
+    "TONIC_TMA24_R2C3",
+]
+hne_path = Path(SUPPLEMENTARY_FIG_DIR) / "hne_core_fov_plots" / " cores_fov_seg_maps"
+seg_dir = Path("/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/")
+
+save_dir = Path(SUPPLEMENTARY_FIG_DIR) / "hne_core_fov_plots" / "figures"
+save_dir.mkdir(exist_ok=True, parents=True)
+for fov in hne_fovs:
+    supplementary_plot_helpers.CorePlot(
+        fov=fov, hne_path=hne_path, seg_dir=seg_dir
+    ).make_plot(save_dir=save_dir)
 
 # Functional marker thresholding
 cell_table = pd.read_csv(
