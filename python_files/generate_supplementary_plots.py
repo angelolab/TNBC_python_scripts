@@ -514,39 +514,43 @@ feature_df = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_ranking.csv'))
 feature_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_metadata.csv'))
 
 repeated_features, repeated_features_num, scores = [], [], []
-similarity_scores, random_top_features = [], []
+overlapping_features, random_top_features = [], []
 
 sample_num = 100
 np.random.seed(13)
 
-for seed in random.sample(range(1, 2000), sample_num):
-    _, jaccard_score, top_random_features = supplementary_plot_helpers.\
-        random_feature_generation(combined_df, seed, feature_df[:100])
+for i, seed in enumerate(random.sample(range(1, 2000), sample_num)):
+    print(f'{i+1}/100')
+    intersection_of_features, jaccard_score, top_random_features = random_feature_generation(combined_df, seed, feature_df[:100], feature_metadata)
 
-    df = pd.DataFrame({
-        'random_seed': [seed],
-        'jaccard_score': [jaccard_score]
+    shared_df = pd.DataFrame({
+        'random_seed': [seed] * len(intersection_of_features),
+        'repeated_features' : list(intersection_of_features),
+        'jaccard_score': [jaccard_score] * len(intersection_of_features)
     })
-    supplementary_plot_helpers.append(df)
+    overlapping_features.append(shared_df)
 
     top_random_features['seed'] = seed
     random_top_features.append(top_random_features)
 
-results = pd.concat(similarity_scores)
+results = pd.concat(overlapping_features)
 top_features = pd.concat(random_top_features)
 # add TONIC features to data with seed 0
 top_features = pd.concat([top_features, feature_df[:100]])
 top_features['seed'] = top_features['seed'].fillna(0)
 
-#results.to_csv(os.path.join(fp_dir, 'similarity_scores.csv'), index=False)
-#top_features.to_csv(os.path.join(fp_dir, 'top_features.csv'), index=False)'''
+results.to_csv(os.path.join(fp_dir, 'overlapping_features.csv'), index=False)
+top_features.to_csv(os.path.join(fp_dir, 'top_features.csv'), index=False)
+'''
 
 top_features = pd.read_csv(os.path.join(fp_dir, 'top_features.csv'))
+results = pd.read_csv(os.path.join(fp_dir, 'overlapping_features.csv'))
 
 avg_scores = top_features[['seed', 'pval', 'log_pval', 'fdr_pval', 'med_diff']].groupby(by='seed').mean()
 avg_scores['abs_med_diff'] = abs(avg_scores['med_diff'])
 top_features['abs_med_diff'] = abs(top_features['med_diff'])
 
+# log p-value & effect size plots
 for name, metric in zip(['Log p-value', 'Effect Size'], ['log_pval', 'abs_med_diff']):
     # plot metric dist in top features for TONIC data and one random set
     TONIC = top_features[top_features.seed == 0]
@@ -575,3 +579,29 @@ for name, metric in zip(['Log p-value', 'Effect Size'], ['log_pval', 'abs_med_di
     plt.tight_layout()
     plt.savefig(os.path.join(fp_dir, f"{metric}_avg_per_set.pdf"), dpi=300)
     plt.show()
+
+# general feature overlap plots
+high_features = results.groupby(by='repeated_features').count().sort_values(by='random_seed', ascending=False).reset_index()
+high_features = high_features[high_features.random_seed>3].sort_values(by='random_seed')
+plt.barh(high_features.repeated_features, high_features.random_seed)
+plt.xlabel('How Many Random Sets Contain the Feature')
+plt.title('Repeated Top Features')
+sns.despine()
+plt.savefig(os.path.join(fp_dir, "Repeated_Top_Features.pdf"), dpi=300, bbox_inches='tight')
+plt.show()
+
+repeated_features_num = results.groupby(by='random_seed').count().sort_values(by='repeated_features', ascending=False)
+plt.hist(repeated_features_num.repeated_features)
+plt.xlabel('Number of TONIC Top Features in each Random Set')
+plt.title('Histogram of Overlapping Features')
+sns.despine()
+plt.savefig(os.path.join(fp_dir, f"Histogram_of_Overlapping_Features.pdf"), dpi=300)
+plt.show()
+
+plt.hist(results.jaccard_score, bins=10)
+plt.xlim((0, 0.10))
+plt.title('Histogram of Jaccard Scores')
+sns.despine()
+plt.xlabel('Jaccard Score')
+plt.savefig(os.path.join(fp_dir, "Histogram_of_Jaccard_Scores.pdf"), dpi=300)
+plt.show()
