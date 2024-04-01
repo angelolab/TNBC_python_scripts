@@ -242,6 +242,8 @@ for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_borde
 
         # normalize each cell type by the total
         cell_type_df = cell_type_df.merge(grouped_df, on='fov')
+        idx_nonzero = np.where(cell_type_df.fov_sum != 0)[0]
+        cell_type_df = cell_type_df.iloc[idx_nonzero, :].copy()
         cell_type_df['value'] = cell_type_df.value / cell_type_df.fov_sum
 
         cell_type_df['feature_name'] = cell_type_df.cell_type + '__proportion_of__' + broad_cell_type
