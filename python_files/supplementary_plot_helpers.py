@@ -561,6 +561,95 @@ def stitch_before_after_norm(
     pre_norm_tiled.save(pre_norm_stitched_path)
     post_norm_tiled.save(post_norm_stitched_path)
 
+
+def random_feature_generation(combined_df, seed_num, tonic_features_df, feature_metadata):
+    """
+    Shuffle the Patient_ID (and thus Clinical_benefit) in the TONIC feature dataframe to
+    re-generate the comparison of features.
+    """
+    patients = np.unique(combined_df.Patient_ID)
+    np.random.seed(seed_num)
+    p_rand = patients.copy()
+    np.random.shuffle(p_rand)
+
+    outcome = dict(zip(combined_df.Patient_ID, combined_df.Clinical_benefit))
+    patient_map = pd.DataFrame({'Patient_ID': patients, 'Patients_rand': p_rand})
+
+    combined_df_alt = combined_df.merge(patient_map, on=['Patient_ID'])
+    outcome_map = pd.DataFrame({'Patients_rand': outcome.keys(), 'Clinical_benefit_rand': outcome.values()})
+
+    combined_df_alt2 = combined_df_alt.merge(outcome_map, on=['Patients_rand'])
+    combined_df_alt2 = combined_df_alt2.rename(columns={'Patient_ID': 'og_Patient_ID', 'Patients_rand': 'Patient_ID',
+                                                        'Clinical_benefit': 'og_Clinical_benefit',
+                                                        'Clinical_benefit_rand': 'Clinical_benefit'})
+
+    # settings for generating hits
+    method = 'ttest'
+    total_dfs = []
+
+    for comparison in combined_df_alt2.Timepoint.unique():
+        population_df = compare_populations(feature_df=combined_df_alt2, pop_col='Clinical_benefit',
+                                            timepoints=[comparison], pop_1='No', pop_2='Yes', method=method)
+
+        if np.sum(~population_df.log_pval.isna()) == 0:
+            continue
+        long_df = population_df[['feature_name_unique', 'log_pval', 'mean_diff', 'med_diff']]
+        long_df['comparison'] = comparison
+        long_df = long_df.dropna()
+        long_df['pval'] = 10 ** (-long_df.log_pval)
+        long_df['fdr_pval'] = multipletests(long_df.pval, method='fdr_bh')[1]
+        total_dfs.append(long_df)
+
+    # summarize hits from all comparisons
+    ranked_features_df = pd.concat(total_dfs)
+    ranked_features_df['log10_qval'] = -np.log10(ranked_features_df.fdr_pval)
+
+    # create importance score
+    # get ranking of each row by log_pval
+    ranked_features_df['pval_rank'] = ranked_features_df.log_pval.rank(ascending=False)
+    ranked_features_df['cor_rank'] = ranked_features_df.med_diff.abs().rank(ascending=False)
+    ranked_features_df['combined_rank'] = (ranked_features_df.pval_rank.values + ranked_features_df.cor_rank.values) / 2
+
+    # generate importance score
+    max_rank = len(~ranked_features_df.med_diff.isna())
+    normalized_rank = ranked_features_df.combined_rank / max_rank
+    ranked_features_df['importance_score'] = 1 - normalized_rank
+
+    ranked_features_df = ranked_features_df.sort_values('importance_score', ascending=False)
+    # ranked_features_df = ranked_features_df.sort_values('fdr_pval', ascending=True)
+
+    # generate signed version of score
+    ranked_features_df['signed_importance_score'] = ranked_features_df.importance_score * np.sign(
+        ranked_features_df.med_diff)
+
+    # add feature type
+    ranked_features_df = ranked_features_df.merge(feature_metadata, on='feature_name_unique', how='left')
+
+    feature_type_dict = {'functional_marker': 'phenotype', 'linear_distance': 'interactions',
+                         'density': 'density', 'cell_diversity': 'diversity', 'density_ratio': 'density',
+                         'mixing_score': 'interactions', 'region_diversity': 'diversity',
+                         'compartment_area_ratio': 'compartment', 'density_proportion': 'density',
+                         'morphology': 'phenotype', 'pixie_ecm': 'ecm', 'fiber': 'ecm', 'ecm_cluster': 'ecm',
+                         'compartment_area': 'compartment', 'ecm_fraction': 'ecm'}
+    ranked_features_df['feature_type_broad'] = ranked_features_df.feature_type.map(feature_type_dict)
+
+    # identify top features
+    ranked_features_df['top_feature'] = False
+    ranked_features_df.iloc[:100, -1] = True
+
+    ranked_features_df['full_feature'] = ranked_features_df.feature_name_unique + '-' + ranked_features_df.comparison + '_' + ranked_features_df.compartment
+    tonic_features_df['full_feature'] = tonic_features_df.feature_name_unique + '-' + tonic_features_df.comparison + '_' + tonic_features_df.compartment
+
+    random_features = ranked_features_df[:len(tonic_features_df)].full_feature
+    tonic_features = tonic_features_df.full_feature
+
+    # compare against TONIC features
+    intersection_of_features = set(tonic_features).intersection(set(random_features))
+    union_of_features = set(tonic_features).union(set(random_features))
+    jaccard_score = len(intersection_of_features) / len(union_of_features)
+
+    return intersection_of_features, jaccard_score, ranked_features_df[:len(tonic_features_df)]
+
 class MembraneMarkersSegmentationPlot:
     def __init__(
         self,
@@ -804,7 +893,7 @@ class SegmentationOverlayPlot:
         self.fig.savefig(
             save_dir / f"{self.fov_name}_segmentation_overlay.{self.image_type}"
         )
-        
+
         plt.close(self.fig)
 
     def _plot_overlay_segmentation(self):
