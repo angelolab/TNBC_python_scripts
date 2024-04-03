@@ -157,7 +157,7 @@ annotations_by_mask = annotations_by_mask.rename(columns={'mask_name': 'tumor_re
 cell_table_clusters = cell_table_clusters.merge(annotations_by_mask, on=['fov', 'label'], how='left')
 
 tc_colormap = pd.DataFrame({'T_C_ratio': ['T', 'Cancer', 'Other_region', 'Other_cells'],
-                         'color': ['navajowhite','white', 'grey', 'grey']})
+                         'color': ['yellow','white', 'grey', 'grey']})
 
 ## check for nivo FOVs
 timepoint = 'on_nivo'
@@ -420,7 +420,7 @@ for pat in pats:
 # primary: 4, 11, 37
 fovs = ['TONIC_TMA12_R5C6', 'TONIC_TMA7_R3C6', 'TONIC_TMA5_R5C2', 'TONIC_TMA2_R8C4'] # 65 (nivo), 37 (induction), 26 (baseline), 4 (primary)
 
-subset_dir = os.path.join(plot_dir, 'Figure5_tc_overlays_selected')
+subset_dir = os.path.join(plot_dir, 'Figure5_tc_overlays_selected_redo')
 if not os.path.exists(subset_dir):
     os.mkdir(subset_dir)
 

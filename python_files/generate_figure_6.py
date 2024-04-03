@@ -58,6 +58,26 @@ plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Figure6_AUC_RNA.pdf'))
 plt.close()
 
+
+# generate boxplots with both RNA and MIBI scores
+
+fig, ax = plt.subplots(1, 1, figsize=(6, 4))
+order = ['primary', 'baseline', 'post_induction','on_nivo']
+sns.stripplot(data=cv_scores_long, x='variable', y='value', hue='assay',
+              order=order, ax=ax, dodge=True)
+sns.boxplot(data=cv_scores_long, x='variable', y='value', hue='assay',
+            order=order, ax=ax, showfliers=False)
+
+ax.set_title('AUC')
+ax.set_ylim([0, 1])
+ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+
+sns.despine()
+plt.tight_layout()
+plt.savefig(os.path.join(plot_dir, 'Figure6_AUC_combined.pdf'))
+plt.close()
+
+
 # look at top features
 top_features = pd.read_csv(os.path.join(base_dir, 'multivariate_lasso', 'top_features_results_on_nivo_MIBI.csv'))
 
