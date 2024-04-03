@@ -108,8 +108,7 @@ for cluster_name, feature_name in diversity_features:
 
 
 # compute abundance of cell types
-abundance_features = [['meta_cluster_density', 'meta_cluster_density', 'narrow'],
-                      ['cluster_density', 'cluster_density', 'med'],
+abundance_features = [['cluster_density', 'cluster_density', 'med'],
                       ['total_cell_density', 'total_density', 'broad'],
                       ['cluster_broad_density', 'cluster_broad_density', 'broad']]
 

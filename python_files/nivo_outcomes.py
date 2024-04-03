@@ -112,16 +112,8 @@ current_df = ranked_features_df.sort_values('combined_rank', ascending=True)
 current_df = current_df.loc[current_df.comparison.isin(['baseline', 'post_induction', 'on_nivo', 'primary_untreated']), :]
 current_df = current_df.iloc[:num_features, :]
 
-current_df1 = current_df.loc[current_df.feature_name_unique.isin(['T__Cancer__ratio__cancer_border',
-                                                                  'CD8T__cluster_density__cancer_border',
-                                                                  'T__cluster_broad_density__cancer_border',
-                                                                  'CD3_DN__meta_cluster_density__cancer_border',
-                                                                  'CD4T_CD8T_DP__meta_cluster_density__cancer_border',
-                                                                  'T_Other__cluster_density__cancer_border']), :]
-current_df2 = current_df1.iloc[:5, :]
-
 # plot results
-for feature_name, comparison, rank in zip(current_df2.feature_name_unique.values, current_df2.comparison.values, current_df2.combined_rank.values):
+for feature_name, comparison, rank in zip(current_df.feature_name_unique.values, current_df.comparison.values, current_df.combined_rank.values):
     plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
                               (combined_df.Timepoint == comparison), :]
 

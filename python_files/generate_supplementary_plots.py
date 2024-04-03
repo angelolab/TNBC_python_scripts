@@ -60,7 +60,7 @@ fov_counts = metadata.groupby('Tissue_ID').size().values
 fov_counts = pd.DataFrame(fov_counts, columns=['FOV Count'])
 sns.histplot(data=fov_counts, x='FOV Count')
 sns.despine()
-plt.title("Number of FOVs per Tissue Type")
+plt.title("Number of FOVs per Timepoint")
 plt.xlabel("Number of FOVs")
 plt.tight_layout()
 
