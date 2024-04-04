@@ -546,46 +546,6 @@ _ = fig.savefig(
 )
 
 
-# fig, axs = plt.subplots(
-#     len(marker_threshold_data),
-#     1,
-#     figsize=(20, 30)
-# )
-# threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
-
-# for i, marker in enumerate(marker_threshold_data):
-#     _ = axs[i].set_title(
-#         f"Positive {marker} cells per threshold (1x = {marker_info[marker]['threshold']})",
-#         fontsize=24
-#     )
-
-#     mult_data = [mtd["num_positive_cells"] for mtd in marker_threshold_data[marker].values()]
-#     _ = axs[i].scatter(
-#         threshold_mult_strs,
-#         mult_data
-#     )
-
-#     # turn off scientific notation to ensure consistency
-#     _ = axs[i].yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
-#     _ = axs[i].yaxis.get_major_formatter().set_scientific(False)
-
-# _ = fig.supxlabel("log2(threshold multiplier)", fontsize=24)
-# _ = fig.supylabel("positive cell counts", fontsize=24)
-
-# # Increase font size for x-axis and y-axis ticks
-# for ax in axs.flat:
-#     ax.tick_params(axis="x", labelsize=24)
-#     ax.tick_params(axis="y", labelsize=24)
-
-# plt.tight_layout()
-
-# # save the figure to save_dir
-# _ = fig.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_marker_threshold_experiments.png",
-#     dpi=300
-# )
-
-
 # ## 2. vary min cell param for functional, morphology, diversity, and distance DataFrames
 # min_cell_tests = [1, 3, 5, 10, 20]
 # total_fovs = len(list_folders("/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"))
