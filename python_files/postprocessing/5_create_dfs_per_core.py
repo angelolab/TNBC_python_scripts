@@ -15,10 +15,11 @@ from python_files.utils import create_long_df_by_functional, create_long_df_by_c
 # whereas a more granular clustering scheme would separate out CD4T, CD8T, Tregs, etc.
 #
 
-local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
 intermediate_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files'
 output_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/output_files'
 analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
+
+TIMEPOINT_NAMES = ['primary', 'baseline', 'pre_nivo', 'on_nivo']
 
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
@@ -38,7 +39,7 @@ cell_table_diversity = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analy
 cell_table_distances_broad = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/cell_neighbor_analysis/cell_cluster_broad_avg_dists-nearest_1.csv'))
 area_df = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir/individual_masks-no_tagg_tls', 'fov_annotation_mask_area.csv'))
 annotations_by_mask = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir/individual_masks-no_tagg_tls', 'cell_annotation_mask.csv'))
-fiber_df = pd.read_csv(os.path.join(intermediate_dir, 'fiber_segmentation_processed_data', 'fiber_object_table.csv'))
+fiber_stats = pd.read_csv(os.path.join(intermediate_dir, 'fiber_segmentation_processed_data', 'fiber_stats_table.csv'))
 fiber_tile_df = pd.read_csv(os.path.join(intermediate_dir, 'fiber_segmentation_processed_data/tile_stats_512', 'fiber_stats_table-tile_512.csv'))
 
 # merge cell-level annotations
@@ -61,7 +62,7 @@ cell_table_func = cell_table_func.loc[~cell_table_func.fov.isin(missing_fovs), :
 cell_table_morph = cell_table_morph.loc[~cell_table_morph.fov.isin(missing_fovs), :]
 cell_table_diversity = cell_table_diversity.loc[~cell_table_diversity.fov.isin(missing_fovs), :]
 cell_table_distances_broad = cell_table_distances_broad.loc[~cell_table_distances_broad.fov.isin(missing_fovs), :]
-fiber_df = fiber_df.loc[~fiber_df.fov.isin(missing_fovs), :]
+fiber_stats = fiber_stats.loc[~fiber_stats.fov.isin(missing_fovs), :]
 fiber_tile_df = fiber_tile_df.loc[~fiber_tile_df.fov.isin(missing_fovs), :]
 
 #
@@ -297,7 +298,7 @@ filtered_func_df_plot.to_csv(os.path.join(output_dir, 'functional_df_per_core_fi
 # broad_df = filtered_func_df[filtered_func_df.metric == 'cluster_broad_freq']
 # broad_df = broad_df[broad_df.functional_marker.isin(sp_markers)]
 # broad_df = broad_df[broad_df.subset == 'all']
-# broad_df = broad_df[broad_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# broad_df = broad_df[broad_df.Timepoint.isin(TIMEPOINT_NAMES)]
 # broad_df_agg = broad_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
 #
 # broad_df_agg = broad_df_agg.reset_index()
@@ -341,7 +342,7 @@ filtered_func_df_plot.to_csv(os.path.join(output_dir, 'functional_df_per_core_fi
 # med_df = filtered_func_df[filtered_func_df.metric == 'cluster_freq']
 # med_df = med_df[med_df.functional_marker.isin(sp_markers)]
 # med_df = med_df[med_df.subset == 'all']
-# med_df = med_df[med_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# med_df = med_df[med_df.Timepoint.isin(TIMEPOINT_NAMES)]
 # med_df_agg = med_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
 #
 # med_df_agg.reset_index(inplace=True)
@@ -396,7 +397,7 @@ filtered_func_df_plot.to_csv(os.path.join(output_dir, 'functional_df_per_core_fi
 # meta_df = filtered_func_df[filtered_func_df.metric == 'meta_cluster_freq']
 # meta_df = meta_df[meta_df.functional_marker.isin(sp_markers)]
 # meta_df = meta_df[meta_df.subset == 'all']
-# meta_df = meta_df[meta_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# meta_df = meta_df[meta_df.Timepoint.isin(TIMEPOINT_NAMES)]
 # meta_df_agg = meta_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
 #
 # meta_df_agg.reset_index(inplace=True)
@@ -450,7 +451,7 @@ for filters in filtering:
 # mean_percent_positive_dp = 0.05
 # broad_df_dp = filtered_func_df[filtered_func_df.metric == 'cluster_broad_freq']
 # broad_df_dp = broad_df_dp[broad_df_dp.subset == 'all']
-# broad_df_dp = broad_df_dp[broad_df_dp.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# broad_df_dp = broad_df_dp[broad_df_dp.Timepoint.isin(TIMEPOINT_NAMES)]
 # broad_df_dp = broad_df_dp[broad_df_dp.functional_marker.isin(dp_markers)]
 # broad_df_dp_agg = broad_df_dp[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
 #
@@ -463,7 +464,7 @@ for filters in filtering:
 # # do the same for medium-level clustering
 # med_df_dp = filtered_func_df[filtered_func_df.metric == 'cluster_freq']
 # med_df_dp = med_df_dp[med_df_dp.subset == 'all']
-# med_df_dp = med_df_dp[med_df_dp.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# med_df_dp = med_df_dp[med_df_dp.Timepoint.isin(TIMEPOINT_NAMES)]
 # med_df_dp = med_df_dp[med_df_dp.functional_marker.isin(dp_markers)]
 # med_df_dp_agg = med_df_dp[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
 #
@@ -478,7 +479,7 @@ for filters in filtering:
 # # do the same for finest-level clustering
 # meta_df_dp = filtered_func_df[filtered_func_df.metric == 'meta_cluster_freq']
 # meta_df_dp = meta_df_dp[meta_df_dp.subset == 'all']
-# meta_df_dp = meta_df_dp[meta_df_dp.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+# meta_df_dp = meta_df_dp[meta_df_dp.Timepoint.isin(TIMEPOINT_NAMES)]
 # meta_df_dp = meta_df_dp[meta_df_dp.functional_marker.isin(dp_markers)]
 # meta_df_dp_agg = meta_df_dp[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
 #
@@ -1022,14 +1023,13 @@ deduped_distance_df_timepoint.to_csv(os.path.join(output_dir, 'distance_df_per_t
 
 
 # fiber analysis
-fiber_df = fiber_df.loc[:, ~fiber_df.columns.isin(['label', 'centroid-0', 'centroid-1'])]
+fiber_stats.columns = fiber_stats.columns.str.replace('avg_', '')
+fiber_stats.columns = fiber_stats.columns.str.replace('fiber_', '')
+fiber_stats = fiber_stats.loc[:, ~fiber_stats.columns.isin(['label', 'centroid-0', 'centroid-1'])]
 
-fiber_df = fiber_df.merge(harmonized_metadata[['Tissue_ID', 'fov']], on=['fov'], how='left')
+fiber_stats = fiber_stats.merge(harmonized_metadata[['Tissue_ID', 'fov']], on=['fov'], how='left')
 
-fiber_df_means = fiber_df.groupby(['Tissue_ID', 'fov']).agg(np.mean)
-fiber_df_means.reset_index(inplace=True)
-
-fiber_df_long = pd.melt(fiber_df_means, id_vars=['Tissue_ID', 'fov'], var_name='fiber_metric', value_name='value')
+fiber_df_long = pd.melt(fiber_stats, id_vars=['Tissue_ID', 'fov'], var_name='fiber_metric', value_name='value')
 fiber_df_long['fiber_metric'] = 'fiber_' + fiber_df_long['fiber_metric']
 
 fiber_df_long.to_csv(os.path.join(output_dir, 'fiber_df_per_core.csv'), index=False)
