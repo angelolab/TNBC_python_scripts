@@ -11,7 +11,7 @@ from python_files.utils import create_long_df_by_functional, create_long_df_by_c
 # This file creates plotting-ready data structures to enumerate the frequency, count, and density
 # of cell populations. It also creates data structures with the frequency and count of functional
 # marker positivity. Each of these dfs can be created across multiple levels of clustering
-# granularity. For example, a broad classification might include T, B, Myeloid, Stroma, and Cancer,
+# granularity. For example, a broad classification might include T, B, Myeloid, Structural, and Cancer,
 # whereas a more granular clustering scheme would separate out CD4T, CD8T, Tregs, etc.
 #
 
@@ -102,7 +102,7 @@ immune_mask_2 = cell_table_clusters.cell_cluster == 'Immune_Other'
 immune_mask = np.logical_or(immune_mask, immune_mask_2)
 
 # proportion of stromal subsets
-stroma_mask = cell_table_clusters['cell_cluster_broad'].isin(['Stroma'])
+stroma_mask = cell_table_clusters['cell_cluster_broad'].isin(['Structural'])
 
 # proportion of cancer subsets
 cancer_mask = cell_table_clusters['cell_cluster_broad'].isin(['Cancer'])
@@ -285,6 +285,7 @@ for metric in metrics:
 filtered_func_df = pd.concat(filtered_dfs)
 
 # take subset for plotting average functional marker expression
+sp_markers = [x for x in filtered_func_df.functional_marker.unique() if '__' not in x]
 filtered_func_df_plot = filtered_func_df.loc[filtered_func_df.subset == 'all', :]
 filtered_func_df_plot = filtered_func_df_plot.loc[filtered_func_df_plot.metric.isin(['cluster_broad_freq', 'cluster_freq', 'meta_cluster_freq']), :]
 filtered_func_df_plot = filtered_func_df_plot.loc[filtered_func_df_plot.functional_marker.isin(sp_markers), :]
@@ -294,12 +295,11 @@ filtered_func_df_plot.to_csv(os.path.join(output_dir, 'functional_df_per_core_fi
 
 # # identify combinations of markers and cell types to include in analysis based on threshold
 # mean_percent_positive = 0.05
-# sp_markers = [x for x in filtered_func_df.functional_marker.unique() if '__' not in x]
 # broad_df = filtered_func_df[filtered_func_df.metric == 'cluster_broad_freq']
 # broad_df = broad_df[broad_df.functional_marker.isin(sp_markers)]
 # broad_df = broad_df[broad_df.subset == 'all']
 # broad_df = broad_df[broad_df.Timepoint.isin(TIMEPOINT_NAMES)]
-# broad_df_agg = broad_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+# broad_df_agg = broad_df[['functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
 #
 # broad_df_agg = broad_df_agg.reset_index()
 # broad_df = broad_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
@@ -319,12 +319,12 @@ filtered_func_df_plot.to_csv(os.path.join(output_dir, 'functional_df_per_core_fi
 # broad_df_include.to_csv(os.path.join(intermediate_dir, 'post_processing', 'inclusion_matrix_broad.csv'))
 #
 # # apply thresholds to medium level clustering
-# assignment_dict_med = {'Cancer': ['Cancer', 'Cancer_EMT', 'Cancer_Other'],
-#                      'Mono_Mac': ['M1_Mac', 'M2_Mac', 'Mac_Other', 'Monocyte', 'APC'],
+# assignment_dict_med = {'Cancer': ['Cancer_1', 'Cancer_2', 'Cancer_3'],
+#                      'Mono_Mac': ['CD68_Mac', 'CD163_Mac', 'Mac_Other', 'Monocyte', 'APC'],
 #                      'B': ['B'],
 #                      'T': ['CD4T', 'CD8T', 'Treg', 'T_Other', 'Immune_Other'],
 #                      'Granulocyte': ['Neutrophil', 'Mast'],
-#                      'Stroma': ['Endothelium', 'Fibroblast', 'Stroma'],
+#                      'Structural': ['Endothelium', 'CAF', 'Fibroblast', 'Smooth_Muscle'],
 #                      'NK': ['NK'],
 #                      'Other': ['Other']}
 #
@@ -343,7 +343,7 @@ filtered_func_df_plot.to_csv(os.path.join(output_dir, 'functional_df_per_core_fi
 # med_df = med_df[med_df.functional_marker.isin(sp_markers)]
 # med_df = med_df[med_df.subset == 'all']
 # med_df = med_df[med_df.Timepoint.isin(TIMEPOINT_NAMES)]
-# med_df_agg = med_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+# med_df_agg = med_df[['functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
 #
 # med_df_agg.reset_index(inplace=True)
 # med_df = med_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
@@ -361,22 +361,23 @@ filtered_func_df_plot.to_csv(os.path.join(output_dir, 'functional_df_per_core_fi
 # med_df_include.to_csv(os.path.join(intermediate_dir, 'post_processing', 'inclusion_matrix_med.csv'))
 #
 # # do the same for the fine-grained clustering
-# assignment_dict_meta = {'Cancer': ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad'],
-#                    'Cancer_EMT': ['Cancer_SMA', 'Cancer_Vim'],
-#                    'Cancer_Other': ['Cancer_Other', 'Cancer_Mono'],
-#                    'M1_Mac': ['CD68'],
-#                    'M2_Mac': ['CD163'],
+# assignment_dict_meta = {'Cancer_1': ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad'],
+#                    'Cancer_2': ['Cancer_SMA', 'Cancer_Vim'],
+#                    'Cancer_3': ['Cancer_Other', 'Cancer_Mono'],
+#                    'CD68_Mac': ['CD68'],
+#                    'CD163_Mac': ['CD163'],
 #                    'Mac_Other': ['CD68_CD163_DP'],
 #                    'Monocyte': ['CD4_Mono', 'CD14'],
 #                    'APC': ['CD11c_HLADR'],
 #                    'B':  ['CD20'],
 #                    'Endothelium': ['CD31', 'CD31_VIM'],
-#                    'Fibroblast': ['FAP', 'FAP_SMA', 'SMA'],
-#                    'Stroma': ['Stroma_Collagen', 'Stroma_Fibronectin', 'VIM'],
+#                    'CAF': ['FAP', 'FAP_SMA'],
+#                    'Fibroblast': ['Stroma_Collagen', 'Stroma_Fibronectin', 'VIM'],
+#                    'Smooth_Muscle': ['SMA'],
 #                    'NK': ['CD56'],
 #                    'Neutrophil': ['Neutrophil'],
 #                    'Mast': ['Mast'],
-#                    'CD4T': ['CD4T','CD4T_HLADR'],
+#                    'CD4T': ['CD4T', 'CD4T_HLADR'],
 #                    'CD8T': ['CD8T'],
 #                    'Treg': ['Treg'],
 #                    'T_Other': ['CD3_DN','CD4T_CD8T_DP'],
@@ -398,7 +399,7 @@ filtered_func_df_plot.to_csv(os.path.join(output_dir, 'functional_df_per_core_fi
 # meta_df = meta_df[meta_df.functional_marker.isin(sp_markers)]
 # meta_df = meta_df[meta_df.subset == 'all']
 # meta_df = meta_df[meta_df.Timepoint.isin(TIMEPOINT_NAMES)]
-# meta_df_agg = meta_df[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+# meta_df_agg = meta_df[['functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
 #
 # meta_df_agg.reset_index(inplace=True)
 # meta_df = meta_df_agg.pivot(index='cell_type', columns='functional_marker', values='value')
@@ -453,7 +454,7 @@ for filters in filtering:
 # broad_df_dp = broad_df_dp[broad_df_dp.subset == 'all']
 # broad_df_dp = broad_df_dp[broad_df_dp.Timepoint.isin(TIMEPOINT_NAMES)]
 # broad_df_dp = broad_df_dp[broad_df_dp.functional_marker.isin(dp_markers)]
-# broad_df_dp_agg = broad_df_dp[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+# broad_df_dp_agg = broad_df_dp[['functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
 #
 # broad_df_dp_agg = broad_df_dp_agg.reset_index()
 # broad_df_dp = broad_df_dp_agg.pivot(index='cell_type', columns='functional_marker', values='value')
@@ -466,7 +467,7 @@ for filters in filtering:
 # med_df_dp = med_df_dp[med_df_dp.subset == 'all']
 # med_df_dp = med_df_dp[med_df_dp.Timepoint.isin(TIMEPOINT_NAMES)]
 # med_df_dp = med_df_dp[med_df_dp.functional_marker.isin(dp_markers)]
-# med_df_dp_agg = med_df_dp[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+# med_df_dp_agg = med_df_dp[['functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
 #
 # # create matrix of cell types and markers
 # med_df_dp_agg = med_df_dp_agg.reset_index()
@@ -481,7 +482,7 @@ for filters in filtering:
 # meta_df_dp = meta_df_dp[meta_df_dp.subset == 'all']
 # meta_df_dp = meta_df_dp[meta_df_dp.Timepoint.isin(TIMEPOINT_NAMES)]
 # meta_df_dp = meta_df_dp[meta_df_dp.functional_marker.isin(dp_markers)]
-# meta_df_dp_agg = meta_df_dp[['fov', 'functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
+# meta_df_dp_agg = meta_df_dp[['functional_marker', 'cell_type', 'value']].groupby(['cell_type', 'functional_marker']).agg(np.mean)
 #
 # # create matrix of cell types and markers
 # meta_df_dp_agg = meta_df_dp_agg.reset_index()
@@ -775,7 +776,7 @@ block4 = ['eccentricity_nuclear', 'major_axis_equiv_diam_ratio_nuclear', 'perim_
 deduped_morph_df = filtered_morph_df.loc[~filtered_morph_df.morphology_feature.isin(block1[1:] + block2[1:] + block3[1:] + block4[1:]), :]
 
 # only keep complex morphology features for cancer cells, remove everything except area and nc for others
-cancer_clusters = ['Cancer', 'Cancer_EMT', 'Cancer_Other', 'Cancer_CD56', 'Cancer_CK17',
+cancer_clusters = ['Cancer_1', 'Cancer_2', 'Cancer_3', 'Cancer_CD56', 'Cancer_CK17',
                    'Cancer_Ecad', 'Cancer_Mono', 'Cancer_SMA', 'Cancer_Vim']
 basic_morph_features = ['area', 'area_nuclear', 'nc_ratio']
 
@@ -981,7 +982,7 @@ filtered_distance_df.to_csv(os.path.join(output_dir, 'distance_df_per_core_filte
 #     distance_wide = pd.merge(distance_wide, density_subset[['fov', 'value']], on='fov', how='inner')
 #
 #     # get correlations
-#     corr_df = distance_wide.corr(method='spearman')
+#     corr_df = distance_wide.corr(method='spearman', numeric_only=True)
 #
 #     # determine which features to keep
 #     corr_vals = corr_df.loc['value', :].abs()

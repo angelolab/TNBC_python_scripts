@@ -252,9 +252,9 @@ all_clusters = ['CD11c_HLADR', 'CD14', 'CD163', 'CD20', 'CD31', 'CD31_VIM',
 # check that all names were converted correctly
 assert set(all_clusters) == set(cell_table['cell_meta_cluster'].unique())
 
-assignment_dict = {'Cancer': ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad'],
-                   'Cancer_EMT': ['Cancer_SMA', 'Cancer_Vim'],
-                   'Cancer_Other': ['Cancer_Other', 'Cancer_Mono'],
+assignment_dict = {'Cancer_1': ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad'],
+                   'Cancer_2': ['Cancer_SMA', 'Cancer_Vim'],
+                   'Cancer_3': ['Cancer_Other', 'Cancer_Mono'],
                    'CD68_Mac': ['CD68'],
                    'CD163_Mac': ['CD163'],
                    'Mac_Other': ['CD68_CD163_DP'],
@@ -280,7 +280,7 @@ for new_name in assignment_dict:
     idx = np.isin(cell_table['cell_meta_cluster'].values, pops)
     cell_table.loc[idx,  'cell_cluster'] = new_name
 
-assignment_dict_2 = {'Cancer': ['Cancer', 'Cancer_EMT', 'Cancer_Other'],
+assignment_dict_2 = {'Cancer': ['Cancer_1', 'Cancer_2', 'Cancer_3'],
                      'Mono_Mac': ['CD68_Mac', 'CD163_Mac', 'Mac_Other', 'Monocyte', 'APC'],
                      'B': ['B'],
                      'T': ['CD4T', 'CD8T', 'Treg', 'T_Other'],
