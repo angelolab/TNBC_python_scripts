@@ -198,13 +198,6 @@ for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_borde
 
         # only keep FOVS with at least one cell type over the minimum density
         minimum_density = 0.0005
-        cell_type1_mask = cell_type1_df.value > minimum_density
-        cell_type2_mask = cell_type2_df.value > minimum_density
-        cell_mask = cell_type1_mask.values | cell_type2_mask.values
-
-        cell_type1_df = cell_type1_df[cell_mask]
-        cell_type2_df = cell_type2_df[cell_mask]
-
         cell_type1_df['ratio'] = np.log2((cell_type1_df.value.values + minimum_density) /
                                          (cell_type2_df.value.values + minimum_density))
 
@@ -344,11 +337,11 @@ for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_borde
     if compartment == 'all':
         compartment_df['feature_name_unique'] = compartment_df.diversity_feature + '__' + compartment_df.cell_type
     else:
-        compartment_df[ 'feature_name_unique'] = compartment_df.diversity_feature + '__' + compartment_df.cell_type + '__' + compartment
+        compartment_df['feature_name_unique'] = compartment_df.diversity_feature + '__' + compartment_df.cell_type + '__' + compartment
 
     compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
 
-    compartment_df['cell_pop'] = compartment_df.cell_type.apply(lambda x: narrow_to_broad[x])
+    compartment_df['cell_pop'] = compartment_df.cell_type.apply(lambda x: [x])
     compartment_df['cell_pop_level'] = 'med'
     compartment_df['feature_type'] = 'cell_diversity'
     compartment_df['feature_type_detail'] = compartment_df.cell_type
