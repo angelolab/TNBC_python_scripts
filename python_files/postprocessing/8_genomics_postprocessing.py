@@ -292,16 +292,7 @@ rs_cgas = rs_cgas.rename(columns={'Sample': 'Experiment.System.ID'})
 combined_rna_scores = pd.concat([msigdb_scores, other_scores_long, rs_cgas_long])
 combined_rna_scores.to_csv(os.path.join(sequence_dir, 'preprocessing/msigdb_misc_processed.csv'), index=False)
 
-
-
-
-
-
-
-
-
 # transform to long format
-
 genomics_feature_df = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_WES_meta_table_processed.csv'))
 
 genomics_feature_df = pd.merge(genomics_feature_df, harmonized_metadata[['Patient_ID', 'Timepoint', 'Tissue_ID']].drop_duplicates(),
