@@ -671,6 +671,15 @@ plt.tight_layout()
 fig.savefig(os.path.join(plot_dir, 'lineage_correlation_stripplot.png'), dpi=300)
 plt.close()
 
+rna_correlations_random_subset = rna_correlations.sample(10000)
+sns.scatterplot(data=rna_correlations_random_subset, x='cor', y='log_pval')
+plt.xlabel('Spearman Correlation')
+plt.ylabel('-log10(p-value)')
+plt.title('Correlation between RNA and Image Features')
+plt.ylim(0, 10)
+plt.savefig(os.path.join(plot_dir, 'RNA_correlation_volcano.pdf'), dpi=300)
+plt.close()
+
 
 # Same thing for DNA data
 dna_correlations = pd.read_csv(os.path.join(sequence_dir, 'genomics_image_correlation_DNA.csv'))
@@ -689,13 +698,13 @@ plt.ylabel('DNA vs image lineage correlation')
 plt.savefig(os.path.join(plot_dir, 'DNA_lineage_correlation_stripplot.png'), dpi=300)
 plt.close()
 
-
-sns.scatterplot(data=dna_correlations, x='cor', y='log_pval')
+dna_correlations_random_subset = dna_correlations.sample(10000)
+sns.scatterplot(data=dna_correlations_random_subset, x='cor', y='log_pval')
 plt.xlabel('Spearman Correlation')
 plt.ylabel('-log10(p-value)')
 plt.title('Correlation between DNA and Image Features')
 plt.ylim(0, 10)
-plt.savefig(os.path.join(plot_dir, 'DNA_correlation_volcano.png'), dpi=300)
+plt.savefig(os.path.join(plot_dir, 'DNA_correlation_volcano.pdf'), dpi=300)
 plt.close()
 
 

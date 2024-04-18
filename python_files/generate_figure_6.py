@@ -11,9 +11,10 @@ import seaborn as sns
 
 
 base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
-plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/figures/'
+plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 
 ranked_features_univariate = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_ranking.csv'))
+ranked_features_univariate_genomic = pd.read_csv(os.path.join(base_dir, 'sequencing_data/genomics_outcome_ranking.csv'))
 
 
 # organize scores from cross validation
@@ -79,63 +80,141 @@ plt.close()
 
 
 # look at top features
-top_features = pd.read_csv(os.path.join(base_dir, 'multivariate_lasso', 'top_features_results_on_nivo_MIBI.csv'))
+for timepoint in ['baseline', 'on_nivo', 'post_induction']:
+    for modality in ['MIBI', 'RNA']:
+        # read in top features
+        top_features = pd.read_csv(os.path.join(base_dir, 'multivariate_lasso', 'top_features_results_{}_{}.csv'.format(timepoint, modality)))
 
-# take columns and append into single df
-top_features_long = pd.DataFrame()
+        # take columns and append into single df
+        top_features_long = pd.DataFrame()
 
-for i in range(10):
-    current_fold = top_features.iloc[:, (i * 2):((i * 2) + 2)].reset_index(drop=True)
-    current_fold.columns = ['feature', 'coef']
-    current_fold = current_fold.loc[~current_fold.feature.isna(), :]
-    current_fold['fold'] = i
-    current_fold['rank'] = current_fold.index + 1
-    current_fold['rank_norm'] = current_fold['rank'] / current_fold.shape[0]
-    current_fold['coef_norm'] = current_fold['coef'].abs() / current_fold['coef'].abs().max()
-    top_features_long = pd.concat([top_features_long, current_fold])
+        for i in range(10):
+            current_fold = top_features.iloc[:, (i * 2):((i * 2) + 2)].reset_index(drop=True)
+            current_fold.columns = ['feature', 'coef']
+            current_fold = current_fold.loc[~current_fold.feature.isna(), :]
+            current_fold['fold'] = i
+            current_fold['rank'] = current_fold.index + 1
+            current_fold['rank_norm'] = current_fold['rank'] / current_fold.shape[0]
+            current_fold['coef_norm'] = current_fold['coef'].abs() / current_fold['coef'].abs().max()
+            top_features_long = pd.concat([top_features_long, current_fold])
 
-# remove nans
-#top_features_long = top_features_long.loc[~top_features_long.feature.isna(), :]
-top_features_long['feature'] = top_features_long['feature'].apply(lambda x: x.replace('.', '+'))
+        # change remove periods from R script modifications
+        top_features_long['feature'] = top_features_long['feature'].apply(lambda x: x.replace('.', '+'))
 
-# look at top 10 features
-top_10_features = top_features_long.loc[top_features_long['rank'] <= 10, :]
-top_10_features.groupby('feature').size().sort_values(ascending=False).head(20)
+        # # look at top 10 features
+        # top_10_features = top_features_long.loc[top_features_long['rank'] <= 10, :]
+        # top_10_grouped = top_10_features.groupby('feature').size().sort_values(ascending=False).head(20)
+        #
+        # # plot barplot of top 10 features grouped
+        # fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+        # top_10_grouped.plot(kind='bar', ax=ax)
+        # ax.set_title('Top 10 features')
+        #
+        # plt.tight_layout()
+        # plt.savefig(os.path.join(plot_dir, 'Figure6_top_10_features_{}_{}.pdf'.format(timepoint, modality)))
+        # plt.close()
 
-# look at average rank
-ranked_features = top_features_long.groupby('feature').agg({'rank_norm': 'mean', 'coef_norm': 'mean'}).sort_values('rank_norm', ascending=True)
+        # plot number of occurrences of each feature
+        feature_counts = top_features_long.groupby('feature').size().sort_values(ascending=False)
+        feature_counts = feature_counts.head(20)
+        feature_counts = feature_counts.reset_index()
+        feature_counts.columns = ['feature', 'count']
 
-# compare with univariate
-ranked_features_univ_sub = ranked_features_univariate.loc[ranked_features_univariate.feature_name_unique.isin(ranked_features.index), :]
-ranked_features_univ_sub = ranked_features_univ_sub.loc[ranked_features_univ_sub.comparison == 'on_nivo', :]
+        fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+        feature_counts.plot(kind='bar', x='feature', y='count', ax=ax)
+        ax.set_title('Feature occurrences')
 
-# merge
-combined_rankings = ranked_features_univ_sub[['feature_name_unique', 'feature_rank_global', 'importance_score']].merge(ranked_features, left_on='feature_name_unique', right_index=True)
-combined_rankings = combined_rankings.sort_values('rank_norm')
-combined_rankings.to_csv(os.path.join(plot_dir, 'combined_feature_ranking.csv'))
+        plt.tight_layout()
+        plt.savefig(os.path.join(plot_dir, 'Figure6_feature_occurrences_{}_{}.pdf'.format(timepoint, modality)))
+        plt.close()
+
+        # look at average rank
+        ranked_features = top_features_long.groupby('feature').agg({'rank_norm': 'mean', 'coef_norm': 'mean', 'rank': 'mean'}).sort_values('rank_norm', ascending=True)
+        ranked_features = ranked_features.reset_index()
+
+        ranked_features = ranked_features.merge(feature_counts, on='feature')
+        ranked_features.rename(columns={'feature': 'feature_name_unique'}, inplace=True)
+
+        # compare with univariate
+        if modality == 'MIBI':
+            ranked_features_univ_sub = ranked_features_univariate.loc[ranked_features_univariate.feature_name_unique.isin(ranked_features.feature_name_unique), :]
+            ranked_features_univ_sub = ranked_features_univ_sub.loc[ranked_features_univ_sub.comparison == timepoint, :]
+
+            # merge
+            combined_rankings = ranked_features_univ_sub[['feature_name_unique', 'feature_rank_global', 'importance_score']].merge(ranked_features, on='feature_name_unique')
+            combined_rankings = combined_rankings.sort_values('rank_norm')
+
+        else:
+            ranked_features_univ_sub_genomic = ranked_features_univariate_genomic.loc[ranked_features_univariate_genomic.feature_name_unique.isin(ranked_features.feature_name_unique), :]
+            ranked_features_univ_sub_genomic = ranked_features_univ_sub_genomic.loc[ranked_features_univ_sub_genomic.comparison == timepoint, :]
+
+            # merge
+            combined_rankings = ranked_features_univ_sub_genomic[['feature_name_unique', 'combined_rank']].merge(ranked_features, on='feature_name_unique')
+            combined_rankings = combined_rankings.sort_values('rank_norm')
+            combined_rankings['importance_score'] = combined_rankings['combined_rank']
+            combined_rankings = combined_rankings.rename(columns={'combined_rank': 'feature_rank_global'})
+
+        # save csv
+        combined_rankings['top_ranked'] = np.logical_and(combined_rankings.coef_norm.values >= 0.3,
+                                                         combined_rankings['count'] >= 3)
+        combined_rankings.to_csv(os.path.join(plot_dir, 'combined_feature_rankings_{}_{}.csv'.format(timepoint, modality)), index=False)
+
+        # plot
+        sns.scatterplot(data=combined_rankings, x='feature_rank_global', y='rank_norm')
+        plt.title('Univariate vs multivariate ranking for all nonzero model features')
+
+        plt.savefig(os.path.join(plot_dir, 'Figure6_univariate_vs_multivariate_ranking_{}_{}.pdf'.format(timepoint, modality)))
+        plt.close()
+
+        # plot feature score broken down by ranking
 
 
-# plot
-sns.scatterplot(data=combined_rankings, x='feature_rank_global', y='rank')
-plt.title('Univariate vs multivariate ranking for all nonzero model features on nivo')
+        fig, ax = plt.subplots(1, 1, figsize=(3, 4))
+        sns.stripplot(data=combined_rankings, x='top_ranked', y='importance_score',
+                      color='black', ax=ax)
+        sns.boxplot(data=combined_rankings, x='top_ranked', y='importance_score',
+                    color='grey', ax=ax, showfliers=False)
 
-plt.savefig(os.path.join(plot_dir, 'Figure6_univariate_vs_multivariate_ranking.pdf'))
+        ax.set_title('Feature importance score')
+        # ax.set_ylim([0, 1.1])
+        #ax.set_xticklabels(['Top ranked', 'Other'])
+
+        sns.despine()
+        plt.tight_layout()
+        plt.savefig(os.path.join(plot_dir, 'Figure6_feature_importance_by_model_{}_{}.pdf'.format(timepoint, modality)))
+        plt.close()
+
+# aggregate combined rankings from each timepoint and modality
+all_model_rankings = pd.DataFrame()
+
+
+for timepoint in ['baseline', 'on_nivo', 'post_induction']:
+    for modality in ['MIBI', 'RNA']:
+        combined_rankings = pd.read_csv(os.path.join(plot_dir, 'combined_feature_rankings_{}_{}.csv'.format(timepoint, modality)))
+        combined_rankings['timepoint'] = timepoint
+        combined_rankings['modality'] = modality
+        combined_rankings = combined_rankings[['timepoint', 'modality', 'feature_name_unique', 'feature_rank_global', 'rank', 'rank_norm', 'importance_score', 'count', 'coef_norm', 'top_ranked']]
+        all_model_rankings = pd.concat([all_model_rankings, combined_rankings])
+
+# plot venn diagram
+from matplotlib_venn import venn3
+
+rna_rankings_top = all_model_rankings.loc[np.logical_and(all_model_rankings.modality == 'RNA', all_model_rankings.top_ranked), :]
+rna_baseline = rna_rankings_top.loc[rna_rankings_top.timepoint == 'baseline', 'feature_name_unique'].values
+rna_nivo = rna_rankings_top.loc[rna_rankings_top.timepoint == 'on_nivo', 'feature_name_unique'].values
+rna_induction = rna_rankings_top.loc[rna_rankings_top.timepoint == 'post_induction', 'feature_name_unique'].values
+
+venn3([set(rna_baseline), set(rna_nivo), set(rna_induction)], ('Baseline', 'Nivo', 'Induction'))
+plt.title('RNA top ranked features')
+plt.savefig(os.path.join(plot_dir, 'Figure6_RNA_top_ranked_venn.pdf'))
 plt.close()
 
-# plot feature score broken down by ranking
-combined_rankings['top_ranked'] = combined_rankings['rank_norm'] < 0.5
+mibi_rankings_top = all_model_rankings.loc[np.logical_and(all_model_rankings.modality == 'MIBI', all_model_rankings.top_ranked), :]
+mibi_baseline = mibi_rankings_top.loc[mibi_rankings_top.timepoint == 'baseline', 'feature_name_unique'].values
+mibi_nivo = mibi_rankings_top.loc[mibi_rankings_top.timepoint == 'on_nivo', 'feature_name_unique'].values
+mibi_induction = mibi_rankings_top.loc[mibi_rankings_top.timepoint == 'post_induction', 'feature_name_unique'].values
 
-fig, ax = plt.subplots(1, 1, figsize=(3, 4))
-sns.stripplot(data=combined_rankings, x='top_ranked', y='importance_score',
-              color='black', ax=ax)
-sns.boxplot(data=combined_rankings, x='top_ranked', y='importance_score',
-            color='grey', ax=ax, showfliers=False)
-
-ax.set_title('Feature importance score')
-ax.set_ylim([0, 1.1])
-ax.set_xticklabels(['Top ranked', 'Other'])
-
-sns.despine()
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure6_feature_importance_by_model.pdf'))
+venn3([set(mibi_baseline), set(mibi_nivo), set(mibi_induction)], ('Baseline', 'Nivo', 'Induction'))
+plt.title('MIBI top ranked features')
+plt.savefig(os.path.join(plot_dir, 'Figure6_MIBI_top_ranked_venn.pdf'))
 plt.close()
