@@ -548,940 +548,99 @@ if not os.path.exists(extraction_pipeline_tuning_dir):
 
 
 # ## 2. vary min cell param for functional, morphology, diversity, and distance DataFrames
-min_cell_tests = [1, 3, 5, 10, 20]
-total_fovs = len(list_folders("/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"))
+# min_cell_tests = [1, 3, 5, 10, 20]
+# total_fovs = len(list_folders("/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"))
+# total_df = pd.read_csv(os.path.join(OUTPUT_DIR, "cluster_df_per_core.csv"))
 
-# # ### 2.1: functional tests
-# print("Starting functional tests")
-# total_df_func = pd.read_csv(os.path.join(OUTPUT_DIR, "functional_df_per_core.csv"))
-total_df = pd.read_csv(os.path.join(OUTPUT_DIR, "cluster_df_per_core.csv"))
-harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, "harmonized_metadata.csv"))
-
-total_fovs_dropped = {}
+# total_fovs_dropped = {}
 # metrics = [['cluster_broad_count', 'cluster_broad_freq'],
 #            ['cluster_count', 'cluster_freq'],
 #            ['meta_cluster_count', 'meta_cluster_freq']]
-metrics = [['cluster_broad_count', 'cluster_broad_freq'],
-           ['cluster_count', 'cluster_freq'],
-           ['meta_cluster_count', 'meta_cluster_freq']]
 
-for metric in metrics:
-    total_fovs_dropped[metric[0]] = {}
-    total_fovs_dropped[metric[1]] = {}
-
-for compartment in ['all']:
-    for min_cells in min_cell_tests:
-        for metric in metrics:
-            total_fovs_dropped[metric[0]][min_cells] = {}
-            count_df = total_df[total_df.metric == metric[0]]
-            count_df = count_df[count_df.subset == compartment]
-            all_fovs = count_df.fov.unique()
-
-            for cell_type in count_df.cell_type.unique():
-                keep_df = count_df[count_df.cell_type == cell_type]
-                keep_df = keep_df[keep_df.value >= min_cells]
-                keep_fovs = keep_df.fov.unique()
-                # total_fovs_dropped[min_cells].append(len(all_fovs) - len(keep_fovs))
-                # total_fovs_dropped[metric[0]][min_cells].append(len(all_fovs) - len(keep_fovs))
-                total_fovs_dropped[metric[0]][min_cells][cell_type] = len(all_fovs) - len(keep_fovs)
-
-            total_fovs_dropped[metric[1]][min_cells] = {}
-            count_df = total_df[total_df.metric == metric[1]]
-            count_df = count_df[count_df.subset == compartment]
-            all_fovs = count_df.fov.unique()
-
-            for cell_type in count_df.cell_type.unique():
-                keep_df = count_df[count_df.cell_type == cell_type]
-                keep_df = keep_df[keep_df.value >= min_cells]
-                keep_fovs = keep_df.fov.unique()
-                # total_fovs_dropped[min_cells].append(len(all_fovs) - len(keep_fovs))
-                # total_fovs_dropped[metric[0]][min_cells].append(len(all_fovs) - len(keep_fovs))
-                total_fovs_dropped[metric[1]][min_cells][cell_type] = len(all_fovs) - len(keep_fovs)
-
-    # Flatten the data
-    def flatten_data(data, feature_name):
-        return pd.DataFrame([
-            {'min_cells': min_cells, 'Number of FOVs dropped': value, 'Feature': feature_name, 'Cell Type': cell_type}
-            for feature, min_cells_dict in data.items()
-            for min_cells, cell_types in min_cells_dict.items()
-            for cell_type, value in cell_types.items()
-        ])
-
-    df = pd.concat([
-        flatten_data({'cluster_broad_count': total_fovs_dropped['cluster_broad_count']}, 'cluster_broad_count')
-        # flatten_data({'cluster_broad_freq': total_fovs_dropped['cluster_broad_freq']}, 'cluster_broad_freq'),
-        # flatten_data({'cluster_count': total_fovs_dropped['cluster_count']}, 'cluster_count')
-    ])
-    print(df)
-    # print(df[(df["Feature"] == "cluster_count") & (df["min_cells"] == 1)])
-
-    # Create the strip plot
-    # plot = sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Feature', data=df, kind='strip', palette={'cluster_broad_count': 'blue', 'cluster_count': 'red'})
-    # Create the strip plot, coloring by cell type
-    plot = sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Cell Type', data=df, kind='strip', palette='Set2', dodge=False)
-    plot.fig.subplots_adjust(top=0.9)  # Adjust the top spacing to fit the title
-
-    # Annotate each point with the cell type
-    # for index, row in df.iterrows():
-    #     plot.ax.text(row['min_cells'], row['Number of FOVs dropped'], row['Cell Type'], horizontalalignment='left', size='medium', color='black', weight='semibold')
-
-    plot.fig.suptitle('Distribution of FOVs dropped across min_cells trials')
-    # plt.tight_layout()
-
-    # # Flatten the data into a format suitable for seaborn
-    # def flatten_data(data, feature_name):
-    #     flattened = pd.DataFrame([
-    #         {'min_cells': min_cells, 'Number of FOVs dropped': value, 'Feature': feature_name}
-    #         for feature, values_dict in data.items()
-    #         for min_cells, values in values_dict.items()
-    #         for value in values
-    #     ])
-    #     return flattened
-
-    # # Apply the function to each feature and concatenate the results
-    # df = pd.concat([
-    #     flatten_data({'cluster_broad_count': total_fovs_dropped['cluster_broad_count']}, 'cluster_broad_count'),
-    #     # flatten_data({'cluster_count': total_fovs_dropped['cluster_count']}, 'cluster_count')
-    # ])
-
-    # # Create the strip plot with faceting
-    # sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Feature', data=df, kind='strip', palette={'cluster_broad_count': 'blue', 'cluster_count': 'red'})
-
-    # plt.title('Distribution of FOVs dropped across min_cells trials')
-    # save the figure to save_dir
-    plt.savefig(
-        pathlib.Path(extraction_pipeline_tuning_dir) / f"{compartment}_min_cells_fovs_dropped_stripplot.png",
-        dpi=300
-    )
-
-    df = pd.concat([
-        flatten_data({'cluster_count': total_fovs_dropped['cluster_count']}, 'cluster_count'),
-        # flatten_data({'cluster_broad_freq': total_fovs_dropped['cluster_broad_freq']}, 'cluster_broad_freq')
-    ])
-    print(df)
-    # print(df[(df["Feature"] == "cluster_count") & (df["min_cells"] == 1)])
-
-    # Create the strip plot
-    # plot = sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Feature', data=df, kind='strip', palette={'cluster_broad_count': 'blue', 'cluster_count': 'red'})
-    # Create the strip plot, coloring by cell type
-    palette = sns.color_palette("husl", 21)
-    plot = sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Cell Type', data=df, kind='strip', palette=palette, dodge=False)
-    plot.fig.subplots_adjust(top=0.9)  # Adjust the top spacing to fit the title
-
-    # Annotate each point with the cell type
-    # for index, row in df.iterrows():
-    #     plot.ax.text(row['min_cells'], row['Number of FOVs dropped'], row['Cell Type'], horizontalalignment='left', size='medium', color='black', weight='semibold')
-
-    plot.fig.suptitle('Distribution of FOVs dropped across min_cells trials')
-    # plt.tight_layout()
-
-    # # Flatten the data into a format suitable for seaborn
-    # def flatten_data(data, feature_name):
-    #     flattened = pd.DataFrame([
-    #         {'min_cells': min_cells, 'Number of FOVs dropped': value, 'Feature': feature_name}
-    #         for feature, values_dict in data.items()
-    #         for min_cells, values in values_dict.items()
-    #         for value in values
-    #     ])
-    #     return flattened
-
-    # # Apply the function to each feature and concatenate the results
-    # df = pd.concat([
-    #     flatten_data({'cluster_broad_count': total_fovs_dropped['cluster_broad_count']}, 'cluster_broad_count'),
-    #     # flatten_data({'cluster_count': total_fovs_dropped['cluster_count']}, 'cluster_count')
-    # ])
-
-    # # Create the strip plot with faceting
-    # sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Feature', data=df, kind='strip', palette={'cluster_broad_count': 'blue', 'cluster_count': 'red'})
-
-    # plt.title('Distribution of FOVs dropped across min_cells trials')
-    # save the figure to save_dir
-    plt.savefig(
-        pathlib.Path(extraction_pipeline_tuning_dir) / f"{compartment}_min_cells_raw_fovs_dropped_stripplot.png",
-        dpi=300
-    )
-
-    df = pd.concat([
-        flatten_data({'meta_cluster_count': total_fovs_dropped['meta_cluster_count']}, 'meta_cluster_count'),
-        # flatten_data({'cluster_broad_freq': total_fovs_dropped['cluster_broad_freq']}, 'cluster_broad_freq')
-    ])
-    print(df)
-    # print(df[(df["Feature"] == "cluster_count") & (df["min_cells"] == 1)])
-
-    # Create the strip plot
-    # plot = sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Feature', data=df, kind='strip', palette={'cluster_broad_count': 'blue', 'cluster_count': 'red'})
-    # Create the strip plot, coloring by cell type
-    palette = sns.color_palette("husl", 21)
-    plot = sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Cell Type', data=df, kind='strip', palette=palette, dodge=False)
-    plot.fig.subplots_adjust(top=0.9)  # Adjust the top spacing to fit the title
-
-    # Annotate each point with the cell type
-    # for index, row in df.iterrows():
-    #     plot.ax.text(row['min_cells'], row['Number of FOVs dropped'], row['Cell Type'], horizontalalignment='left', size='medium', color='black', weight='semibold')
-
-    plot.fig.suptitle('Distribution of FOVs dropped across min_cells trials')
-    # plt.tight_layout()
-
-    # # Flatten the data into a format suitable for seaborn
-    # def flatten_data(data, feature_name):
-    #     flattened = pd.DataFrame([
-    #         {'min_cells': min_cells, 'Number of FOVs dropped': value, 'Feature': feature_name}
-    #         for feature, values_dict in data.items()
-    #         for min_cells, values in values_dict.items()
-    #         for value in values
-    #     ])
-    #     return flattened
-
-    # # Apply the function to each feature and concatenate the results
-    # df = pd.concat([
-    #     flatten_data({'cluster_broad_count': total_fovs_dropped['cluster_broad_count']}, 'cluster_broad_count'),
-    #     # flatten_data({'cluster_count': total_fovs_dropped['cluster_count']}, 'cluster_count')
-    # ])
-
-    # # Create the strip plot with faceting
-    # sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Feature', data=df, kind='strip', palette={'cluster_broad_count': 'blue', 'cluster_count': 'red'})
-
-    # plt.title('Distribution of FOVs dropped across min_cells trials')
-    # save the figure to save_dir
-    plt.savefig(
-        pathlib.Path(extraction_pipeline_tuning_dir) / f"{compartment}_min_cells_meta_fovs_dropped_stripplot.png",
-        dpi=300
-    )
-
-    df = pd.concat([
-        flatten_data({'cluster_broad_freq': total_fovs_dropped['cluster_broad_freq']}, 'cluster_broad_freq'),
-        # flatten_data({'cluster_broad_freq': total_fovs_dropped['cluster_broad_freq']}, 'cluster_broad_freq')
-    ])
-    print(df)
-    # print(df[(df["Feature"] == "cluster_count") & (df["min_cells"] == 1)])
-
-    # Create the strip plot
-    # plot = sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Feature', data=df, kind='strip', palette={'cluster_broad_count': 'blue', 'cluster_count': 'red'})
-    # Create the strip plot, coloring by cell type
-    palette = sns.color_palette("husl", 21)
-    plot = sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Cell Type', data=df, kind='strip', palette=palette, dodge=False)
-    plot.fig.subplots_adjust(top=0.9)  # Adjust the top spacing to fit the title
-
-    # Annotate each point with the cell type
-    # for index, row in df.iterrows():
-    #     plot.ax.text(row['min_cells'], row['Number of FOVs dropped'], row['Cell Type'], horizontalalignment='left', size='medium', color='black', weight='semibold')
-
-    plot.fig.suptitle('Distribution of FOVs dropped across min_cells trials')
-    # plt.tight_layout()
-
-    # # Flatten the data into a format suitable for seaborn
-    # def flatten_data(data, feature_name):
-    #     flattened = pd.DataFrame([
-    #         {'min_cells': min_cells, 'Number of FOVs dropped': value, 'Feature': feature_name}
-    #         for feature, values_dict in data.items()
-    #         for min_cells, values in values_dict.items()
-    #         for value in values
-    #     ])
-    #     return flattened
-
-    # # Apply the function to each feature and concatenate the results
-    # df = pd.concat([
-    #     flatten_data({'cluster_broad_count': total_fovs_dropped['cluster_broad_count']}, 'cluster_broad_count'),
-    #     # flatten_data({'cluster_count': total_fovs_dropped['cluster_count']}, 'cluster_count')
-    # ])
-
-    # # Create the strip plot with faceting
-    # sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Feature', data=df, kind='strip', palette={'cluster_broad_count': 'blue', 'cluster_count': 'red'})
-
-    # plt.title('Distribution of FOVs dropped across min_cells trials')
-    # save the figure to save_dir
-    plt.savefig(
-        pathlib.Path(extraction_pipeline_tuning_dir) / f"{compartment}_min_cells_freq_fovs_dropped_stripplot.png",
-        dpi=300
-    )
-
-total_df_func = pd.read_csv(os.path.join(OUTPUT_DIR, "functional_df_per_core.csv"))
-total_fovs_dropped_func = {}
-total_fovs_dropped_func["cluster_broad_freq"] = {}
-for compartment in ["all"]:
-    all_fovs = count_df[count_df.subset == compartment].fov.unique()
-    for min_cells in min_cell_tests:
-        total_fovs_dropped_func["cluster_broad_freq"][min_cells] = {}
-        filtered_dfs = []
-        metrics = [['cluster_broad_count', 'cluster_broad_freq'],
-                   ['cluster_count', 'cluster_freq'],
-                   ['meta_cluster_count', 'meta_cluster_freq']]
-        for metric in metrics:
-            total_fovs_dropped[metric[0]][min_cells] = {}
-            count_df = total_df[total_df.metric == metric[0]]
-            count_df = count_df[count_df.subset == compartment]
-
-            # subset functional df to only include functional markers at this resolution
-            func_df = total_df_func[total_df_func.metric.isin(metric)]
-            func_df = func_df[func_df.subset == compartment]
-
-            for cell_type in count_df.cell_type.unique():
-                keep_df = count_df[count_df.cell_type == cell_type]
-                keep_df = keep_df[keep_df.value >= min_cells]
-                keep_fovs = keep_df.fov.unique()
-
-                # 1. functional marker tests
-                keep_markers = func_df[func_df.cell_type == cell_type]
-                keep_markers = keep_markers[keep_markers.fov.isin(keep_fovs)]
-
-                filtered_dfs.append(keep_markers)
-
-        filtered_func_df = pd.concat(filtered_dfs)
-
-        # load matrices
-        broad_df_include = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_broad.csv'), index_col=0)
-        med_df_include = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_med.csv'), index_col=0)
-        meta_df_include = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_meta.csv'), index_col=0)
-
-        # identify metrics and dfs that will be filtered
-        filtering = [['cluster_broad_count', 'cluster_broad_freq', broad_df_include],
-                   ['cluster_count', 'cluster_freq', med_df_include],
-                   ['meta_cluster_count', 'meta_cluster_freq', meta_df_include]]
-
-        combo_dfs = []
-
-        for filters in filtering:
-            # get variables
-            metric_names = filters[:2]
-            metric_df = filters[2]
-
-            # subset functional df to only include functional markers at this resolution
-            func_df = filtered_func_df[filtered_func_df.metric.isin(metric_names)]
-
-            # loop over each cell type, and get the corresponding markers
-            for cell_type in metric_df.index:
-                markers = metric_df.columns[metric_df.loc[cell_type] == True]
-
-                # subset functional df to only include this cell type
-                func_df_cell = func_df[func_df.cell_type == cell_type]
-
-                # subset functional df to only include markers for this cell type
-                func_df_cell = func_df_cell[func_df_cell.functional_marker.isin(markers)]
-
-                # append to list of dfs
-                combo_dfs.append(func_df_cell)
-
-        # load inclusion matrices
-        broad_df_include_dp = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_broad_dp.csv'), index_col=0)
-        med_df_include_dp = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_med_dp.csv'), index_col=0)
-        meta_df_include_dp = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_meta_dp.csv'), index_col=0)
-
-        for filters in filtering:
-            # get variables
-            metric_names = filters[:2]
-            metric_df = filters[2]
-
-            # subset functional df to only include functional markers at this resolution
-            func_df = filtered_func_df[filtered_func_df.metric.isin(metric_names)]
-
-            # loop over each cell type, and get the corresponding markers
-            for cell_type in metric_df.index:
-                markers = metric_df.columns[metric_df.loc[cell_type] == True]
-
-                # subset functional df to only include this cell type
-                func_df_cell = func_df[func_df.cell_type == cell_type]
-
-                # subset functional df to only include markers for this cell type
-                func_df_cell = func_df_cell[func_df_cell.functional_marker.isin(markers)]
-
-                # append to list of dfs
-                combo_dfs.append(func_df_cell)
-
-        # append to list of dfs
-        long_df = pd.read_csv(os.path.join(OUTPUT_DIR, 'total_func_per_core.csv'))
-        combo_dfs.append(long_df)
-
-        # combine
-        combo_df = pd.concat(combo_dfs)
-
-        # combine
-        combo_df = pd.concat(combo_dfs)
-
-        # use previously generated exclude list
-        exclude_df = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'exclude_double_positive_markers.csv'))
-
-        dedup_dfs = []
-
-        cluster_resolution = [['cluster_broad_freq', 'cluster_broad_count'],
-                   ['cluster_freq', 'cluster_count'],
-                   ['meta_cluster_freq', 'meta_cluster_count']]
-
-        for cluster in cluster_resolution:
-            # subset functional df to only include functional markers at this resolution
-            func_df = combo_df[combo_df.metric.isin(cluster)]
-
-            # add unique identifier for cell + marker combo
-            func_df['feature_name'] = func_df['cell_type'] + '__' + func_df['functional_marker']
-
-            exclude_names = exclude_df.loc[exclude_df.metric == cluster[0], 'feature_name'].values
-
-            # remove double positive markers that are highly correlated with single positive scores
-            func_df = func_df[~func_df.feature_name.isin(exclude_names)]
-            dedup_dfs.append(func_df)
-
-
-        dedup_dfs.append(long_df)
-        deduped_df = pd.concat(dedup_dfs)
-        deduped_df = deduped_df.drop('feature_name', axis=1)
-
-        deduped_df_broad = deduped_df[deduped_df["metric"] == "cluster_broad_freq"].copy()
-
-        for cell_type in deduped_df_broad["cell_type"].unique():
-            deduped_df_fovs_subset = deduped_df_broad[deduped_df_broad["cell_type"] == cell_type].fov.unique()
-            total_fovs_dropped_func["cluster_broad_freq"][min_cells][cell_type] = len(all_fovs) - len(deduped_df_fovs_subset)
-
-    # Flatten the data
-    def flatten_data(data, feature_name):
-        return pd.DataFrame([
-            {'min_cells': min_cells, 'Number of FOVs dropped': value, 'Feature': feature_name, 'Cell Type': cell_type}
-            for feature, min_cells_dict in data.items()
-            for min_cells, cell_types in min_cells_dict.items()
-            for cell_type, value in cell_types.items()
-        ])
-
-    df = pd.concat([
-        flatten_data({'cluster_broad_freq': total_fovs_dropped['cluster_broad_freq']}, 'cluster_broad_freq'),
-        # flatten_data({'cluster_count': total_fovs_dropped['cluster_count']}, 'cluster_count')
-    ])
-    print(df)
-
-    plot = sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Cell Type', data=df, kind='strip', palette='Set2', dodge=False)
-    plot.fig.subplots_adjust(top=0.9)  # Adjust the top spacing to fit the title
-
-    plot.fig.suptitle('Distribution of FOVs dropped across min_cells trials (functional deduped)')
-
-    plt.savefig(
-        pathlib.Path(extraction_pipeline_tuning_dir) / f"{compartment}_min_cells_meta_fovs_dropped_stripplot_functional.png",
-        dpi=300
-    )
-
-
-
-# functional_feature_fov_counts = {}
-# for min_cells in min_cell_tests:
-#     filtered_dfs = []
-#     metrics = [['cluster_broad_count', 'cluster_broad_freq'],
-#                ['cluster_count', 'cluster_freq'],
-#                ['meta_cluster_count', 'meta_cluster_freq']]
-#     for metric in metrics:
-#         # subset count df to include cells at the relevant clustering resolution
-#         for compartment in ["all"]:
+# for metric in metrics:
+#     total_fovs_dropped[metric[0]] = {}
+#     total_fovs_dropped[metric[1]] = {}
+
+# for compartment in ['all']:
+#     for min_cells in min_cell_tests:
+#         for metric in metrics:
+#             total_fovs_dropped[metric[0]][min_cells] = {}
 #             count_df = total_df[total_df.metric == metric[0]]
 #             count_df = count_df[count_df.subset == compartment]
+#             all_fovs = count_df.fov.unique()
 
-#             # subset functional df to only include functional markers at this resolution
-#             func_df = total_df_func[total_df_func.metric.isin(metric)]
-#             func_df = func_df[func_df.subset == compartment]
-
-#             # for each cell type, determine which FOVs have high enough counts to be included
 #             for cell_type in count_df.cell_type.unique():
 #                 keep_df = count_df[count_df.cell_type == cell_type]
 #                 keep_df = keep_df[keep_df.value >= min_cells]
 #                 keep_fovs = keep_df.fov.unique()
+#                 total_fovs_dropped[metric[0]][min_cells][cell_type] = len(all_fovs) - len(keep_fovs)
 
-#                 # subset functional df to only include FOVs with high enough counts
-#                 keep_markers = func_df[func_df.cell_type == cell_type]
-#                 keep_markers = keep_markers[keep_markers.fov.isin(keep_fovs)]
-
-#                 # append to list of filtered dfs
-#                 filtered_dfs.append(keep_markers)
-
-#     filtered_func_df = pd.concat(filtered_dfs)
-
-#     # load matrices
-#     broad_df_include = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_broad.csv'), index_col=0)
-#     med_df_include = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_med.csv'), index_col=0)
-#     meta_df_include = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_meta.csv'), index_col=0)
-
-#     # identify metrics and dfs that will be filtered
-#     filtering = [['cluster_broad_count', 'cluster_broad_freq', broad_df_include],
-#                ['cluster_count', 'cluster_freq', med_df_include],
-#                ['meta_cluster_count', 'meta_cluster_freq', meta_df_include]]
-
-#     combo_dfs = []
-
-#     for filters in filtering:
-#         # get variables
-#         metric_names = filters[:2]
-#         metric_df = filters[2]
-
-#         # subset functional df to only include functional markers at this resolution
-#         func_df = filtered_func_df[filtered_func_df.metric.isin(metric_names)]
-
-#         # loop over each cell type, and get the corresponding markers
-#         for cell_type in metric_df.index:
-#             markers = metric_df.columns[metric_df.loc[cell_type] == True]
-
-#             # subset functional df to only include this cell type
-#             func_df_cell = func_df[func_df.cell_type == cell_type]
-
-#             # subset functional df to only include markers for this cell type
-#             func_df_cell = func_df_cell[func_df_cell.functional_marker.isin(markers)]
-
-#             # append to list of dfs
-#             combo_dfs.append(func_df_cell)
-
-#     # load inclusion matrices
-#     broad_df_include_dp = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_broad_dp.csv'), index_col=0)
-#     med_df_include_dp = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_med_dp.csv'), index_col=0)
-#     meta_df_include_dp = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'inclusion_matrix_meta_dp.csv'), index_col=0)
-
-#     # identify metrics and dfs that will be filtered
-#     filtering = [['cluster_broad_count', 'cluster_broad_freq', broad_df_include_dp],
-#                ['cluster_count', 'cluster_freq', med_df_include_dp],
-#                ['meta_cluster_count', 'meta_cluster_freq', meta_df_include_dp]]
-
-#     for filters in filtering:
-#         # get variables
-#         metric_names = filters[:2]
-#         metric_df = filters[2]
-
-#         # subset functional df to only include functional markers at this resolution
-#         func_df = filtered_func_df[filtered_func_df.metric.isin(metric_names)]
-
-#         # loop over each cell type, and get the corresponding markers
-#         for cell_type in metric_df.index:
-#             markers = metric_df.columns[metric_df.loc[cell_type] == True]
-
-#             # subset functional df to only include this cell type
-#             func_df_cell = func_df[func_df.cell_type == cell_type]
-
-#             # subset functional df to only include markers for this cell type
-#             func_df_cell = func_df_cell[func_df_cell.functional_marker.isin(markers)]
-
-#             # append to list of dfs
-#             combo_dfs.append(func_df_cell)
-
-#     # append to list of dfs
-#     long_df = pd.read_csv(os.path.join(OUTPUT_DIR, 'total_func_per_core.csv'))
-#     combo_dfs.append(long_df)
-
-#     # combine
-#     combo_df = pd.concat(combo_dfs)
-
-#     fovs_per_metric = combo_df.groupby("metric")["fov"].nunique().reset_index(name="unique_fov_count")
-#     fovs_per_metric["unique_fov_count"] = total_fovs - fovs_per_metric["unique_fov_count"]
-#     functional_feature_fov_counts[min_cells] = fovs_per_metric.set_index("metric")["unique_fov_count"].to_dict()
-
-# # Flattening the dictionary and creating a DataFrame
-# flat_data_functional = []
-# for min_cells, metrics in functional_feature_fov_counts.items():
-#     for metric, unique_fov_count in metrics.items():
-#         flat_data_functional.append((min_cells, unique_fov_count))
-
-# df_functional_viz = pd.DataFrame(flat_data_functional, columns=['min_cells', 'unique_fov_count'])
-
-# # Ensuring 'min_cells' is treated as a categorical variable
-# df_functional_viz['min_cells'] = pd.Categorical(df_functional_viz['min_cells'])
-
-# # Creating a box plot
-# plt.figure(figsize=(10, 6))
-# ax = sns.boxplot(x='min_cells', y='unique_fov_count', data=df_functional_viz)
-# plt.title('FOVs Excluded for Functional Features per min_cells')
-# ax.set_xlabel("min_cells threshold")
-# ax.set_ylabel("FOVs dropped")
-# ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_features_min_cells_boxplot.png",
-#     dpi=300
-# )
-
-# # Creating a violin plot
-# plt.figure(figsize=(10, 6))
-# ax = sns.violinplot(x='min_cells', y='unique_fov_count', data=df_functional_viz)
-# plt.title('FOVs Excluded for Functional Features per min_cells')
-# ax.set_xlabel("min_cells threshold")
-# ax.set_ylabel("FOVs dropped")
-# ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_features_min_cells_violinplot.png",
-#     dpi=300
-# )
-
-
-# ### 2.2: morphology tests
-# print("Starting morphology tests")
-# total_df_morph = pd.read_csv(os.path.join(OUTPUT_DIR, "morph_df_per_core.csv"))
-# cell_table_morph = pd.read_csv(os.path.join(ANALYSIS_DIR, "cell_table_morph.csv"))
-# annotations_by_mask = pd.read_csv(os.path.join(INTERMEDIATE_DIR, "mask_dir/individual_masks-no_tagg_tls", "cell_annotation_mask.csv"))
-# harmonized_annotations = annotations_by_mask
-# harmonized_annotations = harmonized_annotations.rename(columns={"mask_name": "tumor_region"})
-# cell_table_morph = cell_table_morph.merge(harmonized_annotations, on=["fov", "label"], how="left")
-
-# # create manual df with total morphology marker average across all cells in an image
-# morph_table_small = cell_table_morph.loc[:, ~cell_table_morph.columns.isin(['cell_cluster', 'cell_cluster_broad', 'cell_meta_cluster', 'label', 'tumor_region'])]
-
-# # group by specified columns
-# grouped_table = morph_table_small.groupby("fov")
-# transformed = grouped_table.agg(np.mean)
-# transformed.reset_index(inplace=True)
-
-# # reshape to long df
-# long_df = pd.melt(transformed, id_vars=["fov"], var_name="morphology_feature")
-# long_df["metric"] = "total_freq"
-# long_df["cell_type"] = "all"
-# long_df["subset"] = "all"
-
-# long_df = long_df.merge(harmonized_metadata, on='fov', how='inner')
-
-# print(total_df_morph.metric.unique())
-# morphology_feature_fov_counts = {}
-# for min_cells in min_cell_tests:
-#     filtered_dfs = []
-#     metrics = [['cluster_broad_count', 'cluster_broad_freq'],
-#                ['cluster_count', 'cluster_freq'],
-#                ['meta_cluster_count', 'meta_cluster_freq']]
-#     for metric in metrics:
-#         # subset count df to include cells at the relevant clustering resolution
-#         for compartment in ['all']:
-#             count_df = total_df[total_df.metric == metric[0]]
+#             total_fovs_dropped[metric[1]][min_cells] = {}
+#             count_df = total_df[total_df.metric == metric[1]]
 #             count_df = count_df[count_df.subset == compartment]
+#             all_fovs = count_df.fov.unique()
 
-#             # subset morphology df to only include morphology metrics at this resolution
-#             morph_df = total_df_morph[total_df_morph.metric == metric[1]]
-#             morph_df = morph_df[morph_df.subset == compartment]
-
-#             # for each cell type, determine which FOVs have high enough counts to be included
 #             for cell_type in count_df.cell_type.unique():
 #                 keep_df = count_df[count_df.cell_type == cell_type]
 #                 keep_df = keep_df[keep_df.value >= min_cells]
 #                 keep_fovs = keep_df.fov.unique()
-
-#                 # subset morphology df to only include FOVs with high enough counts
-#                 keep_features = morph_df[morph_df.cell_type == cell_type]
-#                 keep_features = keep_features[keep_features.fov.isin(keep_fovs)]
-
-#                 # append to list of filtered dfs
-#                 filtered_dfs.append(keep_features)
-
-#     filtered_dfs.append(long_df)
-#     filtered_morph_df = pd.concat(filtered_dfs)
-
-#     # # # save filtered df, CHECKPOINT
-#     # # filtered_morph_df.to_csv(os.path.join(output_dir, 'morph_df_per_core_filtered.csv'), index=False)
-#     # results_df.loc["morphology", f"num_fovs_min_cell_{min_cells}"] = len(filtered_morph_df["fov"].unique())
-
-#     # # create version aggregated by timepoint
-#     # filtered_morph_df_grouped = filtered_morph_df.groupby(['Tissue_ID', 'cell_type', 'morphology_feature', 'metric', 'subset'])
-#     # filtered_morph_df_timepoint = filtered_morph_df_grouped['value'].agg([np.mean, np.std])
-#     # filtered_morph_df_timepoint.reset_index(inplace=True)
-#     # filtered_morph_df_timepoint = filtered_morph_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
-
-#     # # # save timepoint df, CHECKPOINT
-#     # # filtered_morph_df_timepoint.to_csv(os.path.join(output_dir, 'morph_df_per_timepoint_filtered.csv'), index=False)
-#     # results_df.loc["morphology", f"num_tissue_ids_min_cell_{min_cells}"] = len(filtered_morph_df_timepoint["Tissue_ID"].unique())
-
-#     # remove redundant morphology features
-#     block1 = ['area', 'major_axis_length', 'minor_axis_length', 'perimeter', 'convex_area', 'equivalent_diameter']
-
-#     block2 = ['area_nuclear', 'major_axis_length_nuclear', 'minor_axis_length_nuclear', 'perimeter_nuclear', 'convex_area_nuclear', 'equivalent_diameter_nuclear']
-
-#     block3 = ['eccentricity', 'major_axis_equiv_diam_ratio']
-
-#     block4 = ['eccentricity_nuclear', 'major_axis_equiv_diam_ratio_nuclear', 'perim_square_over_area_nuclear']
-
-#     deduped_morph_df = filtered_morph_df.loc[~filtered_morph_df.morphology_feature.isin(block1[1:] + block2[1:] + block3[1:] + block4[1:]), :]
-
-#     # only keep complex morphology features for cancer cells, remove everything except area and nc for others
-#     cancer_clusters = ['Cancer', 'Cancer_EMT', 'Cancer_Other', 'Cancer_CD56', 'Cancer_CK17',
-#                        'Cancer_Ecad', 'Cancer_Mono', 'Cancer_SMA', 'Cancer_Vim']
-#     basic_morph_features = ['area', 'area_nuclear', 'nc_ratio']
-
-#     deduped_morph_df = deduped_morph_df.loc[~(~(deduped_morph_df.cell_type.isin(cancer_clusters)) & ~(deduped_morph_df.morphology_feature.isin(basic_morph_features))), :]
-
-#     fovs_per_metric = deduped_morph_df.groupby("metric")["fov"].nunique().reset_index(name="unique_fov_count")
-#     fovs_per_metric["unique_fov_count"] = total_fovs - fovs_per_metric["unique_fov_count"]
-#     morphology_feature_fov_counts[min_cells] = fovs_per_metric.set_index("metric")["unique_fov_count"].to_dict()
-
-#     # # # saved deduped, CHECKPOINT
-#     # # deduped_morph_df.to_csv(os.path.join(output_dir, 'morph_df_per_core_filtered_deduped.csv'), index=False)
-#     # results_df.loc["morphology", f"num_fovs_deduped_min_cell_{min_cells}"] = len(deduped_morph_df["fov"].unique())
-
-#     # # same for timepoints
-#     # deduped_morph_df_timepoint = filtered_morph_df_timepoint.loc[~filtered_morph_df_timepoint.morphology_feature.isin(block1[1:] + block2[1:] + block3[1:] + block4[1:]), :]
-#     # deduped_morph_df_timepoint = deduped_morph_df_timepoint.loc[~(~(deduped_morph_df_timepoint.cell_type.isin(cancer_clusters)) & ~(deduped_morph_df_timepoint.morphology_feature.isin(basic_morph_features))), :]
-
-#     # # save morph timepoint, CHECKPOINT
-#     # # deduped_morph_df_timepoint.to_csv(os.path.join(output_dir, 'morph_df_per_timepoint_filtered_deduped.csv'), index=False)
-#     # results_df.loc["morphology", f"num_tissue_ids_deduped_min_cell_{min_cells}"] = len(deduped_morph_df_timepoint["Tissue_ID"].unique())
-
-# print(morphology_feature_fov_counts)
-
-# # Flattening the dictionary and creating a DataFrame
-# flat_data_morphology = []
-# for min_cells, metrics in morphology_feature_fov_counts.items():
-#     for metric, unique_fov_count in metrics.items():
-#         flat_data_morphology.append((min_cells, unique_fov_count))
-
-# df_morphology_viz = pd.DataFrame(flat_data_morphology, columns=['min_cells', 'unique_fov_count'])
-
-# # Ensuring 'min_cells' is treated as a categorical variable
-# df_morphology_viz['min_cells'] = pd.Categorical(df_morphology_viz['min_cells'])
-
-# # Creating a box plot
-# plt.figure(figsize=(10, 6))
-# ax = sns.boxplot(x='min_cells', y='unique_fov_count', data=df_morphology_viz)
-# plt.title('FOVs Excluded for Morphology Features per min_cells')
-# ax.set_xlabel("min_cells threshold")
-# ax.set_ylabel("FOVs dropped")
-# ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"morph_features_min_cells_boxplot.png",
-#     dpi=300
-# )
-
-# # Creating a violin plot
-# plt.figure(figsize=(10, 6))
-# ax = sns.violinplot(x='min_cells', y='unique_fov_count', data=df_morphology_viz)
-# plt.title('FOVs Excluded for Morphology Features per min_cells')
-# ax.set_xlabel("min_cells threshold")
-# ax.set_ylabel("FOVs dropped")
-# ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"morph_features_min_cells_violinplot.png",
-#     dpi=300
-# )
-
-# ### 2.3: diversity tests
-# print("Starting diversity tests")
-# total_df_diversity = pd.read_csv(os.path.join(OUTPUT_DIR, 'diversity_df_per_core.csv'))
-# print(total_df_diversity.metric.unique())
-# diversity_feature_fov_counts = {}
-# for min_cells in min_cell_tests:
-#     filtered_dfs = []
-#     metrics = [['cluster_broad_count', 'cluster_broad_freq'],
-#                ['cluster_count', 'cluster_freq'],
-#                ['meta_cluster_count', 'meta_cluster_freq']]
-#     for metric in metrics:
-#         # subset count df to include cells at the relevant clustering resolution
-#         for compartment in ['all']:
-#             count_df = total_df[total_df.metric == metric[0]]
-#             count_df = count_df[count_df.subset == compartment]
-
-#             # subset diversity df to only include diversity metrics at this resolution
-#             diversity_df = total_df_diversity[total_df_diversity.metric == metric[1]]
-#             diversity_df = diversity_df[diversity_df.subset == compartment]
-
-#             # for each cell type, determine which FOVs have high enough counts to be included
-#             for cell_type in count_df.cell_type.unique():
-#                 keep_df = count_df[count_df.cell_type == cell_type]
-#                 keep_df = keep_df[keep_df.value >= min_cells]
-#                 keep_fovs = keep_df.fov.unique()
-
-#                 # subset morphology df to only include FOVs with high enough counts
-#                 keep_features = diversity_df[diversity_df.cell_type == cell_type]
-#                 keep_features = keep_features[keep_features.fov.isin(keep_fovs)]
-
-#                 # append to list of filtered dfs
-#                 filtered_dfs.append(keep_features)
-
-#     filtered_diversity_df = pd.concat(filtered_dfs)
-
-#     # # save filtered df, CHECKPOINT
-#     # filtered_diversity_df.to_csv(os.path.join(output_dir, 'diversity_df_per_core_filtered.csv'), index=False)
-
-#     # # create version aggregated by timepoint
-#     # filtered_diversity_df_grouped = filtered_diversity_df.groupby(['Tissue_ID', 'cell_type', 'diversity_feature', 'metric', 'subset'])
-#     # filtered_diversity_df_timepoint = filtered_diversity_df_grouped['value'].agg([np.mean, np.std])
-#     # filtered_diversity_df_timepoint.reset_index(inplace=True)
-#     # filtered_diversity_df_timepoint = filtered_diversity_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
-
-#     # # save timepoint df, CHECKPOINT
-#     # filtered_diversity_df_timepoint.to_csv(os.path.join(output_dir, 'diversity_df_per_timepoint_filtered.csv'), index=False)
-#     # results_df.loc["diversity", f"num_tissue_ids_min_cell_{min_cells}"] = len(filtered_diversity_df_timepoint["Tissue_ID"].unique())
-
-#     # investigate correlation between diversity scores
-#     fov_data = filtered_diversity_df.copy()
-#     fov_data['feature_name_unique'] = fov_data['cell_type'] + '_' + fov_data['diversity_feature']
-#     fov_data = fov_data.loc[(fov_data.subset == 'all') & (fov_data.metric == 'cluster_freq')]
-#     fov_data = fov_data.loc[fov_data.diversity_feature != 'diversity_cell_meta_cluster']
-#     fov_data_wide = fov_data.pivot(index='fov', columns='feature_name_unique', values='value')
-
-#     corr_df = fov_data_wide.corr(method='spearman')
-
-#     # replace Nans
-#     corr_df = corr_df.fillna(0)
-#     clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
-
-#     # save deduped df that excludes cell meta cluster, CHECKPOINT
-#     deduped_diversity_df = filtered_diversity_df.loc[filtered_diversity_df.diversity_feature != 'diversity_cell_meta_cluster']
-
-#     fovs_per_metric = deduped_diversity_df.groupby("metric")["fov"].nunique().reset_index(name="unique_fov_count")
-#     fovs_per_metric["unique_fov_count"] = total_fovs - fovs_per_metric["unique_fov_count"]
-#     diversity_feature_fov_counts[min_cells] = fovs_per_metric.set_index("metric")["unique_fov_count"].to_dict()
-#     # deduped_diversity_df.to_csv(os.path.join(output_dir, 'diversity_df_per_core_filtered_deduped.csv'), index=False)
-#     # results_df.loc["diversity", f"num_fovs_deduped_min_cell_{min_cells}"] = len(deduped_diversity_df["fov"].unique())
-
-#     # # create version aggregated by timepoint
-#     # deduped_diversity_df_grouped = deduped_diversity_df.groupby(['Tissue_ID', 'cell_type', 'diversity_feature', 'metric', 'subset'])
-#     # deduped_diversity_df_timepoint = deduped_diversity_df_grouped['value'].agg([np.mean, np.std])
-#     # deduped_diversity_df_timepoint.reset_index(inplace=True)
-#     # deduped_diversity_df_timepoint = deduped_diversity_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
-
-#     # # # save timepoint df, CHECKPOINT
-#     # # deduped_diversity_df_timepoint.to_csv(os.path.join(output_dir, 'diversity_df_per_timepoint_filtered_deduped.csv'), index=False)
-#     # results_df.loc["diversity", f"num_tissue_ids_deduped_min_cell_{min_cells}"] = len(deduped_diversity_df_timepoint["Tissue_ID"].unique())
-
-# print(diversity_feature_fov_counts)
-
-# # Flattening the dictionary and creating a DataFrame
-# flat_data_diversity = []
-# for min_cells, metrics in diversity_feature_fov_counts.items():
-#     for metric, unique_fov_count in metrics.items():
-#         flat_data_diversity.append((min_cells, unique_fov_count))
-
-# df_diversity_viz = pd.DataFrame(flat_data_diversity, columns=['min_cells', 'unique_fov_count'])
-
-# # Ensuring 'min_cells' is treated as a categorical variable
-# df_diversity_viz['min_cells'] = pd.Categorical(df_diversity_viz['min_cells'])
-
-# # Creating a box plot
-# plt.figure(figsize=(10, 6))
-# ax = sns.boxplot(x='min_cells', y='unique_fov_count', data=df_diversity_viz)
-# plt.title('FOVs Excluded for Diversity Features per min_cells')
-# ax.set_xlabel("min_cells threshold")
-# ax.set_ylabel("FOVs dropped")
-# ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"diversity_features_min_cells_boxplot.png",
-#     dpi=300
-# )
-
-# # Creating a violin plot
-# plt.figure(figsize=(10, 6))
-# ax = sns.violinplot(x='min_cells', y='unique_fov_count', data=df_diversity_viz)
-# plt.title('FOVs Excluded for Diversity Features per min_cells')
-# ax.set_xlabel("min_cells threshold")
-# ax.set_ylabel("FOVs dropped")
-# ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"diversity_features_min_cells_violinplot.png",
-#     dpi=300
-# )
-
-# ### 2.4: distance tests
-# print("Starting distance tests")
-# total_df_distance = pd.read_csv(os.path.join(OUTPUT_DIR, "distance_df_per_core.csv"))
-# print(total_df_distance.metric.unique())
-# distance_feature_fov_counts = {}
-# for min_cells in min_cell_tests:
-#     filtered_dfs = []
-#     metrics = [['cluster_broad_count', 'cluster_broad_freq']]
-
-#     for metric in metrics:
-#         # subset count df to include cells at the relevant clustering resolution
-#         for compartment in ['all']:
-#             count_df = total_df[total_df.metric == metric[0]]
-#             count_df = count_df[count_df.subset == compartment]
-
-#             # subset distance df to only include distance metrics at this resolution
-#             distance_df = total_df_distance[total_df_distance.metric == metric[1]]
-#             distance_df = distance_df[distance_df.subset == compartment]
-
-#             # for each cell type, determine which FOVs have high enough counts to be included
-#             for cell_type in count_df.cell_type.unique():
-#                 keep_df = count_df[count_df.cell_type == cell_type]
-#                 keep_df = keep_df[keep_df.value >= min_cells]
-#                 keep_fovs = keep_df.fov.unique()
-
-#                 # subset morphology df to only include FOVs with high enough counts
-#                 keep_features = distance_df[distance_df.cell_type == cell_type]
-#                 keep_features = keep_features[keep_features.fov.isin(keep_fovs)]
-
-#                 # append to list of filtered dfs
-#                 filtered_dfs.append(keep_features)
-
-#     filtered_distance_df = pd.concat(filtered_dfs)
-
-#     # # # save filtered df, CHECKPOINT
-#     # # filtered_distance_df.to_csv(os.path.join(output_dir, 'distance_df_per_core_filtered.csv'), index=False)
-#     # results_df.loc["distance", f"num_fovs_min_cell_{min_cells}"] = len(filtered_distance_df["fov"].unique())
-
-#     # filter distance df to only include features with low correlation with abundance
-#     keep_df = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'post_processing', 'distance_df_keep_features.csv'))
-
-#     deduped_dfs = []
-#     for cell_type in keep_df.cell_type.unique():
-#         keep_features = keep_df.loc[keep_df.cell_type == cell_type, 'feature_name'].unique()
-#         if len(keep_features) > 0:
-#             keep_df_subset = filtered_distance_df.loc[filtered_distance_df.cell_type == cell_type]
-#             keep_df_subset = keep_df_subset.loc[keep_df_subset.linear_distance.isin(keep_features)]
-#             deduped_dfs.append(keep_df_subset)
-
-#     deduped_distance_df = pd.concat(deduped_dfs)
-
-#     fovs_per_metric = deduped_distance_df.groupby("metric")["fov"].nunique().reset_index(name="unique_fov_count")
-#     fovs_per_metric["unique_fov_count"] = total_fovs - fovs_per_metric["unique_fov_count"]
-#     distance_feature_fov_counts[min_cells] = fovs_per_metric.set_index("metric")["unique_fov_count"].to_dict()
-
-#     # # # save filtered df, CHECKPOINT
-#     # # deduped_distance_df.to_csv(os.path.join(output_dir, 'distance_df_per_core_deduped.csv'), index=False)
-#     # results_df.loc["distance", f"num_fovs_deduped_min_cell_{min_cells}"] = len(deduped_distance_df["Tissue_ID"].unique())
-
-#     # # create version aggregated by timepoint
-#     # deduped_distance_df_grouped = deduped_distance_df.groupby(['Tissue_ID', 'cell_type', 'linear_distance', 'metric', 'subset'])
-#     # deduped_distance_df_timepoint = deduped_distance_df_grouped['value'].agg([np.mean, np.std])
-#     # deduped_distance_df_timepoint.reset_index(inplace=True)
-#     # deduped_distance_df_timepoint = deduped_distance_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
-
-#     # # # save timepoint df, CHECKPOINT
-#     # # deduped_distance_df_timepoint.to_csv(os.path.join(output_dir, 'distance_df_per_timepoint_deduped.csv'), index=False)
-#     # results_df.loc["distance", f"num_tissue_ids_deduped_min_cell_{min_cells}"] = len(filtered_distance_df["fov"].unique())
-
-# print(distance_feature_fov_counts)
-
-# # Flattening the dictionary and creating a DataFrame
-# flat_data_distance = []
-# for min_cells, metrics in distance_feature_fov_counts.items():
-#     for metric, unique_fov_count in metrics.items():
-#         flat_data_distance.append((min_cells, unique_fov_count))
-
-# df_distance_viz = pd.DataFrame(flat_data_distance, columns=['min_cells', 'unique_fov_count'])
-
-# # Ensuring 'min_cells' is treated as a categorical variable
-# df_distance_viz['min_cells'] = pd.Categorical(df_distance_viz['min_cells'])
-
-# # Creating a box plot
-# plt.figure(figsize=(10, 6))
-# ax = sns.boxplot(x='min_cells', y='unique_fov_count', data=df_distance_viz)
-# plt.title('FOVs Excluded for Distance Features per min_cells')
-# ax.set_xlabel("min_cells threshold")
-# ax.set_ylabel("FOVs dropped")
-# ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"distance_features_min_cells_boxplot.png",
-#     dpi=300
-# )
-
-# # Creating a violin plot
-# plt.figure(figsize=(10, 6))
-# ax = sns.violinplot(x='min_cells', y='unique_fov_count', data=df_distance_viz)
-# plt.title('FOVs Excluded for Distance Features per min_cells')
-# ax.set_xlabel("min_cells threshold")
-# ax.set_ylabel("FOVs dropped")
-# ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"distance_features_min_cells_violinplot.png",
-#     dpi=300
-# )
-
-# 3: cancer mask tests
+#                 total_fovs_dropped[metric[1]][min_cells][cell_type] = len(all_fovs) - len(keep_fovs)
+
+#     # Flatten the data
+#     def flatten_data(data, feature_name):
+#         return pd.DataFrame([
+#             {'min_cells': min_cells, 'Number of FOVs dropped': value, 'Feature': feature_name, 'Cell Type': cell_type}
+#             for feature, min_cells_dict in data.items()
+#             for min_cells, cell_types in min_cells_dict.items()
+#             for cell_type, value in cell_types.items()
+#         ])
+
+#     df = pd.concat([
+#         flatten_data({'cluster_broad_count': total_fovs_dropped['cluster_broad_count']}, 'cluster_broad_count')
+#     ])
+
+#     # Create the strip plot
+#     plot = sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Cell Type', data=df, kind='strip', palette='Set2', dodge=False)
+#     plot.fig.subplots_adjust(top=0.9)  # Adjust the top spacing to fit the title
+#     plot.fig.suptitle('Distribution of FOVs dropped across min_cells trials')
+#     plt.savefig(
+#         pathlib.Path(extraction_pipeline_tuning_dir) / f"{compartment}_min_cells_cluster_broad_fovs_dropped_stripplot.png",
+#         dpi=300
+#     )
+
+#     df = pd.concat([
+#         flatten_data({'cluster_count': total_fovs_dropped['cluster_count']}, 'cluster_count'),
+#     ])
+
+#     # Create the strip plot
+#     palette = sns.color_palette("husl", len(df["Cell Type"].unique()))
+#     plot = sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Cell Type', data=df, kind='strip', palette=palette, dodge=False)
+#     plot.fig.subplots_adjust(top=0.9)  # Adjust the top spacing to fit the title
+
+#     plot.fig.suptitle('Distribution of FOVs dropped across min_cells trials')
+#     plt.savefig(
+#         pathlib.Path(extraction_pipeline_tuning_dir) / f"{compartment}_min_cells_cluster_fovs_dropped_stripplot.png",
+#         dpi=300
+#     )
+
+#     df = pd.concat([
+#         flatten_data({'meta_cluster_count': total_fovs_dropped['meta_cluster_count']}, 'meta_cluster_count'),
+#     ])
+
+#     # Create the strip plot
+#     palette = sns.color_palette("husl", len(df["Cell Type"].unique()))
+#     plot = sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Cell Type', data=df, kind='strip', palette=palette, dodge=False)
+#     plot.fig.subplots_adjust(top=0.9)  # Adjust the top spacing to fit the title
+
+#     plot.fig.suptitle('Distribution of FOVs dropped across min_cells trials')
+
+#     # save the figure to save_dir
+#     plt.savefig(
+#         pathlib.Path(extraction_pipeline_tuning_dir) / f"{compartment}_min_cells_meta_cluster_fovs_dropped_stripplot.png",
+#         dpi=300
+#     )
+
+## 3: cancer mask tests
 import utils
 channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
 seg_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
@@ -1492,35 +651,37 @@ cell_table_clusters = pd.read_csv(os.path.join(analysis_dir, 'cell_table_cluster
 folders = list_folders(channel_dir)
 
 cell_mask_sigmas = [0, 5, 10, 15, 20]
-cell_mask_min_mask_sizes = [0, 5, 10, 15, 20]
-cell_mask_max_hole_sizes = [10000, 50000, 100000, 150000, 200000]
+# cell_mask_min_mask_sizes = [0, 5, 10, 15, 20]
+cell_mask_min_mask_sizes = [1, 5, 125, 3125, 15625]
+# cell_mask_max_hole_sizes = [10000, 50000, 100000, 150000, 200000]
+cell_mask_max_hole_sizes = [1, 10, 100, 1000, 10000, 100000, 1000000, 10000000]
 cell_mask_smooth_threshes = [0.1, 0.2, 0.3, 0.4, 0.5]
 
-cell_border_border_sizes = [30, 40, 50, 60, 70]
-cell_border_min_mask_sizes = [2500, 3000, 3500, 4000, 4500]
-cell_border_max_hole_sizes = [100, 1000, 5000, 10000, 15000]
-cell_border_channel_threshes = [0.0005, 0.001, 0.0015, 0.002, 0.0025]
+# cell_border_border_sizes = [30, 40, 50, 60, 70]
+# cell_border_min_mask_sizes = [2500, 3000, 3500, 4000, 4500]
+# cell_border_max_hole_sizes = [100, 1000, 5000, 10000, 15000]
+# cell_border_channel_threshes = [0.0005, 0.001, 0.0015, 0.002, 0.0025]
 
 cell_mask_sigma_data = {s: [] for s in cell_mask_sigmas}
 cell_mask_min_mask_size_data = {mms: [] for mms in cell_mask_min_mask_sizes}
 cell_mask_max_hole_size_data = {mhs: [] for mhs in cell_mask_max_hole_sizes}
 cell_mask_smooth_thresh_data = {st: [] for st in cell_mask_smooth_threshes}
 
-cell_border_border_size_data = {bs: {"full": [], "external": [], "interior": []} for bs in cell_border_border_sizes}
-cell_border_min_mask_size_data = {mms: {"full": [], "external": [], "interior": []} for mms in cell_border_min_mask_sizes}
-cell_border_max_hole_size_data = {mhs: {"full": [], "external": [], "interior": []} for mhs in cell_border_max_hole_sizes}
-cell_border_channel_thresh_data = {ct: {"full": [], "external": [], "interior": []} for ct in cell_border_channel_threshes}
+# cell_border_border_size_data = {bs: {"full": [], "external": [], "interior": []} for bs in cell_border_border_sizes}
+# cell_border_min_mask_size_data = {mms: {"full": [], "external": [], "interior": []} for mms in cell_border_min_mask_sizes}
+# cell_border_max_hole_size_data = {mhs: {"full": [], "external": [], "interior": []} for mhs in cell_border_max_hole_sizes}
+# cell_border_channel_thresh_data = {ct: {"full": [], "external": [], "interior": []} for ct in cell_border_channel_threshes}
 
 i = 0
-# for folder in folders:
-#     ecad = io.imread(os.path.join(channel_dir, folder, 'ECAD.tiff'))
+for folder in folders:
+    ecad = io.imread(os.path.join(channel_dir, folder, 'ECAD.tiff'))
 
     # intermediate_folder = os.path.join(intermediate_dir, folder)
     # if not os.path.exists(intermediate_folder):
     #     os.mkdir(intermediate_folder)
 
     # generate cancer/stroma mask by combining segmentation mask with ECAD channel
-    # seg_label = io.imread(os.path.join(seg_dir, folder + '_whole_cell.tiff'))[0]
+    seg_label = io.imread(os.path.join(seg_dir, folder + '_whole_cell.tiff'))[0]
 
     # # test different create_cell_mask parameters
     # for s in cell_mask_sigmas:
@@ -1528,15 +689,15 @@ i = 0
     #     percent_hit = np.sum(seg_mask) / seg_mask.size
     #     cell_mask_sigma_data[s].append(percent_hit)
 
-    # for mms in cell_mask_min_mask_sizes:
-    #     seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'], min_mask_size=mms)
-    #     percent_hit = np.sum(seg_mask) / seg_mask.size
-    #     cell_mask_min_mask_size_data[mms].append(percent_hit)
+    for mms in cell_mask_min_mask_sizes:
+        seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'], min_mask_size=mms)
+        percent_hit = np.sum(seg_mask) / seg_mask.size
+        cell_mask_min_mask_size_data[mms].append(percent_hit)
 
-    # for mhs in cell_mask_max_hole_sizes:
-    #     seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'], max_hole_size=mhs)
-    #     percent_hit = np.sum(seg_mask) / seg_mask.size
-    #     cell_mask_max_hole_size_data[mhs].append(percent_hit)
+    for mhs in cell_mask_max_hole_sizes:
+        seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'], max_hole_size=mhs)
+        percent_hit = np.sum(seg_mask) / seg_mask.size
+        cell_mask_max_hole_size_data[mhs].append(percent_hit)
 
     # for st in cell_mask_smooth_threshes:
     #     seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'], smooth_thresh=st)
@@ -1594,9 +755,9 @@ i = 0
     #     percent_interior = np.sum(cancer_mask == 3) / cancer_mask.size
     #     cell_border_channel_thresh_data[ct]["interior"].append(percent_interior)
 
-    # i += 1
-    # if i % 10 == 0:
-    #     print(f"Processed {i} folders")
+    i += 1
+    if i % 10 == 0:
+        print(f"Processed {i} folders")
     # cancer_mask = utils.create_cancer_boundary(ecad, seg_mask, min_mask_size=7000)
     # cancer_mask = cancer_mask.astype(np.uint8)
 
@@ -1633,25 +794,25 @@ i = 0
 #     dpi=300
 # )
 
-# # Preparing the data for plotting
-# data = []
-# labels = []
-# for key, values in cell_mask_min_mask_size_data.items():
-#     data.extend(values)
-#     labels.extend([key] * len(values))
+# Preparing the data for plotting
+data = []
+labels = []
+for key, values in cell_mask_min_mask_size_data.items():
+    data.extend(values)
+    labels.extend([key] * len(values))
 
-# # Creating the boxplot
-# plt.figure(figsize=(10, 6))
-# sns.boxplot(x=labels, y=data)
-# plt.title('Distribution of % mask included in cancer across min mask sizes')
-# plt.xlabel('min mask size')
-# plt.ylabel('% of mask included in cancer')
+# Creating the boxplot
+plt.figure(figsize=(10, 6))
+sns.boxplot(x=labels, y=data)
+plt.title('Distribution of % mask included in cancer across min mask sizes')
+plt.xlabel('min mask size')
+plt.ylabel('% of mask included in cancer')
 
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"min_mask_size_cancer_mask_inclusion_box.png",
-#     dpi=300
-# )
+# save the figure to save_dir
+plt.savefig(
+    pathlib.Path(extraction_pipeline_tuning_dir) / f"min_mask_size_cancer_mask_inclusion_box.png",
+    dpi=300
+)
 
 # # Creating the violin plot
 # plt.figure(figsize=(10, 6))
@@ -1666,25 +827,25 @@ i = 0
 #     dpi=300
 # )
 
-# # Preparing the data for plotting
-# data = []
-# labels = []
-# for key, values in cell_mask_max_hole_size_data.items():
-#     data.extend(values)
-#     labels.extend([key] * len(values))
+# Preparing the data for plotting
+data = []
+labels = []
+for key, values in cell_mask_max_hole_size_data.items():
+    data.extend(values)
+    labels.extend([key] * len(values))
 
-# # Creating the boxplot
-# plt.figure(figsize=(10, 6))
-# sns.boxplot(x=labels, y=data)
-# plt.title('Distribution of % mask included in cancer across max hole sizes')
-# plt.xlabel('max hole size')
-# plt.ylabel('% of mask included in cancer')
+# Creating the boxplot
+plt.figure(figsize=(10, 6))
+sns.boxplot(x=labels, y=data)
+plt.title('Distribution of % mask included in cancer across max hole sizes')
+plt.xlabel('max hole size')
+plt.ylabel('% of mask included in cancer')
 
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"max_hole_size_cancer_mask_inclusion_box.png",
-#     dpi=300
-# )
+# save the figure to save_dir
+plt.savefig(
+    pathlib.Path(extraction_pipeline_tuning_dir) / f"max_hole_size_cancer_mask_inclusion_box.png",
+    dpi=300
+)
 
 # # Creating the violin plot
 # plt.figure(figsize=(10, 6))
