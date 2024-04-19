@@ -285,8 +285,15 @@ other_scores_long = other_scores_long.drop(columns=['rna_seq_sample_id'])
 
 # add in RS and cgas scores
 rs_cgas = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/tonic_RS_cGAS_STING_signatures.txt'), sep='\t')
-rs_cgas = rs_cgas.rename(columns={'Sample': 'Experiment.System.ID'})
-# TODO: add in metadata, reformat, once identifiers are here
+rs_cgas = rs_cgas.rename(columns={'Sample': 'Experiment.System.ID', 'RS': 'replication_stress', 'STING': 'cgas_sting'})
+rna_ids = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_tissue_rna_id.tsv'), sep='\t')
+rna_ids = rna_ids.rename(columns={'system_id2': 'Experiment.System.ID'})
+rs_cgas = rs_cgas.merge(rna_ids, on='Experiment.System.ID', how='left')
+rs_cgas = rs_cgas.drop(columns=['Experiment.System.ID', 'sample_identifier'])
+rs_cgas_long = pd.melt(rs_cgas, id_vars=['Tissue_ID'], var_name='feature_name', value_name='feature_value')
+
+rs_cgas_long = rs_cgas_long.merge(harmonized_metadata[['Clinical_benefit', 'Timepoint', 'Patient_ID', 'Tissue_ID']].drop_duplicates(),
+                                    on='Tissue_ID', how='left')
 
 # combine together
 combined_rna_scores = pd.concat([msigdb_scores, other_scores_long, rs_cgas_long])
