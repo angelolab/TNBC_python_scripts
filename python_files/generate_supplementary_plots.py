@@ -1,7 +1,7 @@
 # File with code for generating supplementary plots
 import os
 import random
-
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -18,7 +18,7 @@ import seaborn as sns
 import matplotlib.gridspec as gridspec
 from matplotlib.colors import ListedColormap, Normalize
 
-import supplementary_plot_helpers
+import python_files.supplementary_plot_helpers as supplementary_plot_helpers
 
 ANALYSIS_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files"
 METADATA_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/metadata"
@@ -52,7 +52,20 @@ supplementary_plot_helpers.validate_panel(
 
 
 # ROI selection
+metadata = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/harmonized_metadata.csv')
+metadata = metadata.loc[metadata.MIBI_data_generated, :]
+metadata = metadata.loc[metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
 
+fov_counts = metadata.groupby('Tissue_ID').size().values
+fov_counts = pd.DataFrame(fov_counts, columns=['FOV Count'])
+sns.histplot(data=fov_counts, x='FOV Count')
+sns.despine()
+plt.title("Number of FOVs per Timepoint")
+plt.xlabel("Number of FOVs")
+plt.tight_layout()
+
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR,'hne_core_fov_plots', "fov_counts_per_timepoint.pdf"), dpi=300)
+plt.close()
 
 # QC
 qc_metrics = ["Non-zero mean intensity"]
@@ -366,6 +379,87 @@ cohort_cluster_plot(
     display_fig=False,
 )
 
+## Segmentation Channels and Overlays
+
+cohort_path = Path("/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples")
+seg_dir = Path("/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/")
+
+save_dir = Path(SUPPLEMENTARY_FIG_DIR) / "segmentation_chans_overlays"
+save_dir.mkdir(exist_ok=True, parents=True)
+
+membrane_channels = ["CD14", "CD38", "CD45", "ECAD", "CK17"]
+overlay_channels = ["membrane_channel", "nuclear_channel"]
+
+fovs_mem_markers = [
+    "TONIC_TMA3_R5C2",
+    "TONIC_TMA3_R11C2",
+    "TONIC_TMA10_R3C3",
+    "TONIC_TMA11_R1C6",
+    "TONIC_TMA13_R1C5",
+    "TONIC_TMA16_R12C1",
+    "TONIC_TMA23_R10C2",
+    "TONIC_TMA24_R10C2",
+]
+for fov in fovs_mem_markers:
+    p = supplementary_plot_helpers.MembraneMarkersSegmentationPlot(
+        fov = fov,
+        image_data=cohort_path,
+        segmentation_dir=seg_dir,
+        membrane_channels=membrane_channels,
+        overlay_channels=overlay_channels,
+        q=(0.05, 0.95),
+        clip=False,
+        figsize=(8,4),
+        layout="constrained",
+        image_type="pdf"
+    )
+    p.make_plot(save_dir = save_dir)
+
+fovs_seg = [
+    "TONIC_TMA3_R2C5",
+    "TONIC_TMA4_R10C4",
+    "TONIC_TMA5_R3C4",
+    "TONIC_TMA8_R1C2",
+    "TONIC_TMA9_R4C4",
+    "TONIC_TMA12_R4C1",
+    "TONIC_TMA12_R7C6",
+    "TONIC_TMA18_R4C5",
+    "TONIC_TMA21_R2C1",
+    "TONIC_TMA21_R9C1",
+    "TONIC_TMA23_R1C3",
+    "TONIC_TMA24_R2C6",
+]
+
+for fov in fovs_seg:
+    p = supplementary_plot_helpers.SegmentationOverlayPlot(
+        fov=fov,
+        segmentation_dir=seg_dir,
+        overlay_channels=overlay_channels,
+        q=(0.05, 0.95),
+        figsize=(8, 4),
+        clip=False,
+        layout="constrained",
+        image_type="pdf",
+    )
+    p.make_plot(save_dir = save_dir)
+
+# HnE Core, FOV and Segmentation Overlays
+hne_fovs = [
+    "TONIC_TMA2_R7C4",
+    "TONIC_TMA4_R11C2",
+    "TONIC_TMA4_R12C4",
+    "TONIC_TMA24_R2C3",
+]
+hne_path = Path(SUPPLEMENTARY_FIG_DIR) / "hne_core_fov_plots" / " cores_fov_seg_maps"
+seg_dir = Path("/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/")
+
+save_dir = Path(SUPPLEMENTARY_FIG_DIR) / "hne_core_fov_plots" / "figures"
+save_dir.mkdir(exist_ok=True, parents=True)
+for fov in hne_fovs:
+    supplementary_plot_helpers.CorePlot(
+        fov=fov, hne_path=hne_path, seg_dir=seg_dir
+    ).make_plot(save_dir=save_dir)
+
 # Functional marker thresholding
 cell_table = pd.read_csv(
     os.path.join(ANALYSIS_DIR, "combined_cell_table_normalized_cell_labels_updated.csv")
@@ -501,6 +595,107 @@ supplementary_plot_helpers.functional_marker_thresholding(
 )
 
 
-# Feature extraction
+# False positive analysis
+## Analyse the significance scores of top features after randomization compared to the TONIC data.
+fp_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'false_positive_analysis')
+if not os.path.exists(fp_dir):
+    os.makedirs(fp_dir)
 
+# compute random feature sets
+'''
+combined_df = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features.csv'))
+feature_df = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_ranking.csv'))
+feature_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_metadata.csv'))
 
+repeated_features, repeated_features_num, scores = [], [], []
+overlapping_features, random_top_features = [], []
+
+sample_num = 100
+np.random.seed(13)
+
+for i, seed in enumerate(random.sample(range(1, 2000), sample_num)):
+    print(f'{i+1}/100')
+    intersection_of_features, jaccard_score, top_random_features = random_feature_generation(combined_df, seed, feature_df[:100], feature_metadata)
+
+    shared_df = pd.DataFrame({
+        'random_seed': [seed] * len(intersection_of_features),
+        'repeated_features' : list(intersection_of_features),
+        'jaccard_score': [jaccard_score] * len(intersection_of_features)
+    })
+    overlapping_features.append(shared_df)
+
+    top_random_features['seed'] = seed
+    random_top_features.append(top_random_features)
+
+results = pd.concat(overlapping_features)
+top_features = pd.concat(random_top_features)
+# add TONIC features to data with seed 0
+top_features = pd.concat([top_features, feature_df[:100]])
+top_features['seed'] = top_features['seed'].fillna(0)
+
+results.to_csv(os.path.join(fp_dir, 'overlapping_features.csv'), index=False)
+top_features.to_csv(os.path.join(fp_dir, 'top_features.csv'), index=False)
+'''
+
+top_features = pd.read_csv(os.path.join(fp_dir, 'top_features.csv'))
+results = pd.read_csv(os.path.join(fp_dir, 'overlapping_features.csv'))
+
+avg_scores = top_features[['seed', 'pval', 'log_pval', 'fdr_pval', 'med_diff']].groupby(by='seed').mean()
+avg_scores['abs_med_diff'] = abs(avg_scores['med_diff'])
+top_features['abs_med_diff'] = abs(top_features['med_diff'])
+
+# log p-value & effect size plots
+for name, metric in zip(['Log p-value', 'Effect Size'], ['log_pval', 'abs_med_diff']):
+    # plot metric dist in top features for TONIC data and one random set
+    TONIC = top_features[top_features.seed == 0]
+    random = top_features[top_features.seed == 8]
+    g = sns.distplot(TONIC[metric], kde=True, color='#1f77b4')
+    g = sns.distplot(random[metric], kde=True, color='#ff7f0e')
+    g.set(xlim=(0, None))
+    plt.xlabel(name)
+    plt.title(f"{name} Distribution in TONIC vs a Random")
+    g.legend(labels=["TONIC", "Randomized"])
+    sns.move_legend(g, "upper left", bbox_to_anchor=(0.9, 1))
+    sns.despine()
+    plt.tight_layout()
+    plt.savefig(os.path.join(fp_dir, f"{metric}_dists.pdf"), dpi=300)
+    plt.show()
+
+    # plot average metric across top features for each set
+    g = sns.distplot(avg_scores[metric][1:], kde=True,  color='#ff7f0e')
+    g.axvline(x=avg_scores[metric][0], color='#1f77b4')
+    g.set(xlim=(0, avg_scores[metric][0]*1.2))
+    plt.xlabel(f'Average {name} of Top 100 Features')
+    plt.title(f"Average {name} in TONIC vs Random Sets")
+    g.legend(labels=["Randomized", "TONIC"])
+    sns.move_legend(g, "upper left", bbox_to_anchor=(0.9, 1))
+    sns.despine()
+    plt.tight_layout()
+    plt.savefig(os.path.join(fp_dir, f"{metric}_avg_per_set.pdf"), dpi=300)
+    plt.show()
+
+# general feature overlap plots
+high_features = results.groupby(by='repeated_features').count().sort_values(by='random_seed', ascending=False).reset_index()
+high_features = high_features[high_features.random_seed>3].sort_values(by='random_seed')
+plt.barh(high_features.repeated_features, high_features.random_seed)
+plt.xlabel('How Many Random Sets Contain the Feature')
+plt.title('Repeated Top Features')
+sns.despine()
+plt.savefig(os.path.join(fp_dir, "Repeated_Top_Features.pdf"), dpi=300, bbox_inches='tight')
+plt.show()
+
+repeated_features_num = results.groupby(by='random_seed').count().sort_values(by='repeated_features', ascending=False)
+plt.hist(repeated_features_num.repeated_features)
+plt.xlabel('Number of TONIC Top Features in each Random Set')
+plt.title('Histogram of Overlapping Features')
+sns.despine()
+plt.savefig(os.path.join(fp_dir, f"Histogram_of_Overlapping_Features.pdf"), dpi=300)
+plt.show()
+
+plt.hist(results.jaccard_score, bins=10)
+plt.xlim((0, 0.10))
+plt.title('Histogram of Jaccard Scores')
+sns.despine()
+plt.xlabel('Jaccard Score')
+plt.savefig(os.path.join(fp_dir, "Histogram_of_Jaccard_Scores.pdf"), dpi=300)
+plt.show()
