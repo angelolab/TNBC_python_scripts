@@ -409,4 +409,18 @@ other_rna_features['feature_type'] = 'functional_signature_2'
 
 # combine together
 genomics_feature_df_long_combined = pd.concat([genomics_feature_df_long, RNA_feature_df_long, other_rna_features])
+
+# normalize
+
+# compute z-scores for each feature
+genomics_feature_df_long_combined = genomics_feature_df_long_combined.rename(columns={'feature_value': 'raw_value'})
+genomics_feature_df_wide = genomics_feature_df_long_combined.pivot(index=['Tissue_ID'], columns='feature_name', values='raw_value')
+zscore_df = (genomics_feature_df_wide - genomics_feature_df_wide.mean()) / genomics_feature_df_wide.std()
+
+# add z-scores to original df
+zscore_df = zscore_df.reset_index()
+zscore_df_long = pd.melt(zscore_df, id_vars='Tissue_ID', var_name='feature_name', value_name='normalized_value')
+genomics_feature_df_long_combined = pd.merge(genomics_feature_df_long_combined, zscore_df_long, on=['Tissue_ID', 'feature_name'], how='left')
+
+
 genomics_feature_df_long_combined.to_csv(os.path.join(sequence_dir, 'processed_genomics_features.csv'), index=False)
