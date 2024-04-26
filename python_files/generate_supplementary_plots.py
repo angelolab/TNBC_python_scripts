@@ -9,7 +9,7 @@ import pandas as pd
 import matplotlib
 import skimage.io as io
 from ark.utils.plot_utils import cohort_cluster_plot
-from toffy import qc_comp, qc_metrics_plots
+# from toffy import qc_comp, qc_metrics_plots
 from alpineer import io_utils
 
 from scipy.ndimage import gaussian_filter
@@ -31,319 +31,321 @@ ANALYSIS_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files"
 INTERMEDIATE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files"
 OUTPUT_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/output_files"
 SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
+CHANNEL_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
+SEG_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
 
 
-# Panel validation
-panel_validation_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "panel_validation")
-if not os.path.exists(panel_validation_viz_dir):
-    os.makedirs(panel_validation_viz_dir)
+# # Panel validation
+# panel_validation_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "panel_validation")
+# if not os.path.exists(panel_validation_viz_dir):
+#     os.makedirs(panel_validation_viz_dir)
 
-controls_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/controls"
-controls_fov = "TONIC_TMA1_colon_bottom"
-supplementary_plot_helpers.validate_panel(
-    controls_dir, controls_fov, panel_validation_viz_dir, font_size=180
-)
+# controls_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/controls"
+# controls_fov = "TONIC_TMA1_colon_bottom"
+# supplementary_plot_helpers.validate_panel(
+#     controls_dir, controls_fov, panel_validation_viz_dir, font_size=180
+# )
 
-samples_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"
-samples_fov = "TONIC_TMA2_R5C4"
-samples_channels = sorted(io_utils.remove_file_extensions(
-    io_utils.list_files(os.path.join(samples_dir, samples_fov), substrs=".tiff")
-))
-exclude_chans = ["CD11c_nuc_exclude", "CK17_smoothed", "ECAD_smoothed", "FOXP3_nuc_include",
-                 "chan_39", "chan_45", "chan_48", "chan_115", "chan_141"]
-for ec in exclude_chans:
-    if ec in samples_channels:
-        samples_channels.remove(ec)
-supplementary_plot_helpers.validate_panel(
-    samples_dir, samples_fov, panel_validation_viz_dir, channels=samples_channels, font_size=320
-)
-
-
-# ROI selection
+# samples_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"
+# samples_fov = "TONIC_TMA2_R5C4"
+# samples_channels = sorted(io_utils.remove_file_extensions(
+#     io_utils.list_files(os.path.join(samples_dir, samples_fov), substrs=".tiff")
+# ))
+# exclude_chans = ["CD11c_nuc_exclude", "CK17_smoothed", "ECAD_smoothed", "FOXP3_nuc_include",
+#                  "chan_39", "chan_45", "chan_48", "chan_115", "chan_141"]
+# for ec in exclude_chans:
+#     if ec in samples_channels:
+#         samples_channels.remove(ec)
+# supplementary_plot_helpers.validate_panel(
+#     samples_dir, samples_fov, panel_validation_viz_dir, channels=samples_channels, font_size=320
+# )
 
 
-# QC
-qc_metrics = ["Non-zero mean intensity"]
-channel_exclude = ["chan_39", "chan_45", "CD11c_nuc_exclude", "CD11c_nuc_exclude_update",
-                   "FOXP3_nuc_include", "FOXP3_nuc_include_update", "CK17_smoothed",
-                   "FOXP3_nuc_exclude_update", "chan_48", "chan_141", "chan_115", "LAG3"]
-
-## FOV spatial location
-cohort_path = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"
-qc_tma_metrics_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/qc_metrics/qc_tma_metrics"
-if not os.path.exists(qc_tma_metrics_dir):
-    os.makedirs(qc_tma_metrics_dir)
-
-fovs = io_utils.list_folders(cohort_path)
-tmas = list(set([fov.split('_R')[0] for fov in fovs]))
-
-qc_tmas = qc_comp.QCTMA(
-    qc_metrics=qc_metrics,
-    cohort_path=cohort_path,
-    metrics_dir=qc_tma_metrics_dir,
-)
-
-qc_tmas.compute_qc_tma_metrics(tmas=tmas)
-qc_tmas.qc_tma_metrics_zscore(tmas=tmas, channel_exclude=channel_exclude)
-qc_metrics_plots.qc_tmas_metrics_plot(qc_tmas=qc_tmas, tmas=tmas, save_figure=True, dpi=300)
-
-## longitudinal controls
-control_path = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/controls"
-qc_control_metrics_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/qc_metrics/qc_longitudinal_control"
-if not os.path.exists(qc_control_metrics_dir):
-    os.makedirs(qc_control_metrics_dir)
-
-folders = io_utils.list_folders(control_path, "TMA3_")
-control_substrs = [name.split("_")[2] + '_' + name.split("_")[3] if len(name.split("_")) == 4
-                   else name.split("_")[2] + '_' + name.split("_")[3]+'_' + name.split("_")[4]
-                   for name in folders]
-
-all_folders = io_utils.list_folders(control_path)
-for i, control in enumerate(control_substrs):
-    control_sample_name = control
-    print(control)
-    if control == 'tonsil_bottom':
-        fovs = [folder for folder in all_folders if control in folder and len(folder) <= 25]
-    else:
-        fovs = [folder for folder in all_folders if control in folder]
-
-    qc_control = qc_comp.QCControlMetrics(
-        qc_metrics=qc_metrics,
-        cohort_path=control_path,
-        metrics_dir=qc_control_metrics_dir,
-    )
-
-    qc_control.compute_control_qc_metrics(
-        control_sample_name=control_sample_name,
-        fovs=fovs,
-        channel_exclude=channel_exclude,
-        channel_include=None,
-    )
-
-    qc_metrics_plots.longitudinal_control_heatmap(
-        qc_control=qc_control, control_sample_name=control_sample_name, save_figure=True, dpi=300
-    )
-
-dfs = []
-for control in control_substrs:
-    df = pd.read_csv(os.path.join(qc_control_metrics_dir, f"{control}_combined_nonzero_mean_stats.csv"))
-    df['fov'] = [i.replace('_' + control, '') for i in list(df['fov'])]
-    log2_norm_df: pd.DataFrame = df.pivot(
-        index="channel", columns="fov", values="Non-zero mean intensity"
-    ).transform(func=lambda row: np.log2(row / row.mean()), axis=1)
-    if control != 'tonsil_bottom_duplicate1':
-        dup_col = [col for col in log2_norm_df.columns if 'duplicate1' in col]
-        log2_norm_df = log2_norm_df.drop(columns=dup_col) if dup_col else log2_norm_df
-
-    mean_t_df: pd.DataFrame = (
-        log2_norm_df.mean(axis=0)
-        .to_frame(name="mean")
-        .transpose()
-        .sort_values(by="mean", axis=1)
-    )
-    transformed_df: pd.DataFrame = pd.concat(
-        objs=[log2_norm_df, mean_t_df]
-    ).sort_values(by="mean", axis=1, inplace=False)
-    transformed_df.rename_axis("channel", axis=0, inplace=True)
-    transformed_df.rename_axis("fov", axis=1, inplace=True)
-
-    dfs.append(transformed_df)
-all_data = pd.concat(dfs).replace([np.inf, -np.inf], 0, inplace=True)
-all_data = all_data.groupby(['channel']).mean()
-all_data = all_data.sort_values(by="mean", axis=1, inplace=False).round(2)
+# # ROI selection
 
 
-fig = plt.figure(figsize=(12,12), dpi=300)
-fig.set_layout_engine(layout="constrained")
-gs = gridspec.GridSpec(nrows=2, ncols=1, figure=fig, height_ratios=[len(all_data.index) - 1, 1])
-_norm = Normalize(vmin=-1, vmax=1)
-_cmap = sns.color_palette("vlag", as_cmap=True)
-fig.suptitle(f"Average per TMA - QC: Non-zero Mean Intensity ")
+# # QC
+# qc_metrics = ["Non-zero mean intensity"]
+# channel_exclude = ["chan_39", "chan_45", "CD11c_nuc_exclude", "CD11c_nuc_exclude_update",
+#                    "FOXP3_nuc_include", "FOXP3_nuc_include_update", "CK17_smoothed",
+#                    "FOXP3_nuc_exclude_update", "chan_48", "chan_141", "chan_115", "LAG3"]
 
-annotation_kws = {
-    "horizontalalignment": "center",
-    "verticalalignment": "center",
-    "fontsize": 8,
-}
+# ## FOV spatial location
+# cohort_path = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"
+# qc_tma_metrics_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/qc_metrics/qc_tma_metrics"
+# if not os.path.exists(qc_tma_metrics_dir):
+#     os.makedirs(qc_tma_metrics_dir)
 
-ax_heatmap = fig.add_subplot(gs[0, 0])
-sns.heatmap(
-    data=all_data[~all_data.index.isin(["mean"])],
-    ax=ax_heatmap,
-    linewidths=1,
-    linecolor="black",
-    cbar_kws={"shrink": 0.5},
-    annot=True,
-    annot_kws=annotation_kws,
-    xticklabels=False,
-    norm=_norm,
-    cmap=_cmap,
-)
+# fovs = io_utils.list_folders(cohort_path)
+# tmas = list(set([fov.split('_R')[0] for fov in fovs]))
 
-ax_heatmap.collections[0].colorbar.ax.set_title(r"$\log_2(QC)$")
-ax_heatmap.set_yticks(
-    ticks=ax_heatmap.get_yticks(),
-    labels=ax_heatmap.get_yticklabels(),
-    rotation=0,
-)
-ax_heatmap.set_xlabel(None)
+# qc_tmas = qc_comp.QCTMA(
+#     qc_metrics=qc_metrics,
+#     cohort_path=cohort_path,
+#     metrics_dir=qc_tma_metrics_dir,
+# )
 
-ax_avg = fig.add_subplot(gs[1, 0])
-sns.heatmap(
-    data=all_data[all_data.index.isin(["mean"])],
-    ax=ax_avg,
-    linewidths=1,
-    linecolor="black",
-    annot=True,
-    annot_kws=annotation_kws,
-    fmt=".2f",
-    cmap=ListedColormap(["white"]),
-    cbar=False,
-)
-ax_avg.set_yticks(
-    ticks=ax_avg.get_yticks(),
-    labels=["Mean"],
-    rotation=0,
-)
-ax_avg.set_xticks(
-    ticks=ax_avg.get_xticks(),
-    labels=ax_avg.get_xticklabels(),
-    rotation=45,
-    ha="right",
-    rotation_mode="anchor",
-)
-ax_heatmap.set_ylabel("Channel")
-ax_avg.set_xlabel("FOV")
+# qc_tmas.compute_qc_tma_metrics(tmas=tmas)
+# qc_tmas.qc_tma_metrics_zscore(tmas=tmas, channel_exclude=channel_exclude)
+# qc_metrics_plots.qc_tmas_metrics_plot(qc_tmas=qc_tmas, tmas=tmas, save_figure=True, dpi=300)
 
-fig.savefig(fname=os.path.join(qc_control_metrics_dir, "figures/log2_avgs.png"), dpi=300,
-            bbox_inches="tight")
+# ## longitudinal controls
+# control_path = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/controls"
+# qc_control_metrics_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/qc_metrics/qc_longitudinal_control"
+# if not os.path.exists(qc_control_metrics_dir):
+#     os.makedirs(qc_control_metrics_dir)
+
+# folders = io_utils.list_folders(control_path, "TMA3_")
+# control_substrs = [name.split("_")[2] + '_' + name.split("_")[3] if len(name.split("_")) == 4
+#                    else name.split("_")[2] + '_' + name.split("_")[3]+'_' + name.split("_")[4]
+#                    for name in folders]
+
+# all_folders = io_utils.list_folders(control_path)
+# for i, control in enumerate(control_substrs):
+#     control_sample_name = control
+#     print(control)
+#     if control == 'tonsil_bottom':
+#         fovs = [folder for folder in all_folders if control in folder and len(folder) <= 25]
+#     else:
+#         fovs = [folder for folder in all_folders if control in folder]
+
+#     qc_control = qc_comp.QCControlMetrics(
+#         qc_metrics=qc_metrics,
+#         cohort_path=control_path,
+#         metrics_dir=qc_control_metrics_dir,
+#     )
+
+#     qc_control.compute_control_qc_metrics(
+#         control_sample_name=control_sample_name,
+#         fovs=fovs,
+#         channel_exclude=channel_exclude,
+#         channel_include=None,
+#     )
+
+#     qc_metrics_plots.longitudinal_control_heatmap(
+#         qc_control=qc_control, control_sample_name=control_sample_name, save_figure=True, dpi=300
+#     )
+
+# dfs = []
+# for control in control_substrs:
+#     df = pd.read_csv(os.path.join(qc_control_metrics_dir, f"{control}_combined_nonzero_mean_stats.csv"))
+#     df['fov'] = [i.replace('_' + control, '') for i in list(df['fov'])]
+#     log2_norm_df: pd.DataFrame = df.pivot(
+#         index="channel", columns="fov", values="Non-zero mean intensity"
+#     ).transform(func=lambda row: np.log2(row / row.mean()), axis=1)
+#     if control != 'tonsil_bottom_duplicate1':
+#         dup_col = [col for col in log2_norm_df.columns if 'duplicate1' in col]
+#         log2_norm_df = log2_norm_df.drop(columns=dup_col) if dup_col else log2_norm_df
+
+#     mean_t_df: pd.DataFrame = (
+#         log2_norm_df.mean(axis=0)
+#         .to_frame(name="mean")
+#         .transpose()
+#         .sort_values(by="mean", axis=1)
+#     )
+#     transformed_df: pd.DataFrame = pd.concat(
+#         objs=[log2_norm_df, mean_t_df]
+#     ).sort_values(by="mean", axis=1, inplace=False)
+#     transformed_df.rename_axis("channel", axis=0, inplace=True)
+#     transformed_df.rename_axis("fov", axis=1, inplace=True)
+
+#     dfs.append(transformed_df)
+# all_data = pd.concat(dfs).replace([np.inf, -np.inf], 0, inplace=True)
+# all_data = all_data.groupby(['channel']).mean()
+# all_data = all_data.sort_values(by="mean", axis=1, inplace=False).round(2)
 
 
-# Image processing
-## show a run with images stitched in acquisition order pre- and post-normalization
-acquisition_order_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "acquisition_order")
-if not os.path.exists(acquisition_order_viz_dir):
-    os.makedirs(acquisition_order_viz_dir)
+# fig = plt.figure(figsize=(12,12), dpi=300)
+# fig.set_layout_engine(layout="constrained")
+# gs = gridspec.GridSpec(nrows=2, ncols=1, figure=fig, height_ratios=[len(all_data.index) - 1, 1])
+# _norm = Normalize(vmin=-1, vmax=1)
+# _cmap = sns.color_palette("vlag", as_cmap=True)
+# fig.suptitle(f"Average per TMA - QC: Non-zero Mean Intensity ")
 
-run_name = "2022-01-14_TONIC_TMA2_run1"
-pre_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/rosetta"
-post_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/normalized"
-save_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
+# annotation_kws = {
+#     "horizontalalignment": "center",
+#     "verticalalignment": "center",
+#     "fontsize": 8,
+# }
 
-# NOTE: image not scaled up, this happens in Photoshop
-supplementary_plot_helpers.stitch_before_after_norm(
-    pre_norm_dir, post_norm_dir, acquisition_order_viz_dir, run_name,
-    "H3K9ac", pre_norm_subdir="normalized", padding=0, step=1
-)
+# ax_heatmap = fig.add_subplot(gs[0, 0])
+# sns.heatmap(
+#     data=all_data[~all_data.index.isin(["mean"])],
+#     ax=ax_heatmap,
+#     linewidths=1,
+#     linecolor="black",
+#     cbar_kws={"shrink": 0.5},
+#     annot=True,
+#     annot_kws=annotation_kws,
+#     xticklabels=False,
+#     norm=_norm,
+#     cmap=_cmap,
+# )
+
+# ax_heatmap.collections[0].colorbar.ax.set_title(r"$\log_2(QC)$")
+# ax_heatmap.set_yticks(
+#     ticks=ax_heatmap.get_yticks(),
+#     labels=ax_heatmap.get_yticklabels(),
+#     rotation=0,
+# )
+# ax_heatmap.set_xlabel(None)
+
+# ax_avg = fig.add_subplot(gs[1, 0])
+# sns.heatmap(
+#     data=all_data[all_data.index.isin(["mean"])],
+#     ax=ax_avg,
+#     linewidths=1,
+#     linecolor="black",
+#     annot=True,
+#     annot_kws=annotation_kws,
+#     fmt=".2f",
+#     cmap=ListedColormap(["white"]),
+#     cbar=False,
+# )
+# ax_avg.set_yticks(
+#     ticks=ax_avg.get_yticks(),
+#     labels=["Mean"],
+#     rotation=0,
+# )
+# ax_avg.set_xticks(
+#     ticks=ax_avg.get_xticks(),
+#     labels=ax_avg.get_xticklabels(),
+#     rotation=45,
+#     ha="right",
+#     rotation_mode="anchor",
+# )
+# ax_heatmap.set_ylabel("Channel")
+# ax_avg.set_xlabel("FOV")
+
+# fig.savefig(fname=os.path.join(qc_control_metrics_dir, "figures/log2_avgs.png"), dpi=300,
+#             bbox_inches="tight")
 
 
-# Cell identification and classification
-cell_table = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/cell_table_clusters.csv')
-cluster_order = {'Cancer': 0, 'Cancer_EMT': 1, 'Cancer_Other': 2, 'CD4T': 3, 'CD8T': 4, 'Treg': 5,
-                 'T_Other': 6, 'B': 7, 'NK': 8, 'M1_Mac': 9, 'M2_Mac': 10, 'Mac_Other': 11,
-                 'Monocyte': 12, 'APC': 13, 'Mast': 14, 'Neutrophil': 15, 'Fibroblast': 16,
-                 'Stroma': 17, 'Endothelium': 18, 'Other': 19, 'Immune_Other': 20}
-cell_table = cell_table.sort_values(by=['cell_cluster'], key=lambda x: x.map(cluster_order))
+# # Image processing
+# ## show a run with images stitched in acquisition order pre- and post-normalization
+# acquisition_order_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "acquisition_order")
+# if not os.path.exists(acquisition_order_viz_dir):
+#     os.makedirs(acquisition_order_viz_dir)
 
-save_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs'
+# run_name = "2022-01-14_TONIC_TMA2_run1"
+# pre_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/rosetta"
+# post_norm_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/normalized"
+# save_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
 
-## cell cluster counts
-sns.histplot(data=cell_table, x="cell_cluster")
-sns.despine()
-plt.title("Cell Cluster Counts")
-plt.xlabel("Cell Cluster")
-plt.xticks(rotation=75)
-plt.tight_layout()
-plt.savefig(os.path.join(save_dir, "cells_per_cluster.png"), dpi=300)
+# # NOTE: image not scaled up, this happens in Photoshop
+# supplementary_plot_helpers.stitch_before_after_norm(
+#     pre_norm_dir, post_norm_dir, acquisition_order_viz_dir, run_name,
+#     "H3K9ac", pre_norm_subdir="normalized", padding=0, step=1
+# )
 
-## fov cell counts
-cluster_counts = np.unique(cell_table.fov, return_counts=True)[1]
-plt.figure(figsize=(8, 6))
-g = sns.histplot(data=cluster_counts, kde=True)
-sns.despine()
-plt.title("Histogram of Cell Counts per Image")
-plt.xlabel("Number of Cells in an Image")
-plt.tight_layout()
-plt.savefig(os.path.join(save_dir, "cells_per_fov.png"), dpi=300)
 
-## cell type composition by tissue location of met and timepoint
-meta_data = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/harmonized_metadata.csv')
-meta_data = meta_data[['fov', 'Patient_ID', 'Timepoint', 'Localization']]
+# # Cell identification and classification
+# cell_table = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/cell_table_clusters.csv')
+# cluster_order = {'Cancer': 0, 'Cancer_EMT': 1, 'Cancer_Other': 2, 'CD4T': 3, 'CD8T': 4, 'Treg': 5,
+#                  'T_Other': 6, 'B': 7, 'NK': 8, 'M1_Mac': 9, 'M2_Mac': 10, 'Mac_Other': 11,
+#                  'Monocyte': 12, 'APC': 13, 'Mast': 14, 'Neutrophil': 15, 'Fibroblast': 16,
+#                  'Stroma': 17, 'Endothelium': 18, 'Other': 19, 'Immune_Other': 20}
+# cell_table = cell_table.sort_values(by=['cell_cluster'], key=lambda x: x.map(cluster_order))
 
-all_data = cell_table.merge(meta_data, on=['fov'], how='left')
+# save_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs'
 
-for metric in ['Localization', 'Timepoint']:
-    data = all_data[all_data.Timepoint == 'baseline'] if metric == 'Localization' else all_data
+# ## cell cluster counts
+# sns.histplot(data=cell_table, x="cell_cluster")
+# sns.despine()
+# plt.title("Cell Cluster Counts")
+# plt.xlabel("Cell Cluster")
+# plt.xticks(rotation=75)
+# plt.tight_layout()
+# plt.savefig(os.path.join(save_dir, "cells_per_cluster.png"), dpi=300)
 
-    groups = np.unique(data.Localization) if metric == 'Localization' else \
-        ['primary', 'baseline', 'post_induction', 'on_nivo']
-    dfs = []
-    for group in groups:
-        sub_data = data[data[metric] == group]
+# ## fov cell counts
+# cluster_counts = np.unique(cell_table.fov, return_counts=True)[1]
+# plt.figure(figsize=(8, 6))
+# g = sns.histplot(data=cluster_counts, kde=True)
+# sns.despine()
+# plt.title("Histogram of Cell Counts per Image")
+# plt.xlabel("Number of Cells in an Image")
+# plt.tight_layout()
+# plt.savefig(os.path.join(save_dir, "cells_per_fov.png"), dpi=300)
 
-        df = sub_data.groupby("cell_cluster_broad").count().reset_index()
-        df = df.set_index('cell_cluster_broad').transpose()
-        sub_df = df.iloc[:1].reset_index(drop=True)
-        sub_df.insert(0, metric, [group])
-        sub_df[metric] = sub_df[metric].map(str)
-        sub_df = sub_df.set_index(metric)
+# ## cell type composition by tissue location of met and timepoint
+# meta_data = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/harmonized_metadata.csv')
+# meta_data = meta_data[['fov', 'Patient_ID', 'Timepoint', 'Localization']]
 
-        dfs.append(sub_df)
-    prop_data = pd.concat(dfs).transform(func=lambda row: row / row.sum(), axis=1)
+# all_data = cell_table.merge(meta_data, on=['fov'], how='left')
 
-    color_map = {'Cancer': 'dimgrey', 'Stroma': 'darksalmon', 'T': 'navajowhite',
-                 'Mono_Mac': 'red', 'B': 'darkviolet', 'Other': 'yellowgreen',
-                 'Granulocyte': 'aqua', 'NK': 'dodgerblue'}
+# for metric in ['Localization', 'Timepoint']:
+#     data = all_data[all_data.Timepoint == 'baseline'] if metric == 'Localization' else all_data
 
-    means = prop_data.mean(axis=0).reset_index()
-    means = means.sort_values(by=[0], ascending=False)
-    prop_data = prop_data[means.cell_cluster_broad]
+#     groups = np.unique(data.Localization) if metric == 'Localization' else \
+#         ['primary', 'baseline', 'post_induction', 'on_nivo']
+#     dfs = []
+#     for group in groups:
+#         sub_data = data[data[metric] == group]
 
-    colors = [color_map[cluster] for cluster in means.cell_cluster_broad]
-    prop_data.plot(kind='bar', stacked=True, color=colors)
-    sns.despine()
-    plt.ticklabel_format(style='plain', useOffset=False, axis='y')
-    plt.gca().set_ylabel("Cell Proportions")
-    xlabel = "Tissue Location" if metric == 'Localization' else "Timepoint"
-    plt.gca().set_xlabel(xlabel)
-    plt.xticks(rotation=30)
-    plt.title(f"Cell Type Composition by {xlabel}")
-    handles, labels = plt.gca().get_legend_handles_labels()
-    plt.legend(handles[::-1], labels[::-1],
-               bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0)
-    plt.tight_layout()
-    plot_name = "cell_props_by_tissue_loc.png" if metric == 'Localization' else "cell_props_by_timepoint.png"
-    plt.savefig(os.path.join(save_dir, plot_name), dpi=300)
+#         df = sub_data.groupby("cell_cluster_broad").count().reset_index()
+#         df = df.set_index('cell_cluster_broad').transpose()
+#         sub_df = df.iloc[:1].reset_index(drop=True)
+#         sub_df.insert(0, metric, [group])
+#         sub_df[metric] = sub_df[metric].map(str)
+#         sub_df = sub_df.set_index(metric)
 
-## colored cell cluster masks from random subset of 20 FOVs
-random.seed(13)
-seg_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
+#         dfs.append(sub_df)
+#     prop_data = pd.concat(dfs).transform(func=lambda row: row / row.sum(), axis=1)
 
-all_fovs = list(cell_table['fov'].unique())
-fovs = random.sample(all_fovs, 20)
-cell_table_subset = cell_table[cell_table.fov.isin(fovs)]
+#     color_map = {'Cancer': 'dimgrey', 'Stroma': 'darksalmon', 'T': 'navajowhite',
+#                  'Mono_Mac': 'red', 'B': 'darkviolet', 'Other': 'yellowgreen',
+#                  'Granulocyte': 'aqua', 'NK': 'dodgerblue'}
 
-cohort_cluster_plot(
-    fovs=fovs,
-    seg_dir=seg_dir,
-    save_dir=save_dir,
-    cell_data=cell_table_subset,
-    erode=True,
-    fov_col='fov',
-    label_col='label',
-    cluster_col='cell_cluster_broad',
-    seg_suffix="_whole_cell.tiff",
-    cmap=color_map,
-    display_fig=False,
-)
+#     means = prop_data.mean(axis=0).reset_index()
+#     means = means.sort_values(by=[0], ascending=False)
+#     prop_data = prop_data[means.cell_cluster_broad]
 
-# Functional marker thresholding
-cell_table = pd.read_csv(
-    os.path.join(ANALYSIS_DIR, "combined_cell_table_normalized_cell_labels_updated.csv")
-)
-functional_marker_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "functional_marker_dist_thresholds_test")
-if not os.path.exists(functional_marker_viz_dir):
-    os.makedirs(functional_marker_viz_dir)
+#     colors = [color_map[cluster] for cluster in means.cell_cluster_broad]
+#     prop_data.plot(kind='bar', stacked=True, color=colors)
+#     sns.despine()
+#     plt.ticklabel_format(style='plain', useOffset=False, axis='y')
+#     plt.gca().set_ylabel("Cell Proportions")
+#     xlabel = "Tissue Location" if metric == 'Localization' else "Timepoint"
+#     plt.gca().set_xlabel(xlabel)
+#     plt.xticks(rotation=30)
+#     plt.title(f"Cell Type Composition by {xlabel}")
+#     handles, labels = plt.gca().get_legend_handles_labels()
+#     plt.legend(handles[::-1], labels[::-1],
+#                bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0)
+#     plt.tight_layout()
+#     plot_name = "cell_props_by_tissue_loc.png" if metric == 'Localization' else "cell_props_by_timepoint.png"
+#     plt.savefig(os.path.join(save_dir, plot_name), dpi=300)
+
+# ## colored cell cluster masks from random subset of 20 FOVs
+# random.seed(13)
+# seg_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
+
+# all_fovs = list(cell_table['fov'].unique())
+# fovs = random.sample(all_fovs, 20)
+# cell_table_subset = cell_table[cell_table.fov.isin(fovs)]
+
+# cohort_cluster_plot(
+#     fovs=fovs,
+#     seg_dir=seg_dir,
+#     save_dir=save_dir,
+#     cell_data=cell_table_subset,
+#     erode=True,
+#     fov_col='fov',
+#     label_col='label',
+#     cluster_col='cell_cluster_broad',
+#     seg_suffix="_whole_cell.tiff",
+#     cmap=color_map,
+#     display_fig=False,
+# )
+
+# # Functional marker thresholding
+# cell_table = pd.read_csv(
+#     os.path.join(ANALYSIS_DIR, "combined_cell_table_normalized_cell_labels_updated.csv")
+# )
+# functional_marker_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "functional_marker_dist_thresholds_test")
+# if not os.path.exists(functional_marker_viz_dir):
+#     os.makedirs(functional_marker_viz_dir)
 
 marker_info = {
     "Ki67": {
@@ -466,10 +468,10 @@ marker_info = {
         "x_tick_labels": np.array([0, 0.1, 0.2, 0.3]),
     }
 }
-supplementary_plot_helpers.functional_marker_thresholding(
-    cell_table, functional_marker_viz_dir, marker_info=marker_info,
-    figsize=(20, 40)
-)
+# supplementary_plot_helpers.functional_marker_thresholding(
+#     cell_table, functional_marker_viz_dir, marker_info=marker_info,
+#     figsize=(20, 40)
+# )
 
 
 # Feature extraction
@@ -502,6 +504,7 @@ for marker in marker_info:
             )
         }
 
+# # plot the num positive cells normalized by 1x per marker
 # fig = plt.figure()
 # ax = fig.add_subplot(1, 1, 1)
 # threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
@@ -526,6 +529,7 @@ for marker in marker_info:
 #     dpi=300
 # )
 
+# plot the raw num positive cells per marker
 fig = plt.figure()
 ax = fig.add_subplot(1, 1, 1)
 threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
@@ -561,10 +565,12 @@ metrics = [['cluster_broad_count', 'cluster_broad_freq'],
            ['cluster_count', 'cluster_freq'],
            ['meta_cluster_count', 'meta_cluster_freq']]
 
+# while we collect all the metrics, we're only interested in visualizing for cluster_broad_count
 for metric in metrics:
     total_fovs_dropped[metric[0]] = {}
     total_fovs_dropped[metric[1]] = {}
 
+# visualize just the all compartment for now, can be extended to include other compartments
 for compartment in ['all']:
     for min_cells in min_cell_tests:
         for metric in metrics:
@@ -590,6 +596,7 @@ for compartment in ['all']:
                 keep_fovs = keep_df.fov.unique()
                 total_fovs_dropped[metric[1]][min_cells][cell_type] = len(all_fovs) - len(keep_fovs)
 
+    # visualize a strip plot of FOVs dropped per min_cell test per cluster broad assignment
     fovs_dropped_dict = {"cluster_broad_count": total_fovs_dropped["cluster_broad_count"]}
     df = pd.DataFrame(
         [
@@ -610,13 +617,8 @@ for compartment in ['all']:
 
 ## 3: cancer mask tests
 ## 3.1: cancer mask inclusion tests
-channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
-seg_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
-mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/mask_dir/'
-analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
-cell_table_clusters = pd.read_csv(os.path.join(analysis_dir, 'cell_table_clusters.csv'))
-
-folders = list_folders(channel_dir)
+cell_table_clusters = pd.read_csv(os.path.join(ANALYSIS_DIR, 'cell_table_clusters.csv'))
+folders = list_folders(CHANNEL_DIR)
 
 threshold_mults = [1/4, 1/2, 3/4, 7/8, 1, 8/7, 4/3, 2, 4]
 threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
@@ -632,10 +634,10 @@ cell_boundary_channel_thresh_data = {ct: [] for ct in cell_boundary_channel_thre
 
 i = 0
 for folder in folders:
-    ecad = io.imread(os.path.join(channel_dir, folder, 'ECAD.tiff'))
+    ecad = io.imread(os.path.join(CHANNEL_DIR, folder, 'ECAD.tiff'))
 
     # generate cancer/stroma mask by combining segmentation mask with ECAD channel
-    seg_label = io.imread(os.path.join(seg_dir, folder + '_whole_cell.tiff'))[0]
+    seg_label = io.imread(os.path.join(SEG_DIR, folder + '_whole_cell.tiff'))[0]
     seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'])
 
     for s in cell_boundary_sigmas:
@@ -753,10 +755,10 @@ cell_boundary_border_sizes = [int(tm * 50) for tm in threshold_mults]
 cell_boundary_border_size_data = {bs: [] for bs in cell_boundary_border_sizes}
 i = 0
 for folder in folders:
-    ecad = io.imread(os.path.join(channel_dir, folder, 'ECAD.tiff'))
+    ecad = io.imread(os.path.join(CHANNEL_DIR, folder, 'ECAD.tiff'))
 
     # generate cancer/stroma mask by combining segmentation mask with ECAD channel
-    seg_label = io.imread(os.path.join(seg_dir, folder + '_whole_cell.tiff'))[0]
+    seg_label = io.imread(os.path.join(SEG_DIR, folder + '_whole_cell.tiff'))[0]
     seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'])
 
     for bs in cell_boundary_border_sizes:
