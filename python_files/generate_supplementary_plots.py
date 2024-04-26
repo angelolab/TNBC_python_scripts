@@ -12,6 +12,10 @@ from ark.utils.plot_utils import cohort_cluster_plot
 # from toffy import qc_comp, qc_metrics_plots
 from alpineer import io_utils
 
+from scipy.ndimage import gaussian_filter
+from skimage.measure import label
+from skimage import morphology
+import utils
 
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
@@ -462,10 +466,10 @@ marker_info = {
         "x_tick_labels": np.array([0, 0.1, 0.2, 0.3]),
     }
 }
-# supplementary_plot_helpers.functional_marker_thresholding(
-#     cell_table, functional_marker_viz_dir, marker_info=marker_info,
-#     figsize=(20, 40)
-# )
+supplementary_plot_helpers.functional_marker_thresholding(
+    cell_table, functional_marker_viz_dir, marker_info=marker_info,
+    figsize=(20, 40)
+)
 
 
 # Feature extraction
@@ -475,173 +479,137 @@ extraction_pipeline_tuning_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "extraction
 if not os.path.exists(extraction_pipeline_tuning_dir):
     os.makedirs(extraction_pipeline_tuning_dir)
 
-# ## 1: vary the features for each marker threshold
-# cell_table_full = pd.read_csv(
-#     os.path.join(ANALYSIS_DIR, "combined_cell_table_normalized_cell_labels_updated.csv")
-# )
+## 1: vary the features for each marker threshold
+cell_table_full = pd.read_csv(
+    os.path.join(ANALYSIS_DIR, "combined_cell_table_normalized_cell_labels_updated.csv")
+)
 
-# threshold_mults = [1/4, 1/2, 3/4, 7/8, 1, 8/7, 4/3, 2, 4]
-# marker_threshold_data = {}
+threshold_mults = [1/4, 1/2, 3/4, 7/8, 1, 8/7, 4/3, 2, 4]
+marker_threshold_data = {}
 
-# for marker in marker_info:
-#     marker_threshold_data[marker] = {}
+for marker in marker_info:
+    marker_threshold_data[marker] = {}
 
-#     for threshold in threshold_mults:
-#         multiplied_threshold = marker_info[marker]["threshold"] * threshold
-#         marker_threshold_data[marker][threshold] = {
-#             "multiplied_threshold": multiplied_threshold,
-#             "num_positive_cells": np.sum(cell_table_full[marker].values >= multiplied_threshold),
-#             "num_positive_cells_norm": np.sum(
-#                 cell_table_full[marker].values >= multiplied_threshold
-#             ) / np.sum(
-#                 cell_table_full[marker].values >= marker_info[marker]["threshold"]
-#             )
-#         }
-
-# # fig = plt.figure()
-# # ax = fig.add_subplot(1, 1, 1)
-# # threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
-
-# # for i, marker in enumerate(marker_threshold_data):
-# #     mult_data = [mtd["num_positive_cells_norm"] for mtd in marker_threshold_data[marker].values()]
-# #     _ = ax.plot(threshold_mult_strs, mult_data, color="gray", label=marker)
-
-# # _ = ax.set_title(
-# #     f"Positive cells per threshold, normalized by 1x",
-# #     fontsize=11
-# # )
-# # _ = ax.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
-# # _ = ax.yaxis.get_major_formatter().set_scientific(False)
-# # _ = ax.set_xlabel("log2(threshold multiplier)", fontsize=7)
-# # _ = ax.set_ylabel("Positive cell counts, normalized by 1x", fontsize=7)
-# # _ = ax.tick_params(axis="both", which="major", labelsize=7)
-
-# # # save the figure to save_dir
-# # _ = fig.savefig(
-# #     pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_marker_threshold_experiments_norm.png",
-# #     dpi=300
-# # )
+    for threshold in threshold_mults:
+        multiplied_threshold = marker_info[marker]["threshold"] * threshold
+        marker_threshold_data[marker][threshold] = {
+            "multiplied_threshold": multiplied_threshold,
+            "num_positive_cells": np.sum(cell_table_full[marker].values >= multiplied_threshold),
+            "num_positive_cells_norm": np.sum(
+                cell_table_full[marker].values >= multiplied_threshold
+            ) / np.sum(
+                cell_table_full[marker].values >= marker_info[marker]["threshold"]
+            )
+        }
 
 # fig = plt.figure()
 # ax = fig.add_subplot(1, 1, 1)
 # threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
 
 # for i, marker in enumerate(marker_threshold_data):
-#     mult_data = [mtd["num_positive_cells"] for mtd in marker_threshold_data[marker].values()]
+#     mult_data = [mtd["num_positive_cells_norm"] for mtd in marker_threshold_data[marker].values()]
 #     _ = ax.plot(threshold_mult_strs, mult_data, color="gray", label=marker)
 
 # _ = ax.set_title(
-#     f"Positive cells per threshold",
+#     f"Positive cells per threshold, normalized by 1x",
 #     fontsize=11
 # )
 # _ = ax.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
 # _ = ax.yaxis.get_major_formatter().set_scientific(False)
 # _ = ax.set_xlabel("log2(threshold multiplier)", fontsize=7)
-# _ = ax.set_ylabel("Positive cell counts", fontsize=7)
+# _ = ax.set_ylabel("Positive cell counts, normalized by 1x", fontsize=7)
 # _ = ax.tick_params(axis="both", which="major", labelsize=7)
 
 # # save the figure to save_dir
 # _ = fig.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_marker_threshold_experiments.png",
+#     pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_marker_threshold_experiments_norm.png",
 #     dpi=300
 # )
 
+fig = plt.figure()
+ax = fig.add_subplot(1, 1, 1)
+threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
 
-# ## 2. vary min cell param for functional, morphology, diversity, and distance DataFrames
-# min_cell_tests = [1, 3, 5, 10, 20]
-# total_fovs = len(list_folders("/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"))
-# total_df = pd.read_csv(os.path.join(OUTPUT_DIR, "cluster_df_per_core.csv"))
+for i, marker in enumerate(marker_threshold_data):
+    mult_data = [mtd["num_positive_cells"] for mtd in marker_threshold_data[marker].values()]
+    _ = ax.plot(threshold_mult_strs, mult_data, color="gray", label=marker)
 
-# total_fovs_dropped = {}
-# metrics = [['cluster_broad_count', 'cluster_broad_freq'],
-#            ['cluster_count', 'cluster_freq'],
-#            ['meta_cluster_count', 'meta_cluster_freq']]
+_ = ax.set_title(
+    f"Positive cells per threshold",
+    fontsize=11
+)
+_ = ax.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+_ = ax.yaxis.get_major_formatter().set_scientific(False)
+_ = ax.set_xlabel("log2(threshold multiplier)", fontsize=7)
+_ = ax.set_ylabel("Positive cell counts", fontsize=7)
+_ = ax.tick_params(axis="both", which="major", labelsize=7)
 
-# for metric in metrics:
-#     total_fovs_dropped[metric[0]] = {}
-#     total_fovs_dropped[metric[1]] = {}
+# save the figure to save_dir
+_ = fig.savefig(
+    pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_marker_threshold_experiments.png",
+    dpi=300
+)
 
-# for compartment in ['all']:
-#     for min_cells in min_cell_tests:
-#         for metric in metrics:
-#             total_fovs_dropped[metric[0]][min_cells] = {}
-#             count_df = total_df[total_df.metric == metric[0]]
-#             count_df = count_df[count_df.subset == compartment]
-#             all_fovs = count_df.fov.unique()
 
-#             for cell_type in count_df.cell_type.unique():
-#                 keep_df = count_df[count_df.cell_type == cell_type]
-#                 keep_df = keep_df[keep_df.value >= min_cells]
-#                 keep_fovs = keep_df.fov.unique()
-#                 total_fovs_dropped[metric[0]][min_cells][cell_type] = len(all_fovs) - len(keep_fovs)
+## 2. vary min cell param to see how many FOVs get kept or not
+min_cell_tests = [1, 3, 5, 10, 20]
+total_fovs = len(list_folders("/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"))
+total_df = pd.read_csv(os.path.join(OUTPUT_DIR, "cluster_df_per_core.csv"))
 
-#             total_fovs_dropped[metric[1]][min_cells] = {}
-#             count_df = total_df[total_df.metric == metric[1]]
-#             count_df = count_df[count_df.subset == compartment]
-#             all_fovs = count_df.fov.unique()
+total_fovs_dropped = {}
+metrics = [['cluster_broad_count', 'cluster_broad_freq'],
+           ['cluster_count', 'cluster_freq'],
+           ['meta_cluster_count', 'meta_cluster_freq']]
 
-#             for cell_type in count_df.cell_type.unique():
-#                 keep_df = count_df[count_df.cell_type == cell_type]
-#                 keep_df = keep_df[keep_df.value >= min_cells]
-#                 keep_fovs = keep_df.fov.unique()
-#                 total_fovs_dropped[metric[1]][min_cells][cell_type] = len(all_fovs) - len(keep_fovs)
+for metric in metrics:
+    total_fovs_dropped[metric[0]] = {}
+    total_fovs_dropped[metric[1]] = {}
 
-#     # Flatten the data
-#     def flatten_data(data, feature_name):
-#         return pd.DataFrame([
-#             {'min_cells': min_cells, 'Number of FOVs dropped': value, 'Feature': feature_name, 'Cell Type': cell_type}
-#             for feature, min_cells_dict in data.items()
-#             for min_cells, cell_types in min_cells_dict.items()
-#             for cell_type, value in cell_types.items()
-#         ])
+for compartment in ['all']:
+    for min_cells in min_cell_tests:
+        for metric in metrics:
+            total_fovs_dropped[metric[0]][min_cells] = {}
+            count_df = total_df[total_df.metric == metric[0]]
+            count_df = count_df[count_df.subset == compartment]
+            all_fovs = count_df.fov.unique()
 
-#     df = pd.concat([
-#         flatten_data({'cluster_broad_count': total_fovs_dropped['cluster_broad_count']}, 'cluster_broad_count')
-#     ])
+            for cell_type in count_df.cell_type.unique():
+                keep_df = count_df[count_df.cell_type == cell_type]
+                keep_df = keep_df[keep_df.value >= min_cells]
+                keep_fovs = keep_df.fov.unique()
+                total_fovs_dropped[metric[0]][min_cells][cell_type] = len(all_fovs) - len(keep_fovs)
 
-#     # Create the strip plot
-#     plot = sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Cell Type', data=df, kind='strip', palette='Set2', dodge=False)
-#     plot.fig.subplots_adjust(top=0.9)  # Adjust the top spacing to fit the title
-#     plot.fig.suptitle('Distribution of FOVs dropped across min_cells trials')
-#     plt.savefig(
-#         pathlib.Path(extraction_pipeline_tuning_dir) / f"{compartment}_min_cells_cluster_broad_fovs_dropped_stripplot.png",
-#         dpi=300
-#     )
+            total_fovs_dropped[metric[1]][min_cells] = {}
+            count_df = total_df[total_df.metric == metric[1]]
+            count_df = count_df[count_df.subset == compartment]
+            all_fovs = count_df.fov.unique()
 
-#     df = pd.concat([
-#         flatten_data({'cluster_count': total_fovs_dropped['cluster_count']}, 'cluster_count'),
-#     ])
+            for cell_type in count_df.cell_type.unique():
+                keep_df = count_df[count_df.cell_type == cell_type]
+                keep_df = keep_df[keep_df.value >= min_cells]
+                keep_fovs = keep_df.fov.unique()
+                total_fovs_dropped[metric[1]][min_cells][cell_type] = len(all_fovs) - len(keep_fovs)
 
-#     # Create the strip plot
-#     palette = sns.color_palette("husl", len(df["Cell Type"].unique()))
-#     plot = sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Cell Type', data=df, kind='strip', palette=palette, dodge=False)
-#     plot.fig.subplots_adjust(top=0.9)  # Adjust the top spacing to fit the title
+    fovs_dropped_dict = {"cluster_broad_count": total_fovs_dropped["cluster_broad_count"]}
+    df = pd.DataFrame(
+        [
+            {'min_cells': min_cells, 'Number of FOVs dropped': value, 'Feature': "cluster_broad_count", 'Cell Type': cell_type}
+            for feature, min_cells_dict in fovs_dropped_dict.items()
+            for min_cells, cell_types in min_cells_dict.items()
+            for cell_type, value in cell_types.items()
+        ]
+    )
 
-#     plot.fig.suptitle('Distribution of FOVs dropped across min_cells trials')
-#     plt.savefig(
-#         pathlib.Path(extraction_pipeline_tuning_dir) / f"{compartment}_min_cells_cluster_fovs_dropped_stripplot.png",
-#         dpi=300
-#     )
-
-#     df = pd.concat([
-#         flatten_data({'meta_cluster_count': total_fovs_dropped['meta_cluster_count']}, 'meta_cluster_count'),
-#     ])
-
-#     # Create the strip plot
-#     palette = sns.color_palette("husl", len(df["Cell Type"].unique()))
-#     plot = sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Cell Type', data=df, kind='strip', palette=palette, dodge=False)
-#     plot.fig.subplots_adjust(top=0.9)  # Adjust the top spacing to fit the title
-
-#     plot.fig.suptitle('Distribution of FOVs dropped across min_cells trials')
-
-#     # save the figure to save_dir
-#     plt.savefig(
-#         pathlib.Path(extraction_pipeline_tuning_dir) / f"{compartment}_min_cells_meta_cluster_fovs_dropped_stripplot.png",
-#         dpi=300
-#     )
+    plot = sns.catplot(x='min_cells', y='Number of FOVs dropped', hue='Cell Type', data=df, kind='strip', palette='Set2', dodge=False)
+    plot.fig.subplots_adjust(top=0.9)
+    plot.fig.suptitle('Distribution of FOVs dropped across min_cells trials')
+    plt.savefig(
+        pathlib.Path(extraction_pipeline_tuning_dir) / f"{compartment}_min_cells_cluster_broad_fovs_dropped_stripplot.png",
+        dpi=300
+    )
 
 ## 3: cancer mask tests
-import utils
+## 3.1: cancer mask inclusion tests
 channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
 seg_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
 mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/mask_dir/'
@@ -659,268 +627,131 @@ cell_boundary_channel_threshes = [tm * 0.0015 for tm in threshold_mults]
 
 cell_boundary_sigma_data = {s: [] for s in cell_boundary_sigmas}
 cell_boundary_min_mask_size_data = {mms: [] for mms in cell_boundary_min_mask_sizes}
-cell_boundary_max_hole_size_data = {mhs: [] for mhs in cell_boundary_max_hole_sizes}
-cell_boundary_max_hole_size_no_min_mask_data = {mhs: [] for mhs in cell_boundary_max_hole_sizes}
-cell_boundary_max_hole_diffs = {mhs: [] for mhs in cell_boundary_max_hole_sizes}
-cell_boundary_max_hole_no_min_mask_diffs = {mhs: [] for mhs in cell_boundary_max_hole_sizes}
+# cell_boundary_max_hole_size_data = {mhs: [] for mhs in cell_boundary_max_hole_sizes}
 cell_boundary_channel_thresh_data = {ct: [] for ct in cell_boundary_channel_threshes}
 
+i = 0
+for folder in folders:
+    ecad = io.imread(os.path.join(channel_dir, folder, 'ECAD.tiff'))
 
-from scipy.ndimage import gaussian_filter
-from skimage.measure import label
-from skimage import morphology
-# i = 0
-# for folder in folders:
-#     ecad = io.imread(os.path.join(channel_dir, folder, 'ECAD.tiff'))
+    # generate cancer/stroma mask by combining segmentation mask with ECAD channel
+    seg_label = io.imread(os.path.join(seg_dir, folder + '_whole_cell.tiff'))[0]
+    seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'])
 
-#     # generate cancer/stroma mask by combining segmentation mask with ECAD channel
-#     seg_label = io.imread(os.path.join(seg_dir, folder + '_whole_cell.tiff'))[0]
-#     seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'])
+    for s in cell_boundary_sigmas:
+        img_smoothed = gaussian_filter(ecad, sigma=s)
+        img_mask = img_smoothed > 0.0015
 
-#     # for s in cell_boundary_sigmas:
-#     #     img_smoothed = gaussian_filter(ecad, sigma=s)
-#     #     img_mask = img_smoothed > 0.0015
+        # clean up mask prior to analysis
+        img_mask = np.logical_or(img_mask, seg_mask)
+        label_mask = label(img_mask)
+        label_mask = morphology.remove_small_objects(label_mask, min_size=7000)
+        label_mask = morphology.remove_small_holes(label_mask, area_threshold=1000)
 
-#     #     # clean up mask prior to analysis
-#     #     img_mask = np.logical_or(img_mask, seg_mask)
-#     #     label_mask = label(img_mask)
-#     #     label_mask = morphology.remove_small_objects(label_mask, min_size=7000)
-#     #     label_mask = morphology.remove_small_holes(label_mask, area_threshold=1000)
+        percent_hit = np.sum(label_mask) / label_mask.size
+        cell_boundary_sigma_data[s].append(percent_hit)
 
-#     #     percent_hit = np.sum(label_mask) / label_mask.size
-#     #     cell_boundary_sigma_data[s].append(percent_hit)
+    img_smoothed = gaussian_filter(ecad, sigma=10)
+    for ct in cell_boundary_channel_threshes:
+        img_mask = img_smoothed > ct
 
-#     img_smoothed = gaussian_filter(ecad, sigma=10)
-#     for ct in cell_boundary_channel_threshes:
-#         img_mask = img_smoothed > ct
+        # clean up mask prior to analysis
+        img_mask = np.logical_or(img_mask, seg_mask)
+        label_mask = label(img_mask)
+        label_mask = morphology.remove_small_objects(label_mask, min_size=7000)
+        label_mask = morphology.remove_small_holes(label_mask, area_threshold=1000)
 
-#         # clean up mask prior to analysis
-#         img_mask = np.logical_or(img_mask, seg_mask)
-#         label_mask = label(img_mask)
-#         label_mask = morphology.remove_small_objects(label_mask, min_size=7000)
-#         label_mask = morphology.remove_small_holes(label_mask, area_threshold=1000)
+        percent_hit = np.sum(label_mask) / label_mask.size
+        cell_boundary_channel_thresh_data[ct].append(percent_hit)
 
-#         percent_hit = np.sum(label_mask) / label_mask.size
-#         cell_boundary_channel_thresh_data[ct].append(percent_hit)
+    img_smoothed = gaussian_filter(ecad, sigma=10)
+    img_mask = img_smoothed > 0.0015
+    img_mask = np.logical_or(img_mask, seg_mask)
+    label_mask_base = label(img_mask)
+    for mms in cell_boundary_min_mask_sizes:
+        label_mask = morphology.remove_small_objects(label_mask_base, min_size=mms)
+        label_mask = morphology.remove_small_holes(label_mask, area_threshold=1000)
 
-#     img_smoothed = gaussian_filter(ecad, sigma=10)
-#     img_mask = img_smoothed > 0.0015
-#     img_mask = np.logical_or(img_mask, seg_mask)
-#     label_mask_base = label(img_mask)
-#     for mms in cell_boundary_min_mask_sizes:
-#         old_label_mask = np.copy(label_mask_base)
-#         label_mask = morphology.remove_small_objects(label_mask_base, min_size=mms)
-#         label_mask = morphology.remove_small_holes(label_mask, area_threshold=1000)
-#         total_difference = np.sum((label_mask - old_label_mask) > 0)
+        percent_hit = np.sum(label_mask) / label_mask.size
+        cell_boundary_min_mask_size_data[mms].append(percent_hit)
 
-#         percent_hit = np.sum(label_mask) / label_mask.size
-#         cell_boundary_min_mask_size_data[mms].append(percent_hit)
+    i += 1
+    if i % 10 == 0:
+        print(f"Processed {i} folders")
 
-#     for mhs in cell_boundary_max_hole_sizes:
-#         label_mask = morphology.remove_small_objects(label_mask_base, min_size=7000)
-#         old_label_mask = np.copy(label_mask)
-#         # print(old_label_mask)
-#         # print(old_label_mask.shape)
-#         label_mask = morphology.remove_small_holes(label_mask, area_threshold=mhs)
-#         # print(label_mask)
-#         # print(label_mask.shape)
+# plot the sigma experiments
+data_sigma = []
+labels_sigma = []
+for i, (_, values_s) in enumerate(cell_boundary_sigma_data.items()):
+    data_sigma.extend(values_s)
+    labels_sigma.extend([threshold_mult_strs[i]] * len(values_s))
 
-#         total_difference = np.sum((label_mask - old_label_mask) > 0)
-#         if total_difference > 100000:
-#             print(f"The following folder had significant ECAD removed at mhs = {mhs}: {folder}")
+plt.figure(figsize=(10, 6))
+sns.boxplot(x=labels_sigma, y=data_sigma)
+plt.title('Distribution of % mask included in cancer across sigma (1x = 10)')
+plt.xlabel('log2(sigma multiplier)')
+plt.ylabel('% of mask included in cancer')
+plt.savefig(
+    pathlib.Path(extraction_pipeline_tuning_dir) / f"sigma_cancer_mask_inclusion_box.png",
+    dpi=300
+)
 
-#         percent_hit = np.sum(label_mask) / label_mask.size
-#         cell_boundary_max_hole_size_data[mhs].append(percent_hit)
-#         cell_boundary_max_hole_diffs[mhs].append(total_difference)
+# plot the min mask size experiments
+data_min_mask_size = []
+labels_min_mask_size = []
+for i, (_, values_mms) in enumerate(cell_boundary_min_mask_size_data.items()):
+    data_min_mask_size.extend(values_mms)
+    labels_min_mask_size.extend([threshold_mult_strs[i]] * len(values_mms))
 
-#     for mhs in cell_boundary_max_hole_sizes:
-#         old_label_mask = np.copy(label_mask_base)
-#         # print(old_label_mask)
-#         # print(old_label_mask.shape)
-#         label_mask = morphology.remove_small_holes(label_mask_base, area_threshold=mhs)
-#         # print(label_mask)
-#         # print(label_mask.shape)
+# Creating the boxplot
+plt.figure(figsize=(10, 6))
+sns.boxplot(x=labels_min_mask_size, y=data_min_mask_size)
+plt.title('Distribution of % mask included in cancer across min mask sizes (1x = 7000)')
+plt.xlabel('log2(min mask size multiplier)')
+plt.ylabel('% of mask included in cancer')
+plt.savefig(
+    pathlib.Path(extraction_pipeline_tuning_dir) / f"min_mask_size_cancer_mask_inclusion_box.png",
+    dpi=300
+)
 
-#         total_difference = np.sum((label_mask - old_label_mask) > 0)
+# # plot the max hole size experiments
+# data_max_hole_size = []
+# labels_max_hole_size = []
+# for i, (_, values_mhs) in enumerate(cell_boundary_max_hole_size_data.items()):
+#     data_max_hole_size.extend(values_mhs)
+#     labels_max_hole_size.extend([threshold_mult_strs[i]] * len(values_mhs))
 
-#         percent_hit = np.sum(label_mask) / label_mask.size
-#         cell_boundary_max_hole_size_no_min_mask_data[mhs].append(percent_hit)
-#         cell_boundary_max_hole_no_min_mask_diffs[mhs].append(total_difference)
-
-#     i += 1
-#     if i % 10 == 0:
-#         print(f"Processed {i} folders")
-
-# print(cell_boundary_max_hole_diffs)
-# print(cell_boundary_max_hole_no_min_mask_diffs)
-
-# import itertools
-# for mhs_i, mhs_j in itertools.pairwise(cell_boundary_max_hole_size_data):
-#     print((np.array(cell_boundary_max_hole_size_data[mhs_j]) - np.array(cell_boundary_max_hole_size_data[mhs_i]))[:50])
-
-# for mhs_i, mhs_j in itertools.pairwise(cell_boundary_max_hole_size_no_min_mask_data):
-#     print((np.array(cell_boundary_max_hole_size_no_min_mask_data[mhs_j]) - np.array(cell_boundary_max_hole_size_no_min_mask_data[mhs_i]))[:50])
-
-# for mms_i, mms_j in itertools.pairwise(cell_boundary_min_mask_size_data):
-#     print((np.array(cell_boundary_min_mask_size_data[mms_j]) - np.array(cell_boundary_min_mask_size_data[mms_i]))[:50])
-
-# # Preparing the data for plotting
-# data = []
-# labels = []
-# for i, (key, values) in enumerate(cell_boundary_sigma_data.items()):
-#     data.extend(values)
-#     labels.extend([threshold_mult_strs[i]] * len(values))
-
-# # Creating the boxplot
 # plt.figure(figsize=(10, 6))
-# sns.boxplot(x=labels, y=data)
-# plt.title('Distribution of % mask included in cancer across sigma (1x = 10)')
-# plt.xlabel('log2(sigma multiplier)')
-# plt.ylabel('% of mask included in cancer')
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"sigma_cancer_mask_inclusion_box.png",
-#     dpi=300
-# )
-
-# # Creating the violin plot
-# plt.figure(figsize=(10, 6))
-# sns.violinplot(x=labels, y=data)
-# plt.title('Distribution of % mask included in cancer across sigma')
-# plt.xlabel('sigma')
-# plt.ylabel('% of mask included in cancer')
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"sigma_cancer_mask_inclusion_violin.png",
-#     dpi=300
-# )
-
-# # Preparing the data for plotting
-# data = []
-# labels = []
-# for i, (key, values) in enumerate(cell_boundary_min_mask_size_data.items()):
-#     data.extend(values)
-#     labels.extend([threshold_mult_strs[i]] * len(values))
-
-# print(data)
-
-# # Creating the boxplot
-# plt.figure(figsize=(10, 6))
-# sns.boxplot(x=labels, y=data)
-# plt.title('Distribution of % mask included in cancer across min mask sizes (1x = 7000)')
-# plt.xlabel('log2(min mask size multiplier)')
-# plt.ylabel('% of mask included in cancer')
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"min_mask_size_cancer_mask_inclusion_box.png",
-#     dpi=300
-# )
-
-# # Creating the violin plot
-# plt.figure(figsize=(10, 6))
-# sns.violinplot(x=labels, y=data)
-# plt.title('Distribution of % mask included in cancer across min mask sizes')
-# plt.xlabel('min mask size')
-# plt.ylabel('% of mask included in cancer')
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"min_mask_size_cancer_mask_inclusion_violin.png",
-#     dpi=300
-# )
-
-# # Preparing the data for plotting
-# data = []
-# labels = []
-# for i, (key, values) in enumerate(cell_boundary_max_hole_size_data.items()):
-#     data.extend(values)
-#     labels.extend([threshold_mult_strs[i]] * len(values))
-
-# # Creating the boxplot
-# plt.figure(figsize=(10, 6))
-# sns.boxplot(x=labels, y=data)
+# sns.boxplot(x=labels_max_hole_size, y=data_max_hole_size)
 # plt.title('Distribution of % mask included in cancer across max hole sizes (1x = 1000)')
 # plt.xlabel('log2(max hole size multiplier)')
 # plt.ylabel('% of mask included in cancer')
-
-# # save the figure to save_dir
 # plt.savefig(
 #     pathlib.Path(extraction_pipeline_tuning_dir) / f"max_hole_size_cancer_mask_inclusion_box.png",
 #     dpi=300
 # )
 
-# print(data)
+# plot the channel thresh experiments
+data_channel_thresh = []
+labels_channel_thresh = []
+for i, (_, values_ct) in enumerate(cell_boundary_channel_thresh_data.items()):
+    data_channel_thresh.extend(values)
+    labels_channel_thresh.extend([threshold_mult_strs[i]] * len(values_ct))
 
-# # Preparing the data for plotting
-# data = []
-# labels = []
-# for i, (key, values) in enumerate(cell_boundary_max_hole_size_no_min_mask_data.items()):
-#     data.extend(values)
-#     labels.extend([threshold_mult_strs[i]] * len(values))
+plt.figure(figsize=(10, 6))
+sns.boxplot(x=labels_channel_thresh, y=data_channel_thresh)
+plt.title('Distribution of % mask included in cancer across smoothing thresholds (1x = 0.0015)')
+plt.xlabel('log2(smooth thresh multiplier)')
+plt.ylabel('% of mask included in cancer')
+plt.savefig(
+    pathlib.Path(extraction_pipeline_tuning_dir) / f"smooth_thresh_cancer_mask_inclusion_box.png",
+    dpi=300
+)
 
-# # Creating the boxplot
-# plt.figure(figsize=(10, 6))
-# sns.boxplot(x=labels, y=data)
-# plt.title('Distribution of % mask included in cancer across max hole sizes (1x = 1000, no small object removal)')
-# plt.xlabel('log2(max hole size multiplier)')
-# plt.ylabel('% of mask included in cancer')
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"max_hole_size_cancer_mask_inclusion_no_small_object_box.png",
-#     dpi=300
-# )
-
-# print(data)
-
-# # Creating the violin plot
-# plt.figure(figsize=(10, 6))
-# sns.violinplot(x=labels, y=data)
-# plt.title('Distribution of % mask included in cancer across max hole sizes')
-# plt.xlabel('max hole size')
-# plt.ylabel('% of mask included in cancer')
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"max_hole_size_cancer_mask_inclusion_violin.png",
-#     dpi=300
-# )
-
-# # Preparing the data for plotting
-# data = []
-# labels = []
-# for i, (key, values) in enumerate(cell_boundary_channel_thresh_data.items()):
-#     data.extend(values)
-#     labels.extend([threshold_mult_strs[i]] * len(values))
-
-# # Creating the boxplot
-# plt.figure(figsize=(10, 6))
-# sns.boxplot(x=labels, y=data)
-# plt.title('Distribution of % mask included in cancer across smoothing thresholds (1x = 0.0015)')
-# plt.xlabel('log2(smooth thresh multiplier)')
-# plt.ylabel('% of mask included in cancer')
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"smooth_thresh_cancer_mask_inclusion_box.png",
-#     dpi=300
-# )
-
-
-threshold_mults = [1/4, 1/2, 3/4, 7/8, 1, 8/7, 4/3, 2, 4]
-threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
+## 3.2: cancer boundary definition tests
 cell_boundary_border_sizes = [int(tm * 50) for tm in threshold_mults]
-cell_boundary_border_size_data = {
-    bs: {
-        "cancer mask": [], "exterior border": [], "interior border": []
-    } for bs in cell_boundary_border_sizes
-}
 cell_boundary_border_size_data = {bs: [] for bs in cell_boundary_border_sizes}
 i = 0
-# os.makedirs(pathlib.Path(extraction_pipeline_tuning_dir) / "sample_masks")
 for folder in folders:
     ecad = io.imread(os.path.join(channel_dir, folder, 'ECAD.tiff'))
 
@@ -929,7 +760,9 @@ for folder in folders:
     seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'])
 
     for bs in cell_boundary_border_sizes:
-        cancer_mask = utils.create_cancer_boundary(ecad, seg_mask, border_size=bs, min_mask_size=7000)
+        cancer_mask = utils.create_cancer_boundary(
+            ecad, seg_mask, border_size=bs, min_mask_size=7000
+        )
         percent_border = np.sum((cancer_mask == 2) | (cancer_mask == 3)) / cancer_mask.size
         cell_boundary_border_size_data[bs].append(percent_border)
 
@@ -937,209 +770,19 @@ for folder in folders:
     if i % 10 == 0:
         print(f"Processed {i} folders")
 
-# Preparing the data for plotting
-data = []
-labels = []
-for i, (key, values) in enumerate(cell_boundary_border_size_data.items()):
-    data.extend(values)
-    labels.extend([threshold_mult_strs[i]] * len(values))
+# plot the border size experiments
+data_border_size = []
+labels_border_size = []
+for i, (_, values_bs) in enumerate(cell_boundary_border_size_data.items()):
+    data_border_size.extend(values)
+    labels_border_size.extend([threshold_mult_strs[i]] * len(values_bs))
 
-# Creating the boxplot
 plt.figure(figsize=(10, 6))
-sns.boxplot(x=labels, y=data)
+sns.boxplot(x=labels_border_size, y=data_border_size)
 plt.title('Distribution of % cancer boundary across border sizes (1x = 50)')
 plt.xlabel('log2(border size multiplier)')
 plt.ylabel('% of mask identified as cancer boundary')
-
-# save the figure to save_dir
 plt.savefig(
     pathlib.Path(extraction_pipeline_tuning_dir) / f"border_size_cancer_region_percentages_box.png",
     dpi=300
 )
-
-# # Transforming the data into a DataFrame
-# data_to_plot = {'border_size': [], 'percentage': [], 'type': []}
-# for i, (bs, types) in enumerate(cell_boundary_border_size_data.items()):
-#     for type_label, values in types.items():
-#         data_to_plot['border_size'].extend([bs] * len(values))
-#         data_to_plot['percentage'].extend(values)
-#         data_to_plot['type'].extend([cell_boundary_border_sizes[i]] * len(values))
-
-# # Creating the boxplot
-# plt.figure(figsize=(10, 6))
-# sns.boxplot(x='border_size', y='percentage', hue='type', data=data_to_plot)
-# plt.title('Distribution of % cancer region types across border sizes (1x = 50)')
-# plt.xlabel('np.log2(border size)')
-# plt.ylabel('% of mask assigned to region type')
-# plt.legend(title='Mask Type', labels=['% cancer mask', '% exterior border', '% interior border'])
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"border_size_cancer_region_percentages_box.png",
-#     dpi=300
-# )
-
-# # Creating the violin plot
-# plt.figure(figsize=(10, 6))
-# sns.violinplot(x=labels, y=data)
-# plt.title('Distribution of % mask included in cancer across smoothing thresholds')
-# plt.xlabel('smooth thresh')
-# plt.ylabel('% of mask included in cancer')
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"smooth_thresh_cancer_mask_inclusion_violin.png",
-#     dpi=300
-# )
-
-# # Transforming the data into a DataFrame
-# data_to_plot = {'border_size': [], 'percentage': [], 'type': []}
-# for bs, types in cell_border_border_size_data.items():
-#     for type_label, values in types.items():
-#         data_to_plot['border_size'].extend([bs] * len(values))
-#         data_to_plot['percentage'].extend(values)
-#         data_to_plot['type'].extend([type_label] * len(values))
-
-# df = pd.DataFrame(data_to_plot)
-
-# # Creating the boxplot
-# plt.figure(figsize=(10, 6))
-# sns.boxplot(x='border_size', y='percentage', hue='type', data=df)
-# plt.title('Distribution of % cancer borders across border sizes')
-# plt.xlabel('border size')
-# plt.ylabel('% of mask assigned to boundary type')
-# plt.legend(title='Mask Type', labels=['% total external cancer boundary', '% total interior cancer boundary'])
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"border_size_cancer_border_inclusion_box.png",
-#     dpi=300
-# )
-
-# # Creating the violin plot
-# plt.figure(figsize=(10, 6))
-# sns.violinplot(x='border_size', y='percentage', hue='type', data=df, split=True)
-# plt.title('Distribution of % cancer borders across border sizes')
-# plt.xlabel('border size')
-# plt.ylabel('% of mask assigned to boundary type')
-# plt.legend(title='Mask Type', labels=['% total external cancer boundary', '% total interior cancer boundary'])
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"border_size_cancer_border_inclusion_violin.png",
-#     dpi=300
-# )
-
-# # Transforming the data into a DataFrame
-# data_to_plot = {'min_mask_size': [], 'percentage': [], 'type': []}
-# for mms, types in cell_border_min_mask_size_data.items():
-#     for type_label, values in types.items():
-#         data_to_plot['min_mask_size'].extend([mms] * len(values))
-#         data_to_plot['percentage'].extend(values)
-#         data_to_plot['type'].extend([type_label] * len(values))
-
-# df = pd.DataFrame(data_to_plot)
-
-# # Creating the boxplot
-# plt.figure(figsize=(10, 6))
-# sns.boxplot(x='min_mask_size', y='percentage', hue='type', data=df)
-# plt.title('Distribution of % cancer borders across min mask sizes')
-# plt.xlabel('min mask size')
-# plt.ylabel('% of mask assigned to boundary type')
-# plt.legend(title='Mask Type', labels=['% total external cancer boundary', '% total interior cancer boundary'])
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"min_mask_size_cancer_border_inclusion_box.png",
-#     dpi=300
-# )
-
-# # Creating the violin plot
-# plt.figure(figsize=(10, 6))
-# sns.violinplot(x='min_mask_size', y='percentage', hue='type', data=df, split=True)
-# plt.title('Distribution of % cancer borders across min mask sizes')
-# plt.xlabel('min mask size')
-# plt.ylabel('% of mask assigned to boundary type')
-# plt.legend(title='Mask Type', labels=['% total external cancer boundary', '% total interior cancer boundary'])
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"min_mask_size_cancer_border_inclusion_violin.png",
-#     dpi=300
-# )
-
-# # Transforming the data into a DataFrame
-# data_to_plot = {'max_hole_size': [], 'percentage': [], 'type': []}
-# for mhs, types in cell_border_max_hole_size_data.items():
-#     for type_label, values in types.items():
-#         data_to_plot['max_hole_size'].extend([mhs] * len(values))
-#         data_to_plot['percentage'].extend(values)
-#         data_to_plot['type'].extend([type_label] * len(values))
-
-# df = pd.DataFrame(data_to_plot)
-
-# # Creating the boxplot
-# plt.figure(figsize=(10, 6))
-# sns.boxplot(x='max_hole_size', y='percentage', hue='type', data=df)
-# plt.title('Distribution of % cancer borders across max hole sizes')
-# plt.xlabel('max hole size')
-# plt.ylabel('% of mask assigned to boundary type')
-# plt.legend(title='Mask Type', labels=['% total external cancer boundary', '% total interior cancer boundary'])
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"max_hole_size_cancer_border_inclusion_box.png",
-#     dpi=300
-# )
-
-# # Creating the violin plot
-# plt.figure(figsize=(10, 6))
-# sns.violinplot(x='max_hole_size', y='percentage', hue='type', data=df, split=True)
-# plt.title('Distribution of % cancer borders across max hole sizes')
-# plt.xlabel('max hole size')
-# plt.ylabel('% of mask assigned to boundary type')
-# plt.legend(title='Mask Type', labels=['% total external cancer boundary', '% total interior cancer boundary'])
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"max_hole_size_cancer_border_inclusion_violin.png",
-#     dpi=300
-# )
-
-# # Transforming the data into a DataFrame
-# data_to_plot = {'max_hole_size': [], 'percentage': [], 'type': []}
-# for ct, types in cell_border_channel_thresh_data.items():
-#     for type_label, values in types.items():
-#         data_to_plot['channel_thresh'].extend([ct] * len(values))
-#         data_to_plot['percentage'].extend(values)
-#         data_to_plot['type'].extend([type_label] * len(values))
-
-# df = pd.DataFrame(data_to_plot)
-
-# # Creating the boxplot
-# plt.figure(figsize=(10, 6))
-# sns.boxplot(x='channel_thresh', y='percentage', hue='type', data=df)
-# plt.title('Distribution of % cancer borders across channel thresholds')
-# plt.xlabel('channel thresh')
-# plt.ylabel('% of mask assigned to boundary type')
-# plt.legend(title='Mask Type', labels=['% total external cancer boundary', '% total interior cancer boundary'])
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"channel_thresh_cancer_border_inclusion_box.png",
-#     dpi=300
-# )
-
-# # Creating the violin plot
-# plt.figure(figsize=(10, 6))
-# sns.violinplot(x='channel_thresh', y='percentage', hue='type', data=df, split=True)
-# plt.title('Distribution of % cancer borders across channel thresholds')
-# plt.xlabel('channel thresh')
-# plt.ylabel('% of mask assigned to boundary type')
-# plt.legend(title='Mask Type', labels=['% total external cancer boundary', '% total interior cancer boundary'])
-
-# # save the figure to save_dir
-# plt.savefig(
-#     pathlib.Path(extraction_pipeline_tuning_dir) / f"channel_thresh_cancer_border_inclusion_violin.png",
-#     dpi=300
-# )
