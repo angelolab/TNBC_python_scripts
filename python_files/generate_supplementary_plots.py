@@ -650,129 +650,132 @@ cell_table_clusters = pd.read_csv(os.path.join(analysis_dir, 'cell_table_cluster
 
 folders = list_folders(channel_dir)
 
-cell_mask_sigmas = [0, 5, 10, 15, 20]
-# cell_mask_min_mask_sizes = [0, 5, 10, 15, 20]
-cell_mask_min_mask_sizes = [1, 5, 125, 3125, 15625]
-# cell_mask_max_hole_sizes = [10000, 50000, 100000, 150000, 200000]
-cell_mask_max_hole_sizes = [1, 10, 100, 1000, 10000, 100000, 1000000, 10000000]
-cell_mask_smooth_threshes = [0.1, 0.2, 0.3, 0.4, 0.5]
+threshold_mults = [1/4, 1/2, 3/4, 7/8, 1, 8/7, 4/3, 2, 4]
+threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
+cell_boundary_sigmas = [int(tm * 10) for tm in threshold_mults]
+cell_boundary_min_mask_sizes = [int(tm * 7000) for tm in threshold_mults]
+cell_boundary_max_hole_sizes = [int(tm * 1000) for tm in threshold_mults]
+cell_boundary_channel_threshes = [tm * 0.0015 for tm in threshold_mults]
 
-# cell_border_border_sizes = [30, 40, 50, 60, 70]
-# cell_border_min_mask_sizes = [2500, 3000, 3500, 4000, 4500]
-# cell_border_max_hole_sizes = [100, 1000, 5000, 10000, 15000]
-# cell_border_channel_threshes = [0.0005, 0.001, 0.0015, 0.002, 0.0025]
+cell_boundary_sigma_data = {s: [] for s in cell_boundary_sigmas}
+cell_boundary_min_mask_size_data = {mms: [] for mms in cell_boundary_min_mask_sizes}
+cell_boundary_max_hole_size_data = {mhs: [] for mhs in cell_boundary_max_hole_sizes}
+cell_boundary_max_hole_size_no_min_mask_data = {mhs: [] for mhs in cell_boundary_max_hole_sizes}
+cell_boundary_max_hole_diffs = {mhs: [] for mhs in cell_boundary_max_hole_sizes}
+cell_boundary_max_hole_no_min_mask_diffs = {mhs: [] for mhs in cell_boundary_max_hole_sizes}
+cell_boundary_channel_thresh_data = {ct: [] for ct in cell_boundary_channel_threshes}
 
-cell_mask_sigma_data = {s: [] for s in cell_mask_sigmas}
-cell_mask_min_mask_size_data = {mms: [] for mms in cell_mask_min_mask_sizes}
-cell_mask_max_hole_size_data = {mhs: [] for mhs in cell_mask_max_hole_sizes}
-cell_mask_smooth_thresh_data = {st: [] for st in cell_mask_smooth_threshes}
 
-# cell_border_border_size_data = {bs: {"full": [], "external": [], "interior": []} for bs in cell_border_border_sizes}
-# cell_border_min_mask_size_data = {mms: {"full": [], "external": [], "interior": []} for mms in cell_border_min_mask_sizes}
-# cell_border_max_hole_size_data = {mhs: {"full": [], "external": [], "interior": []} for mhs in cell_border_max_hole_sizes}
-# cell_border_channel_thresh_data = {ct: {"full": [], "external": [], "interior": []} for ct in cell_border_channel_threshes}
+from scipy.ndimage import gaussian_filter
+from skimage.measure import label
+from skimage import morphology
+# i = 0
+# for folder in folders:
+#     ecad = io.imread(os.path.join(channel_dir, folder, 'ECAD.tiff'))
 
-i = 0
-for folder in folders:
-    ecad = io.imread(os.path.join(channel_dir, folder, 'ECAD.tiff'))
+#     # generate cancer/stroma mask by combining segmentation mask with ECAD channel
+#     seg_label = io.imread(os.path.join(seg_dir, folder + '_whole_cell.tiff'))[0]
+#     seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'])
 
-    # intermediate_folder = os.path.join(intermediate_dir, folder)
-    # if not os.path.exists(intermediate_folder):
-    #     os.mkdir(intermediate_folder)
+#     # for s in cell_boundary_sigmas:
+#     #     img_smoothed = gaussian_filter(ecad, sigma=s)
+#     #     img_mask = img_smoothed > 0.0015
 
-    # generate cancer/stroma mask by combining segmentation mask with ECAD channel
-    seg_label = io.imread(os.path.join(seg_dir, folder + '_whole_cell.tiff'))[0]
+#     #     # clean up mask prior to analysis
+#     #     img_mask = np.logical_or(img_mask, seg_mask)
+#     #     label_mask = label(img_mask)
+#     #     label_mask = morphology.remove_small_objects(label_mask, min_size=7000)
+#     #     label_mask = morphology.remove_small_holes(label_mask, area_threshold=1000)
 
-    # # test different create_cell_mask parameters
-    # for s in cell_mask_sigmas:
-    #     seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'], sigma=s)
-    #     percent_hit = np.sum(seg_mask) / seg_mask.size
-    #     cell_mask_sigma_data[s].append(percent_hit)
+#     #     percent_hit = np.sum(label_mask) / label_mask.size
+#     #     cell_boundary_sigma_data[s].append(percent_hit)
 
-    for mms in cell_mask_min_mask_sizes:
-        seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'], min_mask_size=mms)
-        percent_hit = np.sum(seg_mask) / seg_mask.size
-        cell_mask_min_mask_size_data[mms].append(percent_hit)
+#     img_smoothed = gaussian_filter(ecad, sigma=10)
+#     for ct in cell_boundary_channel_threshes:
+#         img_mask = img_smoothed > ct
 
-    for mhs in cell_mask_max_hole_sizes:
-        seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'], max_hole_size=mhs)
-        percent_hit = np.sum(seg_mask) / seg_mask.size
-        cell_mask_max_hole_size_data[mhs].append(percent_hit)
+#         # clean up mask prior to analysis
+#         img_mask = np.logical_or(img_mask, seg_mask)
+#         label_mask = label(img_mask)
+#         label_mask = morphology.remove_small_objects(label_mask, min_size=7000)
+#         label_mask = morphology.remove_small_holes(label_mask, area_threshold=1000)
 
-    # for st in cell_mask_smooth_threshes:
-    #     seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'], smooth_thresh=st)
-    #     percent_hit = np.sum(seg_mask) / seg_mask.size
-    #     cell_mask_smooth_thresh_data[st].append(percent_hit)
+#         percent_hit = np.sum(label_mask) / label_mask.size
+#         cell_boundary_channel_thresh_data[ct].append(percent_hit)
 
-    # # given the base create_cell_mask parameters, analyze the cancer boundary params
-    # seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'])
+#     img_smoothed = gaussian_filter(ecad, sigma=10)
+#     img_mask = img_smoothed > 0.0015
+#     img_mask = np.logical_or(img_mask, seg_mask)
+#     label_mask_base = label(img_mask)
+#     for mms in cell_boundary_min_mask_sizes:
+#         old_label_mask = np.copy(label_mask_base)
+#         label_mask = morphology.remove_small_objects(label_mask_base, min_size=mms)
+#         label_mask = morphology.remove_small_holes(label_mask, area_threshold=1000)
+#         total_difference = np.sum((label_mask - old_label_mask) > 0)
 
-    # # test different create_cancer_boundary parameters
-    # for bs in cell_border_border_sizes:
-    #     cancer_mask = utils.create_cancer_boundary(ecad, seg_mask, border_size=bs, min_mask_size=7000)
-    #     # percent_full = np.sum(seg_mask == 4) / seg_mask.size
-    #     # cell_border_border_size_data[bs]["full"].append(percent_full)
+#         percent_hit = np.sum(label_mask) / label_mask.size
+#         cell_boundary_min_mask_size_data[mms].append(percent_hit)
 
-    #     percent_external = np.sum(cancer_mask == 2) / cancer_mask.size
-    #     cell_border_border_size_data[bs]["external"].append(percent_external)
+#     for mhs in cell_boundary_max_hole_sizes:
+#         label_mask = morphology.remove_small_objects(label_mask_base, min_size=7000)
+#         old_label_mask = np.copy(label_mask)
+#         # print(old_label_mask)
+#         # print(old_label_mask.shape)
+#         label_mask = morphology.remove_small_holes(label_mask, area_threshold=mhs)
+#         # print(label_mask)
+#         # print(label_mask.shape)
 
-    #     percent_interior = np.sum(cancer_mask == 3) / cancer_mask.size
-    #     cell_border_border_size_data[bs]["interior"].append(percent_interior)
+#         total_difference = np.sum((label_mask - old_label_mask) > 0)
+#         if total_difference > 100000:
+#             print(f"The following folder had significant ECAD removed at mhs = {mhs}: {folder}")
 
-    # # test different create_cancer_boundary parameters
-    # for mms in cell_border_min_mask_sizes:
-    #     cancer_mask = utils.create_cancer_boundary(ecad, seg_mask, min_mask_size=mms)
-    #     # percent_full = np.sum(seg_mask == 4) / seg_mask.size
-    #     # cell_border_min_mask_size_data[mms]["full"].append(percent_full)
+#         percent_hit = np.sum(label_mask) / label_mask.size
+#         cell_boundary_max_hole_size_data[mhs].append(percent_hit)
+#         cell_boundary_max_hole_diffs[mhs].append(total_difference)
 
-    #     percent_external = np.sum(cancer_mask == 2) / cancer_mask.size
-    #     cell_border_min_mask_size_data[mms]["external"].append(percent_external)
+#     for mhs in cell_boundary_max_hole_sizes:
+#         old_label_mask = np.copy(label_mask_base)
+#         # print(old_label_mask)
+#         # print(old_label_mask.shape)
+#         label_mask = morphology.remove_small_holes(label_mask_base, area_threshold=mhs)
+#         # print(label_mask)
+#         # print(label_mask.shape)
 
-    #     percent_interior = np.sum(cancer_mask == 3) / cancer_mask.size
-    #     cell_border_min_mask_size_data[mms]["interior"].append(percent_interior)
+#         total_difference = np.sum((label_mask - old_label_mask) > 0)
 
-    # # test different create_cancer_boundary parameters
-    # for mhs in cell_border_max_hole_sizes:
-    #     cancer_mask = utils.create_cancer_boundary(ecad, seg_mask, min_mask_size=7000, max_hole_size=mhs)
-    #     # percent_full = np.sum(seg_mask == 4) / seg_mask.size
-    #     # cell_border_max_hole_size_data[mhs]["full"].append(percent_full)
+#         percent_hit = np.sum(label_mask) / label_mask.size
+#         cell_boundary_max_hole_size_no_min_mask_data[mhs].append(percent_hit)
+#         cell_boundary_max_hole_no_min_mask_diffs[mhs].append(total_difference)
 
-    #     percent_external = np.sum(cancer_mask == 2) / cancer_mask.size
-    #     cell_border_max_hole_size_data[mhs]["external"].append(percent_external)
+#     i += 1
+#     if i % 10 == 0:
+#         print(f"Processed {i} folders")
 
-    #     percent_interior = np.sum(cancer_mask == 3) / cancer_mask.size
-    #     cell_border_max_hole_size_data[mhs]["interior"].append(percent_interior)
+# print(cell_boundary_max_hole_diffs)
+# print(cell_boundary_max_hole_no_min_mask_diffs)
 
-    # # test different create_cancer_boundary parameters
-    # for ct in cell_border_channel_threshes:
-    #     cancer_mask = utils.create_cancer_boundary(ecad, seg_mask, min_mask_size=7000, channel_thresh=ct)
-    #     # percent_full = np.sum(seg_mask == 4) / seg_mask.size
-    #     # cell_border_channel_thresh_data[ct]["full"].append(percent_full)
+# import itertools
+# for mhs_i, mhs_j in itertools.pairwise(cell_boundary_max_hole_size_data):
+#     print((np.array(cell_boundary_max_hole_size_data[mhs_j]) - np.array(cell_boundary_max_hole_size_data[mhs_i]))[:50])
 
-    #     percent_external = np.sum(cancer_mask == 2) / cancer_mask.size
-    #     cell_border_channel_thresh_data[ct]["external"].append(percent_external)
+# for mhs_i, mhs_j in itertools.pairwise(cell_boundary_max_hole_size_no_min_mask_data):
+#     print((np.array(cell_boundary_max_hole_size_no_min_mask_data[mhs_j]) - np.array(cell_boundary_max_hole_size_no_min_mask_data[mhs_i]))[:50])
 
-    #     percent_interior = np.sum(cancer_mask == 3) / cancer_mask.size
-    #     cell_border_channel_thresh_data[ct]["interior"].append(percent_interior)
-
-    i += 1
-    if i % 10 == 0:
-        print(f"Processed {i} folders")
-    # cancer_mask = utils.create_cancer_boundary(ecad, seg_mask, min_mask_size=7000)
-    # cancer_mask = cancer_mask.astype(np.uint8)
+# for mms_i, mms_j in itertools.pairwise(cell_boundary_min_mask_size_data):
+#     print((np.array(cell_boundary_min_mask_size_data[mms_j]) - np.array(cell_boundary_min_mask_size_data[mms_i]))[:50])
 
 # # Preparing the data for plotting
 # data = []
 # labels = []
-# for key, values in cell_mask_sigma_data.items():
+# for i, (key, values) in enumerate(cell_boundary_sigma_data.items()):
 #     data.extend(values)
-#     labels.extend([key] * len(values))
+#     labels.extend([threshold_mult_strs[i]] * len(values))
 
 # # Creating the boxplot
 # plt.figure(figsize=(10, 6))
 # sns.boxplot(x=labels, y=data)
-# plt.title('Distribution of % mask included in cancer across sigma')
-# plt.xlabel('sigma')
+# plt.title('Distribution of % mask included in cancer across sigma (1x = 10)')
+# plt.xlabel('log2(sigma multiplier)')
 # plt.ylabel('% of mask included in cancer')
 
 # # save the figure to save_dir
@@ -794,25 +797,27 @@ for folder in folders:
 #     dpi=300
 # )
 
-# Preparing the data for plotting
-data = []
-labels = []
-for key, values in cell_mask_min_mask_size_data.items():
-    data.extend(values)
-    labels.extend([key] * len(values))
+# # Preparing the data for plotting
+# data = []
+# labels = []
+# for i, (key, values) in enumerate(cell_boundary_min_mask_size_data.items()):
+#     data.extend(values)
+#     labels.extend([threshold_mult_strs[i]] * len(values))
 
-# Creating the boxplot
-plt.figure(figsize=(10, 6))
-sns.boxplot(x=labels, y=data)
-plt.title('Distribution of % mask included in cancer across min mask sizes')
-plt.xlabel('min mask size')
-plt.ylabel('% of mask included in cancer')
+# print(data)
 
-# save the figure to save_dir
-plt.savefig(
-    pathlib.Path(extraction_pipeline_tuning_dir) / f"min_mask_size_cancer_mask_inclusion_box.png",
-    dpi=300
-)
+# # Creating the boxplot
+# plt.figure(figsize=(10, 6))
+# sns.boxplot(x=labels, y=data)
+# plt.title('Distribution of % mask included in cancer across min mask sizes (1x = 7000)')
+# plt.xlabel('log2(min mask size multiplier)')
+# plt.ylabel('% of mask included in cancer')
+
+# # save the figure to save_dir
+# plt.savefig(
+#     pathlib.Path(extraction_pipeline_tuning_dir) / f"min_mask_size_cancer_mask_inclusion_box.png",
+#     dpi=300
+# )
 
 # # Creating the violin plot
 # plt.figure(figsize=(10, 6))
@@ -827,25 +832,49 @@ plt.savefig(
 #     dpi=300
 # )
 
-# Preparing the data for plotting
-data = []
-labels = []
-for key, values in cell_mask_max_hole_size_data.items():
-    data.extend(values)
-    labels.extend([key] * len(values))
+# # Preparing the data for plotting
+# data = []
+# labels = []
+# for i, (key, values) in enumerate(cell_boundary_max_hole_size_data.items()):
+#     data.extend(values)
+#     labels.extend([threshold_mult_strs[i]] * len(values))
 
-# Creating the boxplot
-plt.figure(figsize=(10, 6))
-sns.boxplot(x=labels, y=data)
-plt.title('Distribution of % mask included in cancer across max hole sizes')
-plt.xlabel('max hole size')
-plt.ylabel('% of mask included in cancer')
+# # Creating the boxplot
+# plt.figure(figsize=(10, 6))
+# sns.boxplot(x=labels, y=data)
+# plt.title('Distribution of % mask included in cancer across max hole sizes (1x = 1000)')
+# plt.xlabel('log2(max hole size multiplier)')
+# plt.ylabel('% of mask included in cancer')
 
-# save the figure to save_dir
-plt.savefig(
-    pathlib.Path(extraction_pipeline_tuning_dir) / f"max_hole_size_cancer_mask_inclusion_box.png",
-    dpi=300
-)
+# # save the figure to save_dir
+# plt.savefig(
+#     pathlib.Path(extraction_pipeline_tuning_dir) / f"max_hole_size_cancer_mask_inclusion_box.png",
+#     dpi=300
+# )
+
+# print(data)
+
+# # Preparing the data for plotting
+# data = []
+# labels = []
+# for i, (key, values) in enumerate(cell_boundary_max_hole_size_no_min_mask_data.items()):
+#     data.extend(values)
+#     labels.extend([threshold_mult_strs[i]] * len(values))
+
+# # Creating the boxplot
+# plt.figure(figsize=(10, 6))
+# sns.boxplot(x=labels, y=data)
+# plt.title('Distribution of % mask included in cancer across max hole sizes (1x = 1000, no small object removal)')
+# plt.xlabel('log2(max hole size multiplier)')
+# plt.ylabel('% of mask included in cancer')
+
+# # save the figure to save_dir
+# plt.savefig(
+#     pathlib.Path(extraction_pipeline_tuning_dir) / f"max_hole_size_cancer_mask_inclusion_no_small_object_box.png",
+#     dpi=300
+# )
+
+# print(data)
 
 # # Creating the violin plot
 # plt.figure(figsize=(10, 6))
@@ -863,20 +892,90 @@ plt.savefig(
 # # Preparing the data for plotting
 # data = []
 # labels = []
-# for key, values in cell_mask_smooth_thresh_data.items():
+# for i, (key, values) in enumerate(cell_boundary_channel_thresh_data.items()):
 #     data.extend(values)
-#     labels.extend([key] * len(values))
+#     labels.extend([threshold_mult_strs[i]] * len(values))
 
 # # Creating the boxplot
 # plt.figure(figsize=(10, 6))
 # sns.boxplot(x=labels, y=data)
-# plt.title('Distribution of % mask included in cancer across smoothing thresholds')
-# plt.xlabel('smooth thresh')
+# plt.title('Distribution of % mask included in cancer across smoothing thresholds (1x = 0.0015)')
+# plt.xlabel('log2(smooth thresh multiplier)')
 # plt.ylabel('% of mask included in cancer')
 
 # # save the figure to save_dir
 # plt.savefig(
 #     pathlib.Path(extraction_pipeline_tuning_dir) / f"smooth_thresh_cancer_mask_inclusion_box.png",
+#     dpi=300
+# )
+
+
+threshold_mults = [1/4, 1/2, 3/4, 7/8, 1, 8/7, 4/3, 2, 4]
+threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
+cell_boundary_border_sizes = [int(tm * 50) for tm in threshold_mults]
+cell_boundary_border_size_data = {
+    bs: {
+        "cancer mask": [], "exterior border": [], "interior border": []
+    } for bs in cell_boundary_border_sizes
+}
+cell_boundary_border_size_data = {bs: [] for bs in cell_boundary_border_sizes}
+i = 0
+# os.makedirs(pathlib.Path(extraction_pipeline_tuning_dir) / "sample_masks")
+for folder in folders:
+    ecad = io.imread(os.path.join(channel_dir, folder, 'ECAD.tiff'))
+
+    # generate cancer/stroma mask by combining segmentation mask with ECAD channel
+    seg_label = io.imread(os.path.join(seg_dir, folder + '_whole_cell.tiff'))[0]
+    seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['Cancer'])
+
+    for bs in cell_boundary_border_sizes:
+        cancer_mask = utils.create_cancer_boundary(ecad, seg_mask, border_size=bs, min_mask_size=7000)
+        percent_border = np.sum((cancer_mask == 2) | (cancer_mask == 3)) / cancer_mask.size
+        cell_boundary_border_size_data[bs].append(percent_border)
+
+    i += 1
+    if i % 10 == 0:
+        print(f"Processed {i} folders")
+
+# Preparing the data for plotting
+data = []
+labels = []
+for i, (key, values) in enumerate(cell_boundary_border_size_data.items()):
+    data.extend(values)
+    labels.extend([threshold_mult_strs[i]] * len(values))
+
+# Creating the boxplot
+plt.figure(figsize=(10, 6))
+sns.boxplot(x=labels, y=data)
+plt.title('Distribution of % cancer boundary across border sizes (1x = 50)')
+plt.xlabel('log2(border size multiplier)')
+plt.ylabel('% of mask identified as cancer boundary')
+
+# save the figure to save_dir
+plt.savefig(
+    pathlib.Path(extraction_pipeline_tuning_dir) / f"border_size_cancer_region_percentages_box.png",
+    dpi=300
+)
+
+# # Transforming the data into a DataFrame
+# data_to_plot = {'border_size': [], 'percentage': [], 'type': []}
+# for i, (bs, types) in enumerate(cell_boundary_border_size_data.items()):
+#     for type_label, values in types.items():
+#         data_to_plot['border_size'].extend([bs] * len(values))
+#         data_to_plot['percentage'].extend(values)
+#         data_to_plot['type'].extend([cell_boundary_border_sizes[i]] * len(values))
+
+# # Creating the boxplot
+# plt.figure(figsize=(10, 6))
+# sns.boxplot(x='border_size', y='percentage', hue='type', data=data_to_plot)
+# plt.title('Distribution of % cancer region types across border sizes (1x = 50)')
+# plt.xlabel('np.log2(border size)')
+# plt.ylabel('% of mask assigned to region type')
+# plt.legend(title='Mask Type', labels=['% cancer mask', '% exterior border', '% interior border'])
+
+# # save the figure to save_dir
+# plt.savefig(
+#     pathlib.Path(extraction_pipeline_tuning_dir) / f"border_size_cancer_region_percentages_box.png",
 #     dpi=300
 # )
 
