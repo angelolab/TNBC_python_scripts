@@ -280,10 +280,10 @@ def create_cell_mask(seg_mask, cell_table, fov_name, cell_types, sigma=10, smoot
     return cell_mask
 
 
-def create_cancer_boundary(img, seg_mask, min_mask_size=3500, max_hole_size=1000,
+def create_cancer_boundary(img, seg_mask, sigma=10, min_mask_size=3500, max_hole_size=1000,
                            border_size=50, channel_thresh=0.0015):
     """Generate masks representing different tumor regions"""
-    img_smoothed = gaussian_filter(img, sigma=10)
+    img_smoothed = gaussian_filter(img, sigma=sigma)
     img_mask = img_smoothed > channel_thresh
 
     # clean up mask prior to analysis
