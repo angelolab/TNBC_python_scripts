@@ -621,7 +621,7 @@ supplementary_plot_helpers.run_min_cell_feature_gen_fovs_dropped_tests(
 )
 
 ## vary params for cancer mask and boundary definition inclusion
-cell_table_clusters = pd.read_csv(os.path.join(ANALYSIS_DIR, 'cell_table_clusters.csv'))
+cell_table_clusters = pd.read_csv(os.path.join(ANALYSIS_DIR, "cell_table_clusters.csv"))
 supplementary_plot_helpers.run_cancer_mask_inclusion_tests(
     cell_table_clusters, channel_dir=CHANNEL_DIR, seg_dir=SEG_DIR,
     threshold_mults=[1/4, 1/2, 3/4, 7/8, 1, 8/7, 4/3, 2, 4],
