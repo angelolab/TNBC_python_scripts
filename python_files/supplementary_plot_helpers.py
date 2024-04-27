@@ -574,8 +574,8 @@ def run_functional_marker_positivity_tuning_tests(
     cell_table: pd.DataFrame, save_dir: Union[str, pathlib.Path],
     marker_info: Dict[str, MarkerDict], threshold_mults: List[float]
 ):
-    """At different multipliers of each functional marker threshold, visualize across all how they change
-    using a line plot
+    """At different multipliers of each functional marker threshold, visualize across all how they
+    change using a line plot
 
     Args:
         cell_table (pd.DataFrame):
@@ -585,7 +585,8 @@ def run_functional_marker_positivity_tuning_tests(
             per functional marker
         marker_info (str):
             For each marker, define the populations, threshold, x-range, and x-tick locations
-            NOTE: used as convenience with `functional_marker_thresholding`, but only threshold value needed
+            NOTE: used as convenience with `functional_marker_thresholding`, only threshold value
+            needed
         threshold_mults (List[str]):
             The multipliers to use and visualize across all markers
     """
@@ -612,7 +613,9 @@ def run_functional_marker_positivity_tuning_tests(
     # threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
 
     # for i, marker in enumerate(marker_threshold_data):
-    #     mult_data = [mtd["num_positive_cells_norm"] for mtd in marker_threshold_data[marker].values()]
+    #     mult_data = [
+    #         mtd["num_positive_cells_norm"] for mtd in marker_threshold_data[marker].values()
+    #     ]
     #     _ = ax.plot(threshold_mult_strs, mult_data, color="gray", label=marker)
 
     # _ = ax.set_title(
@@ -627,7 +630,8 @@ def run_functional_marker_positivity_tuning_tests(
 
     # # save the figure to save_dir
     # _ = fig.savefig(
-    #     pathlib.Path(extraction_pipeline_tuning_dir) / f"functional_marker_threshold_experiments_norm.png",
+    #     pathlib.Path(extraction_pipeline_tuning_dir) /
+    #     f"functional_marker_threshold_experiments_norm.png",
     #     dpi=300
     # )
 
@@ -637,7 +641,9 @@ def run_functional_marker_positivity_tuning_tests(
     threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
 
     for i, marker in enumerate(marker_threshold_data):
-        mult_data = [mtd["num_positive_cells"] for mtd in marker_threshold_data[marker].values()]
+        mult_data = [
+            mtd["num_positive_cells"] for mtd in marker_threshold_data[marker].values()
+        ]
         _ = ax.plot(threshold_mult_strs, mult_data, color="gray", label=marker)
 
     _ = ax.set_title(
