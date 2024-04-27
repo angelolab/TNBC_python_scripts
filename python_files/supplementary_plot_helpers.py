@@ -748,7 +748,7 @@ def run_cancer_mask_inclusion_tests(
     at individual tuning of these params.
 
     Finally, create box plot showing how much of the cancer mask gets defined as cancer or stroma 
-    boundary at different border_size params. Note that the default sigma,  channel threhsolding, 
+    boundary at different border_size params. Note that the default sigma, channel threhsolding, 
     small object removal, and hole filling params are used
 
     Args:
