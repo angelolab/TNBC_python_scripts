@@ -14,14 +14,17 @@ from skimage import morphology
 import xarray as xr
 import utils as cancer_mask_utils
 
+from os import PathLike
 from PIL import Image, ImageDraw, ImageFont
-from typing import Dict, List, Optional, Tuple, TypedDict, Union
-
+from typing import Dict, List, Optional, Tuple, TypedDict, Union, Literal
+from skimage.io import imread
+import geopandas as gpd
+from ark.utils import plot_utils, data_utils
 from alpineer.io_utils import list_folders, list_files, remove_file_extensions, validate_paths
-from alpineer.load_utils import load_imgs_from_tree
+from alpineer.load_utils import load_imgs_from_tree, load_imgs_from_dir
 from alpineer.misc_utils import verify_in_list
-
-
+from toffy.image_stitching import rescale_images
+from .utils import remove_ticks, QuantileNormalization, mask_erosion_ufunc
 ACQUISITION_ORDER_INDICES = [
     11, 12, 13, 14, 15, 17, 18, 20, 22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 35,
     36, 39, 40, 41, 42, 43, 44, 45, 46, 47
@@ -174,7 +177,6 @@ def validate_panel(
     image_data = image_data.transpose("channels", "rows", "cols")
 
     # generate the stitched image and save
-    print(f"Font size is: {font_size}")
     panel_tiled: Image = stitch_and_annotate_padded_img(
         image_data, padding=padding, font_size=font_size, annotate=True
     )
@@ -329,11 +331,160 @@ def functional_marker_thresholding(
 
 
 # acquisition order helpers
+def stitch_before_after_rosetta(
+    pre_rosetta_dir: Union[str, pathlib.Path], post_rosetta_dir: Union[str, pathlib.Path],
+    save_dir: Union[str, pathlib.Path],
+    run_name: str, fov_indices: Optional[List[int]], target_channel: str, source_channel: str = "Noodle",
+    pre_rosetta_subdir: str = "", post_rosetta_subdir: str = "",
+    img_size_scale: float = 0.5, percent_norm: Optional[float] = 99.999,
+    padding: int = 25, font_size: int = 175, step: int = 1,
+    save_separate: bool = False
+):
+    """Generates two stitched images: before and after Rosetta
+
+    pre_rosetta_dir (Union[str, pathlib.Path]):
+        The directory containing the run data before Rosetta
+    post_rosetta_dir (Union[str, pathlib.Path]):
+        The directory containing the run data after Rosetta
+    save_dir (Union[str, pathlib.Path]):
+        The directory to save both the pre- and post-Rosetta tiled images
+    run_name (str):
+        The name of the run to tile, should be present in both pre_rosetta_dir and post_rosetta_dir
+    fov_indices (Optional[List[int]]):
+        The list of indices to select. If None, use all.
+    target_channel (str):
+        The name of the channel to tile inside run_name
+    source_channel (str):
+        The name of the source channel that was subtracted from target_channel
+    pre_rosetta_subdir (str):
+        If applicable, the name of the subdirectory inside each FOV folder of the pre-Rosetta data
+    post_rosetta_subdir (str):
+        If applicable, the name of the subdirectory inside each FOV folder of the post-Rosetta data
+    percent_norm (int):
+        Percentile normalization param to enable easy visualization, if None then skips this step
+    img_size_scale (float):
+        Amount to scale down image. Set to None for no scaling
+    padding (int):
+        Amount of padding to add around each channel in the stitched image
+    font_size (int):
+        The font size to use for annotations
+    step (int):
+        The step size to use before adding an image to the tile
+    save_separate (bool):
+        If set, then save each FOV separately, otherwise save full tile
+    """
+    # verify that the run_name specified appears in both pre and post norm folders
+    all_pre_rosetta_runs: List[str] = list_folders(pre_rosetta_dir)
+    all_post_rosetta_runs: List[str] = list_folders(post_rosetta_dir)
+    verify_in_list(
+        specified_run=run_name,
+        all_pre_norm_runs=all_pre_rosetta_runs
+    )
+    verify_in_list(
+        specified_run=run_name,
+        all_post_norm_runs=all_post_rosetta_runs
+    )
+
+    # verify save_dir is valid before defining the save paths
+    validate_paths([save_dir])
+    rosetta_stitched_path: pathlib.Path = \
+        pathlib.Path(save_dir) / f"{run_name}_{target_channel}_pre_post_Rosetta.tiff"
+
+    # define full paths to pre- and post-Rosetta data
+    pre_rosetta_run_path: pathlib.Path = pathlib.Path(pre_rosetta_dir) / run_name
+    post_rosetta_run_path: pathlib.Path = pathlib.Path(post_rosetta_dir) / run_name
+
+    # get all the FOVs in natsorted order
+    # NOTE: assumed that the FOVs are the same pre and post, since the run names are the same
+    all_fovs: List[str] = ns.natsorted(list_folders(pre_rosetta_run_path))
+
+    # load Noodle, pre-, and post-Rosetta data in acquisition order, drop channel axis as it's 1-D
+    # ensure the pre-Rosetta Noodle is loaded
+    noodle_data: xr.DataArray = load_imgs_from_tree(
+        data_dir=pre_rosetta_run_path, fovs=all_fovs, channels=[source_channel],
+        img_sub_folder=pre_rosetta_subdir, max_image_size=2048
+    )[..., 0]
+    pre_rosetta_data: xr.DataArray = load_imgs_from_tree(
+        data_dir=pre_rosetta_run_path, fovs=all_fovs, channels=[target_channel],
+        img_sub_folder=pre_rosetta_subdir, max_image_size=2048
+    )[..., 0]
+    post_rosetta_data: xr.DataArray = load_imgs_from_tree(
+        data_dir=post_rosetta_run_path, fovs=all_fovs, channels=[target_channel],
+        img_sub_folder=post_rosetta_subdir, max_image_size=2048
+    )[..., 0]
+
+    # divide pre-Rosetta by 200 to ensure same scale
+    pre_rosetta_data = pre_rosetta_data / 200
+
+    # reassign coordinate with FOV names that don't contain "-scan-1" or additional dashes
+    fovs_condensed: np.ndarray = np.array([f"FOV{af.split('-')[1]}" for af in all_fovs])
+    noodle_data = noodle_data.assign_coords({"fovs": fovs_condensed})
+    pre_rosetta_data = pre_rosetta_data.assign_coords({"fovs": fovs_condensed})
+    post_rosetta_data = post_rosetta_data.assign_coords({"fovs": fovs_condensed})
+
+    # the top should be original, middle Noodle, bottom Rosetta-ed
+    # NOTE: leave out Noodle row from dimensions for now for proper rescaling and percentile norm
+    stitched_pre_post_rosetta: np.ndarray = np.zeros(
+        (2048 * 2, 2048 * len(fovs_condensed))
+    )
+    for fov_i, fov_name in enumerate(fovs_condensed):
+        # add the rescaled pre- and post-Rosetta images first
+        stitched_pre_post_rosetta[
+            0:2048, (2048 * fov_i):(2048 * (fov_i + 1))
+        ] = pre_rosetta_data[fov_i, ...].values
+        stitched_pre_post_rosetta[
+            2048:4096, (2048 * fov_i):(2048 * (fov_i + 1))
+        ] = post_rosetta_data[fov_i, ...].values
+
+    # define the Noodle row
+    stitched_noodle: np.ndarray = np.zeros((2048, 2048 * len(fovs_condensed)))
+    for fov_i, fov_name in enumerate(fovs_condensed):
+        stitched_noodle[
+            :, (2048 * fov_i):(2048 * (fov_i + 1))
+        ] = noodle_data[fov_i, ...].values
+
+    # run percent normalization on Noodle data if specified
+    if percent_norm:
+        source_percentile: float = np.percentile(stitched_noodle, percent_norm)
+        non_source_percentile: float = np.percentile(stitched_pre_post_rosetta, percent_norm)
+        perc_ratio: float = source_percentile / non_source_percentile
+        stitched_noodle = stitched_noodle / perc_ratio
+
+    # combine the Noodle data with the stitched data, swap so that Noodle is in the middle
+    stitched_pre_post_rosetta = np.vstack(
+        (stitched_pre_post_rosetta[:2048, :], stitched_noodle, stitched_pre_post_rosetta[2048:, :])
+    )
+
+    # subset on just the FOV indices selected
+    # NOTE: because of how percent norm works, better to run on all FOVs first to ensure brightness
+    # as opposed to subsetting first, which often leads to dimmer images
+    if fov_indices:
+        indices_select = []
+        for fi in fov_indices:
+            indices_select.extend(list(np.arange(2048 * fi, 2048 * (fi + 1))))
+        stitched_pre_post_rosetta = stitched_pre_post_rosetta[:, indices_select]
+
+    if save_separate:
+        # save each individual image separately
+        for fov_i, fov_num in enumerate(fov_indices):
+            stitched_rosetta_pil: Image = Image.fromarray(
+                stitched_pre_post_rosetta[:, (2048 * fov_i):(2048 * (fov_i + 1))]
+            )
+            rosetta_stitched_path: pathlib.Path = \
+                pathlib.Path(save_dir) / f"{target_channel}_image_{fov_num}.tiff"
+            stitched_rosetta_pil.save(rosetta_stitched_path)
+
+    else:
+        # save the full stitched image
+        stitched_rosetta_pil: Image = Image.fromarray(np.round(stitched_pre_post_rosetta, 3))
+        stitched_rosetta_pil.save(rosetta_stitched_path)
+
+
 def stitch_before_after_norm(
     pre_norm_dir: Union[str, pathlib.Path], post_norm_dir: Union[str, pathlib.Path],
-    save_dir: Union[str, pathlib.Path],
-    run_name: str, channel: str, pre_norm_subdir: str = "", post_norm_subdir: str = "",
-    padding: int = 25, font_size: int = 100, step: int = 1
+    save_dir: Union[str, pathlib.Path], run_name: str,
+    fov_indices: Optional[List[int]], channel: str, pre_norm_subdir: str = "",
+    post_norm_subdir: str = "", padding: int = 25, font_size: int = 100, step: int = 1
 ):
     """Generates two stitched images: before and after normalization
 
@@ -345,6 +496,8 @@ def stitch_before_after_norm(
         The directory to save both the pre- and post-norm tiled images
     run_name (str):
         The name of the run to tile, should be present in both pre_norm_dir and post_norm_dir
+    fov_indices (Optional[List[int]]):
+        The list of indices to select. If None, use all.
     channel (str):
         The name of the channel to tile inside run_name
     pre_norm_subdir (str):
@@ -394,12 +547,14 @@ def stitch_before_after_norm(
         img_sub_folder=post_norm_subdir, max_image_size=2048
     )[..., 0]
 
-    pre_norm_data = pre_norm_data[ACQUISITION_ORDER_INDICES, ...]
-    post_norm_data = post_norm_data[ACQUISITION_ORDER_INDICES, ...]
+    if fov_indices:
+        pre_norm_data = pre_norm_data[fov_indices, ...]
+        post_norm_data = post_norm_data[fov_indices, ...]
 
     # reassign coordinate with FOV names that don't contain "-scan-1" or additional dashes
     fovs_condensed: np.ndarray = np.array([f"FOV{af.split('-')[1]}" for af in all_fovs])
-    fovs_condensed = fovs_condensed[ACQUISITION_ORDER_INDICES]
+    if fov_indices:
+        fovs_condensed = fovs_condensed[fov_indices]
     pre_norm_data = pre_norm_data.assign_coords({"fovs": fovs_condensed})
     post_norm_data = post_norm_data.assign_coords({"fovs": fovs_condensed})
 
@@ -821,3 +976,477 @@ def run_cancer_mask_inclusion_tests(
         pathlib.Path(save_dir) / f"border_size_cancer_region_percentages_box.png",
         dpi=300
     )
+
+
+def random_feature_generation(combined_df, seed_num, tonic_features_df, feature_metadata):
+    """
+    Shuffle the Patient_ID (and thus Clinical_benefit) in the TONIC feature dataframe to
+    re-generate the comparison of features.
+    """
+    patients = np.unique(combined_df.Patient_ID)
+    np.random.seed(seed_num)
+    p_rand = patients.copy()
+    np.random.shuffle(p_rand)
+
+    outcome = dict(zip(combined_df.Patient_ID, combined_df.Clinical_benefit))
+    patient_map = pd.DataFrame({'Patient_ID': patients, 'Patients_rand': p_rand})
+
+    combined_df_alt = combined_df.merge(patient_map, on=['Patient_ID'])
+    outcome_map = pd.DataFrame({'Patients_rand': outcome.keys(), 'Clinical_benefit_rand': outcome.values()})
+
+    combined_df_alt2 = combined_df_alt.merge(outcome_map, on=['Patients_rand'])
+    combined_df_alt2 = combined_df_alt2.rename(columns={'Patient_ID': 'og_Patient_ID', 'Patients_rand': 'Patient_ID',
+                                                        'Clinical_benefit': 'og_Clinical_benefit',
+                                                        'Clinical_benefit_rand': 'Clinical_benefit'})
+
+    # settings for generating hits
+    method = 'ttest'
+    total_dfs = []
+
+    for comparison in combined_df_alt2.Timepoint.unique():
+        population_df = compare_populations(feature_df=combined_df_alt2, pop_col='Clinical_benefit',
+                                            timepoints=[comparison], pop_1='No', pop_2='Yes', method=method)
+
+        if np.sum(~population_df.log_pval.isna()) == 0:
+            continue
+        long_df = population_df[['feature_name_unique', 'log_pval', 'mean_diff', 'med_diff']]
+        long_df['comparison'] = comparison
+        long_df = long_df.dropna()
+        long_df['pval'] = 10 ** (-long_df.log_pval)
+        long_df['fdr_pval'] = multipletests(long_df.pval, method='fdr_bh')[1]
+        total_dfs.append(long_df)
+
+    # summarize hits from all comparisons
+    ranked_features_df = pd.concat(total_dfs)
+    ranked_features_df['log10_qval'] = -np.log10(ranked_features_df.fdr_pval)
+
+    # create importance score
+    # get ranking of each row by log_pval
+    ranked_features_df['pval_rank'] = ranked_features_df.log_pval.rank(ascending=False)
+    ranked_features_df['cor_rank'] = ranked_features_df.med_diff.abs().rank(ascending=False)
+    ranked_features_df['combined_rank'] = (ranked_features_df.pval_rank.values + ranked_features_df.cor_rank.values) / 2
+
+    # generate importance score
+    max_rank = len(~ranked_features_df.med_diff.isna())
+    normalized_rank = ranked_features_df.combined_rank / max_rank
+    ranked_features_df['importance_score'] = 1 - normalized_rank
+
+    ranked_features_df = ranked_features_df.sort_values('importance_score', ascending=False)
+    # ranked_features_df = ranked_features_df.sort_values('fdr_pval', ascending=True)
+
+    # generate signed version of score
+    ranked_features_df['signed_importance_score'] = ranked_features_df.importance_score * np.sign(
+        ranked_features_df.med_diff)
+
+    # add feature type
+    ranked_features_df = ranked_features_df.merge(feature_metadata, on='feature_name_unique', how='left')
+
+    feature_type_dict = {'functional_marker': 'phenotype', 'linear_distance': 'interactions',
+                         'density': 'density', 'cell_diversity': 'diversity', 'density_ratio': 'density',
+                         'mixing_score': 'interactions', 'region_diversity': 'diversity',
+                         'compartment_area_ratio': 'compartment', 'density_proportion': 'density',
+                         'morphology': 'phenotype', 'pixie_ecm': 'ecm', 'fiber': 'ecm', 'ecm_cluster': 'ecm',
+                         'compartment_area': 'compartment', 'ecm_fraction': 'ecm'}
+    ranked_features_df['feature_type_broad'] = ranked_features_df.feature_type.map(feature_type_dict)
+
+    # identify top features
+    ranked_features_df['top_feature'] = False
+    ranked_features_df.iloc[:100, -1] = True
+
+    ranked_features_df['full_feature'] = ranked_features_df.feature_name_unique + '-' + ranked_features_df.comparison + '_' + ranked_features_df.compartment
+    tonic_features_df['full_feature'] = tonic_features_df.feature_name_unique + '-' + tonic_features_df.comparison + '_' + tonic_features_df.compartment
+
+    random_features = ranked_features_df[:len(tonic_features_df)].full_feature
+    tonic_features = tonic_features_df.full_feature
+
+    # compare against TONIC features
+    intersection_of_features = set(tonic_features).intersection(set(random_features))
+    union_of_features = set(tonic_features).union(set(random_features))
+    jaccard_score = len(intersection_of_features) / len(union_of_features)
+
+    return intersection_of_features, jaccard_score, ranked_features_df[:len(tonic_features_df)]
+
+class MembraneMarkersSegmentationPlot:
+    def __init__(
+        self,
+        fov: str,
+        image_data: PathLike,
+        segmentation_dir: PathLike,
+        membrane_channels: List[str],
+        overlay_channels: str | List[str],
+        q: tuple[float, float] = (0.05, 0.95),
+        clip: bool = False,
+        figsize: Tuple[int, int] = (12, 4),
+        layout: Literal["constrained", "tight"] = None,
+        image_type: Literal["png", "pdf", "svg"] = "pdf",
+    ):
+        """Creates a figure with two subplots, one for each membrane marker used for segmentation,
+        and one for the overlay of the membrane and nuclear markers.
+
+        Args
+        ----------
+        fov : str
+            The name of the FOV to be plotted
+        image_data : PathLike
+            The directory containing the image data.
+        segmentation_dir : PathLike
+            The directory containing the segmentation data.
+        membrane_channels : List[str]
+            The names of the membrane markers to be plotted.
+        overlay_channels : str | List[str]
+            The overlay channels to be plotted, can be either "nuclear_channel",
+            "membrane_channel", or both.
+        overlay_cmap: str, optional
+            The colormap to use for the overlay, by default "viridis_r"
+        q : tuple[float, float], optional
+            A tuple of quatiles where the smallest element is the minimum quantile
+            and the largest element is the maximum percentile, by default (0.05, 0.95). Must
+            be between 0 and 1 inclusive.
+        clip : bool, optional
+            If True, the normalized values are clipped to the range [0, 1], by default False
+        figsize : Tuple[int, int], optional
+            The size of the figure, by default (8, 4)
+        layout : Literal["constrained", "tight"], optional
+            The layout engine, defaults to None, by default None
+        image_type : Literal["png", "pdf", "svg"], optional
+            The file type to save the plot as, by default "pdf"
+        """
+        self.fov_name = fov
+        self.membrane_channels = membrane_channels
+        self.overlay_channels = overlay_channels
+        self.figsize = figsize
+        self.layout = layout
+        self.n_chans = len(set(membrane_channels))
+        self.q = q
+        self.image_data = image_data
+        self.seg_dir = segmentation_dir
+        self.image_type = image_type
+        self.clip = clip
+
+        self.fig = plt.figure(figsize=figsize, layout=layout)
+        self.subfigs = self.fig.subfigures(
+            nrows=1, ncols=2, wspace=0.05, width_ratios=[1, 1]
+        )
+
+    def make_plot(self, save_dir: PathLike):
+        """Plots the membrane markers and overlay and saves the figure to the specified directory.
+
+        Args
+        ----------
+        save_dir : PathLike
+            The directory to save the figure to.
+        """
+        self.fov_xr = load_imgs_from_tree(
+            data_dir=self.image_data,
+            fovs=[self.fov_name],
+            channels=self.membrane_channels,
+        )
+
+        self.fov_overlay = plot_utils.create_overlay(
+            fov=self.fov_name,
+            segmentation_dir=self.seg_dir / "deepcell_output",
+            data_dir=self.seg_dir / "deepcell_input",
+            img_overlay_chans=self.overlay_channels,
+            seg_overlay_comp="whole_cell",
+        )
+
+        self.fov_cell_segmentation = load_imgs_from_dir(
+            data_dir=self.seg_dir / "deepcell_output",
+            files=[f"{self.fov_name}_whole_cell.tiff"],
+        )
+
+        self.fig.suptitle(
+            t=f"{self.fov_name} Membrane Markers and Segmentation", fontsize=8
+        )
+
+        self._plot_mem_markers()
+        self._plot_overlay_segmentation()
+        self.fig.savefig(
+            fname=save_dir / f"{self.fov_name}_membrane_markers_overlay.{self.image_type}",
+        )
+        plt.close(self.fig)
+
+    def _plot_mem_markers(self):
+        self.subfigs[0].suptitle("Membrane Markers", fontsize=6)
+
+        markers_subplots = self.subfigs[0].subplots(
+            nrows=2,
+            ncols=int(np.ceil((self.n_chans + 1) / 2)),
+            sharex=True,
+            sharey=True,
+            gridspec_kw={"wspace": 0.05, "hspace": 0.05},
+        )
+
+        channel_axes = markers_subplots.flat[: self.n_chans]
+
+        self.subfigs[0].add_subplot
+
+        for ax, channel in zip(channel_axes, ns.natsorted(self.membrane_channels)):
+            chan_data = self.fov_xr.sel({"channels": channel}).squeeze()
+
+            ax.imshow(
+                X=chan_data,
+                cmap="gray",
+                norm=QuantileNormalization(q=self.q, clip=self.clip),
+                interpolation="none",
+                aspect="equal",
+            )
+            ax.set_title(channel, fontsize=6)
+            remove_ticks(ax, "xy")
+
+        ax_sum = markers_subplots.flat[self.n_chans]
+
+        ax_sum.imshow(
+            X=self.fov_xr.sum("channels").squeeze(),
+            cmap="gray",
+            norm=QuantileNormalization(q=self.q, clip=self.clip),
+            interpolation="none",
+            aspect="equal",
+        )
+
+        ax_sum.set_title("Sum", fontsize=6)
+        remove_ticks(ax_sum, "xy")
+
+        # Clean up and remove the empty subplots
+        for ax in markers_subplots.flat[self.n_chans + 1 :]:
+            ax.remove()
+
+    def _plot_overlay_segmentation(self)-> None:
+        cell_seg_ax, overlay_ax = self.subfigs[1].subplots(
+            nrows=1, ncols=2, sharex=True, sharey=True
+        )
+        overlay_ax.set_title("Nuclear and Membrane Overlay", fontsize=6)
+        overlay_ax.imshow(
+            X=self.fov_overlay,
+            norm=QuantileNormalization(q=self.q, clip=self.clip),
+            interpolation="none",
+            aspect="equal",
+        )
+
+        cell_seg_ax.set_title("Cell Segmentation", fontsize=6)
+        cell_seg_ax.imshow(
+            X=xr.apply_ufunc(
+                mask_erosion_ufunc,
+                self.fov_cell_segmentation.squeeze(),
+                input_core_dims=[["rows", "cols"]],
+                output_core_dims=[["rows", "cols"]],
+                kwargs={"connectivity": 1, "mode": "thick"},
+            ).pipe(lambda x: x.where(cond=x < 1, other=0.5)),
+            cmap="grey",
+            interpolation="none",
+            aspect="equal",
+            vmin=0,
+            vmax=1,
+        )
+
+        remove_ticks(overlay_ax, "xy")
+        remove_ticks(cell_seg_ax, "xy")
+
+
+class SegmentationOverlayPlot:
+    def __init__(
+        self,
+        fov: str,
+        segmentation_dir: PathLike,
+        overlay_channels: str | List[str] = ["nuclear_channel", "membrane_channel"],
+        q: tuple[float, float] = (0.05, 0.95),
+        clip: bool = False,
+        figsize: tuple[float, float] =(8, 4),
+        layout: Literal["constrained", "tight"] = "constrained",
+        image_type: Literal["png", "pdf", "svg"] = "svg",
+    ) -> None:
+        """Creates a figure with two subplots, one for the cell segmentation and one for the overlay
+
+        Parameters
+        ----------
+        fov : str
+            The name of the FOV to be plotted
+        segmentation_dir : PathLike
+            The directory containing the segmentation data.
+        overlay_channels : str | List[str]
+            The overlay channels to be plotted, can be either/both "nuclear_channel" or "membrane_channel",
+            defaults to ["nuclear_channel", "membrane_channel"].
+        q : tuple[float, float], optional
+            A tuple of quatiles where the smallest element is the minimum quantile
+            and the largest element is the maximum percentile, by default (0.05, 0.95). Must
+            be between 0 and 1 inclusive.
+        clip : bool, optional
+            If True, the normalized values are clipped to the range [0, 1], by default False
+        figsize : Tuple[int, int], optional
+            The size of the figure, by default (8, 4)
+        layout : Literal["constrained", "tight"], optional
+            The layout engine, defaults to None, by default None
+        image_type : Literal["png", "pdf", "svg"], optional
+            The file type to save the plot as, by default "pdf"
+        """
+        self.fov_name = fov
+        self.seg_dir = segmentation_dir
+        self.overlay_channels = overlay_channels
+        self.q = q
+        self.clip = clip
+        self.figsize = figsize
+        self.layout = layout
+        self.image_type = image_type
+
+        self.fig = plt.figure(figsize=self.figsize, layout=layout)
+
+    def make_plot(self, save_dir: PathLike) -> None:
+        self.fov_overlay = plot_utils.create_overlay(
+            fov=self.fov_name,
+            segmentation_dir=self.seg_dir / "deepcell_output",
+            data_dir=self.seg_dir / "deepcell_input",
+            img_overlay_chans=self.overlay_channels,
+            seg_overlay_comp="whole_cell",
+        )
+        self.fov_cell_segmentation = load_imgs_from_dir(
+            data_dir=self.seg_dir / "deepcell_output",
+            files=[f"{self.fov_name}_whole_cell.tiff"],
+        )
+        self.fig.suptitle(
+            t=f"{self.fov_name} Cell Segmentation and Overlay", fontsize=8
+        )
+        self._plot_overlay_segmentation()
+        self.fig.savefig(
+            save_dir / f"{self.fov_name}_segmentation_overlay.{self.image_type}"
+        )
+
+        plt.close(self.fig)
+
+    def _plot_overlay_segmentation(self):
+        cell_seg_ax, overlay_ax = self.fig.subplots(
+            nrows=1, ncols=2, sharex=True, sharey=True
+        )
+        overlay_ax.set_title("Nuclear and Membrane Overlay", fontsize=6)
+        overlay_ax.imshow(
+            X=self.fov_overlay,
+            norm=QuantileNormalization(q=self.q, clip=self.clip),
+            interpolation="none",
+            aspect="equal",
+        )
+
+        cell_seg_ax.set_title("Cell Segmentation", fontsize=6)
+        cell_seg_ax.imshow(
+            X=xr.apply_ufunc(
+                mask_erosion_ufunc,
+                self.fov_cell_segmentation.squeeze(),
+                input_core_dims=[["rows", "cols"]],
+                output_core_dims=[["rows", "cols"]],
+                kwargs={"connectivity": 2, "mode": "thick"},
+            ).pipe(lambda x: x.where(cond=x < 1, other=0.5)),
+            cmap="grey",
+            interpolation="none",
+            aspect="equal",
+            vmin=0,
+            vmax=1,
+        )
+
+        remove_ticks(overlay_ax, "xy")
+        remove_ticks(cell_seg_ax, "xy")
+
+
+class CorePlot:
+    def __init__(
+        self,
+        fov: str,
+        hne_path: PathLike,
+        seg_dir: PathLike,
+        overlay_channels: list[str] = ["nuclear_channel", "membrane_channel"],
+        figsize: tuple[float, float] = (13, 4),
+        layout: Literal["constrained", "tight"] = "constrained",
+        image_type: Literal["png", "pdf", "svg"] = "pdf",
+    ):
+        """Generates a figure with three subplots: one for the HnE core, one for the HnE FOV crop,
+        and one for the overlay of the nuclear and membrane channels.
+
+        Parameters
+        ----------
+        fov : str
+            The name of the FOV to be plotted
+        hne_path : PathLike
+            The directory containing the fovs with their HnE OME-TIFFs.
+        seg_dir : PathLike
+            The directory containing the segmentation data.
+        overlay_channels : str | List[str]
+            The overlay channels to be plotted, can be either/both "nuclear_channel" or "membrane_channel",
+            defaults to ["nuclear_channel", "membrane_channel"].
+        figsize : Tuple[int, int], optional
+            The size of the figure, by default (8, 4)
+        layout : Literal["constrained", "tight"], optional
+            The layout engine, defaults to None, by default None
+        image_type : Literal["png", "pdf", "svg"], optional
+            The file type to save the plot as, by default "pdf"
+        """
+        self.fov_name = fov
+        self.hne_path = hne_path
+        self.seg_dir = seg_dir
+        self.overlay_channels = overlay_channels
+        self.figsize = figsize
+        self.layout = layout
+        self.image_type = image_type
+
+        self.fig = plt.figure(figsize=self.figsize, layout=self.layout)
+
+        self.axes = self.fig.subplots(nrows=1, ncols=3, width_ratios=[1, 1, 1])
+
+    def make_plot(self, save_dir: PathLike):
+        self.hne_core = imread(
+            self.hne_path / self.fov_name / "core.ome.tiff",
+            plugin="tifffile",
+            is_ome=True,
+        )
+
+        self.hne_fov = imread(
+            self.hne_path / self.fov_name / "fov.ome.tiff",
+            plugin="tifffile",
+            is_ome=True,
+        )
+        self.fov_loc = gpd.read_file(self.hne_path / self.fov_name / "loc.geojson")
+        self.fov_overlay = plot_utils.create_overlay(
+            fov=self.fov_name,
+            segmentation_dir=self.seg_dir / "deepcell_output",
+            data_dir=self.seg_dir / "deepcell_input",
+            img_overlay_chans=self.overlay_channels,
+            seg_overlay_comp="whole_cell",
+        )
+
+        self.fig.suptitle(
+            t=f"{self.fov_name} HnE Core and Cell Segmentation and Overlay", fontsize=8
+        )
+
+        self._plot_core()
+        self._plot_fov_overlay()
+
+        self.fig.savefig(
+            save_dir / f"{self.fov_name}_hne_core_overlay.{self.image_type}"
+        )
+        plt.close(self.fig)
+
+    def _plot_core(self):
+        hne_core_ax = self.axes[0]
+        hne_core_ax.set_title(label="HnE Core", fontsize=6)
+        hne_core_ax.imshow(X=self.hne_core, aspect="equal", interpolation="none")
+        self.fov_loc.buffer(0.1, cap_style=1, join_style=1, resolution=32).plot(
+            ax=hne_core_ax,
+            facecolor="none",
+            edgecolor="black",
+            linewidth=1,
+            aspect="equal",
+        )
+
+        remove_ticks(hne_core_ax, axis="xy")
+
+    def _plot_fov_overlay(self):
+        hne_fov_ax = self.axes[1]
+        hne_fov_ax.set_title(label="HnE FOV Crop", fontsize=6)
+        hne_fov_ax.imshow(X=self.hne_fov, aspect="equal", interpolation="none")
+
+        overlay_ax = self.axes[2]
+        overlay_ax.set_title("Nuclear and Membrane Channel Overlay", fontsize=6)
+        overlay_ax.imshow(
+            X=self.fov_overlay,
+            interpolation="none",
+            aspect="equal",
+        )
+
+        remove_ticks(hne_fov_ax, axis="xy")
+        remove_ticks(overlay_ax, axis="xy")
