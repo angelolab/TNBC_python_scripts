@@ -599,7 +599,7 @@ supplementary_plot_helpers.functional_marker_thresholding(
 
 
 # Feature parameter tuning
-extraction_pipeline_tuning_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "extraction_pipeline_tuning_test")
+extraction_pipeline_tuning_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "extraction_pipeline_tuning")
 if not os.path.exists(extraction_pipeline_tuning_dir):
     os.makedirs(extraction_pipeline_tuning_dir)
 
