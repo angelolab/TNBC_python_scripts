@@ -754,7 +754,7 @@ def run_cancer_mask_inclusion_tests(
     data_channel_thresh = []
     labels_channel_thresh = []
     for i, (_, values_ct) in enumerate(cell_boundary_channel_thresh_data.items()):
-        data_channel_thresh.extend(values)
+        data_channel_thresh.extend(values_ct)
         labels_channel_thresh.extend([threshold_mult_strs[i]] * len(values_ct))
 
     plt.figure(figsize=(10, 6))
@@ -809,7 +809,7 @@ def run_cancer_mask_inclusion_tests(
     data_border_size = []
     labels_border_size = []
     for i, (_, values_bs) in enumerate(cell_boundary_border_size_data.items()):
-        data_border_size.extend(values)
+        data_border_size.extend(values_bs)
         labels_border_size.extend([threshold_mult_strs[i]] * len(values_bs))
 
     plt.figure(figsize=(10, 6))
