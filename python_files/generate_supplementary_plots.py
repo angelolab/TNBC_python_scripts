@@ -1,7 +1,5 @@
 # File with code for generating supplementary plots
-import itertools
 import os
-import pathlib
 import random
 
 import numpy as np
