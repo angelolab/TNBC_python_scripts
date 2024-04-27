@@ -7,9 +7,12 @@ import os
 import pandas as pd
 import pathlib
 from scipy.ndimage import gaussian_filter
+import seaborn as sns
+import skimage.io as io
 from skimage.measure import label
 from skimage import morphology
 import xarray as xr
+import utils as cancer_mask_utils
 
 from PIL import Image, ImageDraw, ImageFont
 from typing import Dict, List, Optional, Tuple, TypedDict, Union
@@ -527,8 +530,8 @@ def run_min_cell_feature_gen_fovs_dropped_tests(
     for compartment in compartments:
         for min_cells in min_cell_params:
             for metric in metrics:
-                total_fovs_dropped[metric[0]][min_cells] = {}
-                count_df = cluster_broad_df[cluster_broad_df.metric == metric[0]]
+                total_fovs_dropped[metric][min_cells] = {}
+                count_df = cluster_broad_df[cluster_broad_df.metric == metric]
                 count_df = count_df[count_df.subset == compartment]
                 all_fovs = count_df.fov.unique()
 
@@ -536,19 +539,7 @@ def run_min_cell_feature_gen_fovs_dropped_tests(
                     keep_df = count_df[count_df.cell_type == cell_type]
                     keep_df = keep_df[keep_df.value >= min_cells]
                     keep_fovs = keep_df.fov.unique()
-                    total_fovs_dropped[metric[0]][min_cells][cell_type] = \
-                        len(all_fovs) - len(keep_fovs)
-
-                total_fovs_dropped[metric[1]][min_cells] = {}
-                count_df = cluster_broad_df[cluster_broad_df.metric == metric[1]]
-                count_df = count_df[count_df.subset == compartment]
-                all_fovs = count_df.fov.unique()
-
-                for cell_type in count_df.cell_type.unique():
-                    keep_df = count_df[count_df.cell_type == cell_type]
-                    keep_df = keep_df[keep_df.value >= min_cells]
-                    keep_fovs = keep_df.fov.unique()
-                    total_fovs_dropped[metric[1]][min_cells][cell_type] = \
+                    total_fovs_dropped[metric][min_cells][cell_type] = \
                         len(all_fovs) - len(keep_fovs)
 
         for metric in metrics:
@@ -586,9 +577,10 @@ def run_min_cell_feature_gen_fovs_dropped_tests(
 
 
 def run_cancer_mask_inclusion_tests(
-    cell_table_clusters: pd.DataFrame, channel_dir: pathlib.Path, threshold_mults: List[float],
-    save_dir: Union[str, pathlib.Path], base_sigma: int = 10, base_channel_thresh: float = 0.0015,
-    base_min_mask_size: int = 7000, base_max_hole_size: int = 1000, base_border_size: int = 50
+    cell_table_clusters: pd.DataFrame, channel_dir: pathlib.Path, seg_dir: pathlib.Path,
+    threshold_mults: List[float], save_dir: Union[str, pathlib.Path], base_sigma: int = 10,
+    base_channel_thresh: float = 0.0015, base_min_mask_size: int = 7000,
+    base_max_hole_size: int = 1000, base_border_size: int = 50
 ):
     """Create box plots showing how much of the intermediate cancer mask in `create_cancer_boundary`
     after Gaussian blurring, channel thresholding, small object removal, and hole filling remain
@@ -603,6 +595,8 @@ def run_cancer_mask_inclusion_tests(
             The data contained in "cell_table_clusters.csv"
         channel_dir (pathlib.Path):
             The path to the "samples" folder containing all the data
+        seg_dir (pathlib.Path):
+            The path to the segmentation data
         threshold_mults (List[float]):
             What value to multiply the base params to test in this function
         save_dir (Union[str, pathlib.Path]):
@@ -638,8 +632,10 @@ def run_cancer_mask_inclusion_tests(
         ecad = io.imread(os.path.join(channel_dir, folder, "ECAD.tiff"))
 
         # generate cancer/stroma mask by combining segmentation mask with ECAD channel
-        seg_label = io.imread(os.path.join(SEG_DIR, folder + "_whole_cell.tiff"))[0]
-        seg_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ["Cancer"])
+        seg_label = io.imread(os.path.join(seg_dir, folder + "_whole_cell.tiff"))[0]
+        seg_mask = cancer_mask_utils.create_cell_mask(
+            seg_label, cell_table_clusters, folder, ["Cancer"]
+        )
 
         for s in cell_boundary_sigmas:
             img_smoothed = gaussian_filter(ecad, sigma=s)
@@ -722,7 +718,7 @@ def run_cancer_mask_inclusion_tests(
 
             interior_boundary = label_mask.astype(int) - interior_boundary.astype(int)
 
-            combined_mask = np.ones_like(img)
+            combined_mask = np.ones_like(ecad)
             combined_mask[label_mask] = 4
             combined_mask[external_boundary > 0] = 2
             combined_mask[interior_boundary > 0] = 3
