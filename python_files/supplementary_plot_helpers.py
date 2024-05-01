@@ -975,9 +975,9 @@ def run_cancer_mask_inclusion_tests(
 
     plt.figure(figsize=(10, 6))
     sns.boxplot(x=labels_border_size, y=data_border_size)
-    plt.title('Distribution of % cancer boundary across border sizes (1x = 50)')
-    plt.xlabel('log2(border size multiplier)')
-    plt.ylabel('% of mask identified as cancer boundary')
+    plt.title("Distribution of % cancer boundary across border sizes (1x = 50)")
+    plt.xlabel("log2(border size multiplier)")
+    plt.ylabel("% of mask identified as cancer boundary")
     plt.savefig(
         pathlib.Path(save_dir) / f"border_size_cancer_region_percentages_box.png",
         dpi=300
