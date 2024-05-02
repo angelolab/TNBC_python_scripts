@@ -9,7 +9,6 @@ from ark.utils.plot_utils import cohort_cluster_plot
 from toffy import qc_comp, qc_metrics_plots
 from alpineer import io_utils
 
-
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
@@ -21,7 +20,11 @@ from matplotlib.colors import ListedColormap, Normalize
 import python_files.supplementary_plot_helpers as supplementary_plot_helpers
 
 ANALYSIS_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files"
+CHANNEL_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
+INTERMEDIATE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files"
+OUTPUT_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/output_files"
 METADATA_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/metadata"
+SEG_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
 SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
 
 
@@ -592,6 +595,38 @@ marker_info = {
 supplementary_plot_helpers.functional_marker_thresholding(
     cell_table, functional_marker_viz_dir, marker_info=marker_info,
     figsize=(20, 40)
+)
+
+
+# Feature parameter tuning
+extraction_pipeline_tuning_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "extraction_pipeline_tuning")
+if not os.path.exists(extraction_pipeline_tuning_dir):
+    os.makedirs(extraction_pipeline_tuning_dir)
+
+## vary the features for each marker threshold
+cell_table_full = pd.read_csv(
+    os.path.join(ANALYSIS_DIR, "combined_cell_table_normalized_cell_labels_updated.csv")
+)
+supplementary_plot_helpers.run_functional_marker_positivity_tuning_tests(
+    cell_table_full, extraction_pipeline_tuning_dir, marker_info,
+    threshold_mults=[1/4, 1/2, 3/4, 7/8, 1, 8/7, 4/3, 2, 4]
+)
+
+## vary min cell param to see how many FOVs get kept or not
+total_df = pd.read_csv(os.path.join(OUTPUT_DIR, "cluster_df_per_core.csv"))
+cluster_broad_df = pd.read_csv(os.path.join(OUTPUT_DIR, "cluster_df_per_core.csv"))
+supplementary_plot_helpers.run_min_cell_feature_gen_fovs_dropped_tests(
+    cluster_broad_df, min_cell_params=[1, 3, 5, 10, 20], compartments=["all"],
+    metrics=["cluster_broad_count"], save_dir=extraction_pipeline_tuning_dir
+)
+
+## vary params for cancer mask and boundary definition inclusion
+cell_table_clusters = pd.read_csv(os.path.join(ANALYSIS_DIR, "cell_table_clusters.csv"))
+supplementary_plot_helpers.run_cancer_mask_inclusion_tests(
+    cell_table_clusters, channel_dir=CHANNEL_DIR, seg_dir=SEG_DIR,
+    threshold_mults=[1/4, 1/2, 3/4, 7/8, 1, 8/7, 4/3, 2, 4],
+    save_dir=extraction_pipeline_tuning_dir, base_sigma=10, base_channel_thresh=0.0015,
+    base_min_mask_size=7000, base_max_hole_size=1000, base_border_size=50
 )
 
 
