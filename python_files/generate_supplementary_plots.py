@@ -70,6 +70,41 @@ plt.tight_layout()
 plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR,'hne_core_fov_plots', "fov_counts_per_timepoint.pdf"), dpi=300)
 plt.close()
 
+# venn diagram of modalities across timepoints
+from venny4py.venny4py import venny4py
+
+base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
+metadata_dir = os.path.join(base_dir, 'intermediate_files/metadata')
+sequence_dir = os.path.join(base_dir, 'sequencing_data')
+
+plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/figures/'
+timepoint_metadata = pd.read_csv(os.path.join(metadata_dir, 'TONIC_data_per_timepoint.csv'))
+harmonized_metadata = pd.read_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'))
+
+# load data
+mibi_metadata = timepoint_metadata.loc[timepoint_metadata.MIBI_data_generated, :]
+wes_metadata = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_WES_meta_table.tsv'), sep='\t')
+rna_metadata = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_tissue_rna_id.tsv'), sep='\t')
+rna_metadata = rna_metadata.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint']].drop_duplicates(), on='Tissue_ID', how='left')
+
+# separate venn diagram per timepoint
+for timepoint in ['baseline', 'post_induction', 'on_nivo']:
+    mibi_ids = set(mibi_metadata.loc[mibi_metadata.Timepoint == timepoint, 'Patient_ID'].values)
+    wes_ids = set(wes_metadata.loc[wes_metadata.timepoint == timepoint, 'Individual.ID'].values)
+    rna_ids = set(rna_metadata.loc[rna_metadata.Timepoint == 'baseline', 'Patient_ID'].values)
+
+    sets = {
+        'MIBI': mibi_ids,
+        'WES': wes_ids,
+        'RNA': rna_ids}
+
+    venny4py(sets=sets)
+    save_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'modality_venn_diagrams')
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    plt.savefig(os.path.join(save_dir, 'venn_diagrams_{}.pdf'.format(timepoint)), dpi=300, bbox_inches='tight')
+    plt.close()
+
 # QC
 qc_metrics = ["Non-zero mean intensity"]
 channel_exclude = ["chan_39", "chan_45", "CD11c_nuc_exclude", "CD11c_nuc_exclude_update",
