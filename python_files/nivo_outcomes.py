@@ -133,8 +133,7 @@ plot_hits = False
 method = 'ttest'
 
 genomics_df = genomics_df.loc[genomics_df.Timepoint != 'on_nivo_1_cycle', :]
-genomics_df = genomics_df.rename(columns={'feature_name': 'feature_name_unique', 'feature_value': 'raw_mean'})
-genomics_df['normalized_mean'] = genomics_df['raw_mean']
+genomics_df = genomics_df.rename(columns={'feature_name': 'feature_name_unique'})
 genomics_df = genomics_df.loc[genomics_df.feature_type != 'gene_rna', :]
 
 # placeholder for all values
@@ -142,7 +141,8 @@ total_dfs = []
 
 for comparison in genomics_df.Timepoint.unique():
     population_df = compare_populations(feature_df=genomics_df, pop_col='Clinical_benefit',
-                                        timepoints=[comparison], pop_1='No', pop_2='Yes', method=method)
+                                        timepoints=[comparison], pop_1='No', pop_2='Yes', method=method,
+                                        feature_suff='value')
 
     if plot_hits:
         current_plot_dir = os.path.join(plot_dir, 'responders_nonresponders_{}'.format(comparison))
@@ -203,6 +203,9 @@ ranked_genomics_df.to_csv(os.path.join(sequence_dir, 'genomics_outcome_ranking.c
 # plot top X features per comparison
 num_features = 30
 
+# ranked_features_df = ranked_genomics_df
+# combined_df = genomics_df
+
 for comparison in ranked_features_df.comparison.unique():
     current_plot_dir = os.path.join(plot_dir, 'top_features_{}'.format(comparison))
     if not os.path.exists(current_plot_dir):
@@ -217,7 +220,7 @@ for comparison in ranked_features_df.comparison.unique():
         plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
                                   (combined_df.Timepoint == comparison), :]
 
-        g = sns.catplot(data=plot_df, x='Clinical_benefit', y='raw_mean', kind='strip')
+        g = sns.catplot(data=plot_df, x='Clinical_benefit', y='raw_value', kind='strip')
         g.fig.suptitle(feature_name)
         g.savefig(os.path.join(current_plot_dir, 'rank_{}_feature_{}.png'.format(rank, feature_name)))
         plt.close()

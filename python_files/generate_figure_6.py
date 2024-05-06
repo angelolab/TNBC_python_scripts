@@ -9,6 +9,7 @@ matplotlib.rcParams['ps.fonttype'] = 42
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+from scipy.stats import ttest_ind
 
 
 base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
@@ -25,6 +26,11 @@ cv_scores['fold'] = len(cv_scores)
 cv_scores_long = pd.melt(cv_scores, id_vars=['fold'], value_vars=cv_scores.columns)
 cv_scores_long['assay'] = cv_scores_long['variable'].apply(lambda x: 'rna' if 'rna' in x else 'mibi')
 cv_scores_long['variable'] = cv_scores_long['variable'].apply(lambda x: x.replace('_rna', '').replace('_mibi', ''))
+
+
+# compare AUCs
+ttest_ind(cv_scores_long.loc[np.logical_and(cv_scores_long.assay == 'rna', cv_scores_long.variable == 'baseline'), 'value'],
+          cv_scores_long.loc[np.logical_and(cv_scores_long.assay == 'rna', cv_scores_long.variable == 'post_induction'), 'value'])
 
 # generate boxplots with MIBI scores
 fig, ax = plt.subplots(1, 1, figsize=(3, 4))
@@ -82,7 +88,7 @@ plt.close()
 
 # look at top features
 for timepoint in ['baseline', 'on_nivo', 'post_induction']:
-    for modality in ['MIBI', 'RNA']:
+    #for modality in ['MIBI', 'RNA']:
         # read in top features
         top_features = pd.read_csv(os.path.join(base_dir, 'multivariate_lasso', 'top_features_results_{}_{}.csv'.format(timepoint, modality)))
 
@@ -121,13 +127,13 @@ for timepoint in ['baseline', 'on_nivo', 'post_induction']:
         feature_counts = feature_counts.reset_index()
         feature_counts.columns = ['feature', 'count']
 
-        fig, ax = plt.subplots(1, 1, figsize=(6, 6))
-        feature_counts.plot(kind='bar', x='feature', y='count', ax=ax)
-        ax.set_title('Feature occurrences')
-
-        plt.tight_layout()
-        plt.savefig(os.path.join(plot_dir, 'Figure6_feature_occurrences_{}_{}.pdf'.format(timepoint, modality)))
-        plt.close()
+        # fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+        # feature_counts.plot(kind='bar', x='feature', y='count', ax=ax)
+        # ax.set_title('Feature occurrences')
+        #
+        # plt.tight_layout()
+        # plt.savefig(os.path.join(plot_dir, 'Figure6_feature_occurrences_{}_{}.pdf'.format(timepoint, modality)))
+        # plt.close()
 
         # look at average rank
         ranked_features = top_features_long.groupby('feature').agg({'rank_norm': 'mean', 'coef_norm': 'mean', 'rank': 'mean'}).sort_values('rank_norm', ascending=True)
@@ -150,7 +156,7 @@ for timepoint in ['baseline', 'on_nivo', 'post_induction']:
             ranked_features_univ_sub_genomic = ranked_features_univ_sub_genomic.loc[ranked_features_univ_sub_genomic.comparison == timepoint, :]
 
             # merge
-            combined_rankings = ranked_features_univ_sub_genomic[['feature_name_unique', 'feature_rank_global', 'importance_score']].merge(ranked_features, on='feature_name_unique')
+            combined_rankings = ranked_features_univ_sub_genomic[['feature_name_unique', 'feature_rank_global', 'feature_rank_comparison', 'importance_score']].merge(ranked_features, on='feature_name_unique')
             combined_rankings = combined_rankings.sort_values('rank_norm')
 
         # save csv
@@ -284,4 +290,108 @@ ax.set_title('Feature correlation')
 sns.despine()
 plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Figure6_feature_correlation_by_model.pdf'))
+plt.close()
+
+# compute CDF for model weights based on number of required channels
+mibi_rankings = all_model_rankings.loc[np.logical_and(all_model_rankings.modality == 'MIBI',
+                                       all_model_rankings.timepoint == 'on_nivo'), :]
+
+# annotate required channels per feature
+channels_reqs = {'T_Other__cluster_density__cancer_border': ['CD3', 'CD4', 'CD8', 'CD45', 'ECAD', 'H3K27', 'H3K9'],
+                 'Cancer_Other__proportion_of__Cancer': ['ECAD', 'CK17'],
+                 'B__Stroma__ratio__cancer_border': ['CD20', 'ECAD', 'Collagen1', 'Fibronectin'],
+                 'cancer_diversity': ['ECAD', 'CK17'],
+                 'cancer_diversity_stroma_core': ['ECAD', 'CK17'],
+                 'TIM3+__T_Other': ['TIM3', 'CD3', 'CD4', 'CD8'],
+                 'TBET+__T_Other': ['TBET', 'CD3', 'CD4', 'CD8'],
+                 'Other__distance_to__Cancer__cancer_border': ['CD56', 'CD14', 'CD45', 'ECAD', 'SMA'],
+                 'area_nuclear__NK': ['CD56'],
+                 'TCF1+__Cancer': ['TCF1'],
+                 'PDL1+__Fibroblast': ['PDL1', 'FAP', 'SMA'],
+                 'cancer_diversity_cancer_border': ['ECAD', 'CK17'],
+                 'Fe+__all': ['Fe'],
+                 'TBET+__all': ['TBET'],
+                 'PDL1+__Treg': ['FOXP3'],
+                 'NK__Stroma__ratio__cancer_border': ['CD56'],
+                 'fiber_orientation': ['Collagen1']}
+
+channel_counts = mibi_rankings[['feature_name_unique', 'coef_norm', 'top_ranked']].copy()
+channel_counts = channel_counts.sort_values('coef_norm', ascending=False)
+channel_counts['feature_num'] = np.arange(channel_counts.shape[0]) + 1
+
+total_channels = []
+for feature in channel_counts.feature_name_unique.values:
+    if feature in channels_reqs:
+        total_channels += channels_reqs[feature]
+
+    channel_counts.loc[channel_counts.feature_name_unique == feature, 'total_channels'] = len(set(total_channels))
+
+channel_counts['coef_cdf'] = channel_counts['coef_norm'].cumsum() / channel_counts['coef_norm'].sum()
+
+# plot
+fig, ax = plt.subplots(1, 1, figsize=(3, 4))
+sns.lineplot(data=channel_counts, x='total_channels', y='coef_cdf', ax=ax, estimator=None, errorbar=None)
+ax.set_title('CDF of model weights based on required channels')
+ax.set_ylim([0, 1])
+ax.set_xlim([0, 22])
+
+plt.tight_layout()
+sns.despine()
+plt.savefig(os.path.join(plot_dir, 'Figure6_model_weight_cdf.pdf'))
+plt.close()
+
+
+# barchart with number of required channels per feature
+feature_names = ['total cd38', 'NK/T', 'PDL1 APC', 'Cancer 3', 'B/Stroma', 'Canc div', 'CD8T border']
+channel_counts = [3, 5, 5, 3, 6, 3, 5]
+
+fig, ax = plt.subplots(1, 1, figsize=(3, 4))
+sns.barplot(y=feature_names, x=channel_counts, ax=ax, color='grey')
+
+ax.set_title('Number of channels per feature')
+plt.tight_layout()
+sns.despine()
+plt.savefig(os.path.join(plot_dir, 'Figure6_channels_per_feature.pdf'))
+plt.close()
+
+# barchart with number of transcripts per signature
+file_path = os.path.join(base_dir, 'sequencing_data/preprocessing/tme_gene_signatures.gmt')
+
+# Initialize an empty list to store rows
+rows = []
+
+# Open the file and read it line by line
+with open(file_path, 'r') as file:
+    for line in file:
+        # Split each line by tabs
+        data = line.strip().split('\t')
+        # Extract the header and genes
+        header = data[0]
+        genes = data[2:]
+        # Append the header and genes as a list to rows
+        rows.append([header] + genes)
+
+# Create a DataFrame from the list of rows
+gene_counts = pd.DataFrame(rows)
+
+gene_counts = gene_counts.T
+gene_counts.columns = gene_counts.iloc[0, :]
+gene_counts = gene_counts.iloc[1:, :]
+gene_counts['cytolytic activity'] = ['GZMA', 'PRF1'] + [None] * (len(gene_counts) - 2)
+
+signatures = ['Coactivation_molecules', 'Th1_signature', 'T_reg_traffic', 'Matrix', 'cytolytic activity',
+              'Proliferation_rate', 'M1_signatures']
+
+transcript_counts = [np.sum(gene_counts[x].values != None) for x in signatures]
+
+fig, ax = plt.subplots(1, 1, figsize=(3, 4))
+sns.barplot(y=signatures, x=transcript_counts, ax=ax, color='grey')
+
+# set xlim
+ax.set_xlim([0, 20])
+
+ax.set_title('Number of transcripts per signature')
+plt.tight_layout()
+sns.despine()
+plt.savefig(os.path.join(plot_dir, 'Figure6_transcripts_per_signature.pdf'))
 plt.close()
