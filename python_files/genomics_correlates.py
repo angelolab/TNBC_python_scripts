@@ -1,3 +1,9 @@
+import matplotlib
+
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
+
+
 import os
 
 import matplotlib.pyplot as plt
@@ -227,7 +233,7 @@ sns.stripplot(data=pop_correlations, x='populations', y='correlation', dodge=Tru
 ax.set_ylabel('RNA vs image lineage correlation')
 plt.xticks(rotation=45)
 plt.tight_layout()
-fig.savefig(os.path.join(plot_dir, 'lineage_correlation_stripplot.png'), dpi=300)
+fig.savefig(os.path.join(save_dir, 'lineage_correlation_stripplot.pdf'), dpi=300)
 plt.close()
 
 rna_correlations_random_subset = rna_correlations.sample(10000)
@@ -248,22 +254,32 @@ lineage_features = [pairings[x][1] for x in pairings.keys()]
 lineage_features = [item for sublist in lineage_features for item in sublist]
 
 SNVs = [x for x in dna_correlations.genomic_features.unique() if 'SNV' in x]
+amps = [x for x in dna_correlations.genomic_features.unique() if '_cn' in x]
+alterations = SNVs + amps
 
 dna_correlations = dna_correlations.loc[dna_correlations.image_feature.isin(lineage_features), :]
-dna_correlations = dna_correlations.loc[dna_correlations.genomic_features.isin(SNVs), :]
+dna_correlations = dna_correlations.loc[dna_correlations.genomic_features.isin(alterations), :]
+
+# update fdr calculation
+dna_correlations['qval_subset'] = multipletests(dna_correlations.pval.values, method='fdr_bh')[1]
+dna_correlations['log_qval_subset'] = -np.log10(dna_correlations.qval_subset)
 
 sns.stripplot(data=dna_correlations, y='cor', dodge=True)
 plt.ylabel('DNA vs image lineage correlation')
 plt.savefig(os.path.join(plot_dir, 'DNA_lineage_correlation_stripplot.png'), dpi=300)
 plt.close()
 
-dna_correlations_random_subset = dna_correlations.sample(10000)
-sns.scatterplot(data=dna_correlations_random_subset, x='cor', y='log_pval')
+
+
+#dna_correlations_random_subset = dna_correlations.sample(10000)
+#sns.scatterplot(data=dna_correlations_random_subset, x='cor', y='log_pval')
+sns.scatterplot(data=dna_correlations, x='cor', y='log_qval_subset', edgecolor='none', s=7.5)
 plt.xlabel('Spearman Correlation')
-plt.ylabel('-log10(p-value)')
+plt.ylabel('-log10(q-value)')
 plt.title('Correlation between DNA and Image Features')
-plt.ylim(0, 10)
-plt.savefig(os.path.join(plot_dir, 'DNA_correlation_volcano.pdf'), dpi=300)
+plt.ylim(0, 0.2)
+sns.despine()
+plt.savefig(os.path.join(save_dir, 'DNA_correlation_volcano.pdf'), dpi=300)
 plt.close()
 
 
@@ -319,36 +335,39 @@ total_df.to_csv(os.path.join(sequence_dir, 'analysis/MIBI_cell_signal_stats_all.
 '''
 
 # map of mibi channel name to gene name
+# 'H3K9ac': 'KAT2A'
 marker_to_rna = {'CD14': 'CD14', 'CD38': 'CD38', 'HLA1': 'HLA-A', 'PDL1': 'CD274',
                  'HLADR': 'HLA-DRA', 'Ki67': 'MKI67', 'FAP': 'FAP',
                  'Collagen1': 'COL1A1' , 'CD45': 'PTPRC', 'GLUT1': 'SLC2A1',
                  'CD69': 'CD69', 'CK17': 'KRT17', 'CD68': 'CD68',
                  'TBET': 'TBX21', 'CD163': 'CD163', 'FOXP3': 'FOXP3',
                  'Fibronectin': 'FN1', 'CD11c': 'ITGAX', 'Vim': 'VIM', 'CD8': 'CD8A',
-                 'CD4': 'CD4', 'H3K9ac': 'KAT2A', 'ECAD': 'CDH1', 'Calprotectin': 'S100A8',
-                 'LAG3': 'LAG3', 'SMA': 'SMN1', 'CD31': 'PECAM1', 'IDO': 'IDO1',
+                 'CD4': 'CD4', 'ECAD': 'CDH1', 'Calprotectin': 'S100A8',
+                 'SMA': 'SMN1', 'CD31': 'PECAM1', 'IDO': 'IDO1',
                  'TCF1': 'TCF7', 'CD57': 'B3GAT1', 'CD20': 'MS4A1', 'TIM3': 'HAVCR2',
                  'CD56': 'NCAM1', 'PD1': 'PDCD1', 'CD3': 'CD3D', 'ChyTr': 'CMA1'}
 
 
-meta_data = pd.read_csv(os.path.join(base_dir, 'analysis_files/harmonized_metadata.csv'))
-meta_data_baseline = meta_data[meta_data.Timepoint == 'baseline'].dropna(subset=['rna_seq_sample_id'])
-meta_data_baseline = meta_data_baseline[['fov', 'rna_seq_sample_id', 'Timepoint']]
+metadata_baseline = harmonized_metadata[harmonized_metadata.Timepoint == 'baseline'].dropna(subset=['rna_seq_sample_id'])
+metadata_baseline = metadata_baseline[['fov', 'rna_seq_sample_id', 'Timepoint']]
 
 rna_data = pd.read_csv(os.path.join(sequence_dir, 'analysis/TONIC_gene_expression_sub.csv'))
-rna_baseline = rna_data.merge(meta_data_baseline[['rna_seq_sample_id', 'Timepoint']], on=['rna_seq_sample_id']).drop_duplicates()
+rna_baseline = rna_data.merge(metadata_baseline[['rna_seq_sample_id', 'Timepoint']], on=['rna_seq_sample_id']).drop_duplicates()
 
 mibi_data = pd.read_csv(os.path.join(sequence_dir, 'analysis/MIBI_cell_signal_stats_all.csv'))
 norm_cols = [col for col in mibi_data.columns if '_normalized' in col]
-mibi_baseline = mibi_data[['fov'] + norm_cols].merge(meta_data_baseline, on=['fov'])
+mibi_baseline = mibi_data[['fov'] + norm_cols].merge(metadata_baseline, on=['fov'])
 
 # create correlation plots
 markers = list(marker_to_rna.keys())
+cors = []
+means = []
 for chan in markers:
     rna = marker_to_rna[chan]
 
     # average fov values across patients
     mibi = mibi_baseline[[f'{chan}_normalized', 'rna_seq_sample_id']]
+    means.append(mibi[f'{chan}_normalized'].mean())
     mibi = mibi.groupby('rna_seq_sample_id').mean()
 
     rna_data = rna_baseline[['rna_seq_sample_id', rna]]
@@ -358,9 +377,63 @@ for chan in markers:
     y = combined_df[rna]
     r, p = spearmanr(x, y)
 
-    plt.figure()
-    plt.scatter(x=x, y=y, s=15)
-    plt.title(f'Correlation: {round(r, 3)}')
-    plt.xlabel(f'{chan} normalized total intensity')
-    plt.ylabel(f'{rna} expression')
-    plt.savefig(os.path.join(sequence_dir, f'analysis/plots/{chan}_{rna}_comparison.png'))
+    cors.append(r)
+
+    # plt.figure()
+    # plt.scatter(x=x, y=y, s=15)
+    # plt.title(f'Correlation: {round(r, 3)}')
+    # plt.xlabel(f'{chan} normalized total intensity')
+    # plt.ylabel(f'{rna} expression')
+    # plt.savefig(os.path.join(sequence_dir, f'analysis/plots/{chan}_{rna}_comparison.png'))
+
+corr_df = pd.DataFrame({'marker': markers, 'correlation': cors, 'mean_intensity': means})
+corr_df.to_csv(os.path.join(sequence_dir, 'analysis/MIBI_RNA_correlation.csv'), index=False)
+
+corr_df = pd.read_csv(os.path.join(sequence_dir, 'analysis/MIBI_RNA_correlation.csv'))
+
+# annotate correlations based on marker
+annot_dict = {'T cell': ['CD3', 'CD4', 'CD8', 'FOXP3'],
+              'B cell': ['CD20'],
+              'NK cell': ['CD56'],
+              'Granulocyte': ['Calprotectin', 'ChyTr'],
+              'Monocyte': ['CD14', 'CD68', 'CD163', 'CD11c'],
+              'Stroma': ['Vim', 'CD31', 'SMA'],
+              'ECM': ['FAP', 'Collagen1', 'Fibronectin'],
+              'Checkpoints': ['PDL1', 'PD1', 'IDO', 'TIM3'],
+              'Tumor': ['ECAD', 'CK17'],
+              'Functional': ['CD38', 'HLA1', 'HLADR', 'Ki67', 'GLUT1', 'CD45RO', 'CD45RB',
+                             'CD57', 'TCF1', 'TBET', 'CD69'],
+              'Other':['H3K9ac', 'H3K27me3', 'CD45']}
+
+for key, value in annot_dict.items():
+    corr_df.loc[corr_df.marker.isin(value), 'group'] = key
+
+corr_df['single_group'] = 'Single'
+
+fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+sns.stripplot(data=corr_df, x='group', y='correlation', dodge=True, ax=ax)
+ax.set_ylabel('RNA vs image marker correlation')
+plt.xticks(rotation=45)
+plt.tight_layout()
+
+fig.savefig(os.path.join(plot_dir, 'RNA_MIBI_correlation_stripplot.png'), dpi=300)
+plt.close()
+
+# annotated box plot
+fig, ax = plt.subplots(1, 1, figsize=(2, 4))
+sns.stripplot(data=corr_df, x='single_group', y='correlation', color='black', ax=ax)
+sns.boxplot(data=corr_df, x='single_group', y='correlation', color='grey', ax=ax, showfliers=False, width=0.3)
+
+ax.set_ylabel('RNA vs image marker correlation')
+plt.xticks(rotation=45)
+plt.tight_layout()
+
+save_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'genomics_correlates')
+if not os.path.exists(save_dir):
+    os.makedirs(save_dir)
+
+fig.savefig(os.path.join(save_dir, 'RNA_MIBI_correlation_boxplot.pdf'), dpi=300)
+plt.close()
+
+
+corr_df = corr_df.sort_values('correlation', ascending=False)
