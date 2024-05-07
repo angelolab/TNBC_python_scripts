@@ -934,3 +934,60 @@ plt.xlabel('Feature Type')
 plt.ylabel('Number of Features')
 plt.savefig(os.path.join(save_dir, 'feature_type_counts.pdf'), dpi=300)
 plt.close()
+
+# volcano plot for RNA features
+ranked_features_df = pd.read_csv(os.path.join(SEQUENCE_DIR, 'genomics_outcome_ranking.csv'))
+ranked_features_df = ranked_features_df.loc[ranked_features_df.data_type == 'RNA', :]
+ranked_features_df = ranked_features_df.sort_values(by='combined_rank', ascending=True)
+
+ranked_features_df[['feature_name_unique']].to_csv(os.path.join(save_dir, 'RNA_features.csv'), index=False)
+
+# plot  volcano
+fig, ax = plt.subplots(figsize=(3,3))
+sns.scatterplot(data=ranked_features_df, x='med_diff', y='log_pval', alpha=1, hue='importance_score', palette=sns.color_palette("icefire", as_cmap=True),
+                s=2.5, edgecolor='none', ax=ax)
+ax.set_xlim(-3, 3)
+sns.despine()
+
+# add gradient legend
+norm = plt.Normalize(ranked_features_df.importance_score.min(), ranked_features_df.importance_score.max())
+sm = plt.cm.ScalarMappable(cmap="icefire", norm=norm)
+ax.get_legend().remove()
+ax.figure.colorbar(sm, ax=ax)
+plt.tight_layout()
+
+plt.savefig(os.path.join(save_dir, 'RNA_volcano.pdf'))
+plt.close()
+
+# Breakdown of features by timepoint
+top_features = ranked_features_df.iloc[:100, :]
+#top_features = ranked_features_df.loc[ranked_features_df.fdr_pval < 0.1, :]
+
+# by comparison
+top_features_by_comparison = top_features[['data_type', 'comparison']].groupby(['comparison']).size().reset_index()
+top_features_by_comparison.columns = ['comparison', 'num_features']
+top_features_by_comparison = top_features_by_comparison.sort_values('num_features', ascending=False)
+
+fig, ax = plt.subplots(figsize=(4, 4))
+sns.barplot(data=top_features_by_comparison, x='comparison', y='num_features', color='grey', ax=ax)
+plt.xticks(rotation=90)
+plt.tight_layout()
+sns.despine()
+plt.savefig(os.path.join(save_dir, 'Num_features_per_comparison_rna.pdf'))
+plt.close()
+
+# by data type
+ranked_features_df = pd.read_csv(os.path.join(SEQUENCE_DIR, 'genomics_outcome_ranking.csv'))
+top_features = ranked_features_df.iloc[:100, :]
+
+top_features_by_data_type = top_features[['data_type', 'comparison']].groupby(['data_type']).size().reset_index()
+top_features_by_data_type.columns = ['data_type', 'num_features']
+top_features_by_data_type = top_features_by_data_type.sort_values('num_features', ascending=False)
+
+fig, ax = plt.subplots(figsize=(4, 4))
+sns.barplot(data=top_features_by_data_type, x='data_type', y='num_features', color='grey', ax=ax)
+plt.xticks(rotation=90)
+plt.tight_layout()
+sns.despine()
+plt.savefig(os.path.join(save_dir, 'Num_features_per_data_type_genomics.pdf'))
+plt.close()
