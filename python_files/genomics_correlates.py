@@ -282,6 +282,34 @@ sns.despine()
 plt.savefig(os.path.join(save_dir, 'DNA_correlation_volcano.pdf'), dpi=300)
 plt.close()
 
+# compare sTILs with MIBI densities
+metadata_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/metadata'
+patient_metadata = pd.read_csv(os.path.join(metadata_dir, 'TONIC_data_per_patient.csv'))
+
+tils = patient_metadata[['Patient_ID', 'sTIL_(%)_revised']].drop_duplicates()
+mibi_tils = image_feature_df.loc[image_feature_df.Timepoint == 'baseline', :]
+mibi_tils = mibi_tils.loc[mibi_tils.feature_name_unique.isin(['T__cluster_broad_density', 'B__cluster_broad_density']), :]
+mibi_tils = mibi_tils[['Patient_ID', 'raw_mean']]
+
+mibi_tils = mibi_tils.groupby('Patient_ID').sum().reset_index()
+mibi_tils = mibi_tils.rename(columns={'raw_mean': 'MIBI_density'})
+
+combined_tils = pd.merge(tils, mibi_tils, on='Patient_ID', how='inner')
+combined_tils = combined_tils.dropna(subset=['sTIL_(%)_revised', 'MIBI_density'])
+
+# plot
+sns.scatterplot(data=combined_tils, x='sTIL_(%)_revised', y='MIBI_density')
+
+plt.xlabel('sTIL (%)')
+plt.ylabel('MIBI density')
+plt.title('sTIL vs MIBI density')
+plt.savefig(os.path.join(save_dir, 'sTIL_MIBI_density.pdf'), dpi=300)
+
+
+spearmanr(combined_tils['sTIL_(%)_revised'], combined_tils['MIBI_density'])
+
+
+
 
 ## protein vs rna plots
 # calculate total (cell) signal in each image & normalize by cell area
