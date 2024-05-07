@@ -909,5 +909,28 @@ plt.ylabel('MIBI density')
 plt.title('sTIL vs MIBI density')
 plt.savefig(os.path.join(save_dir, 'sTIL_MIBI_density.pdf'), dpi=300)
 
-
 spearmanr(combined_tils['sTIL_(%)_revised'], combined_tils['MIBI_density'])
+
+# outcomes associations
+save_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'outcome_associations')
+if not os.path.exists(save_dir):
+    os.makedirs(save_dir)
+
+ranked_features_all = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_ranking.csv'))
+ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+ranked_features = ranked_features.loc[ranked_features.feature_rank_global <= 100, :]
+
+ranked_features = ranked_features.loc[ranked_features.feature_type.isin(['density', 'density_ratio', 'density_proportion']), :]
+ranked_features['feature_type'] = ranked_features['feature_type'].replace('density_proportion', 'density_ratio')
+ranked_features = ranked_features[['feature_name_unique', 'feature_type']]
+
+ranked_feature_counts = ranked_features.groupby('feature_type').count().reset_index()
+
+# plot
+sns.barplot(data=ranked_feature_counts, x='feature_type', y='feature_name_unique', color='grey')
+sns.despine()
+
+plt.xlabel('Feature Type')
+plt.ylabel('Number of Features')
+plt.savefig(os.path.join(save_dir, 'feature_type_counts.pdf'), dpi=300)
+plt.close()
