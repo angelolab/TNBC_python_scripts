@@ -9,7 +9,6 @@ from ark.utils.plot_utils import cohort_cluster_plot
 from toffy import qc_comp, qc_metrics_plots
 from alpineer import io_utils
 
-
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
@@ -21,7 +20,11 @@ from matplotlib.colors import ListedColormap, Normalize
 import python_files.supplementary_plot_helpers as supplementary_plot_helpers
 
 ANALYSIS_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files"
+CHANNEL_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
+INTERMEDIATE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files"
+OUTPUT_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/output_files"
 METADATA_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/metadata"
+SEG_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
 SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
 
 
@@ -66,6 +69,41 @@ plt.tight_layout()
 
 plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR,'hne_core_fov_plots', "fov_counts_per_timepoint.pdf"), dpi=300)
 plt.close()
+
+# venn diagram of modalities across timepoints
+from venny4py.venny4py import venny4py
+
+base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
+metadata_dir = os.path.join(base_dir, 'intermediate_files/metadata')
+sequence_dir = os.path.join(base_dir, 'sequencing_data')
+
+plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/figures/'
+timepoint_metadata = pd.read_csv(os.path.join(metadata_dir, 'TONIC_data_per_timepoint.csv'))
+harmonized_metadata = pd.read_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'))
+
+# load data
+mibi_metadata = timepoint_metadata.loc[timepoint_metadata.MIBI_data_generated, :]
+wes_metadata = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_WES_meta_table.tsv'), sep='\t')
+rna_metadata = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_tissue_rna_id.tsv'), sep='\t')
+rna_metadata = rna_metadata.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint']].drop_duplicates(), on='Tissue_ID', how='left')
+
+# separate venn diagram per timepoint
+for timepoint in ['baseline', 'post_induction', 'on_nivo']:
+    mibi_ids = set(mibi_metadata.loc[mibi_metadata.Timepoint == timepoint, 'Patient_ID'].values)
+    wes_ids = set(wes_metadata.loc[wes_metadata.timepoint == timepoint, 'Individual.ID'].values)
+    rna_ids = set(rna_metadata.loc[rna_metadata.Timepoint == 'baseline', 'Patient_ID'].values)
+
+    sets = {
+        'MIBI': mibi_ids,
+        'WES': wes_ids,
+        'RNA': rna_ids}
+
+    venny4py(sets=sets)
+    save_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'modality_venn_diagrams')
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    plt.savefig(os.path.join(save_dir, 'venn_diagrams_{}.pdf'.format(timepoint)), dpi=300, bbox_inches='tight')
+    plt.close()
 
 # QC
 qc_metrics = ["Non-zero mean intensity"]
@@ -592,6 +630,38 @@ marker_info = {
 supplementary_plot_helpers.functional_marker_thresholding(
     cell_table, functional_marker_viz_dir, marker_info=marker_info,
     figsize=(20, 40)
+)
+
+
+# Feature parameter tuning
+extraction_pipeline_tuning_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "extraction_pipeline_tuning")
+if not os.path.exists(extraction_pipeline_tuning_dir):
+    os.makedirs(extraction_pipeline_tuning_dir)
+
+## vary the features for each marker threshold
+cell_table_full = pd.read_csv(
+    os.path.join(ANALYSIS_DIR, "combined_cell_table_normalized_cell_labels_updated.csv")
+)
+supplementary_plot_helpers.run_functional_marker_positivity_tuning_tests(
+    cell_table_full, extraction_pipeline_tuning_dir, marker_info,
+    threshold_mults=[1/4, 1/2, 3/4, 7/8, 1, 8/7, 4/3, 2, 4]
+)
+
+## vary min cell param to see how many FOVs get kept or not
+total_df = pd.read_csv(os.path.join(OUTPUT_DIR, "cluster_df_per_core.csv"))
+cluster_broad_df = pd.read_csv(os.path.join(OUTPUT_DIR, "cluster_df_per_core.csv"))
+supplementary_plot_helpers.run_min_cell_feature_gen_fovs_dropped_tests(
+    cluster_broad_df, min_cell_params=[1, 3, 5, 10, 20], compartments=["all"],
+    metrics=["cluster_broad_count"], save_dir=extraction_pipeline_tuning_dir
+)
+
+## vary params for cancer mask and boundary definition inclusion
+cell_table_clusters = pd.read_csv(os.path.join(ANALYSIS_DIR, "cell_table_clusters.csv"))
+supplementary_plot_helpers.run_cancer_mask_inclusion_tests(
+    cell_table_clusters, channel_dir=CHANNEL_DIR, seg_dir=SEG_DIR,
+    threshold_mults=[1/4, 1/2, 3/4, 7/8, 1, 8/7, 4/3, 2, 4],
+    save_dir=extraction_pipeline_tuning_dir, base_sigma=10, base_channel_thresh=0.0015,
+    base_min_mask_size=7000, base_max_hole_size=1000, base_border_size=50
 )
 
 
