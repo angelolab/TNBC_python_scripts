@@ -35,8 +35,8 @@ ecm_clusters = pd.read_csv(os.path.join(intermediate_dir, 'ecm_pixel_clustering/
 ecm_object_ratio = pd.read_csv(os.path.join(intermediate_dir, 'ecm_pixel_clustering/shape_analysis/fov_object_mean_ratio.csv'))
 ecm_object_diff = pd.read_csv(os.path.join(intermediate_dir, 'ecm_pixel_clustering/shape_analysis/fov_object_mean_diff_norm.csv'))
 ecm_neighborhoods = pd.read_csv(os.path.join(intermediate_dir, 'ecm_pixel_clustering/neighborhood/fov_neighborhood_counts.csv'))
-image_clusters = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/neighborhood_analysis_round2/cell_cluster_radius100_frequency_12/neighborhood_image_proportions.csv'))
-compartment_clusters = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/neighborhood_analysis_round2/cell_cluster_radius100_frequency_12/neighborhood_compartment_proportions.csv'))
+image_clusters = pd.read_csv(os.path.join(output_dir, 'neighborhood_image_proportions.csv'))
+compartment_clusters = pd.read_csv(os.path.join(output_dir, 'neighborhood_compartment_proportions.csv'))
 
 # load metadata
 harmonized_metadata_df = pd.read_csv(os.path.join(analysis_dir, 'harmonized_metadata.csv'))

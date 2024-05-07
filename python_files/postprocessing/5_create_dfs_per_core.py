@@ -41,6 +41,7 @@ area_df = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir/individual_masks-
 annotations_by_mask = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir/individual_masks-no_tagg_tls', 'cell_annotation_mask.csv'))
 fiber_stats = pd.read_csv(os.path.join(intermediate_dir, 'fiber_segmentation_processed_data', 'fiber_stats_table.csv'))
 fiber_tile_df = pd.read_csv(os.path.join(intermediate_dir, 'fiber_segmentation_processed_data/tile_stats_512', 'fiber_stats_table-tile_512.csv'))
+kmeans_cell_table = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/neighborhood_analysis_round2/cell_cluster_radius100_frequency_12', 'cell_table_clusters.csv'))
 
 # merge cell-level annotations
 harmonized_annotations = annotations_by_mask
@@ -1068,3 +1069,73 @@ fiber_tile_df_timepoint = fiber_tile_df_timepoint.merge(harmonized_metadata.drop
 
 # save timepoint df
 fiber_tile_df_timepoint.to_csv(os.path.join(output_dir, 'fiber_df_per_tile_timepoint.csv'), index=False)
+
+
+# kmeans neighborhood proportions
+# image level proportions
+fov_cell_sum = kmeans_cell_table[['fov', 'kmeans_neighborhood']].groupby(by=['fov']).count().reset_index()
+fov_cell_sum = fov_cell_sum.rename(columns={'kmeans_neighborhood': 'cells_in_image'})
+
+# create df with all fovs and all kmeans rows
+all_fovs_df = []
+for fov in np.unique(kmeans_cell_table.fov):
+    df = pd.DataFrame({
+        'fov': [fov] * 12,
+        'kmeans_neighborhood': list(range(1, 13))
+    })
+
+    all_fovs_df.append(df)
+all_fovs_df = pd.concat(all_fovs_df)
+
+# get kmeans cluster counts per image, merge with all cluster df, replace nan with zero
+cluster_prop = kmeans_cell_table[['fov', 'kmeans_neighborhood', 'label']].groupby(
+    by=['fov', 'kmeans_neighborhood']).count().reset_index()
+
+cluster_prop = all_fovs_df.merge(cluster_prop, on=['fov', 'kmeans_neighborhood'], how='left')
+cluster_prop.fillna(0, inplace=True)
+
+# calculate proportions
+cluster_prop = cluster_prop.merge(fov_cell_sum, on=['fov'])
+cluster_prop = cluster_prop.rename(columns={'label': 'cells_in_cluster'})
+cluster_prop['proportion'] = cluster_prop.cells_in_cluster / cluster_prop.cells_in_image
+
+cluster_prop.to_csv(os.path.join(output_dir, 'neighborhood_image_proportions.csv'), index=False)
+
+
+# stroma and cancer compartment proportions
+intermediate_dir_old = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files'
+annotations_by_mask = pd.read_csv(
+    os.path.join(intermediate_dir_old, 'mask_dir/individual_masks-no_tagg_tls', 'cell_annotation_mask.csv'))
+
+kmeans_cells = kmeans_cell_table[['fov', 'kmeans_neighborhood', 'label']]
+compartment_data = annotations_by_mask.merge(kmeans_cells, on=['fov', 'label'])
+
+all_compartments_df = []
+for fov in np.unique(kmeans_cell_table.fov):
+    df = pd.DataFrame({
+        'fov': [fov] * 4 * 12,
+        'mask_name': ['cancer_border'] * 12 + ['cancer_core'] * 12 + ['stroma_border'] * 12 + ['stroma_core'] * 12,
+        'kmeans_neighborhood': list(range(1, 13)) * 4,
+    })
+
+    all_compartments_df.append(df)
+all_compartments_df = pd.concat(all_compartments_df)
+
+# get kmeans cluster counts per compartment in each image, merge with all cluster df, replace nan with zero
+compartment_data = compartment_data.groupby(by=['fov', 'mask_name', 'kmeans_neighborhood']).count().reset_index()
+
+all_data = all_compartments_df.merge(compartment_data, on=['fov', 'mask_name', 'kmeans_neighborhood'], how='left')
+all_data.fillna(0, inplace=True)
+all_data = all_data.rename(columns={'label': 'cells_in_cluster'})
+
+# get compartment cell counts
+compartment_cell_sum = all_data[['fov', 'mask_name', 'cells_in_cluster']].groupby(
+    by=['fov', 'mask_name']).sum().reset_index()
+compartment_cell_sum = compartment_cell_sum.rename(columns={'cells_in_cluster': 'total_cells'})
+
+# calculate proportions
+df = all_data.merge(compartment_cell_sum, on=['fov', 'mask_name'])
+df['proportion'] = df.cells_in_cluster / df.total_cells
+df = df.dropna().sort_values(by=['fov', 'mask_name'])
+
+df.to_csv(os.path.join(output_dir, 'neighborhood_compartment_proportions.csv'), index=False)
