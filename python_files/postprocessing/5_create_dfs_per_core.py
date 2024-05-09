@@ -1077,11 +1077,12 @@ fov_cell_sum = kmeans_cell_table[['fov', 'kmeans_neighborhood']].groupby(by=['fo
 fov_cell_sum = fov_cell_sum.rename(columns={'kmeans_neighborhood': 'cells_in_image'})
 
 # create df with all fovs and all kmeans rows
+kmeans_cluster_num = len(np.unique(kmeans_cell_table.kmeans_neighborhood))
 all_fovs_df = []
 for fov in np.unique(kmeans_cell_table.fov):
     df = pd.DataFrame({
-        'fov': [fov] * 12,
-        'kmeans_neighborhood': list(range(1, 13))
+        'fov': [fov] * kmeans_cluster_num,
+        'kmeans_neighborhood': list(range(1, kmeans_cluster_num+1))
     })
 
     all_fovs_df.append(df)
@@ -1113,9 +1114,10 @@ compartment_data = annotations_by_mask.merge(kmeans_cells, on=['fov', 'label'])
 all_compartments_df = []
 for fov in np.unique(kmeans_cell_table.fov):
     df = pd.DataFrame({
-        'fov': [fov] * 4 * 12,
-        'mask_name': ['cancer_border'] * 12 + ['cancer_core'] * 12 + ['stroma_border'] * 12 + ['stroma_core'] * 12,
-        'kmeans_neighborhood': list(range(1, 13)) * 4,
+        'fov': [fov] * 4 * kmeans_cluster_num,
+        'mask_name': ['cancer_border'] * kmeans_cluster_num + ['cancer_core'] * kmeans_cluster_num +
+        ['stroma_border'] * kmeans_cluster_num + ['stroma_core'] * kmeans_cluster_num,
+        'kmeans_neighborhood': list(range(1, kmeans_cluster_num+1)) * 4,
     })
 
     all_compartments_df.append(df)
