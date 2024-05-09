@@ -1,3 +1,4 @@
+import json
 import math
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter, MaxNLocator
@@ -23,8 +24,9 @@ from ark.utils import plot_utils, data_utils
 from alpineer.io_utils import list_folders, list_files, remove_file_extensions, validate_paths
 from alpineer.load_utils import load_imgs_from_tree, load_imgs_from_dir
 from alpineer.misc_utils import verify_in_list
-from toffy.image_stitching import rescale_images
-from .utils import remove_ticks, QuantileNormalization, mask_erosion_ufunc
+# from toffy.image_stitching import rescale_images
+# from .utils import remove_ticks, QuantileNormalization, mask_erosion_ufunc
+from utils import remove_ticks, QuantileNormalization, mask_erosion_ufunc
 ACQUISITION_ORDER_INDICES = [
     11, 12, 13, 14, 15, 17, 18, 20, 22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 35,
     36, 39, 40, 41, 42, 43, 44, 45, 46, 47
@@ -33,8 +35,8 @@ ACQUISITION_ORDER_INDICES = [
 
 # generate stitching/annotation function, used by panel validation and acquisition order tiling
 def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
-                                   font_size: int = 100, annotate: bool = False,
-                                   step: int = 1):
+                                   num_rows: Optional[int] = None, font_size: int = 100,
+                                   annotate: bool = False, step: int = 1):
     """Stitch an image with (c, x, y) dimensions. If specified, annotate each image with labels
     contained in the cth dimension.
 
@@ -43,6 +45,8 @@ def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
             The image data to tile, should be 3D
         padding (int):
             Amount of padding to add around each channel in the stitched image
+        num_rows (int):
+            The number of rows, if None uses the rounded sqrt of total num of images
         font_size (int):
             The font size to use for annotations
         annotate (bool):
@@ -64,8 +68,11 @@ def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
     image_data = image_data[images_to_select, ...]
 
     # define the number of rows and columns
-    num_cols: int = math.isqrt(image_data.shape[0])
-    num_rows: int = math.ceil(image_data.shape[0] / num_cols)
+    if num_rows:
+        num_cols = math.ceil(image_data.shape[0] / num_rows)
+    else:
+        num_cols: int = math.isqrt(image_data.shape[0])
+        num_rows: int = math.ceil(image_data.shape[0] / num_cols)
     row_len: int = image_data.shape[1]
     col_len: int = image_data.shape[2]
 
@@ -122,7 +129,7 @@ def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
 def validate_panel(
     data_dir: Union[str, pathlib.Path], fov: str, save_dir: Union[str, pathlib.Path], 
     channels: Optional[List[str]] = None, img_sub_folder: str = "", padding: int = 10,
-    font_size: int = 200
+    num_rows: Optional[int] = None, font_size: int = 200
 ):
     """Given a FOV in an image folder, stitch and annotate each channel
 
@@ -139,6 +146,8 @@ def validate_panel(
             The sub folder name inside each FOV directory, set to "" if None
         padding (int):
             Amount of padding to add around each channel in the stitched image
+        num_rows (int):
+            The number of rows, if None uses the rounded sqrt of total num of images
         font_size (int):
             The font size to use for annotations
     """
@@ -178,7 +187,7 @@ def validate_panel(
 
     # generate the stitched image and save
     panel_tiled: Image = stitch_and_annotate_padded_img(
-        image_data, padding=padding, font_size=font_size, annotate=True
+        image_data, padding=padding, num_rows=num_rows, font_size=font_size, annotate=True
     )
 
     panel_tiled.save(stitched_img_path)
@@ -631,7 +640,7 @@ def run_functional_marker_positivity_tuning_tests(
     # # save the figure to save_dir
     # _ = fig.savefig(
     #     pathlib.Path(extraction_pipeline_tuning_dir) /
-    #     f"functional_marker_threshold_experiments_norm.png",
+    #     f"functional_marker_threshold_experiments_norm.pdf",
     #     dpi=300
     # )
 
@@ -658,7 +667,7 @@ def run_functional_marker_positivity_tuning_tests(
 
     # save the figure to save_dir
     _ = fig.savefig(
-        pathlib.Path(save_dir) / f"functional_marker_threshold_experiments.png",
+        pathlib.Path(save_dir) / f"functional_marker_threshold_experiments.pdf",
         dpi=300
     )
 
@@ -732,7 +741,7 @@ def run_min_cell_feature_gen_fovs_dropped_tests(
             plot.fig.suptitle("Distribution of FOVs dropped across min_cells trials")
             plt.savefig(
                 pathlib.Path(save_dir) /
-                f"{compartment}_min_cells_{metric}_fovs_dropped_stripplot.png",
+                f"{compartment}_min_cells_{metric}_fovs_dropped_stripplot.pdf",
                 dpi=300
             )
 
@@ -782,14 +791,27 @@ def run_cancer_mask_inclusion_tests(
     # cell_boundary_max_hole_sizes = [int(tm * max_hole_size) for tm in threshold_mults]
     cell_boundary_border_sizes = [int(tm * base_border_size) for tm in threshold_mults]
 
-    cell_boundary_sigma_data = {s: [] for s in cell_boundary_sigmas}
-    cell_boundary_channel_thresh_data = {ct: [] for ct in cell_boundary_channel_threshes}
-    cell_boundary_min_mask_size_data = {mms: [] for mms in cell_boundary_min_mask_sizes}
-    # cell_boundary_max_hole_size_data = {mhs: [] for mhs in cell_boundary_max_hole_sizes}
-    cell_boundary_border_size_data = {bs: [] for bs in cell_boundary_border_sizes}
+    if os.path.exists(pathlib.Path(save_dir) / "intermediate_data.json"):
+        with open(pathlib.Path(save_dir) / "intermediate_data.json") as infile:
+            intermediate_data = json.load(infile)
+            cell_boundary_sigma_data = intermediate_data["sigma"]
+            cell_boundary_channel_thresh_data = intermediate_data["channel_thresh"]
+            cell_boundary_min_mask_size_data = intermediate_data["min_mask_size"]
+            # cell_boundary_max_hole_size_data = intermediate_data["max_hole_size"]
+            cell_boundary_border_size_data = intermediate_data["border_size"]
+    else:
+        cell_boundary_sigma_data = {s: [] for s in cell_boundary_sigmas}
+        cell_boundary_channel_thresh_data = {ct: [] for ct in cell_boundary_channel_threshes}
+        cell_boundary_min_mask_size_data = {mms: [] for mms in cell_boundary_min_mask_sizes}
+        # cell_boundary_max_hole_size_data = {mhs: [] for mhs in cell_boundary_max_hole_sizes}
+        cell_boundary_border_size_data = {bs: [] for bs in cell_boundary_border_sizes}
 
     i = 0
-    for folder in folders:
+    for i, folder in enumerate(folders):
+        if i < len(cell_boundary_sigma_data[str(cell_boundary_sigmas[0])]):
+            i += 1
+            print(f"Skipping folder {folder}")
+            continue
         ecad = io.imread(os.path.join(channel_dir, folder, "ECAD.tiff"))
 
         # generate cancer/stroma mask by combining segmentation mask with ECAD channel
@@ -813,7 +835,7 @@ def run_cancer_mask_inclusion_tests(
             )
 
             percent_hit = np.sum(label_mask) / label_mask.size
-            cell_boundary_sigma_data[s].append(percent_hit)
+            cell_boundary_sigma_data[str(s)].append(percent_hit)
 
         img_smoothed = gaussian_filter(ecad, sigma=base_sigma)
         for ct in cell_boundary_channel_threshes:
@@ -829,7 +851,7 @@ def run_cancer_mask_inclusion_tests(
             )
 
             percent_hit = np.sum(label_mask) / label_mask.size
-            cell_boundary_channel_thresh_data[ct].append(percent_hit)
+            cell_boundary_channel_thresh_data[str(ct)].append(percent_hit)
 
         img_smoothed = gaussian_filter(ecad, sigma=base_sigma)
         img_mask = img_smoothed > base_channel_thresh
@@ -844,7 +866,7 @@ def run_cancer_mask_inclusion_tests(
             )
 
             percent_hit = np.sum(label_mask) / label_mask.size
-            cell_boundary_min_mask_size_data[mms].append(percent_hit)
+            cell_boundary_min_mask_size_data[str(mms)].append(percent_hit)
 
         # for mhs in cell_boundary_max_hole_sizes:
         #     label_mask = morphology.remove_small_objects(
@@ -887,11 +909,21 @@ def run_cancer_mask_inclusion_tests(
             percent_border = np.sum(
                 (combined_mask == 2) | (combined_mask == 3)
             ) / combined_mask.size
-            cell_boundary_border_size_data[bs].append(percent_border)
+            cell_boundary_border_size_data[str(bs)].append(percent_border)
 
         i += 1
         if i % 10 == 0:
             print(f"Processed {i} folders")
+            all_data = {
+                "sigma": cell_boundary_sigma_data,
+                "channel_thresh": cell_boundary_channel_thresh_data,
+                "min_mask_size": cell_boundary_min_mask_size_data,
+                # "max_hole_size": cell_boundary_max_hole_size_data,
+                "border_size": cell_boundary_border_size_data
+            }
+
+            with open(pathlib.Path(save_dir) / "intermediate_data.json", "w") as outfile:
+                json.dump(all_data, outfile, indent=4)
 
     # plot the sigma experiments
     data_sigma = []
@@ -907,7 +939,7 @@ def run_cancer_mask_inclusion_tests(
     plt.ylabel("% of mask included in cancer")
     plt.savefig(
         pathlib.Path(save_dir) /
-        f"sigma_cancer_mask_inclusion_box.png",
+        f"sigma_cancer_mask_inclusion_box.pdf",
         dpi=300
     )
 
@@ -925,7 +957,7 @@ def run_cancer_mask_inclusion_tests(
     plt.ylabel("% of mask included in cancer")
     plt.savefig(
         pathlib.Path(save_dir) /
-        f"smooth_thresh_cancer_mask_inclusion_box.png",
+        f"smooth_thresh_cancer_mask_inclusion_box.pdf",
         dpi=300
     )
 
@@ -944,7 +976,7 @@ def run_cancer_mask_inclusion_tests(
     plt.ylabel("% of mask included in cancer")
     plt.savefig(
         pathlib.Path(save_dir) /
-        f"min_mask_size_cancer_mask_inclusion_box.png",
+        f"min_mask_size_cancer_mask_inclusion_box.pdf",
         dpi=300
     )
 
@@ -962,7 +994,7 @@ def run_cancer_mask_inclusion_tests(
     # plt.ylabel("% of mask included in cancer")
     # plt.savefig(
     #     pathlib.Path(save_dir) /
-    #     f"max_hole_size_cancer_mask_inclusion_box.png",
+    #     f"max_hole_size_cancer_mask_inclusion_box.pdf",
     #     dpi=300
     # )
 
@@ -979,7 +1011,7 @@ def run_cancer_mask_inclusion_tests(
     plt.xlabel("log2(border size multiplier)")
     plt.ylabel("% of mask identified as cancer boundary")
     plt.savefig(
-        pathlib.Path(save_dir) / f"border_size_cancer_region_percentages_box.png",
+        pathlib.Path(save_dir) / f"border_size_cancer_region_percentages_box.pdf",
         dpi=300
     )
 
