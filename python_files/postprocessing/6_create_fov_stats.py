@@ -73,7 +73,7 @@ fov_data = []
 diversity_features = [['cluster_broad_freq', 'cluster_broad_diversity'],
                       ['immune_freq', 'immune_diversity'],
                       ['cancer_freq', 'cancer_diversity'],
-                      ['stroma_freq', 'stroma_diversity']]
+                      ['structural_freq', 'structural_diversity']]
 
 # diversity_features = [['meta_cluster_freq', 'meta_cluster_diversity']]
 

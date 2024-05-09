@@ -102,15 +102,15 @@ immune_mask = cell_table_clusters['cell_cluster_broad'].isin(['Mono_Mac', 'T',
 immune_mask_2 = cell_table_clusters.cell_cluster == 'Immune_Other'
 immune_mask = np.logical_or(immune_mask, immune_mask_2)
 
-# proportion of stromal subsets
-stroma_mask = cell_table_clusters['cell_cluster_broad'].isin(['Structural'])
+# proportion of structural subsets
+structural_mask = cell_table_clusters['cell_cluster_broad'].isin(['Structural'])
 
 # proportion of cancer subsets
 cancer_mask = cell_table_clusters['cell_cluster_broad'].isin(['Cancer'])
 
 cluster_mask_params = [['tcell_freq', 'cell_cluster', True, tcell_mask],
                        ['immune_freq', 'cell_cluster', True, immune_mask],
-                       ['stroma_freq', 'cell_meta_cluster', True, stroma_mask],
+                       ['structural_freq', 'cell_meta_cluster', True, structural_mask],
                        ['cancer_freq', 'cell_meta_cluster', True, cancer_mask]]
 
 for result_name, cluster_col_name, normalize, mask in cluster_mask_params:
