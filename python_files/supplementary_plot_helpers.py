@@ -414,7 +414,7 @@ def stitch_before_after_norm(
 def compute_occupancy_statistics(
     cell_table: pd.DataFrame, pop_col: str = "cell_cluster",
     pop_subset: Optional[List[str]] = None, tiles_per_row_col: int = 8,
-    positive_threshold: int = 20
+    max_image_size: int = 2048, positive_threshold: int = 20
 ):
     """Compute the occupancy statistics over a cohort.
 
@@ -428,6 +428,9 @@ def compute_occupancy_statistics(
             Which populations, if any, to subset on. If None, use all populations
         tiles_per_row_col (int):
             The row/col dims of tiles to define over each image
+        max_image_size (int):
+            Maximum size of an image passed in, assuming square images
+            NOTE: all images should have an image size that is a factor of max_image_size
         positive_threshold (int):
             The cell count in a tile required for positivity
 
@@ -449,7 +452,7 @@ def compute_occupancy_statistics(
         cell_table = cell_table[cell_table[pop_col].isin(pop_subset)].copy()
 
     # define the tile size in pixels for each FOV
-    cell_table["tile_size"] = cell_table["fov_pixel_size"] // tiles_per_row_col
+    cell_table["tile_size"] = max_image_size // tiles_per_row_col
 
     # define the tile for each cell
     cell_table["tile_row"] = (cell_table["centroid-1"] // cell_table["tile_size"]).astype(int)

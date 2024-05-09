@@ -594,9 +594,9 @@ else:
     )
 
 # massive GridSearch
-if os.path.exists(os.path.join(occupancy_stats_viz_dir, "occupancy_stats_trials_t_cells.csv")):
+if os.path.exists(os.path.join(occupancy_stats_viz_dir, "occupancy_stats_trials_t_cells_tile_size_update.csv")):
     total_occupancy_stats_df = pd.read_csv(
-        os.path.join(occupancy_stats_viz_dir, "occupancy_stats_trials_t_cells.csv")
+        os.path.join(occupancy_stats_viz_dir, "occupancy_stats_trials_t_cells_tile_size_update.csv")
     )
 else:
     total_occupancy_stats_df = pd.DataFrame()
@@ -604,7 +604,9 @@ else:
         for positive_threshold in [5, 10, 15, 20]:
             occupancy_stats = supplementary_plot_helpers.compute_occupancy_statistics(
                 cell_table, pop_subset=["CD4T", "CD8T", "Treg", "T_Other"],
-                tiles_per_row_col=tiles_per_row_col, positive_threshold=positive_threshold
+                tiles_per_row_col=tiles_per_row_col,
+                max_image_size=cell_table["fov_pixel_size"].max(),
+                positive_threshold=positive_threshold
             )
             occupancy_stats_df = pd.DataFrame(
                 {
@@ -618,7 +620,7 @@ else:
             total_occupancy_stats_df = pd.concat([total_occupancy_stats_df, occupancy_stats_df])
 
     total_occupancy_stats_df.to_csv(
-        os.path.join(occupancy_stats_viz_dir, "occupancy_stats_trials_t_cells.csv"), index=False
+        os.path.join(occupancy_stats_viz_dir, "occupancy_stats_trials_t_cells_tile_size_update.csv"), index=False
     )
 
 # visualize histograms for each trial in the occupancy stats table
