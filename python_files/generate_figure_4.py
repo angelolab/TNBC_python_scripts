@@ -325,13 +325,13 @@ cell_table_subset = cell_table_clusters.loc[(cell_table_clusters.fov.isin(fovs))
 cell_table_subset['border_plot'] = cell_table_subset.cell_cluster_broad
 cell_table_subset.loc[cell_table_subset.tumor_region != 'cancer_border', 'border_plot'] = 'Other_region'
 
-figure_dir = os.path.join(plot_dir, 'Figure4_border_diversity_neg')
+figure_dir = os.path.join(plot_dir, 'Figure4_border_diversity_pos2')
 if not os.path.exists(figure_dir):
     os.mkdir(figure_dir)
 
-diversity_colormap = pd.DataFrame({'border_plot': ['Cancer', 'Stroma', 'Granulocyte', 'T', 'B', 'Mono_Mac', 'Other', 'NK', 'Other_region'],
-                         'color': ['white', 'lightcoral', 'sandybrown', 'lightgreen', 'aqua', 'dodgerblue', 'darkviolet', 'crimson', 'gray']})
 
+diversity_colormap = pd.DataFrame({'border_plot': ['Cancer', 'Stroma', 'Mono_Mac', 'T', 'Other', 'Granulocyte', 'NK', 'B', 'Other_region'],
+                             'color': ['white', 'darksalmon', 'red', 'navajowhite',  'yellowgreen', 'aqua', 'dodgerblue', 'darkviolet', 'dimgrey']})
 
 for pat in pats:
     pat_dir = os.path.join(figure_dir, 'patient_{}'.format(pat))
