@@ -32,12 +32,41 @@ SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementa
 panel_validation_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "panel_validation")
 if not os.path.exists(panel_validation_viz_dir):
     os.makedirs(panel_validation_viz_dir)
+exclude_chans = ["Au", "CD11c_nuc_exclude", "CK17_smoothed", "ECAD_smoothed", "FOXP3_nuc_include",
+                 "LAG3", "Noodle", "chan_39", "chan_45", "chan_48", "chan_115", "chan_141"]
 
 controls_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/controls"
 controls_fov = "TONIC_TMA1_colon_bottom"
+controls_channels = sorted(io_utils.remove_file_extensions(
+    io_utils.list_files(os.path.join(controls_dir, controls_fov), substrs=".tiff")
+))
+for ec in exclude_chans:
+    if ec in controls_channels:
+        controls_channels.remove(ec)
 supplementary_plot_helpers.validate_panel(
-    controls_dir, controls_fov, panel_validation_viz_dir, font_size=180
+    controls_dir, controls_fov, panel_validation_viz_dir, channels=controls_channels,
+    num_rows=3, font_size=180
 )
+
+import random
+random.seed(24)
+all_control_runs = io_utils.list_folders(controls_dir)
+num_random = 20
+random_control_runs = random.sample(all_control_runs, num_random)
+random_control_runs = [
+    "TONIC_TMA1_spleen_top", "TONIC_TMA2_NKI_Tonsil1", "TONIC_TMA3_ln_bottom",
+    "TONIC_TMA4_NIK_Spleen2", "TONIC_TMA5_tonsil_bottom_duplicate1", "TONIC_TMA6_ln_top",
+    "TONIC_TMA7_ln_top", "TONIC_TMA11_tonsil_top", "TONIC_TMA12_ln_bottom", "TONIC_TMA13_NKI_Tonsil2",
+    "TONIC_TMA14_NIK_Spleen1", "TONIC_TMA15_colon_top", "TONIC_TMA16_tonsil_bottom_duplicate1",
+    "TONIC_TMA17_placenta_bottom", "TONIC_TMA18_spleen_top", "TONIC_TMA19_NIK_Tonsil1",
+    "TONIC_TMA20_tonsil_top", "TONIC_TMA22_ln_bottom", "TONIC_TMA23_spleen_bottom",
+    "TONIC_TMA24_spleen_bottom"
+]
+for rcr in random_control_runs:
+    supplementary_plot_helpers.validate_panel(
+        controls_dir, rcr, os.path.join(panel_validation_viz_dir, "controls_tests"), channels=controls_channels,
+        num_rows=3, font_size=180
+    )
 
 samples_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"
 samples_fov = "TONIC_TMA24_R8C1"
@@ -53,6 +82,18 @@ supplementary_plot_helpers.validate_panel(
     samples_dir, samples_fov, panel_validation_viz_dir, channels=samples_channels, font_size=320
 )
 
+for ec in exclude_chans:
+    if ec in samples_channels:
+        samples_channels.remove(ec)
+random.seed(24)
+all_sample_runs = io_utils.list_folders(controls_dir)
+num_random = 20
+random_sample_runs = random.sample(all_sample_runs, num_random)
+for rsr in random_sample_runs:
+    supplementary_plot_helpers.validate_panel(
+        samples_dir, samples_fov, os.path.join(panel_validation_viz_dir, "samples_tests"), channels=samples_channels,
+        num_rows=3, font_size=320
+    )
 
 # ROI selection
 metadata = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/harmonized_metadata.csv')
