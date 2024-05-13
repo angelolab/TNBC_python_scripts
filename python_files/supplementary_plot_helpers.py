@@ -631,7 +631,7 @@ def run_functional_marker_positivity_tuning_tests(
     # # save the figure to save_dir
     # _ = fig.savefig(
     #     pathlib.Path(extraction_pipeline_tuning_dir) /
-    #     f"functional_marker_threshold_experiments_norm.png",
+    #     f"functional_marker_threshold_experiments_norm.pdf",
     #     dpi=300
     # )
 
@@ -662,7 +662,7 @@ def run_functional_marker_positivity_tuning_tests(
 
     # save the figure to save_dir
     _ = fig.savefig(
-        pathlib.Path(save_dir) / f"functional_marker_threshold_experiments.png",
+        pathlib.Path(save_dir) / f"functional_marker_threshold_experiments.pdf",
         dpi=300
     )
 
@@ -736,7 +736,7 @@ def run_min_cell_feature_gen_fovs_dropped_tests(
             plot.fig.suptitle("Distribution of FOVs dropped across min_cells trials")
             plt.savefig(
                 pathlib.Path(save_dir) /
-                f"{compartment}_min_cells_{metric}_fovs_dropped_stripplot.png",
+                f"{compartment}_min_cells_{metric}_fovs_dropped_stripplot.pdf",
                 dpi=300
             )
 
@@ -911,7 +911,7 @@ def run_cancer_mask_inclusion_tests(
     plt.ylabel("% of mask included in cancer")
     plt.savefig(
         pathlib.Path(save_dir) /
-        f"sigma_cancer_mask_inclusion_box.png",
+        f"sigma_cancer_mask_inclusion_box.pdf",
         dpi=300
     )
 
@@ -929,7 +929,7 @@ def run_cancer_mask_inclusion_tests(
     plt.ylabel("% of mask included in cancer")
     plt.savefig(
         pathlib.Path(save_dir) /
-        f"smooth_thresh_cancer_mask_inclusion_box.png",
+        f"smooth_thresh_cancer_mask_inclusion_box.pdf",
         dpi=300
     )
 
@@ -948,7 +948,7 @@ def run_cancer_mask_inclusion_tests(
     plt.ylabel("% of mask included in cancer")
     plt.savefig(
         pathlib.Path(save_dir) /
-        f"min_mask_size_cancer_mask_inclusion_box.png",
+        f"min_mask_size_cancer_mask_inclusion_box.pdf",
         dpi=300
     )
 
@@ -966,7 +966,7 @@ def run_cancer_mask_inclusion_tests(
     # plt.ylabel("% of mask included in cancer")
     # plt.savefig(
     #     pathlib.Path(save_dir) /
-    #     f"max_hole_size_cancer_mask_inclusion_box.png",
+    #     f"max_hole_size_cancer_mask_inclusion_box.pdf",
     #     dpi=300
     # )
 
@@ -983,7 +983,7 @@ def run_cancer_mask_inclusion_tests(
     plt.xlabel("log2(border size multiplier)")
     plt.ylabel("% of mask identified as cancer boundary")
     plt.savefig(
-        pathlib.Path(save_dir) / f"border_size_cancer_region_percentages_box.png",
+        pathlib.Path(save_dir) / f"border_size_cancer_region_percentages_box.pdf",
         dpi=300
     )
 
