@@ -48,52 +48,17 @@ supplementary_plot_helpers.validate_panel(
     num_rows=3, font_size=180
 )
 
-import random
-random.seed(24)
-all_control_runs = io_utils.list_folders(controls_dir)
-num_random = 20
-random_control_runs = random.sample(all_control_runs, num_random)
-random_control_runs = [
-    "TONIC_TMA1_spleen_top", "TONIC_TMA2_NKI_Tonsil1", "TONIC_TMA3_ln_bottom",
-    "TONIC_TMA4_NIK_Spleen2", "TONIC_TMA5_tonsil_bottom_duplicate1", "TONIC_TMA6_ln_top",
-    "TONIC_TMA7_ln_top", "TONIC_TMA11_tonsil_top", "TONIC_TMA12_ln_bottom", "TONIC_TMA13_NKI_Tonsil2",
-    "TONIC_TMA14_NIK_Spleen1", "TONIC_TMA15_colon_top", "TONIC_TMA16_tonsil_bottom_duplicate1",
-    "TONIC_TMA17_placenta_bottom", "TONIC_TMA18_spleen_top", "TONIC_TMA19_NIK_Tonsil1",
-    "TONIC_TMA20_tonsil_top", "TONIC_TMA22_ln_bottom", "TONIC_TMA23_spleen_bottom",
-    "TONIC_TMA24_spleen_bottom"
-]
-for rcr in random_control_runs:
-    supplementary_plot_helpers.validate_panel(
-        controls_dir, rcr, os.path.join(panel_validation_viz_dir, "controls_tests"), channels=controls_channels,
-        num_rows=3, font_size=180
-    )
-
 samples_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"
 samples_fov = "TONIC_TMA24_R8C1"
 samples_channels = sorted(io_utils.remove_file_extensions(
     io_utils.list_files(os.path.join(samples_dir, samples_fov), substrs=".tiff")
 ))
-exclude_chans = ["Au", "CD11c_nuc_exclude", "CK17_smoothed", "ECAD_smoothed", "FOXP3_nuc_include",
-                 "LAG", "Noodle", "chan_39", "chan_45", "chan_48", "chan_115", "chan_141"]
 for ec in exclude_chans:
     if ec in samples_channels:
         samples_channels.remove(ec)
 supplementary_plot_helpers.validate_panel(
     samples_dir, samples_fov, panel_validation_viz_dir, channels=samples_channels, font_size=320
 )
-
-for ec in exclude_chans:
-    if ec in samples_channels:
-        samples_channels.remove(ec)
-random.seed(24)
-all_sample_runs = io_utils.list_folders(controls_dir)
-num_random = 20
-random_sample_runs = random.sample(all_sample_runs, num_random)
-for rsr in random_sample_runs:
-    supplementary_plot_helpers.validate_panel(
-        samples_dir, samples_fov, os.path.join(panel_validation_viz_dir, "samples_tests"), channels=samples_channels,
-        num_rows=3, font_size=320
-    )
 
 # ROI selection
 metadata = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/harmonized_metadata.csv')
