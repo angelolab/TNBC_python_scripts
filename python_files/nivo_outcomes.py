@@ -197,6 +197,10 @@ for comparison in ranked_genomics_df.comparison.unique():
     ranked_genomics_df.drop(columns='temp_comparison', inplace=True)
 
 # saved formatted df
+genomics_df = genomics_df.rename(columns={'feature_name': 'feature_name_unique'})
+genomics_df = genomics_df[['feature_name_unique', 'feature_type', 'data_type']].drop_duplicates()
+
+ranked_genomics_df = ranked_genomics_df.merge(genomics_df, on='feature_name_unique', how='left')
 ranked_genomics_df.to_csv(os.path.join(sequence_dir, 'genomics_outcome_ranking.csv'), index=False)
 
 
