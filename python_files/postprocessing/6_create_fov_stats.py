@@ -357,7 +357,7 @@ for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_borde
 
     compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
 
-    compartment_df['cell_pop'] = compartment_df.cell_type.apply(lambda x: [x])
+    compartment_df['cell_pop'] = compartment_df.cell_type.apply(lambda x: narrow_to_broad[x])
     compartment_df['cell_pop_level'] = 'med'
     compartment_df['feature_type'] = 'cell_diversity'
     compartment_df['feature_type_detail'] = compartment_df.cell_type

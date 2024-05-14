@@ -1077,7 +1077,7 @@ fov_cell_sum = kmeans_cell_table[['fov', 'kmeans_neighborhood']].groupby(by=['fo
 fov_cell_sum = fov_cell_sum.rename(columns={'kmeans_neighborhood': 'cells_in_image'})
 
 # create df with all fovs and all kmeans rows
-kmeans_cluster_num = len(np.unique(kmeans_cell_table.kmeans_neighborhood))
+kmeans_cluster_num = len(np.unique(kmeans_cell_table.kmeans_neighborhood.dropna()))
 all_fovs_df = []
 for fov in np.unique(kmeans_cell_table.fov):
     df = pd.DataFrame({
@@ -1104,10 +1104,6 @@ cluster_prop.to_csv(os.path.join(output_dir, 'neighborhood_image_proportions.csv
 
 
 # stroma and cancer compartment proportions
-intermediate_dir_old = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files'
-annotations_by_mask = pd.read_csv(
-    os.path.join(intermediate_dir_old, 'mask_dir/individual_masks-no_tagg_tls', 'cell_annotation_mask.csv'))
-
 kmeans_cells = kmeans_cell_table[['fov', 'kmeans_neighborhood', 'label']]
 compartment_data = annotations_by_mask.merge(kmeans_cells, on=['fov', 'label'])
 
