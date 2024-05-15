@@ -21,6 +21,7 @@ from statsmodels.stats.multitest import multipletests
 
 import python_files.supplementary_plot_helpers as supplementary_plot_helpers
 
+BASE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/"
 ANALYSIS_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files"
 CHANNEL_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
 INTERMEDIATE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files"
@@ -94,7 +95,7 @@ rna_metadata = rna_metadata.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID'
 for timepoint in ['baseline', 'post_induction', 'on_nivo']:
     mibi_ids = set(mibi_metadata.loc[mibi_metadata.Timepoint == timepoint, 'Patient_ID'].values)
     wes_ids = set(wes_metadata.loc[wes_metadata.timepoint == timepoint, 'Individual.ID'].values)
-    rna_ids = set(rna_metadata.loc[rna_metadata.Timepoint == 'baseline', 'Patient_ID'].values)
+    rna_ids = set(rna_metadata.loc[rna_metadata.Timepoint == timepoint, 'Patient_ID'].values)
 
     sets = {
         'MIBI': mibi_ids,
@@ -909,5 +910,228 @@ plt.ylabel('MIBI density')
 plt.title('sTIL vs MIBI density')
 plt.savefig(os.path.join(save_dir, 'sTIL_MIBI_density.pdf'), dpi=300)
 
-
 spearmanr(combined_tils['sTIL_(%)_revised'], combined_tils['MIBI_density'])
+
+# outcomes associations
+save_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'outcome_associations')
+if not os.path.exists(save_dir):
+    os.makedirs(save_dir)
+
+ranked_features_all = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_ranking.csv'))
+ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+ranked_features = ranked_features.loc[ranked_features.feature_rank_global <= 100, :]
+
+ranked_features = ranked_features.loc[ranked_features.feature_type.isin(['density', 'density_ratio', 'density_proportion']), :]
+ranked_features['feature_type'] = ranked_features['feature_type'].replace('density_proportion', 'density_ratio')
+ranked_features = ranked_features[['feature_name_unique', 'feature_type']]
+
+ranked_feature_counts = ranked_features.groupby('feature_type').count().reset_index()
+
+# plot
+sns.barplot(data=ranked_feature_counts, x='feature_type', y='feature_name_unique', color='grey')
+sns.despine()
+
+plt.xlabel('Feature Type')
+plt.ylabel('Number of Features')
+plt.savefig(os.path.join(save_dir, 'feature_type_counts.pdf'), dpi=300)
+plt.close()
+
+# volcano plot for RNA features
+ranked_features_df = pd.read_csv(os.path.join(SEQUENCE_DIR, 'genomics_outcome_ranking.csv'))
+ranked_features_df = ranked_features_df.loc[ranked_features_df.data_type == 'RNA', :]
+ranked_features_df = ranked_features_df.sort_values(by='combined_rank', ascending=True)
+
+ranked_features_df[['feature_name_unique']].to_csv(os.path.join(save_dir, 'RNA_features.csv'), index=False)
+
+# plot  volcano
+fig, ax = plt.subplots(figsize=(3,3))
+sns.scatterplot(data=ranked_features_df, x='med_diff', y='log_pval', alpha=1, hue='importance_score', palette=sns.color_palette("icefire", as_cmap=True),
+                s=2.5, edgecolor='none', ax=ax)
+ax.set_xlim(-3, 3)
+sns.despine()
+
+# add gradient legend
+norm = plt.Normalize(ranked_features_df.importance_score.min(), ranked_features_df.importance_score.max())
+sm = plt.cm.ScalarMappable(cmap="icefire", norm=norm)
+ax.get_legend().remove()
+ax.figure.colorbar(sm, ax=ax)
+plt.tight_layout()
+
+plt.savefig(os.path.join(save_dir, 'RNA_volcano.pdf'))
+plt.close()
+
+# Breakdown of features by timepoint
+top_features = ranked_features_df.iloc[:100, :]
+#top_features = ranked_features_df.loc[ranked_features_df.fdr_pval < 0.1, :]
+
+# by comparison
+top_features_by_comparison = top_features[['data_type', 'comparison']].groupby(['comparison']).size().reset_index()
+top_features_by_comparison.columns = ['comparison', 'num_features']
+top_features_by_comparison = top_features_by_comparison.sort_values('num_features', ascending=False)
+
+fig, ax = plt.subplots(figsize=(4, 4))
+sns.barplot(data=top_features_by_comparison, x='comparison', y='num_features', color='grey', ax=ax)
+plt.xticks(rotation=90)
+plt.tight_layout()
+sns.despine()
+plt.savefig(os.path.join(save_dir, 'Num_features_per_comparison_rna.pdf'))
+plt.close()
+
+# by data type
+ranked_features_df = pd.read_csv(os.path.join(SEQUENCE_DIR, 'genomics_outcome_ranking.csv'))
+top_features = ranked_features_df.iloc[:100, :]
+
+top_features_by_data_type = top_features[['data_type', 'comparison']].groupby(['data_type']).size().reset_index()
+top_features_by_data_type.columns = ['data_type', 'num_features']
+top_features_by_data_type = top_features_by_data_type.sort_values('num_features', ascending=False)
+
+fig, ax = plt.subplots(figsize=(4, 4))
+sns.barplot(data=top_features_by_data_type, x='data_type', y='num_features', color='grey', ax=ax)
+plt.xticks(rotation=90)
+plt.tight_layout()
+sns.despine()
+plt.savefig(os.path.join(save_dir, 'Num_features_per_data_type_genomics.pdf'))
+plt.close()
+
+# diagnostic plots for multivariate modeling
+save_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'multivariate_modeling')
+if not os.path.exists(save_dir):
+    os.makedirs(save_dir)
+
+all_model_rankings = pd.read_csv(os.path.join(BASE_DIR, 'multivariate_lasso/intermediate_results', 'all_model_rankings.csv'))
+
+# plot top features
+sns.stripplot(data=all_model_rankings.loc[all_model_rankings.top_ranked, :], x='timepoint', y='importance_score', hue='modality')
+plt.title('Top ranked features')
+plt.ylim([0, 1.05])
+plt.savefig(os.path.join(save_dir, 'top_ranked_features_by_modality_and_timepoint.pdf'))
+plt.close()
+
+# plot number of times features are selected
+sns.histplot(data=all_model_rankings.loc[all_model_rankings.top_ranked, :], x='count', color='grey', multiple='stack',
+             binrange=(1, 10), discrete=True)
+plt.title('Number of times features are selected')
+plt.savefig(os.path.join(save_dir, 'feature_counts_top_ranked.pdf'))
+plt.close()
+
+sns.histplot(data=all_model_rankings, x='count', color='grey', multiple='stack',
+             binrange=(1, 10), discrete=True)
+plt.title('Number of times features are selected')
+plt.savefig(os.path.join(save_dir, 'feature_counts_all.pdf'))
+plt.close()
+
+# plot venn diagram
+from matplotlib_venn import venn3
+
+rna_rankings_top = all_model_rankings.loc[np.logical_and(all_model_rankings.modality == 'RNA', all_model_rankings.top_ranked), :]
+rna_baseline = rna_rankings_top.loc[rna_rankings_top.timepoint == 'baseline', 'feature_name_unique'].values
+rna_nivo = rna_rankings_top.loc[rna_rankings_top.timepoint == 'on_nivo', 'feature_name_unique'].values
+rna_induction = rna_rankings_top.loc[rna_rankings_top.timepoint == 'post_induction', 'feature_name_unique'].values
+
+venn3([set(rna_baseline), set(rna_nivo), set(rna_induction)], ('Baseline', 'Nivo', 'Induction'))
+plt.title('RNA top ranked features')
+plt.savefig(os.path.join(save_dir, 'Figure6_RNA_top_ranked_venn.pdf'))
+plt.close()
+
+mibi_rankings_top = all_model_rankings.loc[np.logical_and(all_model_rankings.modality == 'MIBI', all_model_rankings.top_ranked), :]
+mibi_baseline = mibi_rankings_top.loc[mibi_rankings_top.timepoint == 'baseline', 'feature_name_unique'].values
+mibi_nivo = mibi_rankings_top.loc[mibi_rankings_top.timepoint == 'on_nivo', 'feature_name_unique'].values
+mibi_induction = mibi_rankings_top.loc[mibi_rankings_top.timepoint == 'post_induction', 'feature_name_unique'].values
+
+venn3([set(mibi_baseline), set(mibi_nivo), set(mibi_induction)], ('Baseline', 'Nivo', 'Induction'))
+plt.title('MIBI top ranked features')
+plt.savefig(os.path.join(save_dir, 'Figure6_MIBI_top_ranked_venn.pdf'))
+plt.close()
+
+# compare correlations between top ranked features
+ranked_features_univariate = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_ranking.csv'))
+
+nivo_features_model = all_model_rankings.loc[np.logical_and(all_model_rankings.timepoint == 'on_nivo', all_model_rankings.top_ranked), :]
+nivo_features_model = nivo_features_model.loc[nivo_features_model.modality == 'MIBI', 'feature_name_unique'].values
+
+nivo_features_univariate = ranked_features_univariate.loc[np.logical_and(ranked_features_univariate.comparison == 'on_nivo',
+                                                                         ranked_features_univariate.feature_rank_global <= 100), :]
+
+timepoint_features = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features.csv'))
+timepoint_features = timepoint_features.loc[timepoint_features.Timepoint == 'on_nivo', :]
+
+timepoint_features_model = timepoint_features.loc[timepoint_features.feature_name_unique.isin(nivo_features_model), :]
+timepoint_features_model = timepoint_features_model[['feature_name_unique', 'normalized_mean', 'Patient_ID']]
+timepoint_features_model = timepoint_features_model.pivot(index='Patient_ID', columns='feature_name_unique', values='normalized_mean')
+
+# get values
+model_corr = timepoint_features_model.corr()
+model_corr = model_corr.where(np.triu(np.ones(model_corr.shape), k=1).astype(np.bool)).values.flatten()
+model_corr = model_corr[~np.isnan(model_corr)]
+
+# get univariate features
+timepoint_features_univariate = timepoint_features.loc[timepoint_features.feature_name_unique.isin(nivo_features_univariate.feature_name_unique), :]
+timepoint_features_univariate = timepoint_features_univariate[['feature_name_unique', 'normalized_mean', 'Patient_ID']]
+timepoint_features_univariate = timepoint_features_univariate.pivot(index='Patient_ID', columns='feature_name_unique', values='normalized_mean')
+
+# get values
+univariate_corr = timepoint_features_univariate.corr()
+univariate_corr = univariate_corr.where(np.triu(np.ones(univariate_corr.shape), k=1).astype(np.bool)).values.flatten()
+univariate_corr = univariate_corr[~np.isnan(univariate_corr)]
+
+corr_values = pd.DataFrame({'correlation': np.concatenate([model_corr, univariate_corr]),
+                            'model': ['model'] * len(model_corr) + ['univariate'] * len(univariate_corr)})
+
+# plot correlations by model
+fig, ax = plt.subplots(1, 1, figsize=(3, 4))
+# sns.stripplot(data=corr_values, x='model', y='correlation',
+#               color='black', ax=ax)
+sns.boxplot(data=corr_values, x='model', y='correlation',
+            color='grey', ax=ax, showfliers=False)
+
+ax.set_title('Feature correlation')
+# ax.set_ylim([-1, 1])
+#ax.set_xticklabels(['Top ranked', 'Other'])
+
+sns.despine()
+plt.tight_layout()
+plt.savefig(os.path.join(save_dir, 'Figure6_feature_correlation_by_model.pdf'))
+plt.close()
+
+
+# supplementary tables
+save_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'supplementary_tables')
+if not os.path.exists(save_dir):
+    os.makedirs(save_dir)
+
+
+# sample summary
+harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'harmonized_metadata.csv'))
+wes_metadata = pd.read_csv(os.path.join(SEQUENCE_DIR, 'preprocessing/TONIC_WES_meta_table.tsv'), sep='\t')
+rna_metadata = pd.read_csv(os.path.join(SEQUENCE_DIR, 'preprocessing/TONIC_tissue_rna_id.tsv'), sep='\t')
+rna_metadata = rna_metadata.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint']].drop_duplicates(), on='Tissue_ID', how='left')
+
+harmonized_metadata = harmonized_metadata.loc[harmonized_metadata.MIBI_data_generated, :]
+
+modality = ['MIBI'] * 4 + ['RNA'] * 3 + ['DNA'] * 1
+timepoint = ['primary_untreated', 'baseline', 'post_induction', 'on_nivo'] + ['baseline', 'post_induction', 'on_nivo'] + ['baseline']
+
+sample_summary_df = pd.DataFrame({'modality': modality, 'timepoint': timepoint, 'sample_num': [0] * 8, 'patient_num': [0] * 8})
+
+# populate dataframe
+for idx, row in sample_summary_df.iterrows():
+    if row.modality == 'MIBI':
+        sample_summary_df.loc[idx, 'sample_num'] = len(harmonized_metadata.loc[harmonized_metadata.Timepoint == row.timepoint, :])
+        sample_summary_df.loc[idx, 'patient_num'] = len(harmonized_metadata.loc[harmonized_metadata.Timepoint == row.timepoint, 'Patient_ID'].unique())
+    elif row.modality == 'RNA':
+        sample_summary_df.loc[idx, 'sample_num'] = len(rna_metadata.loc[rna_metadata.Timepoint == row.timepoint, :])
+        sample_summary_df.loc[idx, 'patient_num'] = len(rna_metadata.loc[rna_metadata.Timepoint == row.timepoint, 'Patient_ID'].unique())
+    elif row.modality == 'DNA':
+        sample_summary_df.loc[idx, 'sample_num'] = len(wes_metadata.loc[wes_metadata.timepoint == row.timepoint, :])
+        sample_summary_df.loc[idx, 'patient_num'] = len(wes_metadata.loc[wes_metadata.timepoint == row.timepoint, 'Individual.ID'].unique())
+
+sample_summary_df.to_csv(os.path.join(save_dir, 'Supplementary_Table_3.csv'), index=False)
+
+# feature metadata
+feature_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_metadata.csv'))
+
+feature_metadata.columns = ['Feature name', 'Feature name including compartment', 'Compartment the feature is calculated in',
+                            'Cell types used to calculate feature', 'Level of clustering granularity for cell types',
+                            'Type of feature', 'Additional information about the feature', 'Additional information about the feature']
+
+feature_metadata.to_csv(os.path.join(save_dir, 'Supplementary_Table_4.csv'), index=False)

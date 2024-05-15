@@ -126,39 +126,6 @@ for i in range(top_corr.shape[0]):
     plt.savefig(os.path.join(plot_dir, 'RNA_Image_correlation_' + str(i) + '.png'), dpi=300)
     plt.close()
 
-# show breakdown of top features
-ranked_features_df = pd.read_csv(os.path.join(sequence_dir, 'genomics_outcome_ranking.csv'))
-ranked_features_df = pd.merge(genomics_df[['feature_name_unique', 'feature_type', 'data_type']].drop_duplicates(), ranked_features_df, on='feature_name_unique', how='left')
-ranked_features_df = ranked_features_df.sort_values(by='combined_rank', ascending=True)
-top_features = ranked_features_df.iloc[:50, :]
-top_features = ranked_features_df.loc[ranked_features_df.fdr_pval < 0.1, :]
-
-
-# by comparison
-top_features_by_comparison = top_features[['data_type', 'comparison']].groupby(['comparison']).size().reset_index()
-top_features_by_comparison.columns = ['comparison', 'num_features']
-top_features_by_comparison = top_features_by_comparison.sort_values('num_features', ascending=False)
-
-fig, ax = plt.subplots(figsize=(4, 4))
-sns.barplot(data=top_features_by_comparison, x='comparison', y='num_features', color='grey', ax=ax)
-plt.xticks(rotation=90)
-plt.tight_layout()
-sns.despine()
-plt.savefig(os.path.join(plot_dir, 'Num_features_per_comparison_genomics.pdf'))
-plt.close()
-
-# by data type
-top_features_by_data_type = top_features[['data_type', 'comparison']].groupby(['data_type']).size().reset_index()
-top_features_by_data_type.columns = ['data_type', 'num_features']
-top_features_by_data_type = top_features_by_data_type.sort_values('num_features', ascending=False)
-
-fig, ax = plt.subplots(figsize=(4, 4))
-sns.barplot(data=top_features_by_data_type, x='data_type', y='num_features', color='grey', ax=ax)
-plt.xticks(rotation=90)
-plt.tight_layout()
-sns.despine()
-plt.savefig(os.path.join(plot_dir, 'Num_features_per_data_type_genomics.pdf'))
-plt.close()
 
 # plot top X features per comparison
 num_features = 50
