@@ -95,7 +95,7 @@ rna_metadata = rna_metadata.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID'
 for timepoint in ['baseline', 'post_induction', 'on_nivo']:
     mibi_ids = set(mibi_metadata.loc[mibi_metadata.Timepoint == timepoint, 'Patient_ID'].values)
     wes_ids = set(wes_metadata.loc[wes_metadata.timepoint == timepoint, 'Individual.ID'].values)
-    rna_ids = set(rna_metadata.loc[rna_metadata.Timepoint == 'baseline', 'Patient_ID'].values)
+    rna_ids = set(rna_metadata.loc[rna_metadata.Timepoint == timepoint, 'Patient_ID'].values)
 
     sets = {
         'MIBI': mibi_ids,
@@ -1092,3 +1092,46 @@ sns.despine()
 plt.tight_layout()
 plt.savefig(os.path.join(save_dir, 'Figure6_feature_correlation_by_model.pdf'))
 plt.close()
+
+
+# supplementary tables
+save_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'supplementary_tables')
+if not os.path.exists(save_dir):
+    os.makedirs(save_dir)
+
+
+# sample summary
+harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'harmonized_metadata.csv'))
+wes_metadata = pd.read_csv(os.path.join(SEQUENCE_DIR, 'preprocessing/TONIC_WES_meta_table.tsv'), sep='\t')
+rna_metadata = pd.read_csv(os.path.join(SEQUENCE_DIR, 'preprocessing/TONIC_tissue_rna_id.tsv'), sep='\t')
+rna_metadata = rna_metadata.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint']].drop_duplicates(), on='Tissue_ID', how='left')
+
+harmonized_metadata = harmonized_metadata.loc[harmonized_metadata.MIBI_data_generated, :]
+
+modality = ['MIBI'] * 4 + ['RNA'] * 3 + ['DNA'] * 1
+timepoint = ['primary_untreated', 'baseline', 'post_induction', 'on_nivo'] + ['baseline', 'post_induction', 'on_nivo'] + ['baseline']
+
+sample_summary_df = pd.DataFrame({'modality': modality, 'timepoint': timepoint, 'sample_num': [0] * 8, 'patient_num': [0] * 8})
+
+# populate dataframe
+for idx, row in sample_summary_df.iterrows():
+    if row.modality == 'MIBI':
+        sample_summary_df.loc[idx, 'sample_num'] = len(harmonized_metadata.loc[harmonized_metadata.Timepoint == row.timepoint, :])
+        sample_summary_df.loc[idx, 'patient_num'] = len(harmonized_metadata.loc[harmonized_metadata.Timepoint == row.timepoint, 'Patient_ID'].unique())
+    elif row.modality == 'RNA':
+        sample_summary_df.loc[idx, 'sample_num'] = len(rna_metadata.loc[rna_metadata.Timepoint == row.timepoint, :])
+        sample_summary_df.loc[idx, 'patient_num'] = len(rna_metadata.loc[rna_metadata.Timepoint == row.timepoint, 'Patient_ID'].unique())
+    elif row.modality == 'DNA':
+        sample_summary_df.loc[idx, 'sample_num'] = len(wes_metadata.loc[wes_metadata.timepoint == row.timepoint, :])
+        sample_summary_df.loc[idx, 'patient_num'] = len(wes_metadata.loc[wes_metadata.timepoint == row.timepoint, 'Individual.ID'].unique())
+
+sample_summary_df.to_csv(os.path.join(save_dir, 'Supplementary_Table_3.csv'), index=False)
+
+# feature metadata
+feature_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_metadata.csv'))
+
+feature_metadata.columns = ['Feature name', 'Feature name including compartment', 'Compartment the feature is calculated in',
+                            'Cell types used to calculate feature', 'Level of clustering granularity for cell types',
+                            'Type of feature', 'Additional information about the feature', 'Additional information about the feature']
+
+feature_metadata.to_csv(os.path.join(save_dir, 'Supplementary_Table_4.csv'), index=False)
