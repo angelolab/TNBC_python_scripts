@@ -558,11 +558,6 @@ SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementa
 
 
 # Occupancy statistics
-# TODO: make a constant in supplementary_plot_helpers
-cell_table = pd.read_csv(
-    os.path.join(ANALYSIS_DIR, "combined_cell_table_normalized_cell_labels_updated.csv")
-)
-
 occupancy_stats_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "occupancy_stats")
 if not os.path.exists(occupancy_stats_viz_dir):
     os.makedirs(occupancy_stats_viz_dir)
@@ -574,6 +569,7 @@ if os.path.exists(os.path.join(occupancy_stats_viz_dir, "cell_table_with_pixel_s
         os.path.join(occupancy_stats_viz_dir, "cell_table_with_pixel_size.csv")
     )
 else:
+    # TODO: make constant earlier in this script
     cell_table = pd.read_csv(
         os.path.join(ANALYSIS_DIR, "combined_cell_table_normalized_cell_labels_updated.csv")
     )
@@ -594,36 +590,41 @@ else:
     )
 
 # massive GridSearch
-if os.path.exists(os.path.join(occupancy_stats_viz_dir, "occupancy_stats_trials_t_cells_tile_size_update.csv")):
+if os.path.exists(os.path.join(occupancy_stats_viz_dir, "occupancy_stats_trials_cell_cluster_broad.csv")):
     total_occupancy_stats_df = pd.read_csv(
-        os.path.join(occupancy_stats_viz_dir, "occupancy_stats_trials_t_cells_tile_size_update.csv")
+        os.path.join(occupancy_stats_viz_dir, "occupancy_stats_trials_cell_cluster_broad.csv")
     )
 else:
     total_occupancy_stats_df = pd.DataFrame()
+    total_occupancy_stats_grouped_df = pd.DataFrame()
     for tiles_per_row_col in [4, 8, 16]:
         for positive_threshold in [5, 10, 15, 20]:
-            occupancy_stats = supplementary_plot_helpers.compute_occupancy_statistics(
-                cell_table, pop_subset=["CD4T", "CD8T", "Treg", "T_Other"],
+            occupancy_stats_df, occupancy_stats_grouped_df = supplementary_plot_helpers.compute_occupancy_statistics(
+                cell_table,
                 tiles_per_row_col=tiles_per_row_col,
                 max_image_size=cell_table["fov_pixel_size"].max(),
                 positive_threshold=positive_threshold
             )
-            occupancy_stats_df = pd.DataFrame(
-                {
-                    "fov": list(occupancy_stats.keys()),
-                    "percent_positive_tiles": list(occupancy_stats.values())
-                }
-            )
-            occupancy_stats_df["num_tiles"] = tiles_per_row_col ** 2
-            occupancy_stats_df["positive_threshold"] = positive_threshold
+            # occupancy_stats_df = pd.DataFrame(
+            #     {
+            #         "fov": list(occupancy_stats.keys()),
+            #         "percent_positive_tiles": list(occupancy_stats.values())
+            #     }
+            # )
+            occupancy_stats_grouped_df["num_tiles"] = tiles_per_row_col ** 2
+            occupancy_stats_grouped_df["positive_threshold"] = positive_threshold
 
             total_occupancy_stats_df = pd.concat([total_occupancy_stats_df, occupancy_stats_df])
+            total_occupancy_stats_grouped_df = pd.concat([total_occupancy_stats_grouped_df, occupancy_stats_grouped_df])
 
     total_occupancy_stats_df.to_csv(
-        os.path.join(occupancy_stats_viz_dir, "occupancy_stats_trials_t_cells_tile_size_update.csv"), index=False
+        os.path.join(occupancy_stats_viz_dir, "occupancy_stats_trials_cell_cluster_broad.csv"), index=False
+    )
+    total_occupancy_stats_grouped_df.to_csv(
+        os.path.join(occupancy_stats_viz_dir, "occupancy_stats_trials_cell_cluster_broad_grouped.csv"), index=False
     )
 
-# visualize histograms for each trial in the occupancy stats table
-supplementary_plot_helpers.visualize_occupancy_statistics(
-    total_occupancy_stats_df, occupancy_stats_viz_dir, pop_subset=["T cells"], figsize=(20, 40)
-)
+# # visualize histograms for each trial in the occupancy stats table
+# supplementary_plot_helpers.visualize_occupancy_statistics(
+#     total_occupancy_stats_df, occupancy_stats_viz_dir, figsize=(20, 40)
+# )
