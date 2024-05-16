@@ -45,7 +45,7 @@ for ec in exclude_chans:
         controls_channels.remove(ec)
 supplementary_plot_helpers.validate_panel(
     controls_dir, controls_fov, panel_validation_viz_dir, channels=controls_channels,
-    num_rows=3, font_size=180
+    font_size=180
 )
 
 samples_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"
