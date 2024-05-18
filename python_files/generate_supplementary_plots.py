@@ -36,11 +36,20 @@ SEQUENCE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/sequencing_data"
 panel_validation_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "panel_validation")
 if not os.path.exists(panel_validation_viz_dir):
     os.makedirs(panel_validation_viz_dir)
+exclude_chans = ["Au", "CD11c_nuc_exclude", "CK17_smoothed", "ECAD_smoothed", "FOXP3_nuc_include",
+                 "LAG3", "Noodle", "chan_39", "chan_45", "chan_48", "chan_115", "chan_141"]
 
 controls_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/controls"
 controls_fov = "TONIC_TMA1_colon_bottom"
+controls_channels = sorted(io_utils.remove_file_extensions(
+    io_utils.list_files(os.path.join(controls_dir, controls_fov), substrs=".tiff")
+))
+for ec in exclude_chans:
+    if ec in controls_channels:
+        controls_channels.remove(ec)
 supplementary_plot_helpers.validate_panel(
-    controls_dir, controls_fov, panel_validation_viz_dir, font_size=180
+    controls_dir, controls_fov, panel_validation_viz_dir, channels=controls_channels,
+    font_size=180
 )
 
 samples_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"
@@ -48,15 +57,12 @@ samples_fov = "TONIC_TMA24_R8C1"
 samples_channels = sorted(io_utils.remove_file_extensions(
     io_utils.list_files(os.path.join(samples_dir, samples_fov), substrs=".tiff")
 ))
-exclude_chans = ["Au", "CD11c_nuc_exclude", "CK17_smoothed", "ECAD_smoothed", "FOXP3_nuc_include",
-                 "LAG", "Noodle", "chan_39", "chan_45", "chan_48", "chan_115", "chan_141"]
 for ec in exclude_chans:
     if ec in samples_channels:
         samples_channels.remove(ec)
 supplementary_plot_helpers.validate_panel(
     samples_dir, samples_fov, panel_validation_viz_dir, channels=samples_channels, font_size=320
 )
-
 
 # ROI selection
 metadata = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/harmonized_metadata.csv')
