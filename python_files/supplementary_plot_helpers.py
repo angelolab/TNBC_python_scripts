@@ -631,14 +631,15 @@ def run_functional_marker_positivity_tuning_tests(
     # # save the figure to save_dir
     # _ = fig.savefig(
     #     pathlib.Path(extraction_pipeline_tuning_dir) /
-    #     f"functional_marker_threshold_experiments_norm.png",
+    #     f"functional_marker_threshold_experiments_norm.pdf",
     #     dpi=300
     # )
 
     # plot the raw num positive cells per marker
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
-    threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
+    threshold_mult_strs = [np.round(np.log2(tm), 3) for tm in threshold_mults]
+    threshold_mult_labels = [str(t) for t in threshold_mult_strs]
 
     for i, marker in enumerate(marker_threshold_data):
         mult_data = [
@@ -646,19 +647,22 @@ def run_functional_marker_positivity_tuning_tests(
         ]
         _ = ax.plot(threshold_mult_strs, mult_data, color="gray", label=marker)
 
-    _ = ax.set_title(
-        f"Positive cells per threshold",
-        fontsize=11
-    )
+    _ = ax.set_title(f"Positive cells per threshold", fontsize=11)
     _ = ax.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
     _ = ax.yaxis.get_major_formatter().set_scientific(False)
     _ = ax.set_xlabel("log2(threshold multiplier)", fontsize=7)
     _ = ax.set_ylabel("Positive cell counts", fontsize=7)
     _ = ax.tick_params(axis="both", which="major", labelsize=7)
 
+    # Set explicit x-axis ticks based on your calculated strings
+    _ = ax.set_xticks(threshold_mult_strs)
+    _ = ax.set_xticklabels(threshold_mult_labels, rotation=90)
+
+    _ = plt.tight_layout()
+
     # save the figure to save_dir
     _ = fig.savefig(
-        pathlib.Path(save_dir) / f"functional_marker_threshold_experiments.png",
+        pathlib.Path(save_dir) / f"functional_marker_threshold_experiments.pdf",
         dpi=300
     )
 
@@ -732,7 +736,7 @@ def run_min_cell_feature_gen_fovs_dropped_tests(
             plot.fig.suptitle("Distribution of FOVs dropped across min_cells trials")
             plt.savefig(
                 pathlib.Path(save_dir) /
-                f"{compartment}_min_cells_{metric}_fovs_dropped_stripplot.png",
+                f"{compartment}_min_cells_{metric}_fovs_dropped_stripplot.pdf",
                 dpi=300
             )
 
@@ -907,7 +911,7 @@ def run_cancer_mask_inclusion_tests(
     plt.ylabel("% of mask included in cancer")
     plt.savefig(
         pathlib.Path(save_dir) /
-        f"sigma_cancer_mask_inclusion_box.png",
+        f"sigma_cancer_mask_inclusion_box.pdf",
         dpi=300
     )
 
@@ -925,7 +929,7 @@ def run_cancer_mask_inclusion_tests(
     plt.ylabel("% of mask included in cancer")
     plt.savefig(
         pathlib.Path(save_dir) /
-        f"smooth_thresh_cancer_mask_inclusion_box.png",
+        f"smooth_thresh_cancer_mask_inclusion_box.pdf",
         dpi=300
     )
 
@@ -944,7 +948,7 @@ def run_cancer_mask_inclusion_tests(
     plt.ylabel("% of mask included in cancer")
     plt.savefig(
         pathlib.Path(save_dir) /
-        f"min_mask_size_cancer_mask_inclusion_box.png",
+        f"min_mask_size_cancer_mask_inclusion_box.pdf",
         dpi=300
     )
 
@@ -962,7 +966,7 @@ def run_cancer_mask_inclusion_tests(
     # plt.ylabel("% of mask included in cancer")
     # plt.savefig(
     #     pathlib.Path(save_dir) /
-    #     f"max_hole_size_cancer_mask_inclusion_box.png",
+    #     f"max_hole_size_cancer_mask_inclusion_box.pdf",
     #     dpi=300
     # )
 
@@ -979,7 +983,7 @@ def run_cancer_mask_inclusion_tests(
     plt.xlabel("log2(border size multiplier)")
     plt.ylabel("% of mask identified as cancer boundary")
     plt.savefig(
-        pathlib.Path(save_dir) / f"border_size_cancer_region_percentages_box.png",
+        pathlib.Path(save_dir) / f"border_size_cancer_region_percentages_box.pdf",
         dpi=300
     )
 
