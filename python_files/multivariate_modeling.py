@@ -36,7 +36,7 @@ if not os.path.exists(intermediate_dir):
 
 
 # model diagnostics per timepoint
-for timepoint in ['baseline', 'on_nivo', 'post_induction']:
+for timepoint in ['baseline', 'on_nivo', 'pre_nivo']:
     for modality in ['MIBI', 'RNA']:
         # read in top features
         top_features = pd.read_csv(os.path.join(base_dir, 'multivariate_lasso', 'top_features_results_{}_{}.csv'.format(timepoint, modality)))
@@ -139,7 +139,7 @@ for timepoint in ['baseline', 'on_nivo', 'post_induction']:
 # aggregate combined rankings from each timepoint and modality
 all_model_rankings = pd.DataFrame()
 
-for timepoint in ['baseline', 'on_nivo', 'post_induction']:
+for timepoint in ['baseline', 'on_nivo', 'pre_nivo']:
     for modality in ['MIBI', 'RNA']:
         combined_rankings = pd.read_csv(os.path.join(intermediate_dir, 'combined_feature_rankings_{}_{}.csv'.format(timepoint, modality)))
         combined_rankings['timepoint'] = timepoint
