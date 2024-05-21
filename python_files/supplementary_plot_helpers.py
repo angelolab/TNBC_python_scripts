@@ -24,13 +24,29 @@ from ark.utils import plot_utils, data_utils
 from alpineer.io_utils import list_folders, list_files, remove_file_extensions, validate_paths
 from alpineer.load_utils import load_imgs_from_tree, load_imgs_from_dir
 from alpineer.misc_utils import verify_in_list
-# from toffy.image_stitching import rescale_images
-# from .utils import remove_ticks, QuantileNormalization, mask_erosion_ufunc
-from utils import remove_ticks, QuantileNormalization, mask_erosion_ufunc
+from toffy.image_stitching import rescale_images
+from .utils import remove_ticks, QuantileNormalization, mask_erosion_ufunc
+
 ACQUISITION_ORDER_INDICES = [
     11, 12, 13, 14, 15, 17, 18, 20, 22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 35,
     36, 39, 40, 41, 42, 43, 44, 45, 46, 47
 ]
+MEAN_PANEL_NORM = {
+    "CD11c": 0.006193546577196089, "CD14": 0.01984555177226498, "CD163": 0.026490620436259955,
+    "CD20": 0.012355682807796918, "CD3": 0.006915745669193154, "CD31": 0.018580328706651567,
+    "CD38": 0.014254272705785212, "CD4": 0.011660068838085572, "CD45": 0.015016060634967094,
+    "CD45RB": 0.008236598627789901, "CD45RO": 0.01470480803636466, "CD56": 0.0039886591958356934,
+    "CD57": 0.012048721429121926, "CD68": 0.011606977635707979, "CD69": 0.008835169089640722,
+    "CD8": 0.01140980883839861, "CK17": 0.015449040598057523, "Calprotectin": 0.00495033742848854,
+    "ChyTr": 0.027970794698707765, "Collagen1": 0.022180374726308422, "ECAD": 0.02324031755306159,
+    "FAP": 0.021780513481618562, "FOXP3": 0.00494151681211686, "Fe": 0.34932304124394165,
+    "Fibronectin": 0.02718638734057556, "GLUT1": 0.019362882625847296,
+    "H3K27me3": 0.07062930678187326, "H3K9ac": 0.07087346982563525, "HLA1": 0.022028920388760115,
+    "HLADR": 0.014832535896920995, "IDO": 0.00431968466707603, "Ki67": 0.030366892417654723,
+    "PD1": 0.003349747752931683, "PDL1": 0.007616826308262865, "SMA": 0.2710457265857868,
+    "TBET": 0.008260657932221848, "TCF1": 0.006155141651624279, "TIM3": 0.006329398943399673,
+    "Vim": 0.06671803387741954
+}
 
 
 # generate stitching/annotation function, used by panel validation and acquisition order tiling
@@ -109,14 +125,13 @@ def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
         imfont: ImageFont = ImageFont.truetype("Arial Unicode.ttf", font_size)
 
         img_idx = 0
-        fill_value: int = np.max(stitched_image)
         for row in range(num_rows):
             for col in range(num_cols):
                 imdraw.text(
                     (col * col_len + padding * col, row * row_len + padding * row),
                     annotation_labels[img_idx],
                     font=imfont,
-                    fill=fill_value
+                    fill=255
                 )
                 img_idx += 1
                 if img_idx == len(annotation_labels):
@@ -179,15 +194,17 @@ def validate_panel(
         data_dir=data_dir, fovs=[fov], channels=channels, img_sub_folder=img_sub_folder
     )[0, ...]
 
-    # normalize each channel by their 99.9% value, for clearer visualization
-    image_data = image_data / image_data.quantile(0.999, dim=["rows", "cols"])
+    # normalize each channel by the mean 99.9% value across the cohort, for clearer visualization
+    for chan in image_data.channels.values:
+        norm_val = MEAN_PANEL_NORM[chan]
+        image_data.loc[..., chan] = image_data.loc[..., chan] / norm_val
 
     # ensure the channels dimension is the 0th for annotation purposes
     image_data = image_data.transpose("channels", "rows", "cols")
 
     # generate the stitched image and save
     panel_tiled: Image = stitch_and_annotate_padded_img(
-        image_data, padding=padding, num_rows=num_rows, font_size=font_size, annotate=True
+        image_data, padding=padding, num_rows=num_rows, font_size=font_size, annotate=False
     )
 
     panel_tiled.save(stitched_img_path)
