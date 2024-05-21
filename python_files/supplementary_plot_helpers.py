@@ -664,7 +664,8 @@ def run_functional_marker_positivity_tuning_tests(
     # plot the raw num positive cells per marker
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
-    threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
+    threshold_mult_strs = [np.round(np.log2(tm), 3) for tm in threshold_mults]
+    threshold_mult_labels = [str(t) for t in threshold_mult_strs]
 
     for i, marker in enumerate(marker_threshold_data):
         mult_data = [
@@ -672,15 +673,18 @@ def run_functional_marker_positivity_tuning_tests(
         ]
         _ = ax.plot(threshold_mult_strs, mult_data, color="gray", label=marker)
 
-    _ = ax.set_title(
-        f"Positive cells per threshold",
-        fontsize=11
-    )
+    _ = ax.set_title(f"Positive cells per threshold", fontsize=11)
     _ = ax.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
     _ = ax.yaxis.get_major_formatter().set_scientific(False)
     _ = ax.set_xlabel("log2(threshold multiplier)", fontsize=7)
     _ = ax.set_ylabel("Positive cell counts", fontsize=7)
     _ = ax.tick_params(axis="both", which="major", labelsize=7)
+
+    # Set explicit x-axis ticks based on your calculated strings
+    _ = ax.set_xticks(threshold_mult_strs)
+    _ = ax.set_xticklabels(threshold_mult_labels, rotation=90)
+
+    _ = plt.tight_layout()
 
     # save the figure to save_dir
     _ = fig.savefig(
