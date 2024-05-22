@@ -859,7 +859,7 @@ def run_cancer_mask_inclusion_tests(
             )
 
             percent_hit = np.sum(label_mask) / label_mask.size
-            cell_boundary_channel_thresh_data[str(ct)].append(percent_hit)
+            cell_boundary_channel_thresh_data[ct].append(percent_hit)
 
         img_smoothed = gaussian_filter(ecad, sigma=base_sigma)
         img_mask = img_smoothed > base_channel_thresh
@@ -874,7 +874,7 @@ def run_cancer_mask_inclusion_tests(
             )
 
             percent_hit = np.sum(label_mask) / label_mask.size
-            cell_boundary_min_mask_size_data[str(mms)].append(percent_hit)
+            cell_boundary_min_mask_size_data[mms].append(percent_hit)
 
         # for mhs in cell_boundary_max_hole_sizes:
         #     label_mask = morphology.remove_small_objects(
@@ -917,8 +917,9 @@ def run_cancer_mask_inclusion_tests(
             percent_border = np.sum(
                 (combined_mask == 2) | (combined_mask == 3)
             ) / combined_mask.size
-            cell_boundary_border_size_data[str(bs)].append(percent_border)
+            cell_boundary_border_size_data[bs].append(percent_border)
 
+        i += 1
         if i % 10 == 0:
             print(f"Processed {i} folders")
 
