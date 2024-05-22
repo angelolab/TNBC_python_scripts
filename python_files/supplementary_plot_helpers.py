@@ -812,27 +812,14 @@ def run_cancer_mask_inclusion_tests(
     # cell_boundary_max_hole_sizes = [int(tm * max_hole_size) for tm in threshold_mults]
     cell_boundary_border_sizes = [int(tm * base_border_size) for tm in threshold_mults]
 
-    if os.path.exists(pathlib.Path(save_dir) / "intermediate_data.json"):
-        with open(pathlib.Path(save_dir) / "intermediate_data.json") as infile:
-            intermediate_data = json.load(infile)
-            cell_boundary_sigma_data = intermediate_data["sigma"]
-            cell_boundary_channel_thresh_data = intermediate_data["channel_thresh"]
-            cell_boundary_min_mask_size_data = intermediate_data["min_mask_size"]
-            # cell_boundary_max_hole_size_data = intermediate_data["max_hole_size"]
-            cell_boundary_border_size_data = intermediate_data["border_size"]
-    else:
-        cell_boundary_sigma_data = {s: [] for s in cell_boundary_sigmas}
-        cell_boundary_channel_thresh_data = {ct: [] for ct in cell_boundary_channel_threshes}
-        cell_boundary_min_mask_size_data = {mms: [] for mms in cell_boundary_min_mask_sizes}
-        # cell_boundary_max_hole_size_data = {mhs: [] for mhs in cell_boundary_max_hole_sizes}
-        cell_boundary_border_size_data = {bs: [] for bs in cell_boundary_border_sizes}
+    cell_boundary_sigma_data = {s: [] for s in cell_boundary_sigmas}
+    cell_boundary_channel_thresh_data = {ct: [] for ct in cell_boundary_channel_threshes}
+    cell_boundary_min_mask_size_data = {mms: [] for mms in cell_boundary_min_mask_sizes}
+    # cell_boundary_max_hole_size_data = {mhs: [] for mhs in cell_boundary_max_hole_sizes}
+    cell_boundary_border_size_data = {bs: [] for bs in cell_boundary_border_sizes}
 
     i = 0
     for i, folder in enumerate(folders):
-        if i < len(cell_boundary_sigma_data[str(cell_boundary_sigmas[0])]):
-            i += 1
-            print(f"Skipping folder {folder}")
-            continue
         ecad = io.imread(os.path.join(channel_dir, folder, "ECAD.tiff"))
 
         # generate cancer/stroma mask by combining segmentation mask with ECAD channel
@@ -932,19 +919,8 @@ def run_cancer_mask_inclusion_tests(
             ) / combined_mask.size
             cell_boundary_border_size_data[str(bs)].append(percent_border)
 
-        i += 1
         if i % 10 == 0:
             print(f"Processed {i} folders")
-            all_data = {
-                "sigma": cell_boundary_sigma_data,
-                "channel_thresh": cell_boundary_channel_thresh_data,
-                "min_mask_size": cell_boundary_min_mask_size_data,
-                # "max_hole_size": cell_boundary_max_hole_size_data,
-                "border_size": cell_boundary_border_size_data
-            }
-
-            with open(pathlib.Path(save_dir) / "intermediate_data.json", "w") as outfile:
-                json.dump(all_data, outfile, indent=4)
 
     # plot the sigma experiments
     data_sigma = []
