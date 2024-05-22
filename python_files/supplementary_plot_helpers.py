@@ -819,7 +819,7 @@ def run_cancer_mask_inclusion_tests(
     cell_boundary_border_size_data = {bs: [] for bs in cell_boundary_border_sizes}
 
     i = 0
-    for i, folder in enumerate(folders):
+    for folder in folders:
         ecad = io.imread(os.path.join(channel_dir, folder, "ECAD.tiff"))
 
         # generate cancer/stroma mask by combining segmentation mask with ECAD channel
@@ -843,7 +843,7 @@ def run_cancer_mask_inclusion_tests(
             )
 
             percent_hit = np.sum(label_mask) / label_mask.size
-            cell_boundary_sigma_data[str(s)].append(percent_hit)
+            cell_boundary_sigma_data[s].append(percent_hit)
 
         img_smoothed = gaussian_filter(ecad, sigma=base_sigma)
         for ct in cell_boundary_channel_threshes:
