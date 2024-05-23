@@ -40,29 +40,38 @@ exclude_chans = ["Au", "CD11c_nuc_exclude", "CK17_smoothed", "ECAD_smoothed", "F
                  "LAG3", "Noodle", "chan_39", "chan_45", "chan_48", "chan_115", "chan_141"]
 
 controls_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/controls"
-controls_fov = "TONIC_TMA1_colon_bottom"
+test_controls_fov = io_utils.list_folders(controls_dir)[0]
 controls_channels = sorted(io_utils.remove_file_extensions(
-    io_utils.list_files(os.path.join(controls_dir, controls_fov), substrs=".tiff")
+    io_utils.list_files(os.path.join(controls_dir, test_controls_fov), substrs=".tiff")
 ))
 for ec in exclude_chans:
     if ec in controls_channels:
         controls_channels.remove(ec)
-supplementary_plot_helpers.validate_panel(
-    controls_dir, controls_fov, panel_validation_viz_dir, channels=controls_channels,
-    font_size=180
-)
+controls_fovs = ["TONIC_TMA6_ln_top", "TONIC_TMA14_NKI_Spleen1"]
+if not os.path.exists(os.path.join(panel_validation_viz_dir, "controls")):
+    os.makedirs(os.path.join(panel_validation_viz_dir, "controls"))
+for cf in controls_fovs:
+    supplementary_plot_helpers.validate_panel(
+        controls_dir, cf, os.path.join(panel_validation_viz_dir, "controls"),
+        channels=controls_channels, num_rows=3
+    )
 
 samples_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples"
-samples_fov = "TONIC_TMA24_R8C1"
+test_samples_fov = io_utils.list_folders(samples_dir)[0]
 samples_channels = sorted(io_utils.remove_file_extensions(
-    io_utils.list_files(os.path.join(samples_dir, samples_fov), substrs=".tiff")
+    io_utils.list_files(os.path.join(samples_dir, test_samples_fov), substrs=".tiff")
 ))
 for ec in exclude_chans:
     if ec in samples_channels:
         samples_channels.remove(ec)
-supplementary_plot_helpers.validate_panel(
-    samples_dir, samples_fov, panel_validation_viz_dir, channels=samples_channels, font_size=320
-)
+sample_fovs = ["TONIC_TMA5_R1C2", "TONIC_TMA16_R1C3"]
+if not os.path.exists(os.path.join(panel_validation_viz_dir, "samples")):
+    os.makedirs(os.path.join(panel_validation_viz_dir, "samples"))
+for sf in sample_fovs:
+    supplementary_plot_helpers.validate_panel(
+        samples_dir, sf, os.path.join(panel_validation_viz_dir, "samples"),
+        channels=samples_channels, num_rows=3
+    )
 
 # ROI selection
 metadata = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/harmonized_metadata.csv')
