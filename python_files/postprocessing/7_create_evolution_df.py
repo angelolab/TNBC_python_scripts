@@ -11,6 +11,22 @@ from scipy.stats import spearmanr, ttest_ind, ttest_rel
 
 from python_files.utils import find_conserved_features
 
+TIMEPOINT_NAMES = ['primary', 'baseline', 'pre_nivo', 'on_nivo']
+
+# define the timepoint pairs to use, these index into harmonized_metadata
+TIMEPOINT_PAIRS = [
+    ("primary", "baseline"),
+    ("baseline", "pre_nivo"),
+    ("baseline", "on_nivo"),
+    ("pre_nivo", "on_nivo")
+]
+
+# define the timepoint columns as they appear in timepoint_df
+TIMEPOINT_COLUMNS = [
+    "primary__baseline", "baseline__pre_nivo", "baseline__on_nivo", "pre_nivo__on_nivo"
+]
+
+
 def euclidean_timepoint(tp_one_data: pd.Series, tp_two_data: pd.Series) -> float:
     """Compute the Euclidean distance between two timepoint data
 
@@ -73,19 +89,6 @@ def generate_patient_paired_timepoints(
             The table defining feature_to_create across all other features, appended to the evolution table as 
             an aggregated feature.
     """
-    # define the timepoint pairs to use, these index into harmonized_metadata
-    timepoint_pairs = [
-        ("primary_untreated", "baseline"),
-        ("baseline", "post_induction"),
-        ("baseline", "on_nivo"),
-        ("post_induction", "on_nivo")
-    ]
-
-    # define the timepoint columns as they appear in timepoint_df
-    timepoint_columns = [
-        "primary__baseline", "baseline__post_induction", "baseline__on_nivo", "post_induction__on_nivo"
-    ]
-
     # define a DataFrame that stores the distance metric feature between all other features
     col_names = [
         "feature_name_unique", "Patient_ID", "comparison", "raw_value"
@@ -102,7 +105,7 @@ def generate_patient_paired_timepoints(
         # get the unique tissue samples for each timepoint
         patient_data_dedup = patient_data[
             patient_data[timepoint_col].isin(
-                ["primary_untreated", "baseline", "post_induction", "on_nivo"]
+                TIMEPOINT_NAMES
             )
         ].drop_duplicates()
 
@@ -130,12 +133,12 @@ def generate_patient_paired_timepoints(
         ).rename(tissue_id_timepoint_map, axis=1)
 
         # if a specific timepoint pair exists, then compute the mean difference across all features
-        for tp in timepoint_pairs:
+        for tp in TIMEPOINT_PAIRS:
             if tp[0] in wide_timepoint.columns.values and tp[1] in wide_timepoint.columns.values:
                 col_difference = distance_metric(
                     wide_timepoint.loc[:, tp[0]], wide_timepoint.loc[:, tp[1]]
                 )
-                feature_0 = "primary" if tp[0] == "primary_untreated" else tp[0]
+                feature_0 = tp[0]
                 feature_1 = tp[1]
                 timepoint_comparisons = pd.concat(
                     [
@@ -167,7 +170,7 @@ analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
 
 harmonized_metadata = pd.read_csv(os.path.join(analysis_dir, 'harmonized_metadata.csv'))
 timepoint_features = pd.read_csv(os.path.join(analysis_dir, 'timepoint_features_filtered.csv'))
-evolution_cats = ['primary__baseline', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']
+evolution_cats = TIMEPOINT_COLUMNS
 timepoint_features_agg = timepoint_features.merge(harmonized_metadata[['Tissue_ID', 'Timepoint', 'Localization', 'Patient_ID'] + evolution_cats].drop_duplicates(), on='Tissue_ID', how='left')
 patient_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata/TONIC_data_per_patient.csv'))
 
@@ -175,8 +178,6 @@ evolution_dfs = []
 # generate evolution df based on difference in timepoints
 for evolution_col in evolution_cats:
     timepoint_1, timepoint_2 = evolution_col.split('__')
-    if timepoint_1 == 'primary':
-        timepoint_1 = 'primary_untreated'
     evolution_df = timepoint_features_agg[timepoint_features_agg[evolution_col]].copy()
     evolution_df = evolution_df.loc[evolution_df.Timepoint.isin([timepoint_1, timepoint_2])]
 
@@ -210,13 +211,12 @@ evolution_df.to_csv(os.path.join(output_dir, "timepoint_evolution_features.csv")
 
 # create combined df
 timepoint_features = pd.read_csv(os.path.join(analysis_dir, 'timepoint_features_filtered.csv'))
-timepoint_features = timepoint_features.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint', 'primary__baseline',
-                                                                   'baseline__on_nivo', 'baseline__post_induction', 'post_induction__on_nivo']].drop_duplicates(), on='Tissue_ID')
+timepoint_features = timepoint_features.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint'] + TIMEPOINT_COLUMNS].drop_duplicates(), on='Tissue_ID')
 timepoint_features = timepoint_features.merge(patient_metadata[['Patient_ID', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']].drop_duplicates(), on='Patient_ID', how='left')
 
 # Hacky, remove once metadata is updated
 timepoint_features = timepoint_features.loc[timepoint_features.Clinical_benefit.isin(['Yes', 'No']), :]
-timepoint_features = timepoint_features.loc[timepoint_features.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
+timepoint_features = timepoint_features.loc[timepoint_features.Timepoint.isin(TIMEPOINT_NAMES), :]
 timepoint_features = timepoint_features[['Tissue_ID', 'feature_name', 'feature_name_unique', 'raw_mean', 'raw_std', 'normalized_mean', 'normalized_std', 'Patient_ID', 'Timepoint', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]
 
 # look at evolution

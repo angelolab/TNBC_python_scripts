@@ -29,7 +29,7 @@ from python_files import utils
 out_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/ecm'
 channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples'
 analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
-mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/mask_dir/individual_masks/'
+mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/ecm_all/masks'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots'
 
 #

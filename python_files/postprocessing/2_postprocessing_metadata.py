@@ -59,6 +59,11 @@ timepoint_metadata.loc[(timepoint_metadata.Patient_ID.isin(unassigned_untreated_
                        (timepoint_metadata.Timepoint == 'biopsy') &
                         timepoint_metadata.MIBI_data_generated, 'Timepoint'] = 'primary_untreated'
 
+# timepoint name adjustments
+timepoint_metadata.loc[timepoint_metadata.Timepoint == 'primary', 'Timepoint'] = 'primary_other'
+timepoint_metadata.loc[timepoint_metadata.Timepoint == 'primary_untreated', 'Timepoint'] = 'primary'
+timepoint_metadata.loc[timepoint_metadata.Timepoint == 'post_induction', 'Timepoint'] = 'pre_nivo'
+
 #
 # Consolidate rare metastatic locations into single 'other' label
 #
@@ -87,22 +92,22 @@ for pat in met_pats:
 #
 
 # reshape data to allow for easy boolean comparisons
-subset_metadata = timepoint_metadata.loc[timepoint_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
+subset_metadata = timepoint_metadata.loc[timepoint_metadata.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), :]
 subset_metadata = subset_metadata.loc[subset_metadata.MIBI_data_generated, :]
 metadata_wide = pd.pivot(subset_metadata, index='Patient_ID', columns='Timepoint', values='Tissue_ID')
 
 # add studytissue to primary tumors to identify patients with missing data
-subset_metadata.loc[subset_metadata.Timepoint == 'primary_untreated', 'Location_studytissue'] = 'A'
+subset_metadata.loc[subset_metadata.Timepoint == 'primary', 'Location_studytissue'] = 'A'
 metadata_wide = pd.pivot(subset_metadata, index='Patient_ID', columns='Timepoint', values='Location_studytissue')
 
 # primary baseline comparison requires any tissue present in either
-current_wide = metadata_wide.loc[:, ['primary_untreated', 'baseline']]
+current_wide = metadata_wide.loc[:, ['primary', 'baseline']]
 current_wide = current_wide.dropna(axis=0)
 
 patient_metadata['primary__baseline'] = patient_metadata.Patient_ID.isin(current_wide.index)
 
 # other comparisons require tissue from the same location
-comparison_pairs = [['baseline', 'post_induction'], ['baseline', 'on_nivo'], ['post_induction', 'on_nivo']]
+comparison_pairs = [['baseline', 'pre_nivo'], ['baseline', 'on_nivo'], ['pre_nivo', 'on_nivo']]
 
 # loop through pairs, find patients with matching tissue, add to patient_metadata
 for pair in comparison_pairs:
@@ -149,7 +154,7 @@ harmonized_metadata = pd.merge(harmonized_metadata, timepoint_metadata.loc[:, ['
 assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
 
 # select and merge relevant columns from patients
-harmonized_metadata = pd.merge(harmonized_metadata, patient_metadata.loc[:, ['Patient_ID', 'primary__baseline', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']], on='Patient_ID', how='inner')
+harmonized_metadata = pd.merge(harmonized_metadata, patient_metadata.loc[:, ['Patient_ID', 'primary__baseline', 'baseline__pre_nivo', 'baseline__on_nivo', 'pre_nivo__on_nivo', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']], on='Patient_ID', how='inner')
 assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
 
 # save harmonized metadata

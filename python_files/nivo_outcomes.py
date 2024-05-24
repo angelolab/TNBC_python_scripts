@@ -58,7 +58,7 @@ for comparison in combined_df.Timepoint.unique():
 
 
 # total_dfs_continuous = []
-# for comparison in ['baseline', 'post_induction', 'on_nivo', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']:
+# for comparison in ['baseline', 'pre_nivo', 'on_nivo', 'baseline__pre_nivo', 'baseline__on_nivo', 'pre_nivo__on_nivo']:
 #     input_df = combined_df[combined_df.Timepoint == comparison]
 #     continuous_df = compare_continuous(feature_df=input_df, variable_col='Time_to_progression_weeks_RECIST1.1')
 #
@@ -103,7 +103,7 @@ ranked_features_df['feature_type_broad'] = ranked_features_df.feature_type.map(f
 ranked_features_df['feature_rank_global_evolution'] = ranked_features_df.importance_score.rank(ascending=False)
 
 # get ranking of non-evolution features
-ranked_features_no_evo = ranked_features_df.loc[ranked_features_df.comparison.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
+ranked_features_no_evo = ranked_features_df.loc[ranked_features_df.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), :]
 ranked_features_no_evo['feature_rank_global'] = ranked_features_no_evo.importance_score.rank(ascending=False)
 ranked_features_df = ranked_features_df.merge(ranked_features_no_evo.loc[:, ['feature_name_unique', 'comparison', 'feature_rank_global']], on=['feature_name_unique', 'comparison'], how='left')
 
@@ -237,7 +237,7 @@ if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 
 current_df = ranked_features_df.sort_values('combined_rank', ascending=True)
-current_df = current_df.loc[current_df.comparison.isin(['baseline', 'post_induction', 'on_nivo', 'primary_untreated']), :]
+current_df = current_df.loc[current_df.comparison.isin(['baseline', 'pre_nivo', 'on_nivo', 'primary']), :]
 current_df = current_df.iloc[:num_features, :]
 
 # plot results
@@ -261,8 +261,8 @@ for feature_name, comparison, rank in zip(current_df.feature_name_unique.values,
 # control_df = timepoint_features.loc[timepoint_features.Induction_treatment != 'No induction', :]
 # dox_df = timepoint_features.loc[timepoint_features.Induction_treatment == 'Doxorubicin', :]
 #
-# len(dox_df.loc[(dox_df.Timepoint == 'post_induction'), 'Patient_ID'].unique())
-# induction_pats = default_df.loc[(default_df.Timepoint == 'post_induction'), 'Patient_ID'].unique()
+# len(dox_df.loc[(dox_df.Timepoint == 'pre_nivo'), 'Patient_ID'].unique())
+# induction_pats = default_df.loc[(default_df.Timepoint == 'pre_nivo'), 'Patient_ID'].unique()
 # len(induction_pats)
 #
 # # pick random subset from induction patients
@@ -278,7 +278,7 @@ for feature_name, comparison, rank in zip(current_df.feature_name_unique.values,
 # total_dfs = []
 # for input_df, name in dfs:
 #     population_df = compare_populations(feature_df=input_df, pop_col='Clinical_benefit',
-#                                             timepoints=['post_induction'], pop_1='No', pop_2='Yes', method='ttest')
+#                                             timepoints=['pre_nivo'], pop_1='No', pop_2='Yes', method='ttest')
 #
 #
 #     long_df = population_df[['feature_name_unique', 'log_pval', 'mean_diff', 'med_diff']]

@@ -252,22 +252,23 @@ all_clusters = ['CD11c_HLADR', 'CD14', 'CD163', 'CD20', 'CD31', 'CD31_VIM',
 # check that all names were converted correctly
 assert set(all_clusters) == set(cell_table['cell_meta_cluster'].unique())
 
-assignment_dict = {'Cancer': ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad'],
-                   'Cancer_EMT': ['Cancer_SMA', 'Cancer_Vim'],
-                   'Cancer_Other': ['Cancer_Other', 'Cancer_Mono'],
-                   'M1_Mac': ['CD68'],
-                   'M2_Mac': ['CD163'],
+assignment_dict = {'Cancer_1': ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad'],
+                   'Cancer_2': ['Cancer_SMA', 'Cancer_Vim'],
+                   'Cancer_3': ['Cancer_Other', 'Cancer_Mono'],
+                   'CD68_Mac': ['CD68'],
+                   'CD163_Mac': ['CD163'],
                    'Mac_Other': ['CD68_CD163_DP'],
                    'Monocyte': ['CD4_Mono', 'CD14'],
                    'APC': ['CD11c_HLADR'],
                    'B':  ['CD20'],
                    'Endothelium': ['CD31', 'CD31_VIM'],
-                   'Fibroblast': ['FAP', 'FAP_SMA', 'SMA'],
-                   'Stroma': ['Stroma_Collagen', 'Stroma_Fibronectin', 'VIM'],
+                   'CAF': ['FAP', 'FAP_SMA'],
+                   'Smooth_Muscle': ['SMA'],
+                   'Fibroblast': ['Stroma_Collagen', 'Stroma_Fibronectin', 'VIM'],
                    'NK': ['CD56'],
                    'Neutrophil': ['Neutrophil'],
                    'Mast': ['Mast'],
-                   'CD4T': ['CD4T','CD4T_HLADR'],
+                   'CD4T': ['CD4T', 'CD4T_HLADR'],
                    'CD8T': ['CD8T'],
                    'Treg': ['Treg'],
                    'T_Other': ['CD3_DN','CD4T_CD8T_DP'],
@@ -279,12 +280,12 @@ for new_name in assignment_dict:
     idx = np.isin(cell_table['cell_meta_cluster'].values, pops)
     cell_table.loc[idx,  'cell_cluster'] = new_name
 
-assignment_dict_2 = {'Cancer': ['Cancer', 'Cancer_EMT', 'Cancer_Other'],
-                     'Mono_Mac': ['M1_Mac', 'M2_Mac', 'Mac_Other', 'Monocyte', 'APC'],
+assignment_dict_2 = {'Cancer': ['Cancer_1', 'Cancer_2', 'Cancer_3'],
+                     'Mono_Mac': ['CD68_Mac', 'CD163_Mac', 'Mac_Other', 'Monocyte', 'APC'],
                      'B': ['B'],
                      'T': ['CD4T', 'CD8T', 'Treg', 'T_Other'],
                      'Granulocyte': ['Neutrophil', 'Mast'],
-                     'Stroma': ['Endothelium', 'Fibroblast', 'Stroma'],
+                     'Structural': ['Endothelium', 'CAF', 'Fibroblast', 'Smooth_Muscle'],
                      'NK': ['NK'],
                      'Other': ['Immune_Other', 'Other']}
 
@@ -316,15 +317,6 @@ threshold_list = [['Ki67', 0.002], ['CD38', 0.004], ['CD45RB', 0.001], ['CD45RO'
 
 for marker, threshold in threshold_list:
     cell_table_func[marker] = cell_table_full[marker].values >= threshold
-
-
-# set specific threshold for PDL1+ dim tumor cells
-PDL1_mask = np.logical_and(cell_table_full['PDL1'].values >= 0.0005, cell_table_full['PDL1'].values < 0.001)
-tumor_mask = cell_table_full['cell_cluster_broad'] == 'Cancer'
-PDL1_cancer_dim_threshold = np.logical_and(PDL1_mask, tumor_mask)
-
-# set threshold for all PDL1+ cells
-cell_table_func['PDL1'] = np.logical_or(cell_table_func['PDL1'].values, PDL1_cancer_dim_threshold)
 
 
 # create ratios of relevant markers
@@ -424,6 +416,7 @@ cell_table_counts.to_csv(os.path.join(analysis_dir, 'cell_table_counts.csv'), in
 #  'TONIC_TMA1_R8C3',
 #  'TONIC_TMA1_R8C4',
 #  'TONIC_TMA1_R8C5',
+#  'TONIC_TMA1_R8C6',
 #  'TONIC_TMA1_R10C2',
 #  'TONIC_TMA1_R10C3']
 #
@@ -451,6 +444,7 @@ cell_table_counts.to_csv(os.path.join(analysis_dir, 'cell_table_counts.csv'), in
 #     'TONIC_TMA1_R11C3',
 #     'TONIC_TMA1_R11C4',
 #     'TONIC_TMA1_R11C5',
+#     'TONIC_TMA1_R11C6',
 #     'TONIC_TMA1_R13C2',
 #     'TONIC_TMA1_R13C3']
 #
