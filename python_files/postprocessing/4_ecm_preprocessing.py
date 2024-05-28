@@ -26,7 +26,7 @@ from python_files import utils
 # This script is for generating the ECM assignments for image crops
 #
 
-out_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/ecm_all'
+out_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/ecm'
 channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples'
 analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
 mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/ecm_all/masks'

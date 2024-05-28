@@ -5,7 +5,7 @@ import seaborn as sns
 from sklearn.cluster import KMeans
 
 
-ecm_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/ecm'
+ecm_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/ecm'
 
 tiled_crops = pd.read_csv(os.path.join(ecm_dir, 'tiled_crops.csv'))
 
@@ -144,12 +144,12 @@ replace_dict = {0: 'Hot_Coll', 1: 'Fibro_Coll', 2: 'VIM_Fibro', 3: 'Cold_Coll',
                 -1: 'no_ecm'}
 
 cell_crops['ecm_cluster'] = cell_crops['ecm_cluster'].replace(replace_dict)
-cell_crops.to_csv(os.path.join(out_dir, 'cell_crops.csv'), index=False)
+cell_crops.to_csv(os.path.join(ecm_dir, 'cell_crops.csv'), index=False)
 
 # QC clustering results
 
 # generate image with each crop set to the value of the cluster its assigned to
-metadata_df = pd.read_csv(os.path.join(out_dir, 'metadata_df.csv'))
+metadata_df = pd.read_csv(os.path.join(ecm_dir, 'metadata_df.csv'))
 img = 'TONIC_TMA20_R5C3'
 cluster_crop_img = np.zeros((2048, 2048))
 
