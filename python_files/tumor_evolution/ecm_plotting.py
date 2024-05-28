@@ -5,7 +5,7 @@ import seaborn as sns
 from sklearn.cluster import KMeans
 
 
-ecm_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/ecm'
+ecm_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/ecm'
 
 tiled_crops = pd.read_csv(os.path.join(ecm_dir, 'tiled_crops.csv'))
 
@@ -48,30 +48,6 @@ cluster_counts['fov_cluster'] = cluster_counts['fov_cluster'].replace(rename_dic
 
 # save the cluster counts
 cluster_counts.to_csv(os.path.join(ecm_dir, 'fov_cluster_counts.csv'))
-
-
-# group cells in each FOV according to their ECM cluster
-plot_cell_crops = cell_crops[['fov', 'id', 'ecm_cluster']]
-plot_cell_crops = plot_cell_crops.rename(columns={'id': 'label'})
-
-cell_table_clusters = pd.merge(cell_table_clusters, plot_cell_crops[['fov', 'label', 'ecm_cluster']],
-                                 on=['fov', 'label'], how='left')
-
-grouped_ecm_region = cell_table_clusters[['fov', 'ecm_cluster', 'cell_cluster_broad']].groupby(['fov', 'ecm_cluster']).value_counts(normalize=True)
-grouped_ecm_region = grouped_ecm_region.unstack(level='cell_cluster_broad', fill_value=0).stack()
-
-grouped_ecm_region = grouped_ecm_region.reset_index()
-grouped_ecm_region.columns = ['fov',  'ecm_cluster', 'cell_cluster','count']
-
-
-# plot the distribution of cell clusters in each ECM cluster
-g = sns.FacetGrid(grouped_ecm_region, col='cell_cluster', col_wrap=3, hue='ecm_cluster',
-                  palette=['Black'], sharey=False, aspect=2.5)
-g.map(sns.violinplot, 'ecm_cluster', 'count',
-      order=['Hot_Coll', 'VIM_Fibro', 'Fibro_Coll',
-       'Cold_Coll', 'no_ecm'])
-
-
 
 
 
@@ -139,3 +115,74 @@ g = sns.catplot(x='ecm_cluster', y='value', data=temp_df,
                 kind='box', col='cell_type', sharey=False, col_wrap=4)
 g.savefig(os.path.join(plot_dir, 'cell_density_primary_broad.png'), dpi=300)
 plt.close()
+
+
+# generate crops around cells to classify using the trained model
+cell_table_clusters = pd.read_csv(os.path.join(analysis_dir, 'combined_cell_table_normalized_cell_labels_updated.csv'))
+#cell_table_clusters = cell_table_clusters[cell_table_clusters.fov.isin(fov_subset)]
+cell_table_clusters = cell_table_clusters[['fov', 'centroid-0', 'centroid-1', 'label']]
+
+cell_crops = utils.generate_crop_sum_dfs(channel_dir=channel_dir,
+                                         mask_dir=mask_dir,
+                                         channels=channels,
+                                         crop_size=crop_size, fovs=fov_subset,
+                                         cell_table=cell_table_clusters)
+
+# normalize based on ecm area
+cell_crops = utils.normalize_by_ecm_area(crop_sums=cell_crops, crop_size=crop_size,
+                                         channels=channels)
+
+cell_classifications = kmeans_pipe.predict(cell_crops[channels].values.astype('float64'))
+cell_crops['ecm_cluster'] = cell_classifications
+
+no_ecm_mask_cell = cell_crops.ecm_fraction < 0.1
+
+cell_crops.loc[no_ecm_mask_cell, 'ecm_cluster'] = -1
+
+# replace cluster integers with cluster names
+replace_dict = {0: 'Hot_Coll', 1: 'Fibro_Coll', 2: 'VIM_Fibro', 3: 'Cold_Coll',
+                -1: 'no_ecm'}
+
+cell_crops['ecm_cluster'] = cell_crops['ecm_cluster'].replace(replace_dict)
+cell_crops.to_csv(os.path.join(ecm_dir, 'cell_crops.csv'), index=False)
+
+# QC clustering results
+
+# generate image with each crop set to the value of the cluster its assigned to
+metadata_df = pd.read_csv(os.path.join(ecm_dir, 'metadata_df.csv'))
+img = 'TONIC_TMA20_R5C3'
+cluster_crop_img = np.zeros((2048, 2048))
+
+metadata_subset = tiled_crops[tiled_crops.fov == img]
+for row_crop, col_crop, cluster in zip(metadata_subset.row_coord, metadata_subset.col_coord, metadata_subset.cluster):
+    if cluster == 'no_ecm':
+        cluster = 0
+    elif cluster == 'Hot_Coll':
+        cluster = 1
+    elif cluster == 'Cold_Coll':
+        cluster = 2
+    cluster_crop_img[row_crop:row_crop + crop_size, col_crop:col_crop + crop_size] = int(cluster)
+
+io.imshow(cluster_crop_img)
+
+# group cells in each FOV according to their ECM cluster
+plot_cell_crops = cell_crops[['fov', 'id', 'ecm_cluster']]
+plot_cell_crops = plot_cell_crops.rename(columns={'id': 'label'})
+
+cell_table_clusters = pd.merge(cell_table_clusters, plot_cell_crops[['fov', 'label', 'ecm_cluster']],
+                                 on=['fov', 'label'], how='left')
+
+grouped_ecm_region = cell_table_clusters[['fov', 'ecm_cluster', 'cell_cluster_broad']].groupby(['fov', 'ecm_cluster']).value_counts(normalize=True)
+grouped_ecm_region = grouped_ecm_region.unstack(level='cell_cluster_broad', fill_value=0).stack()
+
+grouped_ecm_region = grouped_ecm_region.reset_index()
+grouped_ecm_region.columns = ['fov',  'ecm_cluster', 'cell_cluster','count']
+
+
+# plot the distribution of cell clusters in each ECM cluster
+g = sns.FacetGrid(grouped_ecm_region, col='cell_cluster', col_wrap=3, hue='ecm_cluster',
+                  palette=['Black'], sharey=False, aspect=2.5)
+g.map(sns.violinplot, 'ecm_cluster', 'count',
+      order=['Hot_Coll', 'VIM_Fibro', 'Fibro_Coll',
+       'Cold_Coll', 'no_ecm'])
+
