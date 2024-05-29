@@ -40,7 +40,7 @@ compartment_clusters = pd.read_csv(os.path.join(output_dir, 'neighborhood_compar
 
 # load metadata
 harmonized_metadata_df = pd.read_csv(os.path.join(analysis_dir, 'harmonized_metadata.csv'))
-compartment_area = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir/individual_masks-no_tagg_tls/fov_annotation_mask_area.csv'))
+compartment_area = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir/fov_annotation_mask_area.csv'))
 
 
 # compute shannon diversity from list of proportions
@@ -533,7 +533,7 @@ fov_data.append(ecm_frac_df)
 
 
 # add ecm pixel cluster density
-area_df = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir/individual_masks-no_tagg_tls/fov_annotation_mask_area.csv'))
+area_df = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir/fov_annotation_mask_area.csv'))
 area_df = area_df.loc[area_df.compartment == 'all', ['fov', 'area']]
 ecm_clusters_density = pd.merge(ecm_clusters, area_df, on='fov')
 ecm_clusters_density['density'] = ecm_clusters_density['counts'] / ecm_clusters_density['area']

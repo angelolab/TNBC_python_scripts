@@ -7,11 +7,13 @@ import matplotlib.pyplot as plt
 from itertools import combinations
 import seaborn as sns
 from scipy.stats import spearmanr
+import shutil
 
-data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data'
-metadata_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/metadata'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
+output_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/output_files'
+analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
 
+filtered_morph_df = pd.read_csv(os.path.join(output_dir, 'morph_df_per_core_filtered.csv'))
 
 # heatmap of functional marker expression per cell type
 plot_df = filtered_morph_df.loc[filtered_morph_df.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), :]
@@ -83,6 +85,7 @@ plt.close()
 
 
 # look at images that are high for each feature to assess quality
+feature_df = pd.read_csv(os.path.join(analysis_dir, 'feature_ranking.csv'))
 feature_name = 'area__Structural'
 data_subset = feature_df.loc[feature_df.feature_name_unique == feature_name, :]
 data_subset.sort_values(by='raw_value', ascending=False, inplace=True)

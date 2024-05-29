@@ -48,7 +48,7 @@ for folder in folders:
     cancer_mask = cancer_mask.astype(np.uint8)
     io.imsave(os.path.join(intermediate_folder, 'cancer_mask.png'), cancer_mask,
               check_contrast=False)
-
+    '''
     # create mask for TLS
     tls_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['B', 'T'], sigma=4)
     tls_label_mask = skimage.measure.label(tls_mask)
@@ -92,6 +92,7 @@ for folder in folders:
 
     io.imsave(os.path.join(intermediate_folder, 'tagg_mask.png'), tagg_label_mask.astype(np.uint8),
                 check_contrast=False)
+    '''
 
     # create mask for slide background
     gold = io.imread(os.path.join(channel_dir, folder, 'Au.tiff'))
@@ -114,22 +115,24 @@ for folder in folders:
     # read in generated masks
     intermediate_folder = os.path.join(intermediate_dir, folder)
     cancer_mask = io.imread(os.path.join(intermediate_folder, 'cancer_mask.png'))
-    tls_mask = io.imread(os.path.join(intermediate_folder, 'tls_mask.png'))
-    tagg_mask = io.imread(os.path.join(intermediate_folder, 'tagg_mask.png'))
     gold_mask = io.imread(os.path.join(intermediate_folder, 'gold_mask.png'))
+    # tls_mask = io.imread(os.path.join(intermediate_folder, 'tls_mask.png'))
+    # tagg_mask = io.imread(os.path.join(intermediate_folder, 'tagg_mask.png'))
 
     # create a single unified mask; TLS and background override tumor compartments
-    cancer_mask[tls_mask == 1] = 5
-    cancer_mask[tagg_mask == 1] = 6
     cancer_mask[gold_mask == 1] = 0
+    # cancer_mask[tls_mask == 1] = 5
+    # cancer_mask[tagg_mask == 1] = 6
 
     # save individual masks
     processed_folder = os.path.join(individual_dir, folder)
     if not os.path.exists(processed_folder):
         os.mkdir(processed_folder)
 
+    '''for idx, name in zip(range(0, 7), ['empty_slide', 'stroma_core', 'stroma_border',
+                                       'cancer_border', 'cancer_core', 'tls', 'tagg']):'''
     for idx, name in zip(range(0, 7), ['empty_slide', 'stroma_core', 'stroma_border',
-                                       'cancer_border', 'cancer_core', 'tls', 'tagg']):
+                                       'cancer_border', 'cancer_core']):
         channel_img = cancer_mask == idx
         io.imsave(os.path.join(processed_folder, name + '.tiff'), channel_img.astype(np.uint8),
                   check_contrast=False)
@@ -144,14 +147,14 @@ for folder in folders[:20]:
     compartment_overlay = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/compartment_overlay', folder + '.png'))
     gold_chan = io.imread(os.path.join(channel_dir, folder, 'Au.tiff'))
     border_mask = io.imread(os.path.join(intermediate_dir, folder, 'cancer_mask.png'))
-    tls_mask = io.imread(os.path.join(intermediate_dir, folder, 'tls_mask.png'))
-    tagg_mask = io.imread(os.path.join(intermediate_dir, folder, 'tagg_mask.png'))
     gold_mask = io.imread(os.path.join(intermediate_dir, folder, 'gold_mask.png'))
+    # tls_mask = io.imread(os.path.join(intermediate_dir, folder, 'tls_mask.png'))
+    # tagg_mask = io.imread(os.path.join(intermediate_dir, folder, 'tagg_mask.png'))
 
     # create a single unified mask; TLS and background override tumor compartments
-    border_mask[tls_mask == 1] = 5
-    border_mask[tagg_mask == 1] = 6
     border_mask[gold_mask == 1] = 0
+    # border_mask[tls_mask == 1] = 5
+    # border_mask[tagg_mask == 1] = 6
 
     # make top row shorter than bottom row
     fig, ax = plt.subplots(2, 2, figsize=(15, 10), gridspec_kw={'height_ratios': [1, 2]})
