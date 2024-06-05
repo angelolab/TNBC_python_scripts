@@ -311,14 +311,7 @@ feature_classes = {'cell_abundance': ['density', 'density_ratio', 'density_propo
 for feature_class in feature_classes.keys():
     feature_metadata.loc[feature_metadata.feature_type.isin(feature_classes[feature_class]), 'feature_class'] = feature_class
 
-sns.countplot(data=feature_metadata, x='feature_class', order=['cell_phenotype', 'cell_abundance', 'diversity', 'structure', 'cell_interactions'],
-              color='grey')
-sns.despine()
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure3_feature_class_counts.pdf'))
-plt.close()
-
-# stacked bar version
+# stacked bar
 feature_metadata_stacked = feature_metadata.copy()
 feature_metadata_stacked['count'] = 1
 feature_metadata_stacked = feature_metadata_stacked[['feature_class', 'count']].groupby(['feature_class']).sum().reset_index()
@@ -326,29 +319,20 @@ feature_metadata_stacked['feature'] = 'feature1'
 feature_metadata_stacked['feature2'] = 'feature2'
 
 feature_metadata_wide = pd.pivot(feature_metadata_stacked, index='feature', columns='feature_class', values='count')
-feature_metadata_wide = feature_metadata_wide[['cell_phenotype', 'cell_abundance', 'diversity', 'structure', 'cell_interactions']]
+feature_metadata_wide = feature_metadata_wide[['cell_phenotype', 'cell_abundance',  'structure', 'diversity', 'cell_interactions']]
 feature_metadata_wide.plot.bar(stacked=True)
 sns.despine()
 plt.ylim(0, 1000)
 plt.yticks(np.arange(0, 1001, 200))
-plt.savefig(os.path.join(plot_dir, 'Figure3_feature_class_counts_stacked.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure2b_feature_class_counts_stacked.pdf'))
 plt.close()
 
+# cell types
 cell_classes = {'Immune': ['Immune', 'Mono_Mac', 'T', 'Granulocyte'], 'Cancer': ['Cancer'],
-                'Stroma': ['Stroma'], 'Structural': ['ecm'], 'Multiple': ['multiple', 'all']}
+                'Structural': ['Structural'], 'ECM': ['ecm'], 'Multiple': ['multiple', 'all', 'kmeans_cluster']}
 
 for cell_class in cell_classes.keys():
     feature_metadata.loc[feature_metadata.cell_pop.isin(cell_classes[cell_class]), 'cell_class'] = cell_class
-
-
-sns.countplot(data=feature_metadata, x='cell_class', order=['Immune', 'Multiple', 'Cancer', 'Stroma', 'Structural'],
-                color='grey')
-
-sns.despine()
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure3_cell_class_counts.pdf'))
-plt.close()
-
 
 # stacked bar version
 feature_metadata_stacked = feature_metadata.copy()
@@ -360,15 +344,14 @@ feature_metadata_stacked['feature2'] = 'feature2'
 feature_metadata_wide = pd.pivot(feature_metadata_stacked, index='feature', columns='cell_class', values='count')
 
 # set order for stacked bar
-feature_metadata_wide = feature_metadata_wide[['Immune', 'Multiple', 'Cancer', 'Stroma', 'Structural']]
+feature_metadata_wide = feature_metadata_wide[['Immune', 'Multiple', 'Cancer', 'Structural', 'ECM']]
 feature_metadata_wide.plot.bar(stacked=True)
 sns.despine()
 plt.ylim(0, 1000)
 plt.yticks(np.arange(0, 1001, 200))
 
-plt.savefig(os.path.join(plot_dir, 'Figure3_cell_class_counts_stacked.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure2b_cell_class_counts_stacked.pdf'))
 plt.close()
-
 
 
 # cluster features together to identify modules
@@ -382,15 +365,15 @@ corr_df = corr_df.fillna(0)
 
 
 clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
-clustergrid.savefig(os.path.join(plot_dir, 'Figure3_feature_clustermap_filtered.pdf'), dpi=300)
+clustergrid.savefig(os.path.join(plot_dir, 'Figure2c_feature_clustermap_filtered.pdf'), dpi=300)
 plt.close()
 
-# get names of features from clustergrid
-feature_names = clustergrid.data2d.columns
-
-start_idx = 710
-end_idx = 750
-clustergrid_small = sns.clustermap(corr_df.loc[feature_names[start_idx:end_idx], feature_names[start_idx:end_idx]], cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20),
-                                   col_cluster=False, row_cluster=False)
-clustergrid_small.savefig(os.path.join(plot_dir, 'spearman_correlation_dp_functional_markers_clustermap_small_3.png'), dpi=300)
-plt.close()
+# # get names of features from clustergrid for annotating features within clusters
+# feature_names = clustergrid.data2d.columns
+#
+# start_idx = 710
+# end_idx = 750
+# clustergrid_small = sns.clustermap(corr_df.loc[feature_names[start_idx:end_idx], feature_names[start_idx:end_idx]], cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20),
+#                                    col_cluster=False, row_cluster=False)
+# clustergrid_small.savefig(os.path.join(plot_dir, 'spearman_correlation_dp_functional_markers_clustermap_small_3.png'), dpi=300)
+# plt.close()
