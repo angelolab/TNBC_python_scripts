@@ -16,17 +16,18 @@ import skimage.io as io
 
 base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
 metadata_dir = os.path.join(base_dir, 'intermediate_files/metadata')
-plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/figures/'
-harmonized_metadata = pd.read_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'))
 seg_dir = os.path.join(base_dir, 'segmentation_data/deepcell_output')
-image_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
-feature_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_metadata.csv'))
+image_dir = os.path.join(base_dir, 'image_data/samples/')
+plot_dir = os.path.join(base_dir, 'figures')
 
-study_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), 'fov'].values
+# load files
+harmonized_metadata = pd.read_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'))
+feature_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_metadata.csv'))
+study_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), 'fov'].values
 
 
 ranked_features_all = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_ranking.csv'))
-ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
 
 
 # plot total volcano
@@ -44,30 +45,9 @@ ax.get_legend().remove()
 ax.figure.colorbar(sm, ax=ax)
 plt.tight_layout()
 
-plt.savefig(os.path.join(plot_dir, 'Figure4_volcano.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure3a_volcano.pdf'))
 plt.close()
 
-
-
-
-# look at enrichment by compartment
-top_counts = ranked_features.iloc[:100, :].groupby('compartment').count().iloc[:, 0]
-
-total_counts = feature_metadata.groupby('compartment').count().iloc[:, 0]
-
-top_prop = top_counts / np.sum(top_counts)
-total_prop = total_counts / np.sum(total_counts)
-
-top_ratio = top_prop / total_prop
-top_ratio = np.log2(top_ratio)
-ratio_df = pd.DataFrame({'compartment': top_ratio.index, 'ratio': top_ratio.values})
-ratio_df = ratio_df.sort_values(by='ratio', ascending=False)
-
-fig, ax = plt.subplots(figsize=(4, 3))
-sns.barplot(data=ratio_df, x='compartment', y='ratio', color='grey', ax=ax)
-sns.despine()
-plt.savefig(os.path.join(plot_dir, 'Figure4_enrichment_by_compartment.pdf'))
-plt.close()
 
 # compare ratio features to best individual feature that is part of the ratio
 top_ratios = ranked_features.iloc[:100, :]
@@ -112,9 +92,28 @@ sns.lineplot(data=plot_df, x='variable', y='value', units='feature_id', estimato
 sns.despine()
 plt.ylim(0, 1)
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure4_ratio_vs_density.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure3b_ratio_vs_density.pdf'))
 plt.close()
 
+
+# look at enrichment by compartment
+top_counts = ranked_features.iloc[:100, :].groupby('compartment').count().iloc[:, 0]
+
+total_counts = feature_metadata.groupby('compartment').count().iloc[:, 0]
+
+top_prop = top_counts / np.sum(top_counts)
+total_prop = total_counts / np.sum(total_counts)
+
+top_ratio = top_prop / total_prop
+top_ratio = np.log2(top_ratio)
+ratio_df = pd.DataFrame({'compartment': top_ratio.index, 'ratio': top_ratio.values})
+ratio_df = ratio_df.sort_values(by='ratio', ascending=False)
+
+fig, ax = plt.subplots(figsize=(4, 3))
+sns.barplot(data=ratio_df, x='compartment', y='ratio', color='grey', ax=ax)
+sns.despine()
+plt.savefig(os.path.join(plot_dir, 'Figure3c_enrichment_by_compartment.pdf'))
+plt.close()
 
 # look at enrichment of spatial features
 spatial_features = ['mixing_score', 'cell_diversity', 'compartment_area_ratio', 'pixie_ecm',
@@ -142,7 +141,7 @@ ax.set_ylim(-0.6, 0.6)
 sns.barplot(data=ratio_df, x='spatial_feature', y='ratio', color='grey', ax=ax)
 sns.despine()
 
-plt.savefig(os.path.join(plot_dir, 'Figure4_enrichment_by_spatial.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure3d_enrichment_by_spatial.pdf'))
 plt.close()
 
 
@@ -157,13 +156,13 @@ plot_features = plot_features.iloc[:53, :]
 plot_features = plot_features[['feature_name', 'feature_name_unique', 'compartment', 'ratio', 'density', 'diversity', 'phenotype', 'sign']]
 plot_features = plot_features.drop_duplicates()
 plot_features_sort = plot_features.sort_values(by='feature_name')
-plot_features_sort.to_csv(os.path.join(plot_dir, 'Figure4_top_hits.csv'))
+plot_features_sort.to_csv(os.path.join(plot_dir, 'Figure3e_top_hits.csv'))
 
 
 # PDL1+__M1 on nivo example
 combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
 
-feature_name = 'PDL1+__M1_Mac'
+feature_name = 'PDL1+__CD68_Mac'
 timepoint = 'on_nivo'
 
 plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
@@ -178,66 +177,68 @@ ax.set_title(feature_name + ' ' + timepoint)
 ax.set_ylim([0, 1])
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure4_feature_{}_{}.pdf'.format(feature_name, timepoint)))
+plt.savefig(os.path.join(plot_dir, 'Figure3f_feature_{}_{}.pdf'.format(feature_name, timepoint)))
 plt.close()
 
+# example overlays
 cell_table_func = pd.read_csv(os.path.join(base_dir, 'analysis_files/cell_table_func_single_positive.csv'))
+cell_table_func['M1_plot'] = cell_table_func.cell_cluster
+cell_table_func.loc[cell_table_func.cell_cluster != 'CD68_Mac', 'M1_plot'] = 'Other'
+cell_table_func.loc[(cell_table_func.cell_cluster == 'CD68_Mac') & (cell_table_func.PDL1.values), 'M1_plot'] = 'CD68_Mac__PDL1+'
 
-# corresponding overlays
-subset = plot_df.loc[plot_df.raw_mean < 0.08, :]
-
-pats = [37, 33, 59, 62, 64, 65] # responders
-pats = [24, 60, 87, 88, 107, 114] # nonresponders
-fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
-
-cell_table_subset = cell_table_func.loc[(cell_table_func.fov.isin(fovs)), :]
-cell_table_subset['M1_plot'] = cell_table_subset.cell_cluster
-cell_table_subset.loc[cell_table_subset.cell_cluster != 'M1_Mac', 'M1_plot'] = 'Other'
-cell_table_subset.loc[(cell_table_subset.cell_cluster == 'M1_Mac') & (cell_table_subset.PDL1.values), 'M1_plot'] = 'M1_PDL1+'
-
-m1_colormap = pd.DataFrame({'M1_plot': ['M1_Mac', 'Other', 'M1_PDL1+'],
+m1_colormap = pd.DataFrame({'M1_plot': ['CD68_Mac', 'Other', 'CD68_Mac__PDL1+'],
                          'color': ['blue','grey', 'lightsteelblue']})
-m1_plot_dir = os.path.join(plot_dir, 'Figure4_M1_overlays_neg')
-if not os.path.exists(m1_plot_dir):
-    os.mkdir(m1_plot_dir)
 
+# generate overlays for representative patients to identify M1+PDL1+ cells
+# subset = plot_df.loc[plot_df.raw_mean < 0.08, :]
+# pats = [37, 33, 59, 62, 64, 65] # responders
+# pats = [24, 60, 87, 88, 107, 114] # nonresponders
+#
+# fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
+#
+# cell_table_subset = cell_table_subset.loc[(cell_table_subset.fov.isin(fovs)), :]
+#
 
-for pat in pats:
-    pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == 'on_nivo'), 'fov'].unique()
-    pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
-
-    pat_dir = os.path.join(m1_plot_dir, 'patient_{}'.format(pat))
-    if not os.path.exists(pat_dir):
-        os.mkdir(pat_dir)
-
-    cohort_cluster_plot(
-        fovs=pat_fovs,
-        seg_dir=seg_dir,
-        save_dir=pat_dir,
-        cell_data=pat_df,
-        erode=True,
-        fov_col=settings.FOV_ID,
-        label_col=settings.CELL_LABEL,
-        cluster_col='M1_plot',
-        seg_suffix="_whole_cell.tiff",
-        cmap=m1_colormap,
-        display_fig=False,
-    )
-
+# m1_plot_dir = os.path.join(plot_dir, 'Figure3f_M1_overlays')
+# if not os.path.exists(m1_plot_dir):
+#     os.mkdir(m1_plot_dir)
+#
+#
+# for pat in pats:
+#     pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == 'on_nivo'), 'fov'].unique()
+#     pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
+#
+#     pat_dir = os.path.join(m1_plot_dir, 'patient_{}'.format(pat))
+#     if not os.path.exists(pat_dir):
+#         os.mkdir(pat_dir)
+#
+#     cohort_cluster_plot(
+#         fovs=pat_fovs,
+#         seg_dir=seg_dir,
+#         save_dir=pat_dir,
+#         cell_data=pat_df,
+#         erode=True,
+#         fov_col=settings.FOV_ID,
+#         label_col=settings.CELL_LABEL,
+#         cluster_col='M1_plot',
+#         seg_suffix="_whole_cell.tiff",
+#         cmap=m1_colormap,
+#         display_fig=False,
+#     )
+#
 
 # create crops for selected FOVs
 fovs = ['TONIC_TMA6_R7C6', 'TONIC_TMA11_R7C4', 'TONIC_TMA11_R4C2', 'TONIC_TMA20_R2C3'] # patient 33, 62, 60, 114
 
-subset_dir = os.path.join(plot_dir, 'Figure4_M1_overlays_selected')
+subset_dir = os.path.join(plot_dir, 'Figure3f_M1_overlays')
 if not os.path.exists(subset_dir):
     os.mkdir(subset_dir)
-
 
 cohort_cluster_plot(
     fovs=fovs,
     seg_dir=seg_dir,
     save_dir=subset_dir,
-    cell_data=cell_table_subset,
+    cell_data=cell_table_func,
     erode=True,
     fov_col=settings.FOV_ID,
     label_col=settings.CELL_LABEL,
@@ -301,62 +302,61 @@ ax.set_title(feature_name + ' ' + timepoint)
 ax.set_ylim([0, 2])
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure4_feature_{}_{}.pdf'.format(feature_name, timepoint)))
+plt.savefig(os.path.join(plot_dir, 'Figure3g_feature_{}_{}.pdf'.format(feature_name, timepoint)))
 plt.close()
 
 
 
 # corresponding overlays
 cell_table_clusters = pd.read_csv(os.path.join(base_dir, 'analysis_files/cell_table_clusters.csv'))
-annotations_by_mask = pd.read_csv(os.path.join(base_dir, 'intermediate_files/mask_dir/individual_masks-no_tagg_tls/cell_annotation_mask.csv'))
+annotations_by_mask = pd.read_csv(os.path.join(base_dir, 'intermediate_files/mask_dir', 'cell_annotation_mask.csv'))
 annotations_by_mask = annotations_by_mask.rename(columns={'mask_name': 'tumor_region'})
 cell_table_clusters = cell_table_clusters.merge(annotations_by_mask, on=['fov', 'label'], how='left')
 
-subset = plot_df.loc[plot_df.raw_mean < .25, :]
+# add column for cells in cancer border
+cell_table_clusters['border_plot'] = cell_table_clusters.cell_cluster_broad
+cell_table_clusters.loc[cell_table_clusters.tumor_region != 'cancer_border', 'border_plot'] = 'Other_region'
 
-pats = [59, 62, 64, 100]
-pats = [7, 20, 50, 82, 106, 107, 112, 127]
-fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
-
-# 33, 62 previously included
-
-# add column for CD8T in cancer border, CD8T elsewhere, and others
-cell_table_subset = cell_table_clusters.loc[(cell_table_clusters.fov.isin(fovs)), :]
-cell_table_subset['border_plot'] = cell_table_subset.cell_cluster_broad
-cell_table_subset.loc[cell_table_subset.tumor_region != 'cancer_border', 'border_plot'] = 'Other_region'
-
-figure_dir = os.path.join(plot_dir, 'Figure4_border_diversity_pos2')
-if not os.path.exists(figure_dir):
-    os.mkdir(figure_dir)
-
-
-diversity_colormap = pd.DataFrame({'border_plot': ['Cancer', 'Stroma', 'Mono_Mac', 'T', 'Other', 'Granulocyte', 'NK', 'B', 'Other_region'],
+diversity_colormap = pd.DataFrame({'border_plot': ['Cancer', 'Structural', 'Mono_Mac', 'T', 'Other', 'Granulocyte', 'NK', 'B', 'Other_region'],
                              'color': ['white', 'darksalmon', 'red', 'navajowhite',  'yellowgreen', 'aqua', 'dodgerblue', 'darkviolet', 'dimgrey']})
 
-for pat in pats:
-    pat_dir = os.path.join(figure_dir, 'patient_{}'.format(pat))
-    if not os.path.exists(pat_dir):
-        os.mkdir(pat_dir)
-    pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == 'on_nivo'), 'fov'].unique()
-    pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
 
-    cohort_cluster_plot(
-        fovs=pat_fovs,
-        seg_dir=seg_dir,
-        save_dir=pat_dir,
-        cell_data=pat_df,
-        erode=True,
-        fov_col=settings.FOV_ID,
-        label_col=settings.CELL_LABEL,
-        cluster_col='border_plot',
-        seg_suffix="_whole_cell.tiff",
-        cmap=diversity_colormap,
-        display_fig=False,
-    )
+# subset = plot_df.loc[plot_df.raw_mean < .25, :]
+#
+# pats = [59, 62, 64, 100]
+# pats = [7, 20, 50, 82, 106, 107, 112, 127]
+# fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
+#
+# # 33, 62 previously included
+#
+# figure_dir = os.path.join(plot_dir, 'Figure4_border_diversity_pos2')
+# if not os.path.exists(figure_dir):
+#     os.mkdir(figure_dir)
+#
+# for pat in pats:
+#     pat_dir = os.path.join(figure_dir, 'patient_{}'.format(pat))
+#     if not os.path.exists(pat_dir):
+#         os.mkdir(pat_dir)
+#     pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == 'on_nivo'), 'fov'].unique()
+#     pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
+#
+#     cohort_cluster_plot(
+#         fovs=pat_fovs,
+#         seg_dir=seg_dir,
+#         save_dir=pat_dir,
+#         cell_data=pat_df,
+#         erode=True,
+#         fov_col=settings.FOV_ID,
+#         label_col=settings.CELL_LABEL,
+#         cluster_col='border_plot',
+#         seg_suffix="_whole_cell.tiff",
+#         cmap=diversity_colormap,
+#         display_fig=False,
+#     )
 
 fovs = ['TONIC_TMA12_R2C4', 'TONIC_TMA14_R11C4'] # 64, 82
 
-subset_dir = os.path.join(plot_dir, 'Figure4_border_diversity_selected')
+subset_dir = os.path.join(plot_dir, 'Figure3g_border_diversity')
 if not os.path.exists(subset_dir):
     os.mkdir(subset_dir)
 
@@ -364,7 +364,7 @@ cohort_cluster_plot(
     fovs=fovs,
     seg_dir=seg_dir,
     save_dir=subset_dir,
-    cell_data=cell_table_subset,
+    cell_data=cell_table_clusters,
     erode=True,
     fov_col=settings.FOV_ID,
     label_col=settings.CELL_LABEL,
@@ -378,7 +378,7 @@ cohort_cluster_plot(
 # same thing for compartment masks
 compartment_colormap = pd.DataFrame({'tumor_region': ['cancer_core', 'cancer_border', 'stroma_border', 'stroma_core'],
                          'color': ['blue', 'deepskyblue', 'lightcoral', 'firebrick']})
-subset_mask_dir = os.path.join(plot_dir, 'Figure4_border_diversity_selected_masks')
+subset_mask_dir = os.path.join(plot_dir, 'Figure3g_border_diversity_masks')
 if not os.path.exists(subset_mask_dir):
     os.mkdir(subset_mask_dir)
 
@@ -386,7 +386,7 @@ cohort_cluster_plot(
     fovs=fovs,
     seg_dir=seg_dir,
     save_dir=subset_mask_dir,
-    cell_data=cell_table_subset,
+    cell_data=cell_table_clusters,
     erode=True,
     fov_col=settings.FOV_ID,
     label_col=settings.CELL_LABEL,
