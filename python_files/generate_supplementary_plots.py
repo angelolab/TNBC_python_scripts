@@ -1150,3 +1150,81 @@ feature_metadata.columns = ['Feature name', 'Feature name including compartment'
                             'Type of feature', 'Additional information about the feature', 'Additional information about the feature']
 
 feature_metadata.to_csv(os.path.join(save_dir, 'Supplementary_Table_4.csv'), index=False)
+
+# compute the correlation between response-associated features
+timepoint_features = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features.csv'))
+feature_ranking_df = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_ranking.csv'))
+feature_ranking_df = feature_ranking_df[np.isin(feature_ranking_df['comparison'], ['primary', 'baseline', 'pre_nivo' , 'on_nivo'])]
+feature_ranking_df = feature_ranking_df.sort_values(by = 'feature_rank_global', ascending=True)
+
+top_features = feature_ranking_df.iloc[:100, :].loc[:, ['feature_name_unique', 'comparison', 'feature_type']]
+top_features.columns = ['feature_name_unique', 'Timepoint', 'feature_type']
+
+remaining_features = feature_ranking_df.iloc[100:, :].loc[:, ['feature_name_unique', 'comparison', 'feature_type']]
+remaining_features.columns = ['feature_name_unique', 'Timepoint', 'feature_type']
+
+def calculate_feature_corr(timepoint_features,
+                            top_features,
+                            remaining_features,
+                            top: bool = True,
+                            n_iterations: int = 1000):
+    """Compares the correlation between 
+            1. response-associated features to response-associated features
+            2. response-associated features to remaining features
+        by randomly sampling features with replacement. 
+
+    Parameters
+    timepoint_features: pd.DataFrame
+        dataframe containing the feature values for every patient (feature_name_unique, normalized_mean, Patient_ID, Timepoint)
+    top_features: pd.DataFrame
+        dataframe containing the top response-associated features (feature_name_unique, Timepoint)
+    remaining features: pd.DataFrame
+        dataframe containing non response-associated features (feature_name_unique, Timepoint)
+    top: bool (default = True)
+        boolean indicating if the comparison 1. (True) or 2. (False)
+    n_iterations: int (default = 1000)
+        number of features randomly selected for comparison
+    ----------
+    Returns
+    corr_arr: np.array 
+        array containing the feature correlation values
+    ----------
+    """
+    corr_arr = []
+    for _ in range(n_iterations):
+        #select feature 1 as a random feature from the top response-associated feature list
+        rand_sample1 = top_features.sample(n = 1)
+        f1 = timepoint_features.iloc[np.where((timepoint_features['feature_name_unique'] == rand_sample1['feature_name_unique'].values[0]) & (timepoint_features['Timepoint'] == rand_sample1['Timepoint'].values[0]))[0], :]
+        if top == True:
+            #select feature 2 as a random feature from the top response-associated list, ensuring f1 != f2
+            rand_sample2 = rand_sample1
+            while (rand_sample2.values == rand_sample1.values).all():
+                rand_sample2 = top_features.sample(n = 1)
+        else:
+            #select feature 2 as a random feature from the remaining feature list
+            rand_sample2 = remaining_features.sample(n = 1)
+
+        f2 = timepoint_features.iloc[np.where((timepoint_features['feature_name_unique'] == rand_sample2['feature_name_unique'].values[0]) & (timepoint_features['Timepoint'] == rand_sample2['Timepoint'].values[0]))[0], :]
+        merged_features = pd.merge(f1, f2, on = 'Patient_ID') #finds Patient IDs that are shared across timepoints to compute correlation
+        corrval = np.abs(merged_features['normalized_mean_x'].corr(merged_features['normalized_mean_y'])) #regardless of direction
+        corr_arr.append(corrval)
+
+    return np.array(corr_arr)
+
+#C(100, 2) = 100! / [(100-2)! * 2!] = 4950 unique pairwise combinations top 100 features and each other
+corr_within = calculate_feature_corr(timepoint_features, top_features, remaining_features, top=True)
+corr_across = calculate_feature_corr(timepoint_features, top_features, remaining_features, top=False)
+
+corr_across = corr_across[~np.isnan(corr_across)]
+corr_within = corr_within[~np.isnan(corr_within)]
+
+_, axes = plt.subplots(1, 1, figsize = (5, 4), gridspec_kw={'hspace': 0.45, 'wspace': 0.4, 'bottom':0.15})
+g = sns.histplot(corr_within, color='#2089D5', ax = axes, kde = True, bins = 50, label = 'top-top', alpha = 0.5)
+g = sns.histplot(corr_across, color='lightgrey', ax = axes, kde = True, bins = 50, label = 'top-remaining', alpha = 0.5)
+g.tick_params(labelsize=12)
+g.set_ylabel('number of comparisons', fontsize = 12)
+g.set_xlabel('abs(correlation)', fontsize = 12)
+plt.legend(prop={'size':9})
+g.set_xlim(0, 1)
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'correlation_response_features', 'correlation_response_associated_features.pdf'), bbox_inches = 'tight', dpi = 300)
+plt.close()
