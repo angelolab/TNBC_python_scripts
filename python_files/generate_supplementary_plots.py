@@ -1151,7 +1151,6 @@ feature_metadata.columns = ['Feature name', 'Feature name including compartment'
 
 feature_metadata.to_csv(os.path.join(save_dir, 'Supplementary_Table_4.csv'), index=False)
 
-
 # nivo outcomes supplementary plots
 # summarize overlap of top features
 top_features_by_feature = top_features[['feature_name_unique', 'comparison']].groupby('feature_name_unique').count().reset_index()
@@ -1205,4 +1204,245 @@ for overlap_type, results in overlap_results.items():
     plt.savefig(os.path.join(plot_dir, 'Figure6_top_features_overlap_{}.pdf'.format(overlap_type)))
     plt.close()
 
+# compute the correlation between response-associated features
+timepoint_features = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features.csv'))
+feature_ranking_df = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_ranking.csv'))
+feature_ranking_df = feature_ranking_df[np.isin(feature_ranking_df['comparison'], ['primary', 'baseline', 'pre_nivo' , 'on_nivo'])]
+feature_ranking_df = feature_ranking_df.sort_values(by = 'feature_rank_global', ascending=True)
 
+top_features = feature_ranking_df.iloc[:100, :].loc[:, ['feature_name_unique', 'comparison', 'feature_type']]
+top_features.columns = ['feature_name_unique', 'Timepoint', 'feature_type']
+
+remaining_features = feature_ranking_df.iloc[100:, :].loc[:, ['feature_name_unique', 'comparison', 'feature_type']]
+remaining_features.columns = ['feature_name_unique', 'Timepoint', 'feature_type']
+
+def calculate_feature_corr(timepoint_features,
+                            top_features,
+                            remaining_features,
+                            top: bool = True,
+                            n_iterations: int = 1000):
+    """Compares the correlation between 
+            1. response-associated features to response-associated features
+            2. response-associated features to remaining features
+        by randomly sampling features with replacement. 
+
+    Parameters
+    timepoint_features: pd.DataFrame
+        dataframe containing the feature values for every patient (feature_name_unique, normalized_mean, Patient_ID, Timepoint)
+    top_features: pd.DataFrame
+        dataframe containing the top response-associated features (feature_name_unique, Timepoint)
+    remaining features: pd.DataFrame
+        dataframe containing non response-associated features (feature_name_unique, Timepoint)
+    top: bool (default = True)
+        boolean indicating if the comparison 1. (True) or 2. (False)
+    n_iterations: int (default = 1000)
+        number of features randomly selected for comparison
+    ----------
+    Returns
+    corr_arr: np.array 
+        array containing the feature correlation values
+    ----------
+    """
+    corr_arr = []
+    for _ in range(n_iterations):
+        #select feature 1 as a random feature from the top response-associated feature list
+        rand_sample1 = top_features.sample(n = 1)
+        f1 = timepoint_features.iloc[np.where((timepoint_features['feature_name_unique'] == rand_sample1['feature_name_unique'].values[0]) & (timepoint_features['Timepoint'] == rand_sample1['Timepoint'].values[0]))[0], :]
+        if top == True:
+            #select feature 2 as a random feature from the top response-associated list, ensuring f1 != f2
+            rand_sample2 = rand_sample1
+            while (rand_sample2.values == rand_sample1.values).all():
+                rand_sample2 = top_features.sample(n = 1)
+        else:
+            #select feature 2 as a random feature from the remaining feature list
+            rand_sample2 = remaining_features.sample(n = 1)
+
+        f2 = timepoint_features.iloc[np.where((timepoint_features['feature_name_unique'] == rand_sample2['feature_name_unique'].values[0]) & (timepoint_features['Timepoint'] == rand_sample2['Timepoint'].values[0]))[0], :]
+        merged_features = pd.merge(f1, f2, on = 'Patient_ID') #finds Patient IDs that are shared across timepoints to compute correlation
+        corrval = np.abs(merged_features['normalized_mean_x'].corr(merged_features['normalized_mean_y'])) #regardless of direction
+        corr_arr.append(corrval)
+
+    return np.array(corr_arr)
+
+#C(100, 2) = 100! / [(100-2)! * 2!] = 4950 unique pairwise combinations top 100 features and each other
+corr_within = calculate_feature_corr(timepoint_features, top_features, remaining_features, top=True)
+corr_across = calculate_feature_corr(timepoint_features, top_features, remaining_features, top=False)
+
+corr_across = corr_across[~np.isnan(corr_across)]
+corr_within = corr_within[~np.isnan(corr_within)]
+
+_, axes = plt.subplots(1, 1, figsize = (5, 4), gridspec_kw={'hspace': 0.45, 'wspace': 0.4, 'bottom':0.15})
+g = sns.histplot(corr_within, color='#2089D5', ax = axes, kde = True, bins = 50, label = 'top-top', alpha = 0.5)
+g = sns.histplot(corr_across, color='lightgrey', ax = axes, kde = True, bins = 50, label = 'top-remaining', alpha = 0.5)
+g.tick_params(labelsize=12)
+g.set_ylabel('number of comparisons', fontsize = 12)
+g.set_xlabel('abs(correlation)', fontsize = 12)
+plt.legend(prop={'size':9})
+g.set_xlim(0, 1)
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'correlation_response_features', 'correlation_response_associated_features.pdf'), bbox_inches = 'tight', dpi = 300)
+plt.close()
+
+# feature differences by timepoint
+timepoints = ['primary', 'baseline', 'pre_nivo' , 'on_nivo']
+
+timepoint_features = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features.csv'))
+feature_ranking_df = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_ranking.csv'))
+feature_ranking_df = feature_ranking_df[np.isin(feature_ranking_df['comparison'], timepoints)]
+feature_ranking_df = feature_ranking_df.sort_values(by = 'feature_rank_global', ascending=True)
+
+#access the top response-associated features (unique because a feature could be in the top in multiple timepoints) 
+top_features = np.unique(feature_ranking_df.loc[:, 'feature_name_unique'][:100])
+
+#compute the 90th percentile of importance scores and plot the distribution
+perc = np.percentile(feature_ranking_df.importance_score, 90)
+_, axes = plt.subplots(1, 1, figsize = (4.5, 3.5), gridspec_kw={'hspace': 0.45, 'wspace': 0.4, 'bottom':0.15})
+g = sns.histplot(np.abs(feature_ranking_df.importance_score), ax = axes, color = '#1885F2')
+g.tick_params(labelsize=12)
+g.set_xlabel('importance score', fontsize = 12)
+g.set_ylabel('count', fontsize = 12)
+axes.axvline(perc, color = 'k', ls = '--', lw = 1, label = '90th percentile')
+g.legend(bbox_to_anchor=(0.98, 0.95), loc='upper right', borderaxespad=0, prop={'size':10})
+plt.show()
+
+#subset data based on the 90th percentile
+feature_ranking_df = feature_ranking_df[feature_ranking_df['importance_score'] > perc]
+
+#min max scale the importance scores (scales features from 0 to 1)
+from sklearn.preprocessing import MinMaxScaler
+scaled_perc_scores = MinMaxScaler().fit_transform(feature_ranking_df['importance_score'].values.reshape(-1,1))
+feature_ranking_df.loc[:, 'scaled_percentile_importance'] = scaled_perc_scores
+
+#pivot the dataframe for plotting (feature x timepoint)
+pivot_df = feature_ranking_df.loc[:, ['scaled_percentile_importance', 'feature_name_unique', 'comparison']].pivot(index = 'feature_name_unique', columns = 'comparison')
+pivot_df.columns = pivot_df.columns.droplevel(0)
+pivot_df = pivot_df.loc[:, timepoints] #reorder
+pivot_df.fillna(0, inplace = True) #set features with nan importance scores (i.e. not in the top 90th percentile) to 0
+
+#subset according to top response-associated features
+pivot_df = pivot_df.loc[top_features, :]
+
+#plot clustermap
+cmap = ['#D8C198', '#D88484', '#5AA571', '#4F8CBE']
+sns.set_style('ticks')
+g = sns.clustermap(data = pivot_df, yticklabels=True, cmap = 'Blues', vmin = 0, vmax = 1, row_cluster = True,
+                   col_cluster = False, figsize = (7, 18), cbar_pos=(1, .03, .02, .1), dendrogram_ratio=0.1, colors_ratio=0.01,
+                   col_colors=cmap)
+g.tick_params(labelsize=12)
+
+ax = g.ax_heatmap
+ax.set_ylabel('Response-associated Features', fontsize = 12)
+ax.set_xlabel('Timepoint', fontsize = 12)
+
+ax.axvline(x=0, color='k',linewidth=2.5)
+ax.axvline(x=1, color='k',linewidth=1.5)
+ax.axvline(x=2, color='k',linewidth=1.5)
+ax.axvline(x=3, color='k',linewidth=1.5)
+ax.axvline(x=4, color='k',linewidth=2.5)
+
+ax.axhline(y=0, color='k',linewidth=2.5)
+ax.axhline(y=len(pivot_df), color='k',linewidth=2.5)
+
+x0, _y0, _w, _h = g.cbar_pos
+for spine in g.ax_cbar.spines:
+    g.ax_cbar.spines[spine].set_color('k')
+    g.ax_cbar.spines[spine].set_linewidth(1)
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'differences_significant_features_timepoint', 'top_features_time_clustermap.pdf'), bbox_inches = 'tight', dpi =300)
+
+#outlier patient analysis
+timepoints = ['primary', 'baseline', 'pre_nivo' , 'on_nivo']
+
+timepoint_features = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features.csv'))
+feature_ranking_df = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_ranking.csv'))
+feature_ranking_df = feature_ranking_df[np.isin(feature_ranking_df['comparison'], timepoints)]
+feature_ranking_df = feature_ranking_df.sort_values(by = 'feature_rank_global', ascending=True)
+
+#subset by the top response-associated features
+feature_ranking_df = feature_ranking_df.iloc[:100, :]
+
+#merge dataframes for patient-level analysis (feature, raw_mean, Patient_ID, Timepoint, Clinical_benefit) 
+feature_ranking_df.rename(columns = {'comparison':'Timepoint'}, inplace = True)
+merged_df = pd.merge(timepoint_features, feature_ranking_df, on = ['feature_name_unique', 'Timepoint'])
+
+#create a dictionary mapping patients to their clinical benefit status
+status_df = merged_df.loc[:, ['Patient_ID', 'Clinical_benefit']].drop_duplicates()
+status_dict = dict(zip(status_df['Patient_ID'], status_df['Clinical_benefit']))
+
+#for each feature, identify outlier patients 
+outliers = dict()
+feat_list = list(zip(feature_ranking_df['feature_name_unique'], feature_ranking_df['Timepoint']))
+for i in range(0, len(merged_df['Clinical_benefit'].unique())): 
+    for feat in feat_list:
+        try:
+            if i == 0:
+                df_subset = merged_df.iloc[np.where((merged_df['Clinical_benefit'] == 'Yes') & (merged_df['feature_name_unique'] == feat[0]) & (merged_df['Timepoint'] == feat[1]))[0]].copy()
+                df_subset_op = merged_df.iloc[np.where((merged_df['Clinical_benefit'] == 'No') & (merged_df['feature_name_unique'] == feat[0]) & (merged_df['Timepoint'] == feat[1]))[0]].copy()
+            else:
+                df_subset = merged_df.iloc[np.where((merged_df['Clinical_benefit'] == 'No') & (merged_df['feature_name_unique'] == feat[0]) & (merged_df['Timepoint'] == feat[1]))[0]].copy()
+                df_subset_op = merged_df.iloc[np.where((merged_df['Clinical_benefit'] == 'Yes') & (merged_df['feature_name_unique'] == feat[0]) & (merged_df['Timepoint'] == feat[1]))[0]].copy()
+
+            two_std = df_subset['raw_mean'].std() * 2
+
+            #patient considered to be an outlier for this feature if 2 std from the mean in the direction of the opposite clinical benefit group
+            outliers_indices = df_subset['raw_mean'] > df_subset['raw_mean'].mean() + two_std if df_subset_op['raw_mean'].mean() > df_subset['raw_mean'].mean() else df_subset['raw_mean'] < df_subset['raw_mean'].mean() - two_std
+            outlier_patients = list(df_subset[outliers_indices]['Patient_ID'].values)
+
+            for patient in outlier_patients:
+                if patient not in outliers:
+                    outliers[patient] = [(feat[0], feat[1])]
+                else:
+                    outliers[patient].append((feat[0], feat[1]))
+        except:
+            continue
+
+#count the number of times a patient is an outlier for the top response-associated features
+outlier_counts = pd.DataFrame()
+counts = []
+patients = []
+for patient, features in outliers.items():
+    counts.append(len(outliers[patient]))
+    patients.append(patient.astype('int64'))
+
+outlier_counts = pd.DataFrame(counts, index = patients, columns = ['outlier_counts'])
+outlier_counts['Clinical_benefit'] = pd.Series(outlier_counts.index).map(status_dict).values
+
+#plot the distribution indicating the number of times a patient has discordant feature values for the top response-associated features
+sns.set_style('ticks')
+_, axes = plt.subplots(1, 1, figsize = (5, 4), gridspec_kw={'hspace': 0.45, 'wspace': 0.4, 'bottom':0.15})
+g = sns.histplot(data = outlier_counts, legend=False, ax = axes, bins = 30, color = '#AFA0BA', alpha=1)
+g.tick_params(labelsize=10)
+g.set_xlabel('number of outliers', fontsize = 12)
+g.set_ylabel('number of patients', fontsize = 12)
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'outlier_analysis', 'number_outliers_per_patient.pdf'), bbox_inches = 'tight', dpi =300)
+
+#convert dictionary into a dataframe consisting of (Patient_ID, feature_name_unique, Timepoint, feature_type)
+reshaped_data = []
+for patient, records in outliers.items():
+    for feature, timepoint in records:
+        reshaped_data.append((patient, feature, timepoint))
+
+outlier_df = pd.DataFrame(reshaped_data, columns = ['Patient_ID', 'feature_name_unique', 'Timepoint'])
+outlier_df = pd.merge(outlier_df, feature_ranking_df.loc[:, ['feature_name_unique', 'feature_type', 'Timepoint']], on = ['feature_name_unique', 'Timepoint'])
+outlier_df.to_csv(os.path.join(SUPPLEMENTARY_FIG_DIR, 'outlier_analysis', 'TONIC_outlier_counts.csv'), index=False)
+
+#subset dataframe by patients that have discordant feature values in more than 4 response-associated features 
+sig_outlier_patients = outlier_df.groupby('Patient_ID').size()[outlier_df.groupby('Patient_ID').size() > 4].index
+sig_outlier_df = outlier_df[np.isin(outlier_df['Patient_ID'], sig_outlier_patients)].copy()
+
+#plot the distribution of the feature classes for patients that have discordant feature values in more than 4 response-associated features 
+df_pivot = sig_outlier_df.groupby(['Patient_ID', 'feature_type']).size().unstack().reset_index().melt(id_vars = 'Patient_ID').pivot(index='Patient_ID', columns='feature_type', values='value')
+
+df_pivot.plot(kind='bar', stacked=True, figsize=(6,6))
+plt.ylabel('Count', fontsize = 12)
+plt.xlabel('Patient ID', fontsize = 12)
+g.tick_params(labelsize=10)
+plt.legend(bbox_to_anchor=(1, 1))
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'outlier_analysis', 'feature_classes_outlier_patients.pdf'), bbox_inches = 'tight', dpi =300)
+
+#are any features are consistently discordant for patients considered to be outliers (i.e. have discordant feature values in more than 4 response-associated features)?
+cross_feat_counts = pd.DataFrame(sig_outlier_df.groupby('feature_name_unique').size().sort_values(ascending = False), columns = ['count'])
+_, axes = plt.subplots(1, 1, figsize = (6, 16), gridspec_kw={'hspace': 0.45, 'wspace': 0.4, 'bottom':0.15})
+g = sns.barplot(x = 'count', y =cross_feat_counts.index, data = cross_feat_counts, ax = axes, color = 'lightgrey')
+g.tick_params(labelsize=10)
+g.set_ylabel('Feature', fontsize = 12)
+g.set_xlabel('Number of outlier patients', fontsize = 12)
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'outlier_analysis', 'features_outlier_patients.pdf'), bbox_inches = 'tight', dpi =300)
