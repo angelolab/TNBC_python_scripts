@@ -1151,6 +1151,59 @@ feature_metadata.columns = ['Feature name', 'Feature name including compartment'
 
 feature_metadata.to_csv(os.path.join(save_dir, 'Supplementary_Table_4.csv'), index=False)
 
+# nivo outcomes supplementary plots
+# summarize overlap of top features
+top_features_by_feature = top_features[['feature_name_unique', 'comparison']].groupby('feature_name_unique').count().reset_index()
+feature_counts = top_features_by_feature.groupby('comparison').count().reset_index()
+feature_counts.columns = ['num_comparisons', 'num_features']
+
+fig, ax = plt.subplots(figsize=(4, 4))
+sns.barplot(data=feature_counts, x='num_comparisons', y='num_features', color='grey', ax=ax)
+plt.tight_layout()
+sns.despine()
+plt.savefig(os.path.join(plot_dir, 'Figure5_num_comparisons_per_feature.pdf'))
+plt.close()
+
+
+
+# get overlap between static and evolution top features
+overlap_type_dict = {'global': [['primary_untreated', 'baseline', 'post_induction', 'on_nivo'],
+                                ['primary__baseline', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']],
+                     'primary': [['primary_untreated'], ['primary__baseline']],
+                     'baseline': [['baseline'], ['primary__baseline', 'baseline__post_induction', 'baseline__on_nivo']],
+                     'post_induction': [['post_induction'], ['baseline__post_induction', 'post_induction__on_nivo']],
+                     'on_nivo': [['on_nivo'], ['baseline__on_nivo', 'post_induction__on_nivo']]}
+
+overlap_results = {}
+for overlap_type, comparisons in overlap_type_dict.items():
+    static_comparisons, evolution_comparisons = comparisons
+
+    overlap_top_features = ranked_features.copy()
+    overlap_top_features = overlap_top_features.loc[overlap_top_features.comparison.isin(static_comparisons + evolution_comparisons)]
+    overlap_top_features.loc[overlap_top_features.comparison.isin(static_comparisons), 'comparison'] = 'static'
+    overlap_top_features.loc[overlap_top_features.comparison.isin(evolution_comparisons), 'comparison'] = 'evolution'
+    overlap_top_features = overlap_top_features[['feature_name_unique', 'comparison']].drop_duplicates()
+    overlap_top_features = overlap_top_features.iloc[:100, :]
+    # keep_features = overlap_top_features.feature_name_unique.unique()[:100]
+    # overlap_top_features = overlap_top_features.loc[overlap_top_features.feature_name_unique.isin(keep_features), :]
+    # len(overlap_top_features.feature_name_unique.unique())
+    static_ids = overlap_top_features.loc[
+        overlap_top_features.comparison == 'static', 'feature_name_unique'].unique()
+    evolution_ids = overlap_top_features.loc[
+        overlap_top_features.comparison == 'evolution', 'feature_name_unique'].unique()
+
+    overlap_results[overlap_type] = {'static_ids': static_ids, 'evolution_ids': evolution_ids}
+
+
+# get counts of features in each category
+for overlap_type, results in overlap_results.items():
+    static_ids = results['static_ids']
+    evolution_ids = results['evolution_ids']
+    venn2([set(static_ids), set(evolution_ids)], set_labels=('Static', 'Evolution'))
+    plt.title(overlap_type)
+    plt.savefig(os.path.join(plot_dir, 'Figure6_top_features_overlap_{}.pdf'.format(overlap_type)))
+    plt.close()
+
 # compute the correlation between response-associated features
 timepoint_features = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features.csv'))
 feature_ranking_df = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_ranking.csv'))
