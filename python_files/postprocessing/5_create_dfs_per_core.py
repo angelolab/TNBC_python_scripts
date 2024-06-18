@@ -294,7 +294,7 @@ filtered_func_df_plot = filtered_func_df_plot.loc[filtered_func_df_plot.metric.i
 filtered_func_df_plot = filtered_func_df_plot.loc[filtered_func_df_plot.functional_marker.isin(sp_markers), :]
 
 # save filtered df
-filtered_func_df_plot.to_csv(os.path.join(output_dir, 'functional_df_per_core_filtered.csv'), index=False)
+filtered_func_df_plot.to_csv(os.path.join(output_dir, 'functional_df_per_core_filtered_plot.csv'), index=False)
 
 # # identify combinations of markers and cell types to include in analysis based on threshold
 # mean_percent_positive = 0.05
