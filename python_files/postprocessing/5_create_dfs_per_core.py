@@ -28,9 +28,11 @@ if not os.path.exists(output_dir):
 # Preprocess metadata to ensure all samples are present
 #
 
+study_name = 'TONIC'
+
 # load relevant tables
-core_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata', 'TONIC_data_per_core.csv'))
-timepoint_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata', 'TONIC_data_per_timepoint.csv'))
+core_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata', f'{study_name}_data_per_core.csv'))
+timepoint_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata', f'{study_name}_data_per_timepoint.csv'))
 harmonized_metadata = pd.read_csv(os.path.join(analysis_dir, 'harmonized_metadata.csv'))
 cell_table_clusters = pd.read_csv(os.path.join(analysis_dir, 'cell_table_clusters.csv'))
 cell_table_func = pd.read_csv(os.path.join(analysis_dir, 'cell_table_func_all.csv'))
