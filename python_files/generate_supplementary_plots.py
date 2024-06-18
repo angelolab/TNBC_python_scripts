@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import matplotlib
 from ark.utils.plot_utils import cohort_cluster_plot
-from toffy import qc_comp, qc_metrics_plots
+# from toffy import qc_comp, qc_metrics_plots
 from alpineer import io_utils
 
 matplotlib.rcParams['pdf.fonttype'] = 42
@@ -73,21 +73,7 @@ for sf in sample_fovs:
         channels=samples_channels, num_rows=3
     )
 
-# ROI selection
-metadata = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/harmonized_metadata.csv')
-metadata = metadata.loc[metadata.MIBI_data_generated, :]
-metadata = metadata.loc[metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
 
-fov_counts = metadata.groupby('Tissue_ID').size().values
-fov_counts = pd.DataFrame(fov_counts, columns=['FOV Count'])
-sns.histplot(data=fov_counts, x='FOV Count')
-sns.despine()
-plt.title("Number of FOVs per Timepoint")
-plt.xlabel("Number of FOVs")
-plt.tight_layout()
-
-plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR,'hne_core_fov_plots', "fov_counts_per_timepoint.pdf"), dpi=300)
-plt.close()
 
 # venn diagram of modalities across timepoints
 from venny4py.venny4py import venny4py
@@ -499,23 +485,6 @@ for fov in fovs_seg:
         image_type="pdf",
     )
     p.make_plot(save_dir = save_dir)
-
-# HnE Core, FOV and Segmentation Overlays
-hne_fovs = [
-    "TONIC_TMA2_R7C4",
-    "TONIC_TMA4_R11C2",
-    "TONIC_TMA4_R12C4",
-    "TONIC_TMA24_R2C3",
-]
-hne_path = Path(SUPPLEMENTARY_FIG_DIR) / "hne_core_fov_plots" / " cores_fov_seg_maps"
-seg_dir = Path("/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/")
-
-save_dir = Path(SUPPLEMENTARY_FIG_DIR) / "hne_core_fov_plots" / "figures"
-save_dir.mkdir(exist_ok=True, parents=True)
-for fov in hne_fovs:
-    supplementary_plot_helpers.CorePlot(
-        fov=fov, hne_path=hne_path, seg_dir=seg_dir
-    ).make_plot(save_dir=save_dir)
 
 # Functional marker thresholding
 cell_table = pd.read_csv(
