@@ -798,7 +798,7 @@ deduped_morph_df_timepoint.to_csv(os.path.join(output_dir, 'morph_df_per_timepoi
 #
 
 # format mixing scores
-mixing_scores = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/mixing_score/cell_cluster_broad/homogeneous_mixing_scores.csv'))
+mixing_scores = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/mixing_score/homogeneous_mixing_scores.csv'))
 cols = mixing_scores.columns.tolist()
 keep_cols = [col for col in cols if 'mixing_score' in col]
 mixing_scores = mixing_scores[['fov'] + keep_cols]
