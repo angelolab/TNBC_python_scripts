@@ -4,8 +4,11 @@
 #scikit-learn>=0.19.1,<1
 #scipy>=1.1.0,<2
 matplotlib_venn
-gseapy
+#gseapy
 lxml
+geopandas
+venny4py
+imagecodecs
 #git+https://github.com/angelolab/ark-analysis.git@v0.6.3
 git+https://github.com/angelolab/ark-analysis.git@ce642b04e9a6df750db7dbcf50828417378f8488
-git+https://github.com/angelolab/toffy.git@265d40277ff7156d3e9c8d8a6cfbbaf635cf4333
+#git+https://github.com/angelolab/toffy.git@265d40277ff7156d3e9c8d8a6cfbbaf635cf4333
