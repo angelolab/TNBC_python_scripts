@@ -45,6 +45,72 @@ sns.despine()
 plt.savefig(os.path.join(plot_dir, 'Figure4a_num_features.pdf'))
 plt.close()
 
+# heatmap of top features over time
+timepoints = ['primary', 'baseline', 'pre_nivo' , 'on_nivo']
+
+timepoint_features = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
+feature_ranking_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_ranking.csv'))
+feature_ranking_df = feature_ranking_df[np.isin(feature_ranking_df['comparison'], timepoints)]
+feature_ranking_df = feature_ranking_df.sort_values(by = 'feature_rank_global', ascending=True)
+
+#access the top response-associated features (unique because a feature could be in the top in multiple timepoints)
+top_features = np.unique(feature_ranking_df.loc[:, 'feature_name_unique'][:100])
+
+#compute the 90th percentile of importance scores and plot the distribution
+perc = np.percentile(feature_ranking_df.importance_score, 90)
+# _, axes = plt.subplots(1, 1, figsize = (4.5, 3.5), gridspec_kw={'hspace': 0.45, 'wspace': 0.4, 'bottom':0.15})
+# g = sns.histplot(np.abs(feature_ranking_df.importance_score), ax = axes, color = '#1885F2')
+# g.tick_params(labelsize=12)
+# g.set_xlabel('importance score', fontsize = 12)
+# g.set_ylabel('count', fontsize = 12)
+# axes.axvline(perc, color = 'k', ls = '--', lw = 1, label = '90th percentile')
+# g.legend(bbox_to_anchor=(0.98, 0.95), loc='upper right', borderaxespad=0, prop={'size':10})
+# plt.show()
+
+#subset data based on the 90th percentile
+feature_ranking_df = feature_ranking_df[feature_ranking_df['importance_score'] > perc]
+
+#min max scale the importance scores (scales features from 0 to 1)
+from sklearn.preprocessing import MinMaxScaler
+scaled_perc_scores = MinMaxScaler().fit_transform(feature_ranking_df['importance_score'].values.reshape(-1,1))
+feature_ranking_df.loc[:, 'scaled_percentile_importance'] = scaled_perc_scores
+
+#pivot the dataframe for plotting (feature x timepoint)
+pivot_df = feature_ranking_df.loc[:, ['scaled_percentile_importance', 'feature_name_unique', 'comparison']].pivot(index = 'feature_name_unique', columns = 'comparison')
+pivot_df.columns = pivot_df.columns.droplevel(0)
+pivot_df = pivot_df.loc[:, timepoints] #reorder
+pivot_df.fillna(0, inplace = True) #set features with nan importance scores (i.e. not in the top 90th percentile) to 0
+
+#subset according to top response-associated features
+pivot_df = pivot_df.loc[top_features, :]
+
+#plot clustermap
+cmap = ['#D8C198', '#D88484', '#5AA571', '#4F8CBE']
+sns.set_style('ticks')
+g = sns.clustermap(data = pivot_df, yticklabels=True, cmap = 'Blues', vmin = 0, vmax = 1, row_cluster = True,
+                   col_cluster = False, figsize = (7, 18), cbar_pos=(1, .03, .02, .1), dendrogram_ratio=0.1, colors_ratio=0.01,
+                   col_colors=cmap)
+g.tick_params(labelsize=12)
+
+ax = g.ax_heatmap
+ax.set_ylabel('Response-associated Features', fontsize = 12)
+ax.set_xlabel('Timepoint', fontsize = 12)
+
+ax.axvline(x=0, color='k',linewidth=2.5)
+ax.axvline(x=1, color='k',linewidth=1.5)
+ax.axvline(x=2, color='k',linewidth=1.5)
+ax.axvline(x=3, color='k',linewidth=1.5)
+ax.axvline(x=4, color='k',linewidth=2.5)
+
+ax.axhline(y=0, color='k',linewidth=2.5)
+ax.axhline(y=len(pivot_df), color='k',linewidth=2.5)
+
+x0, _y0, _w, _h = g.cbar_pos
+for spine in g.ax_cbar.spines:
+    g.ax_cbar.spines[spine].set_color('k')
+    g.ax_cbar.spines[spine].set_linewidth(1)
+plt.savefig(os.path.join(base_dir, 'figures', 'Figure4b.pdf'), bbox_inches = 'tight', dpi =300)
+
 
 # longitudinal T / Cancer ratios
 combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
