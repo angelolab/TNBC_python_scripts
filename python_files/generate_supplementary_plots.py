@@ -639,3 +639,93 @@ g.tick_params(labelsize=10)
 g.set_ylabel('Feature', fontsize = 12)
 g.set_xlabel('Number of outlier patients', fontsize = 12)
 plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'outlier_analysis', 'features_outlier_patients.pdf'), bbox_inches = 'tight', dpi =300)
+
+
+## COMPARTMENT COMPARISONS
+# all feature plot
+timepoint_df = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_features.csv'))
+timepoint_df['long_name'] = timepoint_df['Tissue_ID'] + '//' + timepoint_df['feature_name']
+
+t = timepoint_df.pivot(index='long_name', columns='compartment')['raw_mean']
+t = t[t.isnull().sum(axis=1) < 4]
+t = t[~t['all'].isna()]
+
+# 2^x for previous log2 scores
+t[np.logical_or(t.index.str.contains('__ratio'), t.index.str.contains('H3K9ac_H3K27me3_ratio+'),
+                t.index.str.contains('CD45RO_CD45RB_ratio+'))] =\
+    2 ** t[np.logical_or(t.index.str.contains('__ratio'), t.index.str.contains('H3K9ac_H3K27me3_ratio+'),
+                         t.index.str.contains('CD45RO_CD45RB_ratio+'))]
+
+comp_t = t.divide(t['all'], axis=0)
+comp_t.index = [idx.split('//')[1] for idx in comp_t.index]
+comp_t['feature_name'] = comp_t.index
+
+df = comp_t.groupby(by=['feature_name']).mean()
+df = np.log2(df)
+df.replace([np.inf, -np.inf], np.nan, inplace=True)
+df = df.dropna()
+df = df[['all', 'cancer_core', 'cancer_border', 'stroma_border', 'stroma_core']]
+
+sns.set(font_scale=1)
+plt.figure(figsize=(8, 30))
+heatmap = sns.clustermap(
+    df, cmap="vlag", vmin=-2, vmax=2, col_cluster=False, cbar_pos=(1.03, 0.07, 0.015, 0.2),
+)
+heatmap.tick_params(labelsize=8)
+plt.setp(heatmap.ax_heatmap.yaxis.get_majorticklabels(), rotation=0)
+x0, _y0, _w, _h = heatmap.cbar_pos
+for spine in heatmap.ax_cbar.spines:
+    heatmap.ax_cbar.spines[spine].set_color('k')
+    heatmap.ax_cbar.spines[spine].set_linewidth(1)
+
+ax = heatmap.ax_heatmap
+ax.axvline(x=0, color='k', linewidth=0.8)
+ax.axvline(x=1, color='k', linewidth=0.8)
+ax.axvline(x=2, color='k', linewidth=0.8)
+ax.axvline(x=3, color='k', linewidth=0.8)
+ax.axvline(x=4, color='k', linewidth=0.8)
+ax.axvline(x=5, color='k', linewidth=0.8)
+ax.axhline(y=0, color='k', linewidth=1)
+ax.axhline(y=len(df), color='k', linewidth=1.5)
+ax.set_ylabel("Feature")
+ax.set_xlabel("Compartment")
+
+features_of_interest = [361, 107, 92, 110, 90, 258, 373, 311, 236, 266, 385, 83, 327, 61, 132, 150]
+feature_names = [df.index[i] for i in features_of_interest]
+reorder = heatmap.dendrogram_row.reordered_ind
+new_positions = [reorder.index(i) for i in features_of_interest]
+plt.setp(heatmap.ax_heatmap.yaxis.set_ticks(new_positions))
+plt.setp(heatmap.ax_heatmap.yaxis.set_ticklabels(feature_names))
+plt.tight_layout()
+
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'compartment_comparisons/compartment_comparisons.pdf'), dpi=300, bbox_inches="tight")
+
+# high/low standard deviation feature plot
+df_copy = df.copy()
+df_copy['row_std'] = df_copy.std(axis=1)
+df_copy = df_copy.sort_values(by='row_std')
+
+low_std = df_copy[:90]
+high_std = df_copy[-90:]
+all_std_data = pd.concat([high_std, low_std]).sort_values(by='row_std', ascending=False)
+all_std_data = all_std_data[df.columns]
+
+sns.set(font_scale=1)
+plt.figure(figsize=(4, 17))
+heatmap = sns.heatmap(
+    all_std_data, cmap="vlag", vmin=-2, vmax=2, yticklabels=True, cbar_kws={'shrink': 0.1}
+)
+heatmap.tick_params(labelsize=6)
+heatmap.hlines([len(all_std_data)/2], *ax.get_xlim(), ls='--', color='black', linewidth=0.5,)
+ax.set_ylabel("Feature")
+ax.set_xlabel("Compartment")
+plt.tight_layout()
+
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'compartment_comparisons/compartments-high_low_std.pdf'), dpi=300, bbox_inches="tight")
+
+# histogram of standard deviations
+plt.style.use("default")
+g = sns.histplot(df_copy.row_std)
+g.set(xlabel='Standard Deviation', ylabel='Feature Counts')
+sns.despine()
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'compartment_comparisons/compartments_standard_deviation_hist.pdf'), dpi=300, bbox_inches="tight")
