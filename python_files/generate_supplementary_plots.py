@@ -144,62 +144,8 @@ plt.show()
 
 
 
-# volcano plot for RNA features
-ranked_features_df = pd.read_csv(os.path.join(SEQUENCE_DIR, 'genomics_outcome_ranking.csv'))
-ranked_features_df = ranked_features_df.loc[ranked_features_df.data_type == 'RNA', :]
-ranked_features_df = ranked_features_df.sort_values(by='combined_rank', ascending=True)
-
-ranked_features_df[['feature_name_unique']].to_csv(os.path.join(save_dir, 'RNA_features.csv'), index=False)
-
-# plot  volcano
-fig, ax = plt.subplots(figsize=(3,3))
-sns.scatterplot(data=ranked_features_df, x='med_diff', y='log_pval', alpha=1, hue='importance_score', palette=sns.color_palette("icefire", as_cmap=True),
-                s=2.5, edgecolor='none', ax=ax)
-ax.set_xlim(-3, 3)
-sns.despine()
-
-# add gradient legend
-norm = plt.Normalize(ranked_features_df.importance_score.min(), ranked_features_df.importance_score.max())
-sm = plt.cm.ScalarMappable(cmap="icefire", norm=norm)
-ax.get_legend().remove()
-ax.figure.colorbar(sm, ax=ax)
-plt.tight_layout()
-
-plt.savefig(os.path.join(save_dir, 'RNA_volcano.pdf'))
-plt.close()
 
 # Breakdown of features by timepoint
-top_features = ranked_features_df.iloc[:100, :]
-#top_features = ranked_features_df.loc[ranked_features_df.fdr_pval < 0.1, :]
-
-# by comparison
-top_features_by_comparison = top_features[['data_type', 'comparison']].groupby(['comparison']).size().reset_index()
-top_features_by_comparison.columns = ['comparison', 'num_features']
-top_features_by_comparison = top_features_by_comparison.sort_values('num_features', ascending=False)
-
-fig, ax = plt.subplots(figsize=(4, 4))
-sns.barplot(data=top_features_by_comparison, x='comparison', y='num_features', color='grey', ax=ax)
-plt.xticks(rotation=90)
-plt.tight_layout()
-sns.despine()
-plt.savefig(os.path.join(save_dir, 'Num_features_per_comparison_rna.pdf'))
-plt.close()
-
-# by data type
-ranked_features_df = pd.read_csv(os.path.join(SEQUENCE_DIR, 'genomics_outcome_ranking.csv'))
-top_features = ranked_features_df.iloc[:100, :]
-
-top_features_by_data_type = top_features[['data_type', 'comparison']].groupby(['data_type']).size().reset_index()
-top_features_by_data_type.columns = ['data_type', 'num_features']
-top_features_by_data_type = top_features_by_data_type.sort_values('num_features', ascending=False)
-
-fig, ax = plt.subplots(figsize=(4, 4))
-sns.barplot(data=top_features_by_data_type, x='data_type', y='num_features', color='grey', ax=ax)
-plt.xticks(rotation=90)
-plt.tight_layout()
-sns.despine()
-plt.savefig(os.path.join(save_dir, 'Num_features_per_data_type_genomics.pdf'))
-plt.close()
 
 # diagnostic plots for multivariate modeling
 save_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'multivariate_modeling')
@@ -302,100 +248,8 @@ plt.savefig(os.path.join(save_dir, 'Figure6_feature_correlation_by_model.pdf'))
 plt.close()
 
 
-# supplementary tables
-save_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'supplementary_tables')
-if not os.path.exists(save_dir):
-    os.makedirs(save_dir)
 
 
-# sample summary
-harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'harmonized_metadata.csv'))
-wes_metadata = pd.read_csv(os.path.join(SEQUENCE_DIR, 'preprocessing/TONIC_WES_meta_table.tsv'), sep='\t')
-rna_metadata = pd.read_csv(os.path.join(SEQUENCE_DIR, 'preprocessing/TONIC_tissue_rna_id.tsv'), sep='\t')
-rna_metadata = rna_metadata.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint']].drop_duplicates(), on='Tissue_ID', how='left')
-
-harmonized_metadata = harmonized_metadata.loc[harmonized_metadata.MIBI_data_generated, :]
-
-modality = ['MIBI'] * 4 + ['RNA'] * 3 + ['DNA'] * 1
-timepoint = ['primary_untreated', 'baseline', 'post_induction', 'on_nivo'] + ['baseline', 'post_induction', 'on_nivo'] + ['baseline']
-
-sample_summary_df = pd.DataFrame({'modality': modality, 'timepoint': timepoint, 'sample_num': [0] * 8, 'patient_num': [0] * 8})
-
-# populate dataframe
-for idx, row in sample_summary_df.iterrows():
-    if row.modality == 'MIBI':
-        sample_summary_df.loc[idx, 'sample_num'] = len(harmonized_metadata.loc[harmonized_metadata.Timepoint == row.timepoint, :])
-        sample_summary_df.loc[idx, 'patient_num'] = len(harmonized_metadata.loc[harmonized_metadata.Timepoint == row.timepoint, 'Patient_ID'].unique())
-    elif row.modality == 'RNA':
-        sample_summary_df.loc[idx, 'sample_num'] = len(rna_metadata.loc[rna_metadata.Timepoint == row.timepoint, :])
-        sample_summary_df.loc[idx, 'patient_num'] = len(rna_metadata.loc[rna_metadata.Timepoint == row.timepoint, 'Patient_ID'].unique())
-    elif row.modality == 'DNA':
-        sample_summary_df.loc[idx, 'sample_num'] = len(wes_metadata.loc[wes_metadata.timepoint == row.timepoint, :])
-        sample_summary_df.loc[idx, 'patient_num'] = len(wes_metadata.loc[wes_metadata.timepoint == row.timepoint, 'Individual.ID'].unique())
-
-sample_summary_df.to_csv(os.path.join(save_dir, 'Supplementary_Table_3.csv'), index=False)
-
-# feature metadata
-feature_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_metadata.csv'))
-
-feature_metadata.columns = ['Feature name', 'Feature name including compartment', 'Compartment the feature is calculated in',
-                            'Cell types used to calculate feature', 'Level of clustering granularity for cell types',
-                            'Type of feature', 'Additional information about the feature', 'Additional information about the feature']
-
-feature_metadata.to_csv(os.path.join(save_dir, 'Supplementary_Table_4.csv'), index=False)
-
-# nivo outcomes supplementary plots
-# summarize overlap of top features
-top_features_by_feature = top_features[['feature_name_unique', 'comparison']].groupby('feature_name_unique').count().reset_index()
-feature_counts = top_features_by_feature.groupby('comparison').count().reset_index()
-feature_counts.columns = ['num_comparisons', 'num_features']
-
-fig, ax = plt.subplots(figsize=(4, 4))
-sns.barplot(data=feature_counts, x='num_comparisons', y='num_features', color='grey', ax=ax)
-plt.tight_layout()
-sns.despine()
-plt.savefig(os.path.join(plot_dir, 'Figure5_num_comparisons_per_feature.pdf'))
-plt.close()
-
-
-
-# get overlap between static and evolution top features
-overlap_type_dict = {'global': [['primary_untreated', 'baseline', 'post_induction', 'on_nivo'],
-                                ['primary__baseline', 'baseline__post_induction', 'baseline__on_nivo', 'post_induction__on_nivo']],
-                     'primary': [['primary_untreated'], ['primary__baseline']],
-                     'baseline': [['baseline'], ['primary__baseline', 'baseline__post_induction', 'baseline__on_nivo']],
-                     'post_induction': [['post_induction'], ['baseline__post_induction', 'post_induction__on_nivo']],
-                     'on_nivo': [['on_nivo'], ['baseline__on_nivo', 'post_induction__on_nivo']]}
-
-overlap_results = {}
-for overlap_type, comparisons in overlap_type_dict.items():
-    static_comparisons, evolution_comparisons = comparisons
-
-    overlap_top_features = ranked_features.copy()
-    overlap_top_features = overlap_top_features.loc[overlap_top_features.comparison.isin(static_comparisons + evolution_comparisons)]
-    overlap_top_features.loc[overlap_top_features.comparison.isin(static_comparisons), 'comparison'] = 'static'
-    overlap_top_features.loc[overlap_top_features.comparison.isin(evolution_comparisons), 'comparison'] = 'evolution'
-    overlap_top_features = overlap_top_features[['feature_name_unique', 'comparison']].drop_duplicates()
-    overlap_top_features = overlap_top_features.iloc[:100, :]
-    # keep_features = overlap_top_features.feature_name_unique.unique()[:100]
-    # overlap_top_features = overlap_top_features.loc[overlap_top_features.feature_name_unique.isin(keep_features), :]
-    # len(overlap_top_features.feature_name_unique.unique())
-    static_ids = overlap_top_features.loc[
-        overlap_top_features.comparison == 'static', 'feature_name_unique'].unique()
-    evolution_ids = overlap_top_features.loc[
-        overlap_top_features.comparison == 'evolution', 'feature_name_unique'].unique()
-
-    overlap_results[overlap_type] = {'static_ids': static_ids, 'evolution_ids': evolution_ids}
-
-
-# get counts of features in each category
-for overlap_type, results in overlap_results.items():
-    static_ids = results['static_ids']
-    evolution_ids = results['evolution_ids']
-    venn2([set(static_ids), set(evolution_ids)], set_labels=('Static', 'Evolution'))
-    plt.title(overlap_type)
-    plt.savefig(os.path.join(plot_dir, 'Figure6_top_features_overlap_{}.pdf'.format(overlap_type)))
-    plt.close()
 
 # compute the correlation between response-associated features
 timepoint_features = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features.csv'))
