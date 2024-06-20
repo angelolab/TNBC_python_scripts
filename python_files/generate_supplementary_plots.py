@@ -95,6 +95,8 @@ for spine in g.ax_cbar.spines:
     g.ax_cbar.spines[spine].set_linewidth(1)
 plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'differences_significant_features_timepoint', 'top_features_time_clustermap.pdf'), bbox_inches = 'tight', dpi =300)
 
+
+
 #outlier patient analysis
 timepoints = ['primary', 'baseline', 'pre_nivo' , 'on_nivo']
 
