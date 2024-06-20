@@ -25,6 +25,11 @@ from alpineer.io_utils import list_folders, list_files, remove_file_extensions, 
 from alpineer.load_utils import load_imgs_from_tree, load_imgs_from_dir
 from alpineer.misc_utils import verify_in_list
 from .utils import  QuantileNormalization
+from python_files.utils import compare_populations
+
+# import multipletests library from statsmodels
+from statsmodels.stats.multitest import multipletests
+
 # from .utils import remove_ticks,
 
 ACQUISITION_ORDER_INDICES = [
