@@ -84,12 +84,122 @@ pivot_df.fillna(0, inplace = True) #set features with nan importance scores (i.e
 #subset according to top response-associated features
 pivot_df = pivot_df.loc[top_features, :]
 
+#access the top 100 feature-timepoint pairs
+pivot_df_top = feature_ranking_df[:100].loc[:, ['scaled_percentile_importance', 'feature_name_unique', 'comparison']].pivot(index = 'feature_name_unique', columns = 'comparison')
+pivot_df_top.columns = pivot_df_top.columns.droplevel(0)
+pivot_df_top = pivot_df_top.loc[:, timepoints] #reorder
+pivot_df_top.fillna(0, inplace = True) #set features with nan importance scores (i.e. not in the top 90th percentile) to 0
+
+#assign feature with delta label for plot order
+feat_timepoint_dict = {'CD38+__Immune_Other': 'baseline',
+ 'diversity_cell_cluster__Cancer_2__stroma_border': 'baseline',
+ 'NK__Other__ratio__cancer_border':'pre_nivo',
+ 'cluster_3__proportion__cancer_core':'pre_nivo',
+ 'CD45RO+__Fibroblast':'pre_nivo',
+ 'PDL1+__CD4T':'pre_nivo',
+ 'CD69+__CD4T':'pre_nivo',
+ 'TBET+__Treg':'pre_nivo',
+ 'PD1+__CD4T':'pre_nivo',
+ 'diversity_cell_cluster__Monocyte__cancer_border':'pre_nivo',
+ 'CD68_Mac__cluster_density__cancer_border':'pre_nivo',
+ 'PDL1+__Monocyte':'pre_nivo',
+ 'TBET+__CD4T':'pre_nivo',
+ 'CD45RO+__Monocyte':'pre_nivo',
+ 'PDL1+__CD163_Mac':'pre_nivo',
+ 'CD45RO+__CAF':'pre_nivo',
+ 'CD45RO+__Immune_Other':'pre_nivo',
+ 'CD45RO__CD69+__NK':'pre_nivo',
+ 'Ki67+__T_Other':'pre_nivo',
+ 'PDL1+__APC':'pre_nivo',
+ 'CD45RO+__CAF__cancer_border':'pre_nivo',
+ 'PDL1+__Mac_Other':'pre_nivo',
+ 'B__NK__ratio__cancer_core':'primary',
+ 'T__Cancer__ratio__cancer_border':'baseline__pre_nivo__on_nivo',
+ 'T__Cancer__ratio__cancer_core':'baseline__pre_nivo__on_nivo',
+ 'CD45RO+__CD68_Mac':'baseline__pre_nivo__on_nivo',
+ 'diversity_cell_cluster__Cancer_1__stroma_core':'baseline__pre_nivo__on_nivo',
+ 'Other__Structural__ratio':'baseline__pre_nivo__on_nivo',
+ 'Other__Cancer__ratio__stroma_border':'baseline__pre_nivo__on_nivo',
+ 'diversity_cell_cluster__Fibroblast__cancer_border':'baseline__pre_nivo__on_nivo',
+ 'Other__Cancer__ratio__cancer_border':'baseline__pre_nivo__on_nivo',
+ 'cluster_broad_diversity_cancer_border':'baseline__pre_nivo__on_nivo',
+ 'diversity_cell_cluster__APC':'baseline__on_nivo',
+ 'T__Cancer__ratio__stroma_border':'baseline__on_nivo',
+ 'diversity_cell_cluster__Cancer_2__stroma_core':'baseline__on_nivo',
+ 'NK__T__ratio__cancer_border':'baseline__on_nivo',
+ 'Other__Cancer__ratio__stroma_core':'baseline__on_nivo',
+ 'diversity_cell_cluster__CAF':'baseline__on_nivo',
+ 'cluster_3__proportion__stroma_border':'on_nivo',
+ 'B__Structural__ratio__cancer_border':'on_nivo',
+ 'Cancer_3__proportion_of__Cancer':'on_nivo',
+ 'T__cluster_broad_density__cancer_border':'on_nivo',
+ 'diversity_cell_cluster__Cancer_2':'on_nivo',
+ 'B__Cancer__ratio__stroma_border':'on_nivo',
+ 'CD8T__cluster_density__cancer_border':'on_nivo',
+ 'Cancer_Immune_mixing_score':'on_nivo',
+ 'NK__Structural__ratio__cancer_border':'on_nivo',
+ 'B__Cancer__ratio__cancer_border':'on_nivo',
+ 'diversity_cell_cluster__Cancer_1':'on_nivo',
+ 'NK__Structural__ratio__cancer_core':'on_nivo',
+ 'Other__Structural__ratio__cancer_core':'on_nivo',
+ 'Cancer_1__proportion_of__Cancer':'on_nivo',
+ 'cancer_diversity':'on_nivo',
+ 'CD8T__cluster_density':'on_nivo',
+ 'Monocyte__proportion_of__Mono_Mac__cancer_core':'on_nivo',
+ 'cluster_2__proportion':'on_nivo',
+ 'B__Cancer__ratio':'on_nivo',
+ 'B__Granulocyte__ratio':'on_nivo',
+ 'cluster_broad_diversity_cancer_core':'on_nivo',
+ 'CD69+__all':'on_nivo',
+ 'Mono_Mac__T__ratio':'on_nivo',
+ 'Cancer_3__proportion_of__Cancer__stroma_core':'on_nivo',
+ 'cancer_diversity_stroma_core':'on_nivo',
+ 'T__Cancer__ratio':'on_nivo',
+ 'Cancer_1__proportion_of__Cancer__stroma_core':'on_nivo',
+ 'Mono_Mac__Cancer__ratio__stroma_border':'on_nivo',
+ 'NK__Cancer__ratio__stroma_border':'on_nivo',
+ 'B__Structural__ratio':'on_nivo',
+ 'B__T__ratio__cancer_core':'on_nivo',
+ 'T_Other__cluster_density__cancer_border':'on_nivo',
+ 'PDL1+__Cancer_3__stroma_border':'on_nivo',
+ 'TBET+__all':'on_nivo',
+ 'NK__Cancer__ratio':'on_nivo',
+ 'diversity_cell_cluster__Neutrophil':'on_nivo',
+ 'diversity_cell_cluster__Fibroblast':'on_nivo',
+ 'diversity_cell_cluster__Cancer_3':'on_nivo',
+ 'PD1+__all':'on_nivo',
+ 'diversity_cell_cluster__Smooth_Muscle':'on_nivo',
+ 'Other__Cancer__ratio':'on_nivo',
+ 'T__Structural__ratio__cancer_core':'on_nivo',
+ 'diversity_cell_cluster__Endothelium':'on_nivo',
+ 'TIM3+__all':'on_nivo',
+ 'T__Structural__ratio':'on_nivo',
+ 'Other__Cancer__ratio__cancer_core':'pre_nivo__on_nivo',
+ 'PDL1+__CAF__cancer_border':'pre_nivo__on_nivo',
+ 'PDL1+__CD68_Mac':'pre_nivo__on_nivo',
+ 'CD8T__Treg__ratio__cancer_core':'pre_nivo__on_nivo',
+ 'CD45RO+__all':'pre_nivo__on_nivo',
+ 'diversity_cell_cluster__CAF__cancer_border':'pre_nivo__on_nivo'}
+
+#sort dataframe by delta group and get the order of the ticks
+pivot_df["group"] = pivot_df.index.map(feat_timepoint_dict) 
+pivot_df["group"] = pd.Categorical(pivot_df["group"], categories=['baseline__pre_nivo__on_nivo', 'pre_nivo__on_nivo', 'baseline__pre_nivo', 'baseline__on_nivo', 'on_nivo', 'pre_nivo', 'baseline', 'primary'], ordered=True)
+pivot_df.sort_values("group", inplace=True) 
+xlabs = list(pivot_df.index)
+
 #plot clustermap
+from matplotlib.patches import Rectangle
 cmap = ['#D8C198', '#D88484', '#5AA571', '#4F8CBE']
 sns.set_style('ticks')
-g = sns.clustermap(data = pivot_df, yticklabels=True, cmap = 'Blues', vmin = 0, vmax = 1, row_cluster = True,
+
+pivot_df_run = pivot_df.loc[xlabs, :].copy()
+pivot_df_run.drop(columns  = ['group'], inplace=True)
+pivot_df_top_run = pivot_df_top.loc[xlabs, :].copy()
+
+g = sns.clustermap(data = pivot_df_run, yticklabels=True, cmap = 'Blues', vmin = 0, vmax = 1, row_cluster = False,
                    col_cluster = False, figsize = (7, 18), cbar_pos=(1, .03, .02, .1), dendrogram_ratio=0.1, colors_ratio=0.01,
                    col_colors=cmap)
+
 g.tick_params(labelsize=12)
 
 ax = g.ax_heatmap
@@ -101,7 +211,6 @@ ax.axvline(x=1, color='k',linewidth=1.5)
 ax.axvline(x=2, color='k',linewidth=1.5)
 ax.axvline(x=3, color='k',linewidth=1.5)
 ax.axvline(x=4, color='k',linewidth=2.5)
-
 ax.axhline(y=0, color='k',linewidth=2.5)
 ax.axhline(y=len(pivot_df), color='k',linewidth=2.5)
 
@@ -109,6 +218,20 @@ x0, _y0, _w, _h = g.cbar_pos
 for spine in g.ax_cbar.spines:
     g.ax_cbar.spines[spine].set_color('k')
     g.ax_cbar.spines[spine].set_linewidth(1)
+
+for i in range(0, pivot_df_top_run.shape[0]):
+    row = pivot_df_top_run.astype('bool').iloc[i, :]
+    ids = np.where(row == True)[0]
+    for id in ids:
+        #creates rectangle at given indices of top 100 feature timepoint pairs (x = timepoint_index, y = feature_index)
+        rect = Rectangle((id, i), 1, 1, fill=False, edgecolor='red', lw=2, zorder = 10)
+
+        # Add it to the plot
+        g.ax_heatmap.add_patch(rect)
+
+        # Redraw the figure
+        plt.draw()
+
 plt.savefig(os.path.join(base_dir, 'figures', 'Figure4b.pdf'), bbox_inches = 'tight', dpi =300)
 
 
