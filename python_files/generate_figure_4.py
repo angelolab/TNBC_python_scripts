@@ -232,7 +232,6 @@ for i in range(0, pivot_df_top_run.shape[0]):
         # Redraw the figure
         plt.draw()
 
-#plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'differences_significant_features_timepoint', 'top_features_time_clustermap_auto_boxed.pdf'), bbox_inches = 'tight', dpi =300)
 plt.savefig(os.path.join(base_dir, 'figures', 'Figure4b.pdf'), bbox_inches = 'tight', dpi =300)
 
 
