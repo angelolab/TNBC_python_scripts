@@ -15,9 +15,10 @@ from python_files.utils import create_long_df_by_functional, create_long_df_by_c
 # whereas a more granular clustering scheme would separate out CD4T, CD8T, Tregs, etc.
 #
 
-intermediate_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files'
-output_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/output_files'
-analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
+base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
+intermediate_dir = os.path.join(base_dir, 'intermediate_files')
+output_dir = os.path.join(base_dir, 'output_files')
+analysis_dir = os.path.join(base_dir, 'analysis_files')
 
 TIMEPOINT_NAMES = ['primary', 'baseline', 'pre_nivo', 'on_nivo']
 
@@ -294,6 +295,13 @@ filtered_func_df_plot = filtered_func_df_plot.loc[filtered_func_df_plot.function
 # save filtered df
 filtered_func_df_plot.to_csv(os.path.join(output_dir, 'functional_df_per_core_filtered_plot.csv'), index=False)
 
+
+#
+# The code below is used to identify which functional markers should be evaluated in which cells
+# based on frequency of positivity. Once these thresholds are set, the code doesn't need to be
+# rerun again, and instead you can skip to the end and load the output file
+#
+
 # # identify combinations of markers and cell types to include in analysis based on threshold
 # mean_percent_positive = 0.05
 # broad_df = filtered_func_df[filtered_func_df.metric == 'cluster_broad_freq']
@@ -446,7 +454,11 @@ for filters in filtering:
         # append to list of dfs
         combo_dfs.append(func_df_cell)
 
-# do the same thing for double positive cells
+#
+# The commented code below is the same as the commented code above, but generates thresholds
+# for double positive functional markers. Once run, you can skip to the end and load in the
+# generated output files
+#
 
 # # identify combinations of markers and cell types to include in analysis based on threshold
 # dp_markers = [x for x in filtered_func_df.functional_marker.unique() if '__' in x]
@@ -564,6 +576,7 @@ combo_df_timepoint_func.to_csv(os.path.join(output_dir, 'functional_df_per_timep
 
 #
 # Remove double positive functional markers that are highly correlated with single positive scores
+# This section can be skipped once it's been run once and just use the resulting output file
 #
 
 # cluster_resolution = [['cluster_broad_freq', 'cluster_broad_count'],
@@ -960,7 +973,10 @@ filtered_distance_df = pd.concat(filtered_dfs)
 # save filtered df
 filtered_distance_df.to_csv(os.path.join(output_dir, 'distance_df_per_core_filtered.csv'), index=False)
 
-# remove distances that are correlated with abundance of cell type
+#
+# Remove distances that are correlated with abundance of cell type. This code can be skipped after
+# running the first time and the output file can be loaded instead
+#
 
 # load data
 # total_df = pd.read_csv(os.path.join(output_dir, 'cluster_df_per_core.csv'))
