@@ -187,3 +187,26 @@ for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
         plt.tight_layout()
         plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_{}_{}.pdf'.format(plot_name, timepoint)))
         plt.close()
+
+
+# shared/non-shared features over time
+ranked_features = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature_ranking.csv'))
+top_features = ranked_features.loc[ranked_features.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), :]
+top_feature_names = top_features.feature_name_unique[:100].unique()
+top_features = top_features.loc[top_features.feature_name_unique.isin(top_feature_names), :]
+top_features_wide = pd.pivot(top_features, index='feature_name_unique', columns='comparison', values='feature_rank_global')
+top_features_wide['top_100_count'] = top_features_wide.apply(lambda x: np.sum(x[:4] <= 100), axis=1)
+top_features_wide['top_200_count'] = top_features_wide.apply(lambda x: np.sum(x[:4] <= 200), axis=1)
+top_features_wide['top_350_count'] = top_features_wide.apply(lambda x: np.sum(x[:4] <= 350), axis=1)
+
+# look at top 100 repeats
+len([x for x in top_features_wide.loc[top_features_wide.top_100_count > 1, ].index if 'cancer_border' in x])
+len([x for x in top_features_wide.index if 'cancer_border' in x])
+
+np.sum(top_features_wide.top_350_count > 1)
+top_features_wide.loc[top_features_wide.top_350_count > 3, ].index
+
+shared_3 = top_features_wide.loc[top_features_wide.top_350_count > 2, ].index
+len(shared_3)
+len([x for x in shared_3 if 'diversity' in x])
+len([x for x in shared_3 if 'ratio' in x])
