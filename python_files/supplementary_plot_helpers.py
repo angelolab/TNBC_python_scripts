@@ -25,6 +25,11 @@ from alpineer.io_utils import list_folders, list_files, remove_file_extensions, 
 from alpineer.load_utils import load_imgs_from_tree, load_imgs_from_dir
 from alpineer.misc_utils import verify_in_list
 from .utils import  QuantileNormalization
+from python_files.utils import compare_populations
+
+# import multipletests library from statsmodels
+from statsmodels.stats.multitest import multipletests
+
 # from .utils import remove_ticks,
 
 ACQUISITION_ORDER_INDICES = [
@@ -1607,3 +1612,52 @@ class CorePlot:
 
         remove_ticks(hne_fov_ax, axis="xy")
         remove_ticks(overlay_ax, axis="xy")
+
+
+def calculate_feature_corr(timepoint_features,
+                            top_features,
+                            remaining_features,
+                            top: bool = True,
+                            n_iterations: int = 1000):
+    """Compares the correlation between
+            1. response-associated features to response-associated features
+            2. response-associated features to remaining features
+        by randomly sampling features with replacement.
+
+    Parameters
+    timepoint_features: pd.DataFrame
+        dataframe containing the feature values for every patient (feature_name_unique, normalized_mean, Patient_ID, Timepoint)
+    top_features: pd.DataFrame
+        dataframe containing the top response-associated features (feature_name_unique, Timepoint)
+    remaining features: pd.DataFrame
+        dataframe containing non response-associated features (feature_name_unique, Timepoint)
+    top: bool (default = True)
+        boolean indicating if the comparison 1. (True) or 2. (False)
+    n_iterations: int (default = 1000)
+        number of features randomly selected for comparison
+    ----------
+    Returns
+    corr_arr: np.array
+        array containing the feature correlation values
+    ----------
+    """
+    corr_arr = []
+    for _ in range(n_iterations):
+        #select feature 1 as a random feature from the top response-associated feature list
+        rand_sample1 = top_features.sample(n = 1)
+        f1 = timepoint_features.iloc[np.where((timepoint_features['feature_name_unique'] == rand_sample1['feature_name_unique'].values[0]) & (timepoint_features['Timepoint'] == rand_sample1['Timepoint'].values[0]))[0], :]
+        if top == True:
+            #select feature 2 as a random feature from the top response-associated list, ensuring f1 != f2
+            rand_sample2 = rand_sample1
+            while (rand_sample2.values == rand_sample1.values).all():
+                rand_sample2 = top_features.sample(n = 1)
+        else:
+            #select feature 2 as a random feature from the remaining feature list
+            rand_sample2 = remaining_features.sample(n = 1)
+
+        f2 = timepoint_features.iloc[np.where((timepoint_features['feature_name_unique'] == rand_sample2['feature_name_unique'].values[0]) & (timepoint_features['Timepoint'] == rand_sample2['Timepoint'].values[0]))[0], :]
+        merged_features = pd.merge(f1, f2, on = 'Patient_ID') #finds Patient IDs that are shared across timepoints to compute correlation
+        corrval = np.abs(merged_features['normalized_mean_x'].corr(merged_features['normalized_mean_y'])) #regardless of direction
+        corr_arr.append(corrval)
+
+    return np.array(corr_arr)
