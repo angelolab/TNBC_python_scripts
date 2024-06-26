@@ -262,7 +262,7 @@ metrics = [['cluster_broad_count', 'cluster_broad_freq'],
 for metric in metrics:
     # subset count df to include cells at the relevant clustering resolution
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border',
-                        'tls', 'tagg', 'all']:
+                        'immune_agg', 'all']:
         count_df = total_df[total_df.metric == metric[0]]
         count_df = count_df[count_df.subset == compartment]
 
@@ -729,7 +729,7 @@ metrics = [['cluster_broad_count', 'cluster_broad_freq'],
 for metric in metrics:
     # subset count df to include cells at the relevant clustering resolution
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border',
-                        'tls', 'tagg', 'all']:
+                        'immune_agg', 'all']:
         count_df = total_df[total_df.metric == metric[0]]
         count_df = count_df[count_df.subset == compartment]
 
@@ -845,7 +845,7 @@ metrics = [['cluster_broad_count', 'cluster_broad_freq'],
 for metric in metrics:
     # subset count df to include cells at the relevant clustering resolution
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core',
-                        'stroma_border', 'tagg', 'tls', 'all']:
+                        'stroma_border', 'immune_agg', 'all']:
         count_df = total_df[total_df.metric == metric[0]]
         count_df = count_df[count_df.subset == compartment]
 
@@ -934,7 +934,7 @@ metrics = [['cluster_broad_count', 'cluster_broad_freq']]
 for metric in metrics:
     # subset count df to include cells at the relevant clustering resolution
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core',
-                        'stroma_border', 'tagg', 'tls', 'all']:
+                        'stroma_border', 'immune_agg', 'all']:
         count_df = total_df[total_df.metric == metric[0]]
         count_df = count_df[count_df.subset == compartment]
 
@@ -1110,10 +1110,10 @@ compartment_data = annotations_by_mask.merge(kmeans_cells, on=['fov', 'label'])
 all_compartments_df = []
 for fov in np.unique(kmeans_cell_table.fov):
     df = pd.DataFrame({
-        'fov': [fov] * 4 * kmeans_cluster_num,
+        'fov': [fov] * 5 * kmeans_cluster_num,
         'mask_name': ['cancer_border'] * kmeans_cluster_num + ['cancer_core'] * kmeans_cluster_num +
-        ['stroma_border'] * kmeans_cluster_num + ['stroma_core'] * kmeans_cluster_num,
-        'kmeans_neighborhood': list(range(1, kmeans_cluster_num+1)) * 4,
+        ['stroma_border'] * kmeans_cluster_num + ['stroma_core'] * kmeans_cluster_num + ['immune_agg'] * kmeans_cluster_num,
+        'kmeans_neighborhood': list(range(1, kmeans_cluster_num+1)) * 5,
     })
 
     all_compartments_df.append(df)
