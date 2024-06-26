@@ -168,11 +168,13 @@ intermediate_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_fil
 output_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/output_files'
 analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
 
+study_name = 'TONIC'
+
 harmonized_metadata = pd.read_csv(os.path.join(analysis_dir, 'harmonized_metadata.csv'))
 timepoint_features = pd.read_csv(os.path.join(analysis_dir, 'timepoint_features_filtered.csv'))
 evolution_cats = TIMEPOINT_COLUMNS
 timepoint_features_agg = timepoint_features.merge(harmonized_metadata[['Tissue_ID', 'Timepoint', 'Localization', 'Patient_ID'] + evolution_cats].drop_duplicates(), on='Tissue_ID', how='left')
-patient_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata/TONIC_data_per_patient.csv'))
+patient_metadata = pd.read_csv(os.path.join(intermediate_dir, f'metadata/{study_name}_data_per_patient.csv'))
 
 evolution_dfs = []
 # generate evolution df based on difference in timepoints

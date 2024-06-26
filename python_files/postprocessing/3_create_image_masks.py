@@ -26,11 +26,11 @@ folders = list_folders(channel_dir)
 # create directories to hold masks
 intermediate_dir = os.path.join(mask_dir, 'intermediate_masks')
 if not os.path.exists(intermediate_dir):
-    os.mkdir(intermediate_dir)
+    os.makedirs(intermediate_dir)
 
 individual_dir = os.path.join(mask_dir, 'individual_masks')
 if not os.path.exists(individual_dir):
-    os.mkdir(individual_dir)
+    os.makedirs(individual_dir)
 
 # loop over each FOV and generate the appropriate masks
 for folder in folders:
