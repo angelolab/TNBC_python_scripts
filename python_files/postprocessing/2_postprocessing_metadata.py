@@ -12,7 +12,7 @@ metadata_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/m
 # metadata_dir = '/Volumes/Shared/Noah Greenwald/TNBC_Cohorts/BELLINI/data/metadata'
 
 # used for metadata naming
-study_name = 'BELLINI'
+study_name = 'TONIC'
 #
 # Determine which cores have valid image data, and update all metadata tables
 #
@@ -33,7 +33,7 @@ core_metadata['MIBI_data_generated'] = core_metadata['fov'].isin(fov_df.imaged_f
 # TODO: relabel tumor cells as epithelial
 
 # annotate timepoints with at least 1 valid core
-timepoint_metadata = pd.read_csv(os.path.join(metadata_dir, 'TONIC_data_per_timepoint_unprocessed.csv'))
+timepoint_metadata = pd.read_csv(os.path.join(metadata_dir, f'{study_name}_data_per_timepoint_unprocessed.csv'))
 timepoint_grouped = core_metadata.loc[:, ['Tissue_ID', 'MIBI_data_generated']].groupby('Tissue_ID').agg(np.sum)
 include_ids = timepoint_grouped.index[(timepoint_grouped['MIBI_data_generated'] > 0)]
 timepoint_metadata['MIBI_data_generated'] = timepoint_metadata.Tissue_ID.isin(include_ids)
@@ -43,7 +43,7 @@ timepoint_metadata['MIBI_data_generated'] = timepoint_metadata.Tissue_ID.isin(in
 #
 
 # identify patients with and without neo-adjuvant chemotherapy (NAC)
-patient_metadata = pd.read_csv(os.path.join(metadata_dir, 'TONIC_data_per_patient_unprocessed.csv'))
+patient_metadata = pd.read_csv(os.path.join(metadata_dir, f'{study_name}_data_per_patient_unprocessed.csv'))
 untreated_pts = patient_metadata.loc[patient_metadata.NAC_received_for_primary_tumor == 'No', 'Patient_ID']
 treated_pts = patient_metadata.loc[patient_metadata.NAC_received_for_primary_tumor == 'Yes', 'Patient_ID']
 
@@ -154,7 +154,7 @@ harmonized_metadata = pd.merge(harmonized_metadata, timepoint_metadata.loc[:, ['
 assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
 
 # select and merge relevant columns from patients
-harmonized_metadata = pd.merge(harmonized_metadata, patient_metadata.loc[:, ['Patient_ID', 'primary__baseline', 'baseline__pre_nivo', 'baseline__on_nivo', 'pre_nivo__on_nivo', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']], on='Patient_ID', how='inner')
+harmonized_metadata = pd.merge(harmonized_metadata, patient_metadata.loc[:, ['Patient_ID', 'primary__baseline', 'baseline__pre_nivo', 'baseline__on_nivo', 'pre_nivo__on_nivo', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1']], on='Patient_ID', how='inner')
 assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
 
 # save harmonized metadata
@@ -171,6 +171,6 @@ harmonized_metadata = harmonized_metadata.drop_duplicates()
 timepoint_metadata = pd.merge(timepoint_metadata, harmonized_metadata, on='Tissue_ID', how='left')
 
 # save all modified metadata sheets
-core_metadata.to_csv(os.path.join(metadata_dir, 'TONIC_data_per_core.csv'), index=False)
-timepoint_metadata.to_csv(os.path.join(metadata_dir, 'TONIC_data_per_timepoint.csv'), index=False)
-patient_metadata.to_csv(os.path.join(metadata_dir, 'TONIC_data_per_patient.csv'), index=False)
+core_metadata.to_csv(os.path.join(metadata_dir, f'{study_name}_data_per_core.csv'), index=False)
+timepoint_metadata.to_csv(os.path.join(metadata_dir, f'{study_name}_data_per_timepoint.csv'), index=False)
+patient_metadata.to_csv(os.path.join(metadata_dir, f'{study_name}_data_per_patient.csv'), index=False)
