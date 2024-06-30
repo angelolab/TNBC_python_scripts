@@ -25,12 +25,11 @@ from python_files import utils
 #
 # This script is for generating the ECM assignments for image crops
 #
-
-out_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/ecm'
-channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples'
-analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
-mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/ecm/masks'
-plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots'
+base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/'
+out_dir = os.path.join(base_dir, 'intermediate_files/ecm')
+channel_dir =  os.path.join(base_dir, 'image_data/samples')
+analysis_dir =  os.path.join(base_dir, 'analysis_files')
+mask_dir =  os.path.join(base_dir, 'intermediate_files/ecm/masks')
 
 #
 # Visualization to assess spatial patterns in signal
@@ -240,7 +239,7 @@ pickle.dump(fov_kmeans_pipe, open(os.path.join(out_dir, 'fov_classification_kmea
 
 
 # load the model
-fov_kmeans_pipe = pickle.load(open(os.path.join(plot_dir, 'fov_classification_kmeans_pipe.pkl'), 'rb'))
+fov_kmeans_pipe = pickle.load(open(os.path.join(out_dir, 'fov_classification_kmeans_pipe.pkl'), 'rb'))
 kmeans_preds = fov_kmeans_pipe.predict(cluster_counts.values)
 
 

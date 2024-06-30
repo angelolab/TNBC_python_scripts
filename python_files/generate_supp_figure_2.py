@@ -13,13 +13,14 @@ BASE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/"
 SUPPLEMENTARY_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs")
 
 
-# Panel validation
+# Generate overlays of entire panel across representative images
 panel_validation_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "supp_figure_2_overlays_text")
 if not os.path.exists(panel_validation_viz_dir):
     os.makedirs(panel_validation_viz_dir)
 exclude_chans = ["Au", "CD11c_nuc_exclude", "CK17_smoothed", "ECAD_smoothed", "FOXP3_nuc_include",
                  "LAG3", "Noodle", "chan_39", "chan_45", "chan_48", "chan_115", "chan_141"]
 
+# plot two control FOVs
 controls_dir = os.path.join(BASE_DIR, "image_data/controls")
 test_controls_fov = io_utils.list_folders(controls_dir)[0]
 controls_channels = sorted(io_utils.remove_file_extensions(
@@ -35,6 +36,7 @@ for cf in controls_fovs:
         channels=controls_channels, num_rows=3
     )
 
+# plot two sample FOVs
 samples_dir = os.path.join(BASE_DIR, "image_data/samples")
 test_samples_fov = io_utils.list_folders(samples_dir)[0]
 samples_channels = sorted(io_utils.remove_file_extensions(

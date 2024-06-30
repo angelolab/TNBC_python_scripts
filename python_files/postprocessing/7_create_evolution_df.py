@@ -7,9 +7,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from scipy.stats import spearmanr, ttest_ind, ttest_rel
-
-from python_files.utils import find_conserved_features
 
 TIMEPOINT_NAMES = ['primary', 'baseline', 'pre_nivo', 'on_nivo']
 
@@ -163,10 +160,10 @@ def generate_patient_paired_timepoints(
     return timepoint_comparisons
 
 
-plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
-intermediate_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files'
-output_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/output_files'
-analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
+base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
+analysis_dir = os.path.join(base_dir, 'analysis_files')
+intermediate_dir = os.path.join(base_dir, 'intermediate_files')
+output_dir = os.path.join(base_dir, 'output_files')
 
 harmonized_metadata = pd.read_csv(os.path.join(analysis_dir, 'harmonized_metadata.csv'))
 timepoint_features = pd.read_csv(os.path.join(analysis_dir, 'timepoint_features_filtered.csv'))

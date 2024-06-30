@@ -2,13 +2,8 @@ import matplotlib
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
-import numpy as np
 import os
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-from matplotlib_venn import venn2
 
 
 BASE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/"

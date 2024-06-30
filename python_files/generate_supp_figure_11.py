@@ -11,7 +11,6 @@ import seaborn as sns
 from matplotlib_venn import venn3
 
 
-
 BASE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/"
 SUPPLEMENTARY_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs")
 
@@ -42,6 +41,7 @@ plt.title('RNA top ranked features')
 plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_11f.pdf'))
 plt.close()
 
+# top ranked features from each timepoint
 mibi_rankings_top = all_model_rankings.loc[np.logical_and(all_model_rankings.modality == 'MIBI', all_model_rankings.top_ranked), :]
 mibi_baseline = mibi_rankings_top.loc[mibi_rankings_top.timepoint == 'baseline', 'feature_name_unique'].values
 mibi_nivo = mibi_rankings_top.loc[mibi_rankings_top.timepoint == 'on_nivo', 'feature_name_unique'].values
@@ -96,3 +96,23 @@ sns.despine()
 plt.tight_layout()
 plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_11c.pdf'))
 plt.close()
+
+# look at interesting features
+combined_df = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/timepoint_combined_features.csv'))
+
+for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
+
+    plot_df = combined_df.loc[(combined_df.feature_name_unique == 'CD38+__all') &
+                              (combined_df.Timepoint == timepoint), :]
+
+    fig, ax = plt.subplots(1, 1, figsize=(2, 4))
+    sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                    color='black', ax=ax)
+    sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                    color='grey', ax=ax, showfliers=False, width=0.3)
+    ax.set_title('CD38+ ' + timepoint)
+    ax.set_ylim([0, 0.5])
+    sns.despine()
+    plt.tight_layout()
+    plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'CD38_positivity in {}.pdf'.format(timepoint)))
+    plt.close()
