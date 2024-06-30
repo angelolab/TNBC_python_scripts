@@ -21,7 +21,7 @@ BASE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/"
 raw_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/"
 SUPPLEMENTARY_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs")
 
-## show a run with images stitched in acquisition order pre- and post-normalization
+# show a run with images stitched in acquisition order pre- and post-normalization
 norm_tiling = os.path.join(SUPPLEMENTARY_FIG_DIR, "supp_figure_4_tiles")
 if not os.path.exists(norm_tiling):
     os.makedirs(norm_tiling)
@@ -40,13 +40,13 @@ supplementary_plot_helpers.stitch_before_after_norm(
 )
 
 
-# QC
+# Generate QC plots showing signal intensity over control TMAs and within each TMA
 qc_metrics = ["Non-zero mean intensity"]
 channel_exclude = ["chan_39", "chan_45", "CD11c_nuc_exclude", "CD11c_nuc_exclude_update",
                    "FOXP3_nuc_include", "FOXP3_nuc_include_update", "CK17_smoothed",
                    "FOXP3_nuc_exclude_update", "chan_48", "chan_141", "chan_115", "LAG3"]
 
-## FOV spatial location
+# FOV spatial location
 cohort_path = os.path.join(BASE_DIR, "image_data/samples")
 qc_tma_metrics_dir = os.path.join(raw_dir, "qc_metrics/qc_tma_metrics")
 if not os.path.exists(qc_tma_metrics_dir):
@@ -68,7 +68,7 @@ qc_metrics_plots.qc_tmas_metrics_plot(qc_tmas=qc_tmas, tmas=tmas, save_figure=Tr
 shutil.copy(os.path.join(qc_tma_metrics_dir, "figures/cross_TMA_averages_nonzero_mean_stats.pdf"),
             os.path.join(SUPPLEMENTARY_FIG_DIR, "supp_figure_4g.pdf"))
 
-## longitudinal controls
+# longitudinal controls
 control_path = os.path.join(BASE_DIR, "image_data/controls")
 qc_control_metrics_dir = os.path.join(raw_dir, "qc_metrics/qc_longitudinal_control")
 if not os.path.exists(qc_control_metrics_dir):
@@ -79,6 +79,7 @@ control_substrs = [name.split("_")[2] + '_' + name.split("_")[3] if len(name.spl
                    else name.split("_")[2] + '_' + name.split("_")[3]+'_' + name.split("_")[4]
                    for name in folders]
 
+# loop over each control sample
 all_folders = io_utils.list_folders(control_path)
 for i, control in enumerate(control_substrs):
     control_sample_name = control
@@ -105,6 +106,7 @@ for i, control in enumerate(control_substrs):
         qc_control=qc_control, control_sample_name=control_sample_name, save_figure=True, dpi=300
     )
 
+# aggregate data from each control sample
 dfs = []
 for control in control_substrs:
     df = pd.read_csv(os.path.join(qc_control_metrics_dir, f"{control}_combined_nonzero_mean_stats.csv"))
@@ -134,7 +136,7 @@ all_data = pd.concat(dfs).replace([np.inf, -np.inf], 0, inplace=True)
 all_data = all_data.groupby(['channel']).mean()
 all_data = all_data.sort_values(by="mean", axis=1, inplace=False).round(2)
 
-
+# generate heatmap
 fig = plt.figure(figsize=(12,12), dpi=300)
 fig.set_layout_engine(layout="constrained")
 gs = gridspec.GridSpec(nrows=2, ncols=1, figure=fig, height_ratios=[len(all_data.index) - 1, 1])

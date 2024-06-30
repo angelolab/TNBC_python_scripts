@@ -41,6 +41,7 @@ plt.title('RNA top ranked features')
 plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_11f.pdf'))
 plt.close()
 
+# top ranked features from each timepoint
 mibi_rankings_top = all_model_rankings.loc[np.logical_and(all_model_rankings.modality == 'MIBI', all_model_rankings.top_ranked), :]
 mibi_baseline = mibi_rankings_top.loc[mibi_rankings_top.timepoint == 'baseline', 'feature_name_unique'].values
 mibi_nivo = mibi_rankings_top.loc[mibi_rankings_top.timepoint == 'on_nivo', 'feature_name_unique'].values

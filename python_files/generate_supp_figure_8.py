@@ -13,22 +13,24 @@ import seaborn as sns
 
 
 BASE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/"
-SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs"
+SUPPLEMENTARY_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs")
 
-# all feature plot
+# all feature plot by compartment
 timepoint_df = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/timepoint_features.csv'))
 timepoint_df['long_name'] = timepoint_df['Tissue_ID'] + '//' + timepoint_df['feature_name']
 
+# subset df
 t = timepoint_df.pivot(index='long_name', columns='compartment')['raw_mean']
 t = t[t.isnull().sum(axis=1) < 4]
 t = t[~t['all'].isna()]
 
-# 2^x for previous log2 scores
+# 2^x for previous log2 scores so that there aren't negative values
 t[np.logical_or(t.index.str.contains('__ratio'), t.index.str.contains('H3K9ac_H3K27me3_ratio+'),
                 t.index.str.contains('CD45RO_CD45RB_ratio+'))] =\
     2 ** t[np.logical_or(t.index.str.contains('__ratio'), t.index.str.contains('H3K9ac_H3K27me3_ratio+'),
                          t.index.str.contains('CD45RO_CD45RB_ratio+'))]
 
+# normalize
 comp_t = t.divide(t['all'], axis=0)
 comp_t.index = [idx.split('//')[1] for idx in comp_t.index]
 comp_t['feature_name'] = comp_t.index
@@ -205,4 +207,3 @@ ax.set_ylim([0, 2])
 plt.tight_layout()
 plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_8g.pdf'), dpi=300, bbox_inches="tight")
 plt.close()
-

@@ -20,6 +20,7 @@ ranked_features_all = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature
 ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
 ranked_features = ranked_features.loc[ranked_features.feature_rank_global <= 100, :]
 
+# densities vs ratios in top 100
 ranked_features = ranked_features.loc[ranked_features.feature_type.isin(['density', 'density_ratio', 'density_proportion']), :]
 ranked_features['feature_type'] = ranked_features['feature_type'].replace('density_proportion', 'density_ratio')
 ranked_features = ranked_features[['feature_name_unique', 'feature_type']]
