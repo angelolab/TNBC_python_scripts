@@ -308,10 +308,11 @@ feature_classes = {'cell_abundance': ['density', 'density_ratio', 'density_propo
                      'cell_interactions': ['mixing_score', 'linear_distance'],
                    'structure': ['compartment_area_ratio', 'compartment_area', 'ecm_cluster', 'ecm_fraction', 'pixie_ecm', 'fiber']}
 
+# label with appropriate high-level summary category
 for feature_class in feature_classes.keys():
     feature_metadata.loc[feature_metadata.feature_type.isin(feature_classes[feature_class]), 'feature_class'] = feature_class
 
-# stacked bar
+# add extra column to make stacked bar plotting work easily
 feature_metadata_stacked = feature_metadata.copy()
 feature_metadata_stacked['count'] = 1
 feature_metadata_stacked = feature_metadata_stacked[['feature_class', 'count']].groupby(['feature_class']).sum().reset_index()

@@ -49,7 +49,7 @@ plt.close()
 
 # identify representative images for visualization
 study_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), 'fov'].values
-#study_tissue_ids = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), 'Tissue_ID'].unique()
+
 # representative images
 fov_list = ['TONIC_TMA21_R6C6', 'TONIC_TMA2_R6C6', 'TONIC_TMA18_R4C5', 'TONIC_TMA20_R12C4', 'TONIC_TMA10_R3C1', 'TONIC_TMA10_R6C2']
 
@@ -135,12 +135,7 @@ for fov, crop_info in crop_dict.items():
 
     # crop image
     for crop_coords in [crop_coords_1, crop_coords_2]:
-        # for idx, file in enumerate(files):
-        #     crop_img = io.imread(os.path.join(save_folder, file))
-        #     crop_img = crop_img[crop_coords[0]:crop_coords[0] + 500, crop_coords[1]:crop_coords[1] + 500, :]
-        #     io.imsave(os.path.join(save_folder, 'crop_{}_{}.tiff'.format(crop_coords[0], idx)), crop_img)
-
-        # read in segmentation mask
+        # read in segmentation mask and crop to correct size for visualization
         seg_mask = io.imread(os.path.join(segmentation_dir, '{}_whole_cell.tiff'.format(fov)))
         seg_crop = seg_mask[0, crop_coords[0]:crop_coords[0] + 500, crop_coords[1]:crop_coords[1] + 500]
         seg_crop = erode_mask(seg_crop, connectivity=2, mode="thick", background=0)
@@ -148,10 +143,12 @@ for fov, crop_info in crop_dict.items():
         seg_crop = seg_crop.astype('uint8')
         io.imsave(os.path.join(save_folder, 'crop_{}_mask.png'.format(crop_coords[0])), seg_crop)
 
+        # same for overlay mask
         overlay_mask = io.imread(os.path.join(crop_plot_dir, 'cluster_masks_colored/{}.tiff'.format(fov)))
         overlay_mask = overlay_mask[crop_coords[0]:crop_coords[0] + 500, crop_coords[1]:crop_coords[1] + 500, :]
         io.imsave(os.path.join(crop_plot_dir, 'cluster_masks_colored/{}_{}_crop.tiff'.format(fov, crop_coords[0])), overlay_mask)
 
+        # and compartment mask
         compartment_mask = io.imread(os.path.join(compartment_plot_dir, 'cluster_masks_colored/{}.tiff'.format(fov)))
         compartment_mask = compartment_mask[crop_coords[0]:crop_coords[0] + 500, crop_coords[1]:crop_coords[1] + 500, :]
         io.imsave(os.path.join(compartment_plot_dir, 'cluster_masks_colored/{}_{}_crop.tiff'.format(fov, crop_coords[0])), compartment_mask)
@@ -176,7 +173,7 @@ cell_ordering = ['Cancer_1', 'Cancer_2', 'Cancer_3', 'CD4T', 'CD8T', 'Treg', 'T_
 # mean_counts = cell_counts.groupby(phenotype_col_name)[markers].mean()
 # mean_counts.to_csv(os.path.join(plot_dir, "figure1_cell_cluster_marker_means.csv"))
 
-# read previously generated
+# read previously generated averages
 mean_counts = pd.read_csv(os.path.join(plot_dir, "figure1_cell_cluster_marker_means.csv"))
 mean_counts = mean_counts.set_index('cell_cluster')
 mean_counts = mean_counts.reindex(cell_ordering)
