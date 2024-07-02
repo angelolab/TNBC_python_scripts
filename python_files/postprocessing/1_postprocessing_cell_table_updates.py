@@ -16,8 +16,6 @@ analysis_dir = os.path.join(base_dir, 'analysis_files')
 
 if not os.path.exists(analysis_dir):
     os.makedirs(analysis_dir)
-if not os.path.exists(post_processing_dir):
-    os.makedirs(post_processing_dir)
 
 cell_table_name = 'combined_cell_table_normalized_cell_labels'
 cell_table_full = pd.read_csv(os.path.join(post_processing_dir, cell_table_name + '.csv'))
