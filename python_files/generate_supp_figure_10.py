@@ -20,6 +20,7 @@ ranked_features_all = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature
 ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
 ranked_features = ranked_features.loc[ranked_features.feature_rank_global <= 100, :]
 
+# densities vs ratios in top 100
 ranked_features = ranked_features.loc[ranked_features.feature_type.isin(['density', 'density_ratio', 'density_proportion']), :]
 ranked_features['feature_type'] = ranked_features['feature_type'].replace('density_proportion', 'density_ratio')
 ranked_features = ranked_features[['feature_name_unique', 'feature_type']]
@@ -146,3 +147,67 @@ plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_10k.pdf'))
 plt.close()
 
 
+# plot key features from primary tumors
+combined_df = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/timepoint_combined_features.csv'))
+
+for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
+    for feature, plot_name, lims in zip(['B__NK__ratio__cancer_core', 'HLADR+__APC', 'Cancer__Structural__ratio__cancer_border'],
+                                  ['10X1', '10X2', '10X3'], [[-5, 7], [0, 1.2], [1, 12]]):
+
+        plot_df = combined_df.loc[(combined_df.feature_name_unique == feature) &
+                                  (combined_df.Timepoint == timepoint), :]
+
+        fig, ax = plt.subplots(1, 1, figsize=(2, 4))
+        sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                        color='black', ax=ax)
+        sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                        color='grey', ax=ax, showfliers=False, width=0.3)
+        ax.set_title(feature + ' ' + timepoint)
+        ax.set_ylim(lims)
+        sns.despine()
+        plt.tight_layout()
+        plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_{}_{}.pdf'.format(plot_name, timepoint)))
+        plt.close()
+
+# top features from baseline
+for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
+    for feature, plot_name, lims in zip(['diversity_cell_cluster__Cancer_2__stroma_border', 'CD38+__Immune_Other', 'Other__Structural__ratio'],
+                                  ['10X4', '10X5', '10X6'], [[0, 3], [-0.2, 1], [-10, 3]]):
+
+        plot_df = combined_df.loc[(combined_df.feature_name_unique == feature) &
+                                  (combined_df.Timepoint == timepoint), :]
+
+        fig, ax = plt.subplots(1, 1, figsize=(2, 4))
+        sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                        color='black', ax=ax)
+        sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                        color='grey', ax=ax, showfliers=False, width=0.3)
+        ax.set_title(feature + ' ' + timepoint)
+        ax.set_ylim(lims)
+        sns.despine()
+        plt.tight_layout()
+        plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_{}_{}.pdf'.format(plot_name, timepoint)))
+        plt.close()
+
+
+# shared/non-shared features over time
+ranked_features = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature_ranking.csv'))
+top_features = ranked_features.loc[ranked_features.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), :]
+top_feature_names = top_features.feature_name_unique[:100].unique()
+top_features = top_features.loc[top_features.feature_name_unique.isin(top_feature_names), :]
+top_features_wide = pd.pivot(top_features, index='feature_name_unique', columns='comparison', values='feature_rank_global')
+top_features_wide['top_100_count'] = top_features_wide.apply(lambda x: np.sum(x[:4] <= 100), axis=1)
+top_features_wide['top_200_count'] = top_features_wide.apply(lambda x: np.sum(x[:4] <= 200), axis=1)
+top_features_wide['top_350_count'] = top_features_wide.apply(lambda x: np.sum(x[:4] <= 350), axis=1)
+
+# look at top 100 repeats
+len([x for x in top_features_wide.loc[top_features_wide.top_100_count > 1, ].index if 'cancer_border' in x])
+len([x for x in top_features_wide.index if 'cancer_border' in x])
+
+np.sum(top_features_wide.top_350_count > 1)
+top_features_wide.loc[top_features_wide.top_350_count > 3, ].index
+
+shared_3 = top_features_wide.loc[top_features_wide.top_350_count > 2, ].index
+len(shared_3)
+len([x for x in shared_3 if 'diversity' in x])
+len([x for x in shared_3 if 'ratio' in x])

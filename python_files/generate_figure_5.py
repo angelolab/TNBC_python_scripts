@@ -13,12 +13,12 @@ from scipy.stats import ttest_ind
 
 
 base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
-plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
+plot_dir = os.path.join(base_dir, 'figures')
 multivariate_dir = os.path.join(base_dir, 'multivariate_lasso')
 
+# read files
 ranked_features_univariate = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_ranking.csv'))
 ranked_features_univariate_genomic = pd.read_csv(os.path.join(base_dir, 'sequencing_data/genomics_outcome_ranking.csv'))
-
 cv_scores = pd.read_csv(os.path.join(base_dir, 'multivariate_lasso', 'formatted_cv_scores.csv'))
 
 
