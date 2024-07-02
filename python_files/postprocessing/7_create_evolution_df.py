@@ -212,24 +212,24 @@ evolution_df.to_csv(os.path.join(output_dir, "timepoint_evolution_features.csv")
 # create combined df
 timepoint_features = pd.read_csv(os.path.join(analysis_dir, 'timepoint_features_filtered.csv'))
 timepoint_features = timepoint_features.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint'] + TIMEPOINT_COLUMNS].drop_duplicates(), on='Tissue_ID')
-timepoint_features = timepoint_features.merge(patient_metadata[['Patient_ID', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']].drop_duplicates(), on='Patient_ID', how='left')
+timepoint_features = timepoint_features.merge(patient_metadata[['Patient_ID', 'Induction_treatment', 'Clinical_benefit']].drop_duplicates(), on='Patient_ID', how='left')
 
 # Hacky, remove once metadata is updated
 timepoint_features = timepoint_features.loc[timepoint_features.Clinical_benefit.isin(['Yes', 'No']), :]
 timepoint_features = timepoint_features.loc[timepoint_features.Timepoint.isin(TIMEPOINT_NAMES), :]
-timepoint_features = timepoint_features[['Tissue_ID', 'feature_name', 'feature_name_unique', 'raw_mean', 'raw_std', 'normalized_mean', 'normalized_std', 'Patient_ID', 'Timepoint', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]
+timepoint_features = timepoint_features[['Tissue_ID', 'feature_name', 'feature_name_unique', 'raw_mean', 'raw_std', 'normalized_mean', 'normalized_std', 'Patient_ID', 'Timepoint', 'Induction_treatment', 'Clinical_benefit']]
 
 # look at evolution
 evolution_df = pd.read_csv(os.path.join(output_dir, 'timepoint_evolution_features.csv'))
-evolution_df = evolution_df.merge(patient_metadata[['Patient_ID', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']].drop_duplicates(), on='Patient_ID', how='left')
+evolution_df = evolution_df.merge(patient_metadata[['Patient_ID', 'Induction_treatment', 'Clinical_benefit']].drop_duplicates(), on='Patient_ID', how='left')
 evolution_df = evolution_df.rename(columns={'raw_value': 'raw_mean', 'normalized_value': 'normalized_mean', 'comparison': 'Timepoint'})
-evolution_df = evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]
+evolution_df = evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'Induction_treatment', 'Clinical_benefit']]
 
 # combine together into single df
 combined_df = timepoint_features.copy()
-combined_df = combined_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]
+combined_df = combined_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint', 'Induction_treatment', 'Clinical_benefit']]
 combined_df = pd.concat([combined_df, evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean',
-                                                    'Patient_ID', 'Timepoint', 'Induction_treatment', 'Time_to_progression_weeks_RECIST1.1', 'Censoring_PFS_RECIST1.1', 'Clinical_benefit']]])
+                                                    'Patient_ID', 'Timepoint', 'Induction_treatment', 'Clinical_benefit']]])
 combined_df['combined_name'] = combined_df.feature_name_unique + '__' + combined_df.Timepoint
 
 combined_df.to_csv(os.path.join(analysis_dir, 'timepoint_combined_features.csv'), index=False)
