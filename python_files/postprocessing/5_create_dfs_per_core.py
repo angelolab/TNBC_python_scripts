@@ -29,9 +29,11 @@ if not os.path.exists(output_dir):
 # Preprocess metadata to ensure all samples are present
 #
 
+study_name = 'TONIC'
+
 # load relevant tables
-core_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata', 'TONIC_data_per_core.csv'))
-timepoint_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata', 'TONIC_data_per_timepoint.csv'))
+core_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata', f'{study_name}_data_per_core.csv'))
+timepoint_metadata = pd.read_csv(os.path.join(intermediate_dir, 'metadata', f'{study_name}_data_per_timepoint.csv'))
 harmonized_metadata = pd.read_csv(os.path.join(analysis_dir, 'harmonized_metadata.csv'))
 cell_table_clusters = pd.read_csv(os.path.join(analysis_dir, 'cell_table_clusters.csv'))
 cell_table_func = pd.read_csv(os.path.join(analysis_dir, 'cell_table_func_all.csv'))
@@ -809,7 +811,7 @@ deduped_morph_df_timepoint.to_csv(os.path.join(output_dir, 'morph_df_per_timepoi
 #
 
 # format mixing scores
-mixing_scores = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/mixing_score/cell_cluster_broad/homogeneous_mixing_scores.csv'))
+mixing_scores = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/mixing_score/homogeneous_mixing_scores.csv'))
 cols = mixing_scores.columns.tolist()
 keep_cols = [col for col in cols if 'mixing_score' in col]
 mixing_scores = mixing_scores[['fov'] + keep_cols]

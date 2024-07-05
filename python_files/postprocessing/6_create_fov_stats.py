@@ -21,10 +21,11 @@ output_dir = os.path.join(base_dir, 'output_files')
 analysis_dir =  os.path.join(base_dir, 'analysis_files')
 
 TIMEPOINT_NAMES = ['primary', 'baseline', 'pre_nivo', 'on_nivo']
+study_name = 'TONIC'
 
 # load datasets
 cluster_df_core = pd.read_csv(os.path.join(output_dir, 'cluster_df_per_core.csv'))
-metadata_df_core = pd.read_csv(os.path.join(intermediate_dir, 'metadata/TONIC_data_per_core.csv'))
+metadata_df_core = pd.read_csv(os.path.join(intermediate_dir, f'metadata/{study_name}_data_per_core.csv'))
 functional_df_core = pd.read_csv(os.path.join(output_dir, 'functional_df_per_core_filtered_deduped.csv'))
 morph_df_core = pd.read_csv(os.path.join(output_dir, 'morph_df_per_core_filtered_deduped.csv'))
 mixing_df = pd.read_csv(os.path.join(output_dir, 'formatted_mixing_scores.csv'))
