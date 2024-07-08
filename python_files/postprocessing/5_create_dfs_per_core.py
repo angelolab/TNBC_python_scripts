@@ -42,6 +42,7 @@ annotations_by_mask = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir', 'ce
 fiber_stats = pd.read_csv(os.path.join(intermediate_dir, 'fiber_segmentation_processed_data', 'fiber_stats_table.csv'))
 fiber_tile_df = pd.read_csv(os.path.join(intermediate_dir, 'fiber_segmentation_processed_data/tile_stats_512', 'fiber_stats_table-tile_512.csv'))
 kmeans_cell_table = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/neighborhood_analysis_round2/cell_cluster_radius100_frequency_12', 'cell_table_clusters.csv'))
+mixing_scores = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/mixing_score/cell_cluster_broad/homogeneous_mixing_scores.csv'))
 
 # merge cell-level annotations
 harmonized_annotations = annotations_by_mask
@@ -796,7 +797,6 @@ deduped_morph_df_timepoint.to_csv(os.path.join(output_dir, 'morph_df_per_timepoi
 #
 
 # format mixing scores
-mixing_scores = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/mixing_score/cell_cluster_broad/homogeneous_mixing_scores.csv'))
 cols = mixing_scores.columns.tolist()
 keep_cols = [col for col in cols if 'mixing_score' in col]
 mixing_scores = mixing_scores[['fov'] + keep_cols]
