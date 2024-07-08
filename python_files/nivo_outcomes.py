@@ -24,8 +24,16 @@ harmonized_metadata = pd.read_csv(os.path.join(base_dir, 'intermediate_files/met
 patient_metadata = pd.read_csv(os.path.join(base_dir, 'intermediate_files/metadata/TONIC_data_per_patient.csv'))
 feature_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_metadata.csv'))
 
+#
+# To generate the feature rankings, you must have downloaded the patient outcome data.
+#
+outcome_data = pd.read_csv(os.path.join(base_dir, 'analysis_files/patient_clinical_data.csv'))
+
 # load previously computed results
 combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
+combined_df = combined_df.merge(outcome_data, on='Patient_ID')
+combined_df = combined_df.loc[combined_df.Clinical_benefit.isin(['Yes', 'No']), :]
+combined_df.to_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'), index=False)
 
 # generate a single set of top hits across all comparisons
 
