@@ -4,12 +4,13 @@ import numpy as np
 
 from alpineer.io_utils import list_folders
 
-image_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples'
-# image_dir = '/Volumes/Shared/Noah Greenwald/TNBC_Cohorts/BELLINI/image_data/samples'
-analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
+# This script reformats the metadata files to be compatible with downstream analysis
 
-metadata_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/metadata'
-# metadata_dir = '/Volumes/Shared/Noah Greenwald/TNBC_Cohorts/BELLINI/data/metadata'
+base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
+
+image_dir = os.path.join(base_dir, 'image_data/samples')
+analysis_dir = os.path.join(base_dir, 'analysis_files')
+metadata_dir = os.path.join(base_dir, 'intermediate_files/metadata')
 
 # used for metadata naming
 study_name = 'TONIC'
@@ -23,14 +24,9 @@ study_name = 'TONIC'
 # fov_df.to_csv(os.path.join(metadata_dir, 'imaged_fovs.csv'), index=False)
 
 # annotate acquired FOVs
-core_metadata = pd.read_csv(os.path.join(metadata_dir, '{}_data_per_core_unprocessed.csv'.format(study_name)))
+core_metadata = pd.read_csv(os.path.join(metadata_dir, 'TONIC_data_per_core_unprocessed.csv'))
 fov_df = pd.read_csv(os.path.join(metadata_dir, 'imaged_fovs.csv'))
 core_metadata['MIBI_data_generated'] = core_metadata['fov'].isin(fov_df.imaged_fovs)
-
-# TODO: get list of pathologist excluded FOVs
-
-
-# TODO: relabel tumor cells as epithelial
 
 # annotate timepoints with at least 1 valid core
 timepoint_metadata = pd.read_csv(os.path.join(metadata_dir, f'{study_name}_data_per_timepoint_unprocessed.csv'))

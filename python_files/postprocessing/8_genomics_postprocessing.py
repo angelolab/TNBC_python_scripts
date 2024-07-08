@@ -11,14 +11,14 @@ from sklearn.decomposition import PCA
 import numpy as np
 
 
-plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
 base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
 sequence_dir = os.path.join(base_dir, 'sequencing_data')
 
 harmonized_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/harmonized_metadata.csv'))
 
-
-## calculate gene set enrichment scores
+#
+# calculate gene set enrichment scores
+#
 
 # Load gene expression data
 gene_features = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_gene_expression_TPM_table.tsv'), sep='\t', index_col=0)
@@ -256,7 +256,10 @@ genomics_feature_df = pd.get_dummies(genomics_feature_df, columns=keep_dict.keys
 genomics_feature_df.to_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_WES_meta_table_processed.csv'), index=False)
 
 
+#
 # process RNA-seq data
+#
+
 RNA_feature_df = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_immune_sig_score_table.tsv'), sep='\t')
 RNA_feature_df_genes = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_immune_sig_gene_TPM_table.tsv'), sep='\t')
 RNA_feature_df = pd.merge(RNA_feature_df, RNA_feature_df_genes, on='sample_identifier', how='left')
@@ -298,6 +301,10 @@ rs_cgas_long = rs_cgas_long.merge(harmonized_metadata[['Clinical_benefit', 'Time
 # combine together
 combined_rna_scores = pd.concat([msigdb_scores, other_scores_long, rs_cgas_long])
 combined_rna_scores.to_csv(os.path.join(sequence_dir, 'preprocessing/msigdb_misc_processed.csv'), index=False)
+
+#
+# Aggregate sequencing data and label with appropriate metaedata
+#
 
 # transform to long format
 genomics_feature_df = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_WES_meta_table_processed.csv'))

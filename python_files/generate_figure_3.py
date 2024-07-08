@@ -24,8 +24,6 @@ plot_dir = os.path.join(base_dir, 'figures')
 harmonized_metadata = pd.read_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'))
 feature_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_metadata.csv'))
 study_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), 'fov'].values
-
-
 ranked_features_all = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_ranking.csv'))
 ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
 
@@ -55,14 +53,18 @@ top_ratios = top_ratios.loc[top_ratios.feature_type.isin(['density_ratio']), :]
 
 cell_types, rankings, feature_num, score = [], [], [], []
 for idx, row in top_ratios.iterrows():
+    # find individual densities with same compartment, timepoint, and cell types as the ratio
     candidate_features = ranked_features.loc[ranked_features.compartment == row.compartment, :]
     candidate_features = candidate_features.loc[candidate_features.feature_type == 'density', :]
     candidate_features = candidate_features.loc[candidate_features.comparison == row.comparison, :]
     candidate_features = candidate_features.loc[candidate_features.feature_type_detail.isin([row.feature_type_detail, row.feature_type_detail_2]), :]
     candidate_features = candidate_features.loc[candidate_features.cell_pop_level == 'broad', :]
+
+    # save values for best density
     feature_num.append(candidate_features.shape[0])
     best_rank = candidate_features.combined_rank.min()
     candidate_features = candidate_features.loc[candidate_features.combined_rank == best_rank, :]
+
     if candidate_features.shape[0] != 0:
         # just take first in case there are ties
         candidate_features = candidate_features.iloc[0:1, :]
@@ -75,7 +77,7 @@ for idx, row in top_ratios.iterrows():
         rankings.append([0])
         score.append([0])
 
-
+# create comparison DF with both ratios and densities
 comparison_df = pd.DataFrame({'cell_type': np.concatenate(cell_types), 'rank': np.concatenate(rankings), 'feature_num': feature_num, 'density_score': np.concatenate(score)})
 comparison_df['original_ranking'] = top_ratios.combined_rank.values
 comparison_df['original_feature'] = top_ratios.feature_name_unique.values
@@ -98,14 +100,15 @@ plt.close()
 
 # look at enrichment by compartment
 top_counts = ranked_features.iloc[:100, :].groupby('compartment').count().iloc[:, 0]
-
 total_counts = feature_metadata.groupby('compartment').count().iloc[:, 0]
 
+# calculate abundance of each compartment in the top 100 and across all features
 top_prop = top_counts / np.sum(top_counts)
 total_prop = total_counts / np.sum(total_counts)
-
 top_ratio = top_prop / total_prop
 top_ratio = np.log2(top_ratio)
+
+# create df
 ratio_df = pd.DataFrame({'compartment': top_ratio.index, 'ratio': top_ratio.values})
 ratio_df = ratio_df.sort_values(by='ratio', ascending=False)
 
@@ -124,10 +127,9 @@ ranked_features['spatial_feature'] = spatial_mask
 spatial_mask_metadata = np.logical_or(feature_metadata.feature_type.isin(spatial_features), feature_metadata.compartment != 'all')
 feature_metadata['spatial_feature'] = spatial_mask_metadata
 
+# calculate proportion of spatial features in top 100 vs all features
 top_count_spatial = ranked_features.iloc[:100, :].groupby('spatial_feature').count().iloc[:, 0]
-
 total_counts_spatial = feature_metadata.groupby('spatial_feature').count().iloc[:, 0]
-
 top_prop = top_count_spatial / np.sum(top_count_spatial)
 total_prop = total_counts_spatial / np.sum(total_counts_spatial)
 
@@ -147,6 +149,8 @@ plt.close()
 
 # plot top features
 plot_features = ranked_features.copy()
+
+# create csv file with necessary metadata to make it easy to reorganize based on categories
 plot_features['ratio'] = plot_features.feature_type.isin(['density_ratio', 'density_proportion'])
 plot_features['density'] = plot_features.feature_type == 'density'
 plot_features['diversity'] = plot_features.feature_type.isin(['region_diversity', 'cell_diversity'])
@@ -159,7 +163,7 @@ plot_features_sort = plot_features.sort_values(by='feature_name')
 plot_features_sort.to_csv(os.path.join(plot_dir, 'Figure3e_top_hits.csv'))
 
 
-# PDL1+__M1 on nivo example
+# PDL1+__CD68 macs on nivo example
 combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
 
 feature_name = 'PDL1+__CD68_Mac'
@@ -189,7 +193,7 @@ cell_table_func.loc[(cell_table_func.cell_cluster == 'CD68_Mac') & (cell_table_f
 m1_colormap = pd.DataFrame({'M1_plot': ['CD68_Mac', 'Other', 'CD68_Mac__PDL1+'],
                          'color': ['blue','grey', 'lightsteelblue']})
 
-# generate overlays for representative patients to identify M1+PDL1+ cells
+# generate overlays for representative patients to identify CD68 Mac PDL1+ cells
 # subset = plot_df.loc[plot_df.raw_mean < 0.08, :]
 # pats = [37, 33, 59, 62, 64, 65] # responders
 # pats = [24, 60, 87, 88, 107, 114] # nonresponders
@@ -230,7 +234,7 @@ m1_colormap = pd.DataFrame({'M1_plot': ['CD68_Mac', 'Other', 'CD68_Mac__PDL1+'],
 # create crops for selected FOVs
 fovs = ['TONIC_TMA6_R7C6', 'TONIC_TMA11_R7C4', 'TONIC_TMA11_R4C2', 'TONIC_TMA20_R2C3'] # patient 33, 62, 60, 114
 
-subset_dir = os.path.join(plot_dir, 'Figure3f_M1_overlays')
+subset_dir = os.path.join(plot_dir, 'Figure3f_CD68_overlays')
 if not os.path.exists(subset_dir):
     os.mkdir(subset_dir)
 

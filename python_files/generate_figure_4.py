@@ -9,7 +9,6 @@ matplotlib.rcParams['ps.fonttype'] = 42
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-from matplotlib_venn import venn2
 from ark.utils.plot_utils import cohort_cluster_plot
 import ark.settings as settings
 import skimage.io as io
@@ -21,13 +20,11 @@ plot_dir = os.path.join(base_dir, 'figures')
 seg_dir = os.path.join(base_dir, 'segmentation_data/deepcell_output')
 image_dir = os.path.join(base_dir, 'image_data/samples/')
 
+# load files
 harmonized_metadata = pd.read_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'))
 study_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), 'fov'].values
-
-
 ranked_features_all = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_ranking.csv'))
 ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
-
 top_features = ranked_features.loc[ranked_features.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), :]
 top_features = top_features.iloc[:100, :]
 

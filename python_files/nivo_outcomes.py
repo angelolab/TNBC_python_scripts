@@ -211,52 +211,52 @@ genomics_df = genomics_df[['feature_name_unique', 'feature_type', 'data_type']].
 ranked_genomics_df = ranked_genomics_df.merge(genomics_df, on='feature_name_unique', how='left')
 ranked_genomics_df.to_csv(os.path.join(sequence_dir, 'genomics_outcome_ranking.csv'), index=False)
 
+if plot_hits:
+    # plot top X features per comparison
+    num_features = 30
 
-# plot top X features per comparison
-num_features = 30
+    # ranked_features_df = ranked_genomics_df
+    # combined_df = genomics_df
 
-# ranked_features_df = ranked_genomics_df
-# combined_df = genomics_df
+    for comparison in ranked_features_df.comparison.unique():
+        current_plot_dir = os.path.join(plot_dir, 'top_features_{}'.format(comparison))
+        if not os.path.exists(current_plot_dir):
+            os.makedirs(current_plot_dir)
 
-for comparison in ranked_features_df.comparison.unique():
-    current_plot_dir = os.path.join(plot_dir, 'top_features_{}'.format(comparison))
-    if not os.path.exists(current_plot_dir):
-        os.makedirs(current_plot_dir)
+        current_df = ranked_features_df.loc[ranked_features_df.comparison == comparison, :]
+        current_df = current_df.sort_values('combined_rank', ascending=True)
+        current_df = current_df.iloc[:num_features, :]
 
-    current_df = ranked_features_df.loc[ranked_features_df.comparison == comparison, :]
-    current_df = current_df.sort_values('combined_rank', ascending=True)
+        # plot results
+        for feature_name, rank in zip(current_df.feature_name_unique.values, current_df.combined_rank.values):
+            plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
+                                      (combined_df.Timepoint == comparison), :]
+
+            g = sns.catplot(data=plot_df, x='Clinical_benefit', y='raw_value', kind='strip')
+            g.fig.suptitle(feature_name)
+            g.savefig(os.path.join(current_plot_dir, 'rank_{}_feature_{}.png'.format(rank, feature_name)))
+            plt.close()
+
+
+    # plot top X features overall
+    num_features = 30
+    output_dir = os.path.join(plot_dir, 'top_features_overall')
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    current_df = ranked_features_df.sort_values('combined_rank', ascending=True)
+    current_df = current_df.loc[current_df.comparison.isin(['baseline', 'pre_nivo', 'on_nivo', 'primary']), :]
     current_df = current_df.iloc[:num_features, :]
 
     # plot results
-    for feature_name, rank in zip(current_df.feature_name_unique.values, current_df.combined_rank.values):
+    for feature_name, comparison, rank in zip(current_df.feature_name_unique.values, current_df.comparison.values, current_df.combined_rank.values):
         plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
                                   (combined_df.Timepoint == comparison), :]
 
-        g = sns.catplot(data=plot_df, x='Clinical_benefit', y='raw_value', kind='strip')
+        g = sns.catplot(data=plot_df, x='Clinical_benefit', y='raw_mean', kind='strip')
         g.fig.suptitle(feature_name)
-        g.savefig(os.path.join(current_plot_dir, 'rank_{}_feature_{}.png'.format(rank, feature_name)))
+        g.savefig(os.path.join(output_dir, 'rank_{}_feature_{}.png'.format(rank, feature_name)))
         plt.close()
-
-
-# plot top X features overall
-num_features = 30
-output_dir = os.path.join(plot_dir, 'top_features_overall')
-if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
-
-current_df = ranked_features_df.sort_values('combined_rank', ascending=True)
-current_df = current_df.loc[current_df.comparison.isin(['baseline', 'pre_nivo', 'on_nivo', 'primary']), :]
-current_df = current_df.iloc[:num_features, :]
-
-# plot results
-for feature_name, comparison, rank in zip(current_df.feature_name_unique.values, current_df.comparison.values, current_df.combined_rank.values):
-    plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
-                              (combined_df.Timepoint == comparison), :]
-
-    g = sns.catplot(data=plot_df, x='Clinical_benefit', y='raw_mean', kind='strip')
-    g.fig.suptitle(feature_name)
-    g.savefig(os.path.join(output_dir, 'rank_{}_feature_{}.png'.format(rank, feature_name)))
-    plt.close()
 
 
 

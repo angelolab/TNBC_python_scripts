@@ -14,23 +14,28 @@ from scipy.ndimage import gaussian_filter
 from alpineer.io_utils import list_folders
 from python_files import utils
 
-# real paths
-channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
-seg_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
-mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/mask_dir/'
-analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
-cell_table_clusters = pd.read_csv(os.path.join(analysis_dir, 'cell_table_clusters.csv'))
+# This script creates image masks defining the tumor compartments and slide background to be
+# be used in subsequent feature extraction pipeline
 
+# set up paths
+base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
+channel_dir = os.path.join(base_dir, 'image_data/samples/')
+seg_dir = os.path.join(base_dir,'segmentation_data/deepcell_output')
+mask_dir = os.path.join(base_dir, 'intermediate_files/mask_dir/')
+analysis_dir = os.path.join(base_dir,'analysis_files')
+
+
+cell_table_clusters = pd.read_csv(os.path.join(analysis_dir, 'cell_table_clusters.csv'))
 folders = list_folders(channel_dir)
 
 # create directories to hold masks
 intermediate_dir = os.path.join(mask_dir, 'intermediate_masks')
 if not os.path.exists(intermediate_dir):
-    os.mkdir(intermediate_dir)
+    os.makedirs(intermediate_dir)
 
 individual_dir = os.path.join(mask_dir, 'individual_masks')
 if not os.path.exists(individual_dir):
-    os.mkdir(individual_dir)
+    os.makedirs(individual_dir)
 
 # loop over each FOV and generate the appropriate masks
 for folder in folders:
@@ -146,8 +151,8 @@ area_df.to_csv(os.path.join(mask_dir, 'fov_annotation_mask_area.csv'), index=Fal
 
 # create combined images for visualization
 for folder in folders[:20]:
-    cluster_overlay = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay', folder + '.png'))
-    compartment_overlay = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/compartment_overlay', folder + '.png'))
+    cluster_overlay = io.imread(os.path.join(base_dir, 'overlay_dir/cell_cluster_overlay', folder + '.png'))
+    compartment_overlay = io.imread(os.path.join(base_dir, 'overlay_dir/compartment_overlay', folder + '.png'))
     gold_chan = io.imread(os.path.join(channel_dir, folder, 'Au.tiff'))
     border_mask = io.imread(os.path.join(intermediate_dir, folder, 'cancer_mask.png'))
     gold_mask = io.imread(os.path.join(intermediate_dir, folder, 'gold_mask.png'))
@@ -169,7 +174,7 @@ for folder in folders[:20]:
     ax[1, 1].axis('off')
 
     plt.tight_layout()
-    plt.savefig(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/combined_mask_overlay', folder + '.png'))
+    plt.savefig(os.path.join(base_dir, 'overlay_dir/combined_mask_overlay', folder + '.png'))
     plt.close()
 
 

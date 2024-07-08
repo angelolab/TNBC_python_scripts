@@ -13,12 +13,12 @@ import pandas as pd
 import python_files.supplementary_plot_helpers as supplementary_plot_helpers
 
 BASE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/"
+raw_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/"
 seg_dir = os.path.join(BASE_DIR, "segmentation_data")
 image_dir = os.path.join(BASE_DIR, "image_data/samples")
-raw_dir = "/Volumes/Shared/Noah Greenwald/TONIC_Acquisition/"
 SUPPLEMENTARY_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs")
 
-# Segmentation Channels and Overlays
+# Segmentation channels and overlays
 save_dir = Path(SUPPLEMENTARY_FIG_DIR) / "supp_figure_5_tiles"
 save_dir.mkdir(exist_ok=True, parents=True)
 
@@ -51,6 +51,7 @@ fovs_seg = [
     "TONIC_TMA24_R2C6",
 ]
 
+# generate overlay with selected FOVs with segmentation mask and channel overlay
 for fov in fovs_seg:
     p = supplementary_plot_helpers.SegmentationOverlayPlot(
         fov=fov,
@@ -64,7 +65,7 @@ for fov in fovs_seg:
     )
     p.make_plot(save_dir = save_dir)
 
-## fov cell counts
+# fov cell counts
 cell_table = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/cell_table_clusters.csv'))
 
 cluster_counts = np.unique(cell_table.fov, return_counts=True)[1]
