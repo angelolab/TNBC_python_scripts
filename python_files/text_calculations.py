@@ -10,6 +10,11 @@ sequence_dir = os.path.join(base_dir, 'sequencing_data')
 
 harmonized_metadata = pd.read_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'))
 study_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), 'fov'].values
+ranked_features_all = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_ranking.csv'))
+ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
+feature_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_metadata.csv'))
+feature_metadata['compartment_binary'] = feature_metadata.compartment.apply(lambda x: 'compartment' if x != 'all' else 'all')
+multivariate_dir = os.path.join(base_dir, 'multivariate_lasso')
 
 
 rna_metadata = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_tissue_rna_id.tsv'), sep='\t')
@@ -53,3 +58,80 @@ cluster_df_core_int2 = cluster_df_core_int2.loc[cluster_df_core_int2.fov.isin(st
 
 print(np.mean(cluster_df_core_int2.loc[cluster_df_core_int2.cell_type == 'Other', 'value']))
 print(np.mean(cluster_df_core_int2.loc[cluster_df_core_int2.cell_type == 'Immune_Other', 'value']))
+
+# t test for ratios
+from scipy.stats import ttest_ind
+ttest_ind(comparison_df.density_score.values, comparison_df.ratio_score.values)
+
+# proportion test for compartments
+from statsmodels.stats.proportion import proportions_ztest
+
+ranked_features['compartment_binary'] = ranked_features.compartment.apply(lambda x: 'compartment' if x != 'all' else 'all')
+top_counts = ranked_features.iloc[:100, :].groupby('compartment_binary').count().iloc[:, 0]
+total_counts = feature_metadata.groupby('compartment_binary').count().iloc[:, 0]
+
+stat, pval = proportions_ztest(top_counts, total_counts)
+
+# proportion test for spatial
+spatial_features = ['mixing_score', 'cell_diversity', 'compartment_area_ratio', 'pixie_ecm',
+                    'compartment_area', 'fiber', 'linear_distance', 'ecm_fraction', 'ecm_cluster']
+spatial_mask = np.logical_or(ranked_features.feature_type.isin(spatial_features), ranked_features.compartment != 'all')
+ranked_features['spatial_feature'] = spatial_mask
+
+spatial_mask_metadata = np.logical_or(feature_metadata.feature_type.isin(spatial_features), feature_metadata.compartment != 'all')
+feature_metadata['spatial_feature'] = spatial_mask_metadata
+
+# calculate proportion of spatial features in top 100 vs all features
+top_count_spatial = ranked_features.iloc[:100, :].groupby('spatial_feature').count().iloc[:, 0]
+total_counts_spatial = feature_metadata.groupby('spatial_feature').count().iloc[:, 0]
+
+stat, pval = proportions_ztest(top_count_spatial, total_counts_spatial)
+
+# PDL1+ macs
+clinical_benefit = outcomes_df[['Patient_ID', 'Clinical_benefit']].drop_duplicates()
+combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
+combined_df = combined_df.merge(clinical_benefit, on='Patient_ID', how='left')
+
+feature_name = 'PDL1+__CD68_Mac'
+timepoint = 'on_nivo'
+
+plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
+                                    (combined_df.Timepoint == timepoint), :]
+
+
+ttest_ind(plot_df.loc[plot_df.Clinical_benefit == 'Yes', 'raw_mean'].values,
+            plot_df.loc[plot_df.Clinical_benefit == 'No', 'raw_mean'].values)
+
+# lasso model accuracies
+cv_scores = pd.read_csv(os.path.join(base_dir, 'multivariate_lasso', 'formatted_cv_scores.csv'))
+print(np.mean(cv_scores.loc[np.logical_and(cv_scores.assay == 'MIBI', cv_scores.variable == 'primary'), 'value']))
+print(np.mean(cv_scores.loc[np.logical_and(cv_scores.assay == 'MIBI', cv_scores.variable == 'baseline'), 'value']))
+print(np.mean(cv_scores.loc[np.logical_and(cv_scores.assay == 'MIBI', cv_scores.variable == 'pre_nivo'), 'value']))
+
+ttest_ind(cv_scores.loc[np.logical_and(cv_scores.assay == 'MIBI', cv_scores.variable == 'primary'), 'value'],
+            cv_scores.loc[np.logical_and(cv_scores.assay == 'MIBI', cv_scores.variable == 'baseline'), 'value'])
+
+print(np.mean(cv_scores.loc[np.logical_and(cv_scores.assay == 'MIBI', cv_scores.variable == 'on_nivo'), 'value']))
+
+# RNA
+print(np.mean(cv_scores.loc[np.logical_and(cv_scores.assay == 'RNA', cv_scores.variable == 'on_nivo'), 'value']))
+print(np.mean(cv_scores.loc[np.logical_and(cv_scores.assay == 'RNA', cv_scores.variable == 'pre_nivo'), 'value']))
+
+ttest_ind(cv_scores.loc[np.logical_and(cv_scores.assay == 'RNA', cv_scores.variable == 'on_nivo'), 'value'],
+            cv_scores.loc[np.logical_and(cv_scores.assay == 'RNA', cv_scores.variable == 'pre_nivo'), 'value'])
+
+print(np.mean(cv_scores.loc[np.logical_and(cv_scores.assay == 'RNA', cv_scores.variable == 'baseline'), 'value']))
+
+ttest_ind(cv_scores.loc[np.logical_and(cv_scores.assay == 'RNA', cv_scores.variable == 'on_nivo'), 'value'],
+            cv_scores.loc[np.logical_and(cv_scores.assay == 'RNA', cv_scores.variable == 'baseline'), 'value'])
+
+# ttest_ind(cv_scores.loc[np.logical_and(cv_scores.assay == 'RNA', cv_scores.variable == 'on_nivo'), 'value'],
+#             cv_scores.loc[np.logical_and(cv_scores.assay == 'MIBI', cv_scores.variable == 'on_nivo'), 'value'])
+
+ttest_ind(cv_scores.loc[np.logical_and(cv_scores.assay == 'RNA', cv_scores.variable == 'baseline'), 'value'],
+            cv_scores.loc[np.logical_and(cv_scores.assay == 'MIBI', cv_scores.variable == 'baseline'), 'value'])
+
+ttest_ind(cv_scores.loc[np.logical_and(cv_scores.assay == 'RNA', cv_scores.variable == 'pre_nivo'), 'value'],
+            cv_scores.loc[np.logical_and(cv_scores.assay == 'MIBI', cv_scores.variable == 'pre_nivo'), 'value'])
+
+print(np.mean(cv_scores.loc[np.logical_and(cv_scores.assay == 'DNA', cv_scores.variable == 'baseline'), 'value']))
