@@ -10,6 +10,8 @@ matplotlib.rcParams['ps.fonttype'] = 42
 import matplotlib.pyplot as plt
 import seaborn as sns
 import skimage.io as io
+from skimage.segmentation import find_boundaries
+
 
 from ark.utils.data_utils import erode_mask
 from ark.utils.plot_utils import cohort_cluster_plot
@@ -73,8 +75,10 @@ for fov in overlay_fovs:
 
 # generate color overlays
 cell_table_clusters = pd.read_csv(os.path.join(base_dir, 'analysis_files/cell_table_clusters.csv'))
-crop_cmap = pd.DataFrame({'cell_cluster_broad': ['Cancer', 'T', 'B', 'Stroma', 'Mono_Mac', 'NK', 'Other', 'Granulocyte'],
-                         'color': ['Blue', 'Green', 'Green', 'Red', 'Green', 'Green', 'Grey', 'Green']})
+
+
+crop_cmap = pd.DataFrame({'cell_cluster_broad': ['Cancer', 'Structural', 'Mono_Mac', 'T', 'Other', 'Granulocyte', 'NK', 'B'],
+                          'color': ['dimgrey', 'darksalmon', 'red', 'navajowhite', 'yellowgreen', 'aqua', 'dodgerblue', 'darkviolet']})
 
 crop_plot_dir = os.path.join(plot_dir, 'Figure1_crop_overlays')
 if not os.path.exists(crop_plot_dir):
@@ -90,11 +94,23 @@ cohort_cluster_plot(
     erode=True,
     fov_col=settings.FOV_ID,
     label_col=settings.CELL_LABEL,
-    cluster_col='cell_cluster',
+    cluster_col='cell_cluster_broad',
     seg_suffix="_whole_cell.tiff",
     display_fig=False,
+    cmap=crop_cmap,
 )
 
+# # make segmentation only overlay
+# for fov in overlay_fovs:
+#     seg_mask = io.imread(os.path.join(segmentation_dir, '{}_whole_cell.tiff'.format(fov)))[0, :, :]
+#     bool_mask = find_boundaries(seg_mask, mode='inner')
+#
+#     greyscale_cells = np.full((seg_mask.shape[0], seg_mask.shape[1]), 255, dtype='uint8')
+#
+#     greyscale_cells[seg_mask > 0] = 0
+#     greyscale_cells[bool_mask] = 160
+#
+#     io.imsave(os.path.join(crop_plot_dir, '{}_segmentation_overlay.png'.format(fov)), greyscale_cells)
 
 # tumor compartment overlays
 annotations_by_mask = pd.read_csv(os.path.join(base_dir, 'intermediate_files/mask_dir/cell_annotation_mask.csv'))
