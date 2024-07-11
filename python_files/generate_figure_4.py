@@ -197,7 +197,7 @@ pivot_df_run.drop(columns  = ['group'], inplace=True)
 pivot_df_top_run = pivot_df_top.loc[xlabs, :].copy()
 
 g = sns.clustermap(data = pivot_df_run, yticklabels=True, cmap = 'Blues', vmin = 0, vmax = 1, row_cluster = False,
-                   col_cluster = False, figsize = (7, 18), cbar_pos=(1, .03, .02, .1), dendrogram_ratio=0.1, colors_ratio=0.01,
+                   col_cluster = False, figsize = (3.5, 9), cbar_pos=(1, .03, .02, .1), dendrogram_ratio=0.1, colors_ratio=0.01,
                    col_colors=cmap)
 
 g.tick_params(labelsize=12)
@@ -224,7 +224,7 @@ for i in range(0, pivot_df_top_run.shape[0]):
     ids = np.where(row == True)[0]
     for id in ids:
         #creates rectangle at given indices of top 100 feature timepoint pairs (x = timepoint_index, y = feature_index)
-        rect = Rectangle((id, i), 1, 1, fill=False, edgecolor='red', lw=2, zorder = 10)
+        rect = Rectangle((id, i), 1, 1, fill=False, edgecolor='red', lw=1, zorder = 10)
 
         # Add it to the plot
         g.ax_heatmap.add_patch(rect)
