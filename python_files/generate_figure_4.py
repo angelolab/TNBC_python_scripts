@@ -90,7 +90,7 @@ pivot_df_top.fillna(0, inplace = True) #set features with nan importance scores 
 #assign feature with delta label for plot order
 feat_timepoint_dict = {'CD38+__Immune_Other': 'baseline',
  'diversity_cell_cluster__Cancer_2__stroma_border': 'baseline',
- 'NK__Other__ratio__cancer_border':'pre_nivo',
+ 'NK__Other__ratio__cancer_border':'baseline__pre_nivo__on_nivo',
  'CD45RO+__Fibroblast':'pre_nivo',
  'PDL1+__CD4T':'pre_nivo',
  'CD69+__CD4T':'pre_nivo',
@@ -161,7 +161,7 @@ feat_timepoint_dict = {'CD38+__Immune_Other': 'baseline',
  'diversity_cell_cluster__Fibroblast':'on_nivo',
  'diversity_cell_cluster__Cancer_3':'on_nivo',
  'diversity_cell_cluster__Smooth_Muscle':'on_nivo',
- 'Other__Cancer__ratio':'on_nivo',
+ 'Other__Cancer__ratio':'baseline__pre_nivo__on_nivo',
  'T__Structural__ratio__cancer_core':'on_nivo',
  'diversity_cell_cluster__Endothelium':'on_nivo',
  'T__Structural__ratio':'on_nivo',
@@ -197,7 +197,7 @@ pivot_df_run.drop(columns  = ['group'], inplace=True)
 pivot_df_top_run = pivot_df_top.loc[xlabs, :].copy()
 
 g = sns.clustermap(data = pivot_df_run, yticklabels=True, cmap = 'Blues', vmin = 0, vmax = 1, row_cluster = False,
-                   col_cluster = False, figsize = (3.5, 9), cbar_pos=(1, .03, .02, .1), dendrogram_ratio=0.1, colors_ratio=0.01,
+                   col_cluster = False, figsize = (5, 15), cbar_pos=(1, .03, .02, .1), dendrogram_ratio=0.1, colors_ratio=0.01,
                    col_colors=cmap)
 
 g.tick_params(labelsize=12)
@@ -224,7 +224,7 @@ for i in range(0, pivot_df_top_run.shape[0]):
     ids = np.where(row == True)[0]
     for id in ids:
         #creates rectangle at given indices of top 100 feature timepoint pairs (x = timepoint_index, y = feature_index)
-        rect = Rectangle((id, i), 1, 1, fill=False, edgecolor='red', lw=1, zorder = 10)
+        rect = Rectangle((id, i), 1, 1, fill=False, edgecolor='red', lw=0.5, zorder = 10)
 
         # Add it to the plot
         g.ax_heatmap.add_patch(rect)
@@ -232,7 +232,7 @@ for i in range(0, pivot_df_top_run.shape[0]):
         # Redraw the figure
         plt.draw()
 
-plt.savefig(os.path.join(base_dir, 'figures', 'Figure4b.pdf'), bbox_inches = 'tight', dpi =300)
+plt.savefig(os.path.join(base_dir, 'figures', 'Figure4b_new.pdf'), bbox_inches = 'tight', dpi =300)
 
 
 # longitudinal T / Cancer ratios
