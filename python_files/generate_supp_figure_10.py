@@ -8,9 +8,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from matplotlib_venn import venn2
-
-
 
 BASE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/"
 SUPPLEMENTARY_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs")
@@ -108,87 +105,6 @@ plt.tight_layout()
 sns.despine()
 plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_10f.pdf'))
 plt.close()
-
-
-# get overlap between static and evolution top features
-overlap_type_dict = {'global': [['primary_', 'baseline', 'pre_nivo', 'on_nivo'],
-                                ['primary__baseline', 'baseline__pre_nivo', 'baseline__on_nivo', 'pre_nivo__on_nivo']],
-                     'primary': [['primary'], ['primary__baseline']],
-                     'baseline': [['baseline'], ['primary__baseline', 'baseline__pre_nivo', 'baseline__on_nivo']],
-                     'pre_nivo': [['pre_nivo'], ['baseline__pre_nivo', 'pre_nivo__on_nivo']],
-                     'on_nivo': [['on_nivo'], ['baseline__on_nivo', 'pre_nivo__on_nivo']]}
-
-overlap_results = {}
-for overlap_type, comparisons in overlap_type_dict.items():
-    static_comparisons, evolution_comparisons = comparisons
-
-    overlap_top_features = ranked_features.copy()
-    overlap_top_features = overlap_top_features.loc[overlap_top_features.comparison.isin(static_comparisons + evolution_comparisons)]
-    overlap_top_features.loc[overlap_top_features.comparison.isin(static_comparisons), 'comparison'] = 'static'
-    overlap_top_features.loc[overlap_top_features.comparison.isin(evolution_comparisons), 'comparison'] = 'evolution'
-    overlap_top_features = overlap_top_features[['feature_name_unique', 'comparison']].drop_duplicates()
-    overlap_top_features = overlap_top_features.iloc[:100, :]
-    # keep_features = overlap_top_features.feature_name_unique.unique()[:100]
-    # overlap_top_features = overlap_top_features.loc[overlap_top_features.feature_name_unique.isin(keep_features), :]
-    # len(overlap_top_features.feature_name_unique.unique())
-    static_ids = overlap_top_features.loc[
-        overlap_top_features.comparison == 'static', 'feature_name_unique'].unique()
-    evolution_ids = overlap_top_features.loc[
-        overlap_top_features.comparison == 'evolution', 'feature_name_unique'].unique()
-
-    overlap_results[overlap_type] = {'static_ids': static_ids, 'evolution_ids': evolution_ids}
-
-
-# get counts of features in each category
-static_ids = overlap_results['global']['static_ids']
-evolution_ids = overlap_results['global']['evolution_ids']
-venn2([set(static_ids), set(evolution_ids)], set_labels=('Static', 'Evolution'))
-plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_10k.pdf'))
-plt.close()
-
-
-# plot key features from primary tumors
-combined_df = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/timepoint_combined_features.csv'))
-
-for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
-    for feature, plot_name, lims in zip(['B__NK__ratio__cancer_core', 'HLADR+__APC', 'Cancer__Structural__ratio__cancer_border'],
-                                  ['10X1', '10X2', '10X3'], [[-5, 7], [0, 1.2], [1, 12]]):
-
-        plot_df = combined_df.loc[(combined_df.feature_name_unique == feature) &
-                                  (combined_df.Timepoint == timepoint), :]
-
-        fig, ax = plt.subplots(1, 1, figsize=(2, 4))
-        sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
-                        color='black', ax=ax)
-        sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
-                        color='grey', ax=ax, showfliers=False, width=0.3)
-        ax.set_title(feature + ' ' + timepoint)
-        ax.set_ylim(lims)
-        sns.despine()
-        plt.tight_layout()
-        plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_{}_{}.pdf'.format(plot_name, timepoint)))
-        plt.close()
-
-# top features from baseline
-for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
-    for feature, plot_name, lims in zip(['diversity_cell_cluster__Cancer_2__stroma_border', 'CD38+__Immune_Other', 'Other__Structural__ratio'],
-                                  ['10X4', '10X5', '10X6'], [[0, 3], [-0.2, 1], [-10, 3]]):
-
-        plot_df = combined_df.loc[(combined_df.feature_name_unique == feature) &
-                                  (combined_df.Timepoint == timepoint), :]
-
-        fig, ax = plt.subplots(1, 1, figsize=(2, 4))
-        sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
-                        color='black', ax=ax)
-        sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
-                        color='grey', ax=ax, showfliers=False, width=0.3)
-        ax.set_title(feature + ' ' + timepoint)
-        ax.set_ylim(lims)
-        sns.despine()
-        plt.tight_layout()
-        plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_{}_{}.pdf'.format(plot_name, timepoint)))
-        plt.close()
-
 
 # shared/non-shared features over time
 ranked_features = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature_ranking.csv'))

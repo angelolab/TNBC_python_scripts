@@ -91,14 +91,11 @@ pivot_df_top.fillna(0, inplace = True) #set features with nan importance scores 
 feat_timepoint_dict = {'CD38+__Immune_Other': 'baseline',
  'diversity_cell_cluster__Cancer_2__stroma_border': 'baseline',
  'NK__Other__ratio__cancer_border':'pre_nivo',
- 'cluster_3__proportion__cancer_core':'pre_nivo',
  'CD45RO+__Fibroblast':'pre_nivo',
  'PDL1+__CD4T':'pre_nivo',
  'CD69+__CD4T':'pre_nivo',
  'TBET+__Treg':'pre_nivo',
- 'PD1+__CD4T':'pre_nivo',
  'diversity_cell_cluster__Monocyte__cancer_border':'pre_nivo',
- 'CD68_Mac__cluster_density__cancer_border':'pre_nivo',
  'PDL1+__Monocyte':'pre_nivo',
  'TBET+__CD4T':'pre_nivo',
  'CD45RO+__Monocyte':'pre_nivo',
@@ -159,24 +156,30 @@ feat_timepoint_dict = {'CD38+__Immune_Other': 'baseline',
  'B__T__ratio__cancer_core':'on_nivo',
  'T_Other__cluster_density__cancer_border':'on_nivo',
  'PDL1+__Cancer_3__stroma_border':'on_nivo',
- 'TBET+__all':'on_nivo',
  'NK__Cancer__ratio':'on_nivo',
  'diversity_cell_cluster__Neutrophil':'on_nivo',
  'diversity_cell_cluster__Fibroblast':'on_nivo',
  'diversity_cell_cluster__Cancer_3':'on_nivo',
- 'PD1+__all':'on_nivo',
  'diversity_cell_cluster__Smooth_Muscle':'on_nivo',
  'Other__Cancer__ratio':'on_nivo',
  'T__Structural__ratio__cancer_core':'on_nivo',
  'diversity_cell_cluster__Endothelium':'on_nivo',
- 'TIM3+__all':'on_nivo',
  'T__Structural__ratio':'on_nivo',
  'Other__Cancer__ratio__cancer_core':'pre_nivo__on_nivo',
  'PDL1+__CAF__cancer_border':'pre_nivo__on_nivo',
  'PDL1+__CD68_Mac':'pre_nivo__on_nivo',
  'CD8T__Treg__ratio__cancer_core':'pre_nivo__on_nivo',
  'CD45RO+__all':'pre_nivo__on_nivo',
- 'diversity_cell_cluster__CAF__cancer_border':'pre_nivo__on_nivo'}
+ 'diversity_cell_cluster__CAF__cancer_border':'pre_nivo__on_nivo',
+ 'CD45RO+__all':'pre_nivo__on_nivo',
+ 'diversity_cell_cluster__CAF__cancer_border':'pre_nivo__on_nivo',
+ 'CD45RO+__Monocyte__cancer_border':'pre_nivo',
+ 'CD4T__cluster_density__cancer_border':'on_nivo',
+ 'Ki67+__Cancer_2__stroma_core':'on_nivo',
+ 'Mono_Mac__Structural__ratio__cancer_core': 'on_nivo',
+ 'Structural__cluster_broad_density__stroma_border': 'baseline__on_nivo',
+ 'T_Other__cluster_density':'on_nivo',
+ 'T__cluster_broad_density':'on_nivo'}
 
 #sort dataframe by delta group and get the order of the ticks
 pivot_df["group"] = pivot_df.index.map(feat_timepoint_dict) 
@@ -194,7 +197,7 @@ pivot_df_run.drop(columns  = ['group'], inplace=True)
 pivot_df_top_run = pivot_df_top.loc[xlabs, :].copy()
 
 g = sns.clustermap(data = pivot_df_run, yticklabels=True, cmap = 'Blues', vmin = 0, vmax = 1, row_cluster = False,
-                   col_cluster = False, figsize = (7, 18), cbar_pos=(1, .03, .02, .1), dendrogram_ratio=0.1, colors_ratio=0.01,
+                   col_cluster = False, figsize = (3.5, 9), cbar_pos=(1, .03, .02, .1), dendrogram_ratio=0.1, colors_ratio=0.01,
                    col_colors=cmap)
 
 g.tick_params(labelsize=12)
@@ -221,7 +224,7 @@ for i in range(0, pivot_df_top_run.shape[0]):
     ids = np.where(row == True)[0]
     for id in ids:
         #creates rectangle at given indices of top 100 feature timepoint pairs (x = timepoint_index, y = feature_index)
-        rect = Rectangle((id, i), 1, 1, fill=False, edgecolor='red', lw=2, zorder = 10)
+        rect = Rectangle((id, i), 1, 1, fill=False, edgecolor='red', lw=1, zorder = 10)
 
         # Add it to the plot
         g.ax_heatmap.add_patch(rect)
