@@ -45,6 +45,7 @@ annotations_by_mask = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir', 'ce
 fiber_stats = pd.read_csv(os.path.join(intermediate_dir, 'fiber_segmentation_processed_data', 'fiber_stats_table.csv'))
 fiber_tile_df = pd.read_csv(os.path.join(intermediate_dir, 'fiber_segmentation_processed_data/tile_stats_512', 'fiber_stats_table-tile_512.csv'))
 kmeans_cell_table = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/neighborhood_analysis_round2/cell_cluster_radius100_frequency_12', 'cell_table_clusters.csv'))
+mixing_scores = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/mixing_score/cell_cluster_broad/homogeneous_mixing_scores.csv'))
 
 # merge cell-level annotations
 harmonized_annotations = annotations_by_mask
@@ -265,7 +266,7 @@ metrics = [['cluster_broad_count', 'cluster_broad_freq'],
 for metric in metrics:
     # subset count df to include cells at the relevant clustering resolution
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border',
-                        'tls', 'tagg', 'all']:
+                        'immune_agg', 'all']:
         count_df = total_df[total_df.metric == metric[0]]
         count_df = count_df[count_df.subset == compartment]
 
@@ -744,7 +745,7 @@ metrics = [['cluster_broad_count', 'cluster_broad_freq'],
 for metric in metrics:
     # subset count df to include cells at the relevant clustering resolution
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border',
-                        'tls', 'tagg', 'all']:
+                        'immune_agg', 'all']:
         count_df = total_df[total_df.metric == metric[0]]
         count_df = count_df[count_df.subset == compartment]
 
@@ -811,7 +812,6 @@ deduped_morph_df_timepoint.to_csv(os.path.join(output_dir, 'morph_df_per_timepoi
 #
 
 # format mixing scores
-mixing_scores = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/mixing_score/homogeneous_mixing_scores.csv'))
 cols = mixing_scores.columns.tolist()
 keep_cols = [col for col in cols if 'mixing_score' in col]
 mixing_scores = mixing_scores[['fov'] + keep_cols]
@@ -860,7 +860,7 @@ metrics = [['cluster_broad_count', 'cluster_broad_freq'],
 for metric in metrics:
     # subset count df to include cells at the relevant clustering resolution
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core',
-                        'stroma_border', 'tagg', 'tls', 'all']:
+                        'stroma_border', 'immune_agg', 'all']:
         count_df = total_df[total_df.metric == metric[0]]
         count_df = count_df[count_df.subset == compartment]
 
@@ -949,7 +949,7 @@ metrics = [['cluster_broad_count', 'cluster_broad_freq']]
 for metric in metrics:
     # subset count df to include cells at the relevant clustering resolution
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core',
-                        'stroma_border', 'tagg', 'tls', 'all']:
+                        'stroma_border', 'immune_agg', 'all']:
         count_df = total_df[total_df.metric == metric[0]]
         count_df = count_df[count_df.subset == compartment]
 
@@ -1128,10 +1128,10 @@ compartment_data = annotations_by_mask.merge(kmeans_cells, on=['fov', 'label'])
 all_compartments_df = []
 for fov in np.unique(kmeans_cell_table.fov):
     df = pd.DataFrame({
-        'fov': [fov] * 4 * kmeans_cluster_num,
+        'fov': [fov] * 5 * kmeans_cluster_num,
         'mask_name': ['cancer_border'] * kmeans_cluster_num + ['cancer_core'] * kmeans_cluster_num +
-        ['stroma_border'] * kmeans_cluster_num + ['stroma_core'] * kmeans_cluster_num,
-        'kmeans_neighborhood': list(range(1, kmeans_cluster_num+1)) * 4,
+        ['stroma_border'] * kmeans_cluster_num + ['stroma_core'] * kmeans_cluster_num + ['immune_agg'] * kmeans_cluster_num,
+        'kmeans_neighborhood': list(range(1, kmeans_cluster_num+1)) * 5,
     })
 
     all_compartments_df.append(df)
