@@ -27,7 +27,7 @@ feature_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_me
 #
 # To generate the feature rankings, you must have downloaded the patient outcome data.
 #
-outcome_data = pd.read_csv(os.path.join(base_dir, 'analysis_files/patient_clinical_data.csv'))
+outcome_data = pd.read_csv(os.path.join(base_dir, 'intermediate_files/metadata/patient_clinical_data.csv'))
 
 # load previously computed results
 combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
