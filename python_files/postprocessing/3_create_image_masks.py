@@ -53,7 +53,7 @@ for folder in folders:
     cancer_mask = cancer_mask.astype(np.uint8)
     io.imsave(os.path.join(intermediate_folder, 'cancer_mask.png'), cancer_mask,
               check_contrast=False)
-    '''
+
     # create mask for TLS
     tls_mask = utils.create_cell_mask(seg_label, cell_table_clusters, folder, ['B', 'T'], sigma=4)
     tls_label_mask = skimage.measure.label(tls_mask)
@@ -97,7 +97,6 @@ for folder in folders:
 
     io.imsave(os.path.join(intermediate_folder, 'tagg_mask.png'), tagg_label_mask.astype(np.uint8),
                 check_contrast=False)
-    '''
 
     # create mask for slide background
     gold = io.imread(os.path.join(channel_dir, folder, 'Au.tiff'))
@@ -121,29 +120,33 @@ for folder in folders:
     intermediate_folder = os.path.join(intermediate_dir, folder)
     cancer_mask = io.imread(os.path.join(intermediate_folder, 'cancer_mask.png'))
     gold_mask = io.imread(os.path.join(intermediate_folder, 'gold_mask.png'))
-    # tls_mask = io.imread(os.path.join(intermediate_folder, 'tls_mask.png'))
-    # tagg_mask = io.imread(os.path.join(intermediate_folder, 'tagg_mask.png'))
+    tls_mask = io.imread(os.path.join(intermediate_folder, 'tls_mask.png'))
+    tagg_mask = io.imread(os.path.join(intermediate_folder, 'tagg_mask.png'))
 
     # create a single unified mask; TLS and background override tumor compartments
     cancer_mask[gold_mask == 1] = 0
-    # cancer_mask[tls_mask == 1] = 5
-    # cancer_mask[tagg_mask == 1] = 6
+    cancer_mask[tls_mask == 1] = 5
+    cancer_mask[tagg_mask == 1] = 6
 
     # save individual masks
     processed_folder = os.path.join(individual_dir, folder)
     if not os.path.exists(processed_folder):
         os.mkdir(processed_folder)
 
-    '''for idx, name in zip(range(0, 7), ['empty_slide', 'stroma_core', 'stroma_border',
-                                       'cancer_border', 'cancer_core', 'tls', 'tagg']):'''
     for idx, name in zip(range(0, 7), ['empty_slide', 'stroma_core', 'stroma_border',
-                                       'cancer_border', 'cancer_core']):
+                                       'cancer_border', 'cancer_core', 'tls', 'tagg']):
         channel_img = cancer_mask == idx
         io.imsave(os.path.join(processed_folder, name + '.tiff'), channel_img.astype(np.uint8),
                   check_contrast=False)
 
 # compute the area of each mask
 area_df = utils.calculate_mask_areas(mask_dir=individual_dir, fovs=folders)
+
+# combine tls and tagg masks into single immune_agg compartment
+for fov in np.unique(area_df.fov):
+    fov_df = area_df[area_df.fov == fov]
+    tls_tagg_sum = fov_df[fov_df.compartment == 'tls'].area.values[0] + fov_df[fov_df.compartment == 'tagg'].area.values[0]
+    area_df = pd.concat([pd.DataFrame([['immune_agg', tls_tagg_sum, fov]], columns=area_df.columns), area_df], ignore_index=True)
 area_df.to_csv(os.path.join(mask_dir, 'fov_annotation_mask_area.csv'), index=False)
 
 # create combined images for visualization
@@ -153,13 +156,13 @@ for folder in folders[:20]:
     gold_chan = io.imread(os.path.join(channel_dir, folder, 'Au.tiff'))
     border_mask = io.imread(os.path.join(intermediate_dir, folder, 'cancer_mask.png'))
     gold_mask = io.imread(os.path.join(intermediate_dir, folder, 'gold_mask.png'))
-    # tls_mask = io.imread(os.path.join(intermediate_dir, folder, 'tls_mask.png'))
-    # tagg_mask = io.imread(os.path.join(intermediate_dir, folder, 'tagg_mask.png'))
+    tls_mask = io.imread(os.path.join(intermediate_dir, folder, 'tls_mask.png'))
+    tagg_mask = io.imread(os.path.join(intermediate_dir, folder, 'tagg_mask.png'))
 
     # create a single unified mask; TLS and background override tumor compartments
     border_mask[gold_mask == 1] = 0
-    # border_mask[tls_mask == 1] = 5
-    # border_mask[tagg_mask == 1] = 6
+    border_mask[tls_mask == 1] = 5
+    border_mask[tagg_mask == 1] = 6
 
     # make top row shorter than bottom row
     fig, ax = plt.subplots(2, 2, figsize=(15, 10), gridspec_kw={'height_ratios': [1, 2]})
@@ -182,5 +185,8 @@ for i in range(0, 1400, 200):
     # assignment_table.to_csv(os.path.join(mask_dir, 'annotation_files', 'cell_annotation_mask_{}'.format(i)), index=False)
     # assignment_table = pd.read_csv(os.path.join(mask_dir, 'annotation_files', 'cell_annotation_mask_{}'.format(i)))
     all_assignment_table = pd.concat([all_assignment_table, assignment_table])
+
+# replace tls and tagg assignments with immune_agg
+all_assignment_table = all_assignment_table.replace({'tls': 'immune_agg', 'tagg': 'immune_agg'})
 
 all_assignment_table.to_csv(os.path.join(mask_dir, 'cell_annotation_mask.csv'), index=False)
