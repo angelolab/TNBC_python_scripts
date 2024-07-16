@@ -76,6 +76,8 @@ for metric in ['Localization', 'Timepoint']:
 
 ## average cell counts by timepoint
 for cluster_level in ['cell_cluster_broad', 'cell_cluster']:
+    cell_table = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/cell_table_clusters.csv')
+
     # get cell population and whole image counts
     cell_table = cell_table[['fov', cluster_level, 'cell_meta_cluster']]
     cell_counts = cell_table.groupby(by=['fov', cluster_level]).count().reset_index()
