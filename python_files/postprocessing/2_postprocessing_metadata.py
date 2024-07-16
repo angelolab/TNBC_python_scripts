@@ -60,28 +60,28 @@ timepoint_metadata.loc[timepoint_metadata.Timepoint == 'primary', 'Timepoint'] =
 timepoint_metadata.loc[timepoint_metadata.Timepoint == 'primary_untreated', 'Timepoint'] = 'primary'
 timepoint_metadata.loc[timepoint_metadata.Timepoint == 'post_induction', 'Timepoint'] = 'pre_nivo'
 
+# #
+# # Consolidate rare metastatic locations into single 'other' label
+# #
 #
-# Consolidate rare metastatic locations into single 'other' label
+# # get rare metastatic sites per patient
+# site_counts = timepoint_metadata.Localization.value_counts()
+# rare_sites = site_counts[7:].index
+# rare_sites = rare_sites.append(pd.Index(['Unknown']))
 #
-
-# get rare metastatic sites per patient
-site_counts = timepoint_metadata.Localization.value_counts()
-rare_sites = site_counts[7:].index
-rare_sites = rare_sites.append(pd.Index(['Unknown']))
-
-# consolidate rare sites into 'other' label
-timepoint_metadata['Localization_detailed'] = timepoint_metadata.Localization
-timepoint_metadata.loc[timepoint_metadata.Localization.isin(rare_sites), 'Localization'] = 'Other'
-
-# Relabel metastasis to have a unique value for each patient
-met_pats = timepoint_metadata.loc[timepoint_metadata.Timepoint == 'metastasis', 'Patient_ID'].unique()
-
-for pat in met_pats:
-    pat_subset = timepoint_metadata.loc[timepoint_metadata.Patient_ID == pat, :]
-    pat_subset = pat_subset.loc[(pat_subset.Timepoint == 'metastasis') &
-                                (pat_subset.MIBI_data_generated), :]
-    for i in range(pat_subset.shape[0]):
-        timepoint_metadata.loc[pat_subset.index[i], 'Timepoint'] = 'metastasis_' + str(i+1)
+# # consolidate rare sites into 'other' label
+# timepoint_metadata['Localization_detailed'] = timepoint_metadata.Localization
+# timepoint_metadata.loc[timepoint_metadata.Localization.isin(rare_sites), 'Localization'] = 'Other'
+#
+# # Relabel metastasis to have a unique value for each patient
+# met_pats = timepoint_metadata.loc[timepoint_metadata.Timepoint == 'metastasis', 'Patient_ID'].unique()
+#
+# for pat in met_pats:
+#     pat_subset = timepoint_metadata.loc[timepoint_metadata.Patient_ID == pat, :]
+#     pat_subset = pat_subset.loc[(pat_subset.Timepoint == 'metastasis') &
+#                                 (pat_subset.MIBI_data_generated), :]
+#     for i in range(pat_subset.shape[0]):
+#         timepoint_metadata.loc[pat_subset.index[i], 'Timepoint'] = 'metastasis_' + str(i+1)
 
 #
 # Identify patients with specific combinations of timepoints present
@@ -146,7 +146,7 @@ print(core_missing)
 harmonized_metadata = core_metadata[['fov', 'Tissue_ID', 'MIBI_data_generated']]
 
 # select and merge relevant columns from timepoints
-harmonized_metadata = pd.merge(harmonized_metadata, timepoint_metadata.loc[:, ['Tissue_ID', 'Patient_ID', 'Timepoint', 'Localization', 'rna_seq_sample_id']], on='Tissue_ID', how='left')
+harmonized_metadata = pd.merge(harmonized_metadata, timepoint_metadata.loc[:, ['Tissue_ID', 'Patient_ID', 'Timepoint', 'rna_seq_sample_id']], on='Tissue_ID', how='left')
 assert np.sum(harmonized_metadata.Tissue_ID.isnull()) == 0
 
 # select and merge relevant columns from patients
@@ -162,7 +162,7 @@ core_metadata = pd.merge(core_metadata, harmonized_metadata, on=['fov', 'Tissue_
 
 # add in the harmonized metadata, dropping the fov column
 # TODO: determine if we want to keep the timepoints without any image data
-harmonized_metadata = harmonized_metadata.drop(['fov', 'Patient_ID', 'Timepoint', 'Localization', 'MIBI_data_generated'], axis=1)
+harmonized_metadata = harmonized_metadata.drop(['fov', 'Patient_ID', 'Timepoint', 'MIBI_data_generated'], axis=1)
 harmonized_metadata = harmonized_metadata.drop_duplicates()
 timepoint_metadata = pd.merge(timepoint_metadata, harmonized_metadata, on='Tissue_ID', how='left')
 
