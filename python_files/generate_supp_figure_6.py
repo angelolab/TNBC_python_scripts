@@ -73,6 +73,61 @@ for metric in ['Localization', 'Timepoint']:
     plot_name = "cell_props_by_tissue_loc.pdf" if metric == 'Localization' else "cell_props_by_timepoint.pdf"
     plt.savefig(os.path.join(cluster_stats_dir, plot_name), dpi=300)
 
+
+## average cell counts by timepoint
+for cluster_level in ['cell_cluster_broad', 'cell_cluster']:
+    # get cell population and whole image counts
+    cell_table = cell_table[['fov', cluster_level, 'cell_meta_cluster']]
+    cell_counts = cell_table.groupby(by=['fov', cluster_level]).count().reset_index()
+    fov_cell_counts = cell_counts[['fov', 'cell_meta_cluster']].groupby(by=['fov']).sum().reset_index()
+    fov_cell_counts[cluster_level] = 'Total cells'
+    all_data = pd.concat([cell_counts, fov_cell_counts])
+
+    # get mean for each timepoint
+    combined_df = all_data.merge(meta_data, on=['fov'], how='left')
+    combined_df = combined_df.rename(columns={'cell_meta_cluster': 'cell_counts'})
+    combined_df = combined_df[[cluster_level, 'cell_counts', 'Timepoint']]
+    avg_df = combined_df.groupby(by=['Timepoint', cluster_level]).mean().reset_index()
+
+    # order and reformat timepoint names
+    order = pd.DataFrame({'Timepoint': ['primary', 'baseline', 'pre_nivo', 'on_nivo'], 'Order': [1, 2, 3, 4]})
+    avg_df = avg_df.merge(order, on=['Timepoint']).sort_values(by='Order')
+    avg_df = avg_df.replace({'primary': 'Primary', 'baseline': 'Baseline', 'pre_nivo': 'Pre-nivo', 'on_nivo': 'On-nivo'})
+
+    plt.figure().set_figwidth(20)
+    plt.figure().set_figheight(6)
+
+    if cluster_level == 'cell_cluster_broad':
+        color_map = {'Total cells': 'black', 'Cancer': 'dimgrey', 'Structural': 'darksalmon',
+                     'Mono_Mac': 'red', 'T': 'navajowhite', 'B': 'darkviolet', 'Other': 'yellowgreen',
+                     'Granulocyte': 'aqua', 'NK': 'dodgerblue'}
+        dims = (1.4, 0.8)
+    else:
+        color_map = {'Total cells': 'black', 'Cancer_1': 'grey',
+                     'B': 'darkviolet', 'CD8T': 'tan', 'CD4T': 'navajowhite', 'CAF': 'chocolate',
+                     'Cancer_2': 'darkgrey', 'Cancer_3': 'lightgrey', 'Monocyte': 'orangered',
+                     'Fibroblast': 'peru', 'CD163_Mac': 'firebrick', 'Immune_Other': 'olivedrab',
+                     'Endothelium': 'darksalmon', 'Treg': 'antiquewhite', 'APC': 'indianred',
+                     'CD68_Mac': 'red', 'Smooth_Muscle': 'sienna',
+                     'T_Other': 'wheat', 'Neutrophil': 'aqua', 'Mac_Other': 'darkred',
+                     'Other': 'yellowgreen', 'NK': 'dodgerblue', 'Mast': 'turquoise'}
+        dims = (1.02, 0.98)
+
+    # plot each cell population
+    for group in list(color_map.keys()):
+        sub_df = avg_df[avg_df[cluster_level] == group]
+        plt.plot('Timepoint', 'cell_counts', data=sub_df, marker='o', linewidth=2, label=group, color=color_map[group])
+
+    plt.yscale('log')
+    plt.legend(loc='center right', bbox_to_anchor=dims, fontsize=9)
+    plt.ylabel('Log mean cell count', fontsize=12)
+    plt.xlabel('Timepoint', fontsize=12)
+    plt.title('Cell counts over time', fontsize=12)
+    plt.tight_layout()
+    sns.despine()
+    plt.savefig(os.path.join(cluster_stats_dir, f"avg_cells_per_timepoint-{}.pdf"), dpi=300)
+
+
 ## colored cell cluster masks from random subset of 20 FOVs
 random.seed(13)
 seg_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
