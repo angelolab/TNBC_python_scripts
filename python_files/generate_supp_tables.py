@@ -49,3 +49,11 @@ feature_metadata.columns = ['Feature name', 'Feature name including compartment'
                             'Type of feature', 'Additional information about the feature', 'Additional information about the feature']
 
 feature_metadata.to_csv(os.path.join(save_dir, 'Supplementary_Table_4.csv'), index=False)
+
+# sequencing features
+sequencing_features = pd.read_csv(os.path.join(BASE_DIR, 'sequencing_data/processed_genomics_features.csv'))
+sequencing_features = sequencing_features[['feature_name', 'data_type', 'feature_type']].drop_duplicates()
+sequencing_features = sequencing_features.loc[sequencing_features.feature_type != 'gene_rna', :]
+
+sequencing_features.to_csv(os.path.join(save_dir, 'Supplementary_Table_5.csv'), index=False)
+
