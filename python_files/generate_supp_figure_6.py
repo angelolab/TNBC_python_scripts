@@ -42,11 +42,13 @@ plt.savefig(os.path.join(cluster_stats_dir, "cells_per_cluster.pdf"), dpi=300)
 
 ## cell type composition by tissue location of met and timepoint
 meta_data = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/harmonized_metadata.csv')
-meta_data = meta_data[['fov', 'Patient_ID', 'Timepoint', 'Localization']]
+# meta_data = meta_data[['fov', 'Patient_ID', 'Timepoint', 'Localization']]
+meta_data = meta_data[['fov', 'Patient_ID', 'Timepoint',]]
 
 all_data = cell_table.merge(meta_data, on=['fov'], how='left')
 
-for metric in ['Localization', 'Timepoint']:
+# for metric in ['Localization', 'Timepoint']:
+for metric in ['Timepoint']:
     data = all_data[all_data.Timepoint == 'baseline'] if metric == 'Localization' else all_data
 
     groups = np.unique(data.Localization) if metric == 'Localization' else \

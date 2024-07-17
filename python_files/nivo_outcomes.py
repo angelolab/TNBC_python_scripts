@@ -81,8 +81,8 @@ for comparison in combined_df.Timepoint.unique():
 ranked_features_df = pd.concat(total_dfs)
 ranked_features_df['log10_qval'] = -np.log10(ranked_features_df.fdr_pval)
 
-# get ranking of each row by pval and correlation
-ranked_features_df['pval_rank'] = ranked_features_df.log_pval.rank(ascending=False)
+# get ranking of each row by FDR p-value and correlation
+ranked_features_df['pval_rank'] = ranked_features_df.fdr_pval.rank(ascending=True)
 ranked_features_df['cor_rank'] = ranked_features_df.med_diff.abs().rank(ascending=False)
 ranked_features_df['combined_rank'] = (ranked_features_df.pval_rank.values + ranked_features_df.cor_rank.values) / 2
 
