@@ -94,7 +94,7 @@ In addition, there are often multiple levels of granularity in the clustering sc
 
 ## Analysis Files
 
-*harmonized_metadata.csv*: This data frame details the various FOVs and their associated tissue and patient IDs, localization, timepoint, etc.
+*harmonized_metadata.csv*: This data frame details the various FOVs and their associated tissue and patient IDs, timepoint, etc.
 
 *feature_metadata.csv*: This file gives more detailed information about the specifications that make up each of the features in the fov and timepoint feature tables. The columns include, general feature name, unique feature name, compartment, cell population, cell population level, and feature type details.
 
