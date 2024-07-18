@@ -746,10 +746,10 @@ grouped.to_csv(os.path.join(analysis_dir, 'timepoint_features.csv'), index=False
 #             exclude_list.append(feature_name + '__' + compartment)
 #
 # exclude_df = pd.DataFrame({'feature_name_unique': exclude_list})
-# exclude_df.to_csv(os.path.join(output_dir, 'exclude_features_compartment_correlation.csv'), index=False)
+# exclude_df.to_csv(os.path.join(intermediate_dir, 'post_processing', 'exclude_features_compartment_correlation.csv'), index=False)
 
 # use pre-defined list of features to exclude
-exclude_df = pd.read_csv(os.path.join(output_dir, 'exclude_features_compartment_correlation.csv'))
+exclude_df = pd.read_csv(os.path.join(intermediate_dir, 'post_processing', 'exclude_features_compartment_correlation.csv'))
 
 fov_data_df_filtered = fov_data_df.loc[~fov_data_df.feature_name_unique.isin(exclude_df.feature_name_unique.values), :]
 fov_data_df_filtered.to_csv(os.path.join(analysis_dir, 'fov_features_filtered.csv'), index=False)
