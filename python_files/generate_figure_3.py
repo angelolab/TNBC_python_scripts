@@ -34,6 +34,7 @@ fig, ax = plt.subplots(figsize=(3,3))
 sns.scatterplot(data=ranked_features, x='med_diff', y='log_pval', alpha=1, hue='importance_score', palette=sns.color_palette("icefire", as_cmap=True),
                 s=2.5, edgecolor='none', ax=ax)
 ax.set_xlim(-3, 3)
+ax.set_ylim(0, 8)
 sns.despine()
 
 # add gradient legend
@@ -45,6 +46,8 @@ plt.tight_layout()
 
 plt.savefig(os.path.join(plot_dir, 'Figure3a_volcano.pdf'))
 plt.close()
+
+text_df = ranked_features.loc[ranked_features.feature_name_unique.isin(['PDL1+__APC', 'CD8T__cluster_density__cancer_border', 'cancer_diversity']), :]
 
 
 # compare ratio features to best individual feature that is part of the ratio
@@ -97,6 +100,9 @@ plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Figure3b_ratio_vs_density.pdf'))
 plt.close()
 
+# annotate specific features
+text_df = comparison_df.loc[comparison_df.original_feature == 'T__Cancer__ratio__cancer_core', :]
+text_df = ranked_features.loc[ranked_features.feature_name_unique == 'Cancer__cluster_broad_density__cancer_core', :]
 
 # look at enrichment by compartment
 top_counts = ranked_features.iloc[:100, :].groupby('compartment').count().iloc[:, 0]
@@ -117,6 +123,8 @@ sns.barplot(data=ratio_df, x='compartment', y='ratio', color='grey', ax=ax)
 sns.despine()
 plt.savefig(os.path.join(plot_dir, 'Figure3c_enrichment_by_compartment.pdf'))
 plt.close()
+
+print(top_counts)
 
 # look at enrichment of spatial features
 spatial_features = ['mixing_score', 'cell_diversity', 'compartment_area_ratio', 'pixie_ecm',
@@ -146,6 +154,7 @@ sns.despine()
 plt.savefig(os.path.join(plot_dir, 'Figure3d_enrichment_by_spatial.pdf'))
 plt.close()
 
+print(top_count_spatial)
 
 # plot top features
 plot_features = ranked_features.copy()
@@ -156,7 +165,7 @@ plot_features['density'] = plot_features.feature_type == 'density'
 plot_features['diversity'] = plot_features.feature_type.isin(['region_diversity', 'cell_diversity'])
 plot_features['phenotype'] = plot_features.feature_type == 'functional_marker'
 plot_features['sign'] = plot_features.med_diff > 0
-plot_features = plot_features.iloc[:53, :]
+plot_features = plot_features.iloc[:52, :]
 plot_features = plot_features[['feature_name', 'feature_name_unique', 'compartment', 'ratio', 'density', 'diversity', 'phenotype', 'sign']]
 plot_features = plot_features.drop_duplicates()
 plot_features_sort = plot_features.sort_values(by='feature_name')
@@ -164,7 +173,7 @@ plot_features_sort.to_csv(os.path.join(plot_dir, 'Figure3e_top_hits.csv'))
 
 
 # PDL1+__CD68 macs on nivo example
-combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
+combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features_with_outcomes.csv'))
 
 feature_name = 'PDL1+__CD68_Mac'
 timepoint = 'on_nivo'
