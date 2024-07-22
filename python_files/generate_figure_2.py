@@ -77,6 +77,7 @@ if not os.path.exists(compartment_plot_dir):
 #         display_fig=False,
 #     )
 
+# scale bars: 800um image, 1/8 = 100um
 # generate only selected overlays for figure
 selected_compartment_fovs = ['TONIC_TMA3_R11C6', 'TONIC_TMA2_R7C3']
 cell_table_subset = annotations_by_mask.loc[(annotations_by_mask.fov.isin(selected_compartment_fovs)), :]
@@ -170,7 +171,7 @@ cell_table_clusters.loc[cell_table_clusters.cell_cluster != 'CD8T', 'CD8T_plot']
 
 # set up plotting
 CD8_colormap = pd.DataFrame({'CD8T_plot': ['CD8T', 'Other'],
-                            'color': ['navajowhite', 'dimgrey']})
+                            'color': ['yellow', 'dimgrey']})
 
 CD8_plot_dir = os.path.join(plot_dir, 'Figure2a_CD8_overlays')
 if not os.path.exists(CD8_plot_dir):
@@ -240,7 +241,7 @@ if not os.path.exists(diversity_plot_dir):
 
 diversity_colormap = pd.DataFrame({'cell_cluster_broad': ['Cancer', 'Structural', 'Mono_Mac', 'T',
                                                           'Other', 'Granulocyte', 'NK', 'B'],
-                                   'color': ['dimgrey', 'darksalmon', 'red', 'navajowhite',
+                                   'color': ['dimgrey', 'darksalmon', 'red', 'yellow',
                                              'yellowgreen',
                                              'aqua', 'dodgerblue', 'darkviolet']})
 
