@@ -47,7 +47,7 @@ plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Figure3a_volcano.pdf'))
 plt.close()
 
-text_df = ranked_features.loc[ranked_features.feature_name_unique.isin(['PDL1+__APC', 'CD8T__cluster_density__cancer_border', 'cancer_diversity']), :]
+text_df = ranked_features.loc[ranked_features.feature_name_unique.isin(['PDL1+__APC', 'T__cluster_broad_density', 'cancer_diversity']), :]
 
 
 # compare ratio features to best individual feature that is part of the ratio
@@ -121,6 +121,7 @@ ratio_df = ratio_df.sort_values(by='ratio', ascending=False)
 fig, ax = plt.subplots(figsize=(4, 3))
 sns.barplot(data=ratio_df, x='compartment', y='ratio', color='grey', ax=ax)
 sns.despine()
+ax.set_ylim(-0.7, 1.5)
 plt.savefig(os.path.join(plot_dir, 'Figure3c_enrichment_by_compartment.pdf'))
 plt.close()
 
@@ -147,7 +148,7 @@ ratio_df = pd.DataFrame({'spatial_feature': top_ratio.index, 'ratio': top_ratio.
 ratio_df = ratio_df.sort_values(by='ratio', ascending=False)
 
 fig, ax = plt.subplots(figsize=(4, 3))
-ax.set_ylim(-0.6, 0.6)
+ax.set_ylim(-0.7, 1.5)
 sns.barplot(data=ratio_df, x='spatial_feature', y='ratio', color='grey', ax=ax)
 sns.despine()
 
@@ -334,15 +335,15 @@ diversity_colormap = pd.DataFrame({'border_plot': ['Cancer', 'Structural', 'Mono
                              'color': ['white', 'darksalmon', 'red', 'navajowhite',  'yellowgreen', 'aqua', 'dodgerblue', 'darkviolet', 'dimgrey']})
 
 
-# subset = plot_df.loc[plot_df.raw_mean < .25, :]
-#
-# pats = [59, 62, 64, 100]
+# subset = plot_df.loc[plot_df.raw_mean > 0.8, :]
+# #
+# pats = [33, 59, 62, 65, 100, 115]
 # pats = [7, 20, 50, 82, 106, 107, 112, 127]
 # fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
 #
 # # 33, 62 previously included
 #
-# figure_dir = os.path.join(plot_dir, 'Figure4_border_diversity_pos2')
+# figure_dir = os.path.join(plot_dir, 'Figure3_border_diversity_test')
 # if not os.path.exists(figure_dir):
 #     os.mkdir(figure_dir)
 #
@@ -351,7 +352,7 @@ diversity_colormap = pd.DataFrame({'border_plot': ['Cancer', 'Structural', 'Mono
 #     if not os.path.exists(pat_dir):
 #         os.mkdir(pat_dir)
 #     pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == 'on_nivo'), 'fov'].unique()
-#     pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
+#     pat_df = cell_table_clusters.loc[cell_table_clusters.fov.isin(pat_fovs), :]
 #
 #     cohort_cluster_plot(
 #         fovs=pat_fovs,
@@ -367,7 +368,7 @@ diversity_colormap = pd.DataFrame({'border_plot': ['Cancer', 'Structural', 'Mono
 #         display_fig=False,
 #     )
 
-fovs = ['TONIC_TMA12_R2C4', 'TONIC_TMA14_R11C4'] # 64, 82
+fovs = ['TONIC_TMA6_R7C6', 'TONIC_TMA14_R11C4'] # 33, 82
 
 subset_dir = os.path.join(plot_dir, 'Figure3g_border_diversity')
 if not os.path.exists(subset_dir):
@@ -389,8 +390,8 @@ cohort_cluster_plot(
 
 
 # same thing for compartment masks
-compartment_colormap = pd.DataFrame({'tumor_region': ['cancer_core', 'cancer_border', 'stroma_border', 'stroma_core'],
-                         'color': ['blue', 'deepskyblue', 'lightcoral', 'firebrick']})
+compartment_colormap = pd.DataFrame({'tumor_region': ['cancer_core', 'cancer_border', 'stroma_border', 'stroma_core', 'immune_agg'],
+                         'color': ['blue', 'deepskyblue', 'lightcoral', 'firebrick', 'firebrick']})
 subset_mask_dir = os.path.join(plot_dir, 'Figure3g_border_diversity_masks')
 if not os.path.exists(subset_mask_dir):
     os.mkdir(subset_mask_dir)
@@ -411,8 +412,10 @@ cohort_cluster_plot(
 
 # crop overlays
 fov1 = fovs[0]
-row_start, col_start = 600, 900
+row_start, col_start = 1200, 900
 row_len, col_len = 600, 600
+
+# scale bars: 100 um = 2048 pixels / 8 = 256 pixels, 100um = 256 / 600 = 0.426666666666666 of image
 
 for dir in [subset_dir, subset_mask_dir]:
     fov1_image = io.imread(os.path.join(dir, 'cluster_masks_colored', fov1 + '.tiff'))
