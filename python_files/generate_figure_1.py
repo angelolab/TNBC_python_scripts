@@ -76,9 +76,12 @@ for fov in overlay_fovs:
 # generate color overlays
 cell_table_clusters = pd.read_csv(os.path.join(base_dir, 'analysis_files/cell_table_clusters.csv'))
 
+# scale bars: 800 um, 1/8 = 100um
+# crops = 500 pixels, 500/2048 = 0.25, one quarter the size. Scale bar = 1/2 of the crop size
+
 
 crop_cmap = pd.DataFrame({'cell_cluster_broad': ['Cancer', 'Structural', 'Mono_Mac', 'T', 'Other', 'Granulocyte', 'NK', 'B'],
-                          'color': ['dimgrey', 'darksalmon', 'red', 'navajowhite', 'yellowgreen', 'aqua', 'dodgerblue', 'darkviolet']})
+                          'color': ['dimgrey', 'darksalmon', 'red', 'yellow', 'yellowgreen', 'aqua', 'dodgerblue', 'darkviolet']})
 
 crop_plot_dir = os.path.join(plot_dir, 'Figure1_crop_overlays')
 if not os.path.exists(crop_plot_dir):
@@ -152,12 +155,12 @@ for fov, crop_info in crop_dict.items():
     # crop image
     for crop_coords in [crop_coords_1, crop_coords_2]:
         # read in segmentation mask and crop to correct size for visualization
-        seg_mask = io.imread(os.path.join(segmentation_dir, '{}_whole_cell.tiff'.format(fov)))
-        seg_crop = seg_mask[0, crop_coords[0]:crop_coords[0] + 500, crop_coords[1]:crop_coords[1] + 500]
-        seg_crop = erode_mask(seg_crop, connectivity=2, mode="thick", background=0)
-        seg_crop[seg_crop > 0] = 255
-        seg_crop = seg_crop.astype('uint8')
-        io.imsave(os.path.join(save_folder, 'crop_{}_mask.png'.format(crop_coords[0])), seg_crop)
+        # seg_mask = io.imread(os.path.join(segmentation_dir, '{}_whole_cell.tiff'.format(fov)))
+        # seg_crop = seg_mask[0, crop_coords[0]:crop_coords[0] + 500, crop_coords[1]:crop_coords[1] + 500]
+        # seg_crop = erode_mask(seg_crop, connectivity=2, mode="thick", background=0)
+        # seg_crop[seg_crop > 0] = 255
+        # seg_crop = seg_crop.astype('uint8')
+        # io.imsave(os.path.join(save_folder, 'crop_{}_mask.png'.format(crop_coords[0])), seg_crop)
 
         # same for overlay mask
         overlay_mask = io.imread(os.path.join(crop_plot_dir, 'cluster_masks_colored/{}.tiff'.format(fov)))
