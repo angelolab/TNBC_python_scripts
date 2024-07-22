@@ -1,5 +1,6 @@
 import os
 import shutil
+import numpy as np
 
 import pandas as pd
 import matplotlib
@@ -172,6 +173,7 @@ for fov, crop_info in crop_dict.items():
 
 
 # cell cluster heatmap
+study_fovs = np.delete(study_fovs, np.where(study_fovs == 'TONIC_TMA14_R1C1'))
 
 # Markers to include in the heatmap
 markers = ["ECAD", "CK17", "CD45", "CD3", "CD4", "CD8", "FOXP3", "CD20", "CD56", "CD14", "CD68",
