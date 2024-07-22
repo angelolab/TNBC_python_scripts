@@ -12,7 +12,7 @@ This repo contains working scripts for analyzing the TNBC MIBI data. Below is a 
 
 ## Directory Structure
 ### Top Level Folders
-`image_data`: Contains the channel images for each FOV. 
+`image_data`: Contains the single channel images for each FOV. 
 
 `segmentation_data`: Contains the whole cell and nuclear segmentation masks for each FOV.
 
@@ -53,13 +53,13 @@ about each fov, each timepoint, and each patient, as appropriate for your study.
 In order to facilitate different analyses, there are a small number of distinct formats for storing data. 
 
 *cell table*: This is the lowest level representation of the data, from which almost all other data formats are derived. Each row represents a single cell from a single image. Columns represent the different features for each cell. For example, the unique ID for each cell is located in the `label` column. The image that the cell came from is noted in the `fov` column, and the intensity of staining for CD68 protein is indicated by the `CD68` column. 
-In addition, there are often multiple levels of granularity in the clustering scheme, which are represented here as different columns. For example, `cell_cluster_detail` has more fine-grained assignments, with more distinct cell types, than `cell_cluster_broad`, which has a simpler schema. 
+In addition, there are often multiple levels of granularity in the clustering scheme, which are represented here as different columns. For example, `cell_cluster` has more fine-grained assignments, with more distinct cell types, than `cell_cluster_broad`, which has a simpler schema. 
 
-|  label  |    fov    | Ecadherin | CD68   | CD3   | Cell_cluster_detail | Cell_cluster_broad |
-|:-------:|:---------:|:---------:|:------:|:-----:|:-------------------:|:------------------:| 
-|    1    | TMA1_FOV1 |    0.4    |  0.01  | 0.01  |       Cancer        |       Cancer       |
-|    2    | TMA1_FOV1 |   0.01    |  0.0   |  0.8  |       T cell        |       Immune       | 
-|   19    | TMA2_FOV4 |   0.01    |  0.8   | 0.01  |     Macrophage      |       Immune       | 
+|  label  |    fov    | Ecadherin | CD68   | CD3   | cell_cluster | cell_cluster_broad |
+|:-------:|:---------:|:---------:|:------:|:-----:|:------------:|:------------------:| 
+|    1    | TMA1_FOV1 |    0.4    |  0.01  | 0.01  |    Cancer    |       Cancer       |
+|    2    | TMA1_FOV1 |   0.01    |  0.0   |  0.8  |    T cell    |       Immune       | 
+|   19    | TMA2_FOV4 |   0.01    |  0.8   | 0.01  |  Macrophage  |       Immune       | 
 
 *segmentation mask*: This is the lowest level spatial representation of the data, from which most other spatial data formats are derived. Each image has a single segmentation mask, which has the locations of each cell. Cells are represented on a per-pixel basis, based on their `label` in the `cell_table`. For example, all of the pixels belonging to cell 1 would have a value of 1, all of the pixels belonging to cell 2 would have a value of 2, etc etc. Shown below is a simplified example, with cell 1 on the left and cell 2 on the right. 
 ```
@@ -72,7 +72,7 @@ In addition, there are often multiple levels of granularity in the clustering sc
 0 0 0 0 0 0 0 0 0 0 
 ```
 
-*distance_matrix.xr*: this data structure represents the distances between all cells in an image. The rows and columns are labeled according to the cell ID of each cell in an image, with the value at `ij`th cell representing the euclidian distance, in pixels, between cell `i` and cell `j.
+*distance_matrix.xr*: this data structure represents the distances between all cells in an image. The rows and columns are labeled according to the cell ID of each cell in an image, with the value at `ij`th position representing the euclidian distance, in pixels, between cell `i` and cell `j`.
 
 |      | 1   |  3  |  6  |  8  | 
 |:----:|:---:|:---:|:---:|:---:| 
@@ -94,11 +94,11 @@ In addition, there are often multiple levels of granularity in the clustering sc
 
 ## Analysis Files
 
-*harmonized_metadata.csv*: This data frame details the various FOVs and their associated tissue and patient IDs, timepoint, etc.
+*harmonized_metadata*: This data frame details the various FOVs and their associated tissue and patient IDs, timepoint, etc.
 
-*feature_metadata.csv*: This file gives more detailed information about the specifications that make up each of the features in the fov and timepoint feature tables. The columns include, general feature name, unique feature name, compartment, cell population, cell population level, and feature type details.
+*feature_metadata*: This file gives more detailed information about the specifications that make up each of the features in the fov and timepoint feature tables. The columns include, general feature name, unique feature name, compartment, cell population, cell population level, and feature type details.
 
-*timepoint_combined_features.csv*: This dataframe details feature data for patients at various timepoints and includes the relevant metadata. It also includes evolution features, which describe the difference in feature values between two timepoints.
+*timepoint_combined_features*: This dataframe details feature data for patients at various timepoints and includes the relevant metadata. It also includes evolution features, which describe the difference in feature values between two timepoints.
 
 |         feature_name_unique          | raw_mean | normalized_mean | Patient_ID |            Timepoint            |                   combined_name                   |
 |:------------------------------------:|:--------:|:---------------:|:----------:|:-------------------------------:|:-------------------------------------------------:|
@@ -119,7 +119,7 @@ In addition, there are often multiple levels of granularity in the clustering sc
 
 *cell_table_func_all*: A cell table containing all possible pairwise marker positivity data.
 
-*fov_features.csv*: This file is a combination of all feature metrics calculated on a per image basis. The file *fov_features_filtered.csv* is also produced, which is the entire feature file with any highly correlated features removed.
+*fov_features*: This file is a combination of all feature metrics calculated on a per image basis. The file *fov_features_filtered* is also produced, which is the entire feature file with any highly correlated features removed.
 
 The fov_features table aggregates features of many different types together, all of which are detailed in [Ouput Files](#Output-Files).
 
@@ -130,11 +130,11 @@ The fov_features table aggregates features of many different types together, all
 |    T3     |  5  |   -1.8    |       -0.7       | max_fiber_density |       max_fiber_density        |  stroma_core  |   all    |      fiber       |
 
 In the example table above, we see there are multiple columns that contain descriptive information about the statistics contained in each row. While `feature_name_unique` obviously gives the most granular description of the value, we can also use the other columns to quickly subset the data for specific analysis. 
-For example, to look at all features within one region type across every image, we simply filter the compartment for only "cancer_core". 
-Alternatively, we could compare the granular cell type diversity of all immune classified cells across regions by filtering both the feature_type as "cell_diversity" and cell_pop as "immune".
+For example, to look at all features within one region type across every image, we simply filter the `compartment` for only "cancer_core". 
+Alternatively, we could compare the granular cell type diversity of all immune classified cells across regions by filtering both the `feature_type` as "cell_diversity" and `cell_pop` as "immune".
 
 
-*timepoint_features.csv*: While the data table above is aggregated *per_core*, this data is a combination of all feature metrics calculated on a per sample timepoint basis.  The file *timepoint_features_filtered.csv* is also produced, which is the entire feature file with any highly correlated features removed.
+*timepoint_features*: While the data table above is aggregated *per_core*, this data is a combination of all feature metrics calculated on a per sample timepoint basis.  The file *timepoint_features_filtered* is also produced, which is the entire feature file with any highly correlated features removed.
 
 | Tissue_ID |   feature_name    |      feature_name_unique       |  compartment  | cell_pop | raw_mean | raw_std | normalized_mean | normalized_std |
 |:---------:|:-----------------:|:------------------------------:|:-------------:|:--------:|:-------:|:-------:|:---------------:|:--------------:|
@@ -142,12 +142,12 @@ Alternatively, we could compare the granular cell type diversity of all immune c
 |    T2     | cancer_diversity  | cancer_diversity_cancer_border | cancer_border |  Cancer  |  -0.01   |   0.3   |      -0.6       |      1.1       |
 |    T3     | max_fiber_density |       max_fiber_density        |  stroma_core  |   all    |   -1.8   |   -16   |      -0.7       |      0.2       |
 
-The file *timepoint_evolution_features.csv* details the difference in feature values between two distinct timepoints from the same patient.
+The file *timepoint_evolution_features* details the difference in feature values between two distinct timepoints from the same patient.
 
 
 ## Output Files
 
-The individual feature data that combines into *fov_features.csv* and *timepoint_features.csv* can be found in the corresponding files detailed below.
+The individual feature data that combines into *fov_features* and *timepoint_features* can be found in the corresponding files detailed below.
 Each of the data frames in this section can be further stratified based on the feature relevancy and redundancy. The files below can have any of the following suffixes:
 * *_filtered*: features removed if there are less than 5 cells of the specified type
 * *_deduped*: redundant features removed
