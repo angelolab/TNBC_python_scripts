@@ -33,7 +33,7 @@ outcome_data = pd.read_csv(os.path.join(base_dir, 'intermediate_files/metadata/p
 combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
 combined_df = combined_df.merge(outcome_data, on='Patient_ID')
 combined_df = combined_df.loc[combined_df.Clinical_benefit.isin(['Yes', 'No']), :]
-combined_df.to_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'), index=False)
+combined_df.to_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features_outcome_labels.csv'), index=False)
 
 # generate a single set of top hits across all comparisons
 
