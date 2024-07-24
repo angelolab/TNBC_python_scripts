@@ -1,3 +1,19 @@
+import matplotlib
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+import numpy as np
+import os
+import pandas as pd
+
+import python_files.supplementary_plot_helpers as supplementary_plot_helpers
+
+BASE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/"
+SUPPLEMENTARY_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs")
+
 # Cell identification and classification
 # placeholder, right now these plots are in R
 
@@ -36,7 +52,7 @@ for metric in ['Timepoint']:
     data = all_data[all_data.Timepoint == 'baseline'] if metric == 'Localization' else all_data
 
     groups = np.unique(data.Localization) if metric == 'Localization' else \
-        ['primary', 'baseline', 'post_induction', 'on_nivo']
+        ['primary', 'baseline', 'pre_nivo', 'on_nivo']
     dfs = []
     for group in groups:
         sub_data = data[data[metric] == group]
@@ -77,7 +93,7 @@ for metric in ['Timepoint']:
 
 
 ## average cell counts by timepoint
-for cluster_level in ['cell_cluster_broad', 'cell_cluster']:
+for cluster_level, figure_name in zip(['cell_cluster_broad', 'cell_cluster'], ['e', 'f']):
     cell_table = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/cell_table_clusters.csv')
 
     # get cell population and whole image counts
@@ -129,7 +145,7 @@ for cluster_level in ['cell_cluster_broad', 'cell_cluster']:
     plt.title('Cell counts over time', fontsize=12)
     plt.tight_layout()
     sns.despine()
-    plt.savefig(os.path.join(cluster_stats_dir, f"avg_cells_per_timepoint-{}.pdf"), dpi=300)
+    plt.savefig(os.path.join(cluster_stats_dir, "supp_figure_6{}.pdf".format(figure_name)), dpi=300)
 
 
 ## colored cell cluster masks from random subset of 20 FOVs

@@ -14,7 +14,7 @@ SUPPLEMENTARY_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs")
 
 
 ranked_features_all = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature_ranking.csv'))
-ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
 ranked_features = ranked_features.loc[ranked_features.feature_rank_global <= 100, :]
 
 # densities vs ratios in top 100
@@ -30,6 +30,7 @@ sns.barplot(data=ranked_feature_counts, x='feature_type', y='feature_name_unique
 sns.despine()
 plt.xlabel('Feature Type')
 plt.ylabel('Number of Features')
+ax.set_ylim([0, 45])
 plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_10a.pdf'), dpi=300)
 plt.close()
 
@@ -47,6 +48,7 @@ sns.scatterplot(data=ranked_features_df, x='med_diff', y='log_pval', alpha=1, hu
                 palette=sns.color_palette("icefire", as_cmap=True),
                 s=2.5, edgecolor='none', ax=ax)
 ax.set_xlim(-3, 3)
+ax.set_ylim(0, 7)
 sns.despine()
 
 # add gradient legend
@@ -100,30 +102,9 @@ feature_counts = top_features_by_feature.groupby('comparison').count().reset_ind
 feature_counts.columns = ['num_comparisons', 'num_features']
 
 fig, ax = plt.subplots(figsize=(4, 4))
+ax.set_ylim(0, 90)
 sns.barplot(data=feature_counts, x='num_comparisons', y='num_features', color='grey', ax=ax)
 plt.tight_layout()
 sns.despine()
 plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_10f.pdf'))
 plt.close()
-
-# shared/non-shared features over time
-ranked_features = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature_ranking.csv'))
-top_features = ranked_features.loc[ranked_features.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), :]
-top_feature_names = top_features.feature_name_unique[:100].unique()
-top_features = top_features.loc[top_features.feature_name_unique.isin(top_feature_names), :]
-top_features_wide = pd.pivot(top_features, index='feature_name_unique', columns='comparison', values='feature_rank_global')
-top_features_wide['top_100_count'] = top_features_wide.apply(lambda x: np.sum(x[:4] <= 100), axis=1)
-top_features_wide['top_200_count'] = top_features_wide.apply(lambda x: np.sum(x[:4] <= 200), axis=1)
-top_features_wide['top_350_count'] = top_features_wide.apply(lambda x: np.sum(x[:4] <= 350), axis=1)
-
-# look at top 100 repeats
-len([x for x in top_features_wide.loc[top_features_wide.top_100_count > 1, ].index if 'cancer_border' in x])
-len([x for x in top_features_wide.index if 'cancer_border' in x])
-
-np.sum(top_features_wide.top_350_count > 1)
-top_features_wide.loc[top_features_wide.top_350_count > 3, ].index
-
-shared_3 = top_features_wide.loc[top_features_wide.top_350_count > 2, ].index
-len(shared_3)
-len([x for x in shared_3 if 'diversity' in x])
-len([x for x in shared_3 if 'ratio' in x])

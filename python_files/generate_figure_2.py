@@ -20,7 +20,7 @@ seg_dir = os.path.join(base_dir, 'segmentation_data/deepcell_output')
 plot_dir = os.path.join(base_dir, 'figures')
 
 harmonized_metadata = pd.read_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'))
-study_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), 'fov'].values
+study_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), 'fov'].values
 
 
 # tumor compartment overlays
@@ -77,6 +77,7 @@ if not os.path.exists(compartment_plot_dir):
 #         display_fig=False,
 #     )
 
+# scale bars: 800um image, 1/8 = 100um
 # generate only selected overlays for figure
 selected_compartment_fovs = ['TONIC_TMA3_R11C6', 'TONIC_TMA2_R7C3']
 cell_table_subset = annotations_by_mask.loc[(annotations_by_mask.fov.isin(selected_compartment_fovs)), :]
@@ -371,10 +372,10 @@ plt.close()
 
 # # get names of features from clustergrid for annotating features within clusters
 # feature_names = clustergrid.data2d.columns
-#
-# start_idx = 710
-# end_idx = 750
+# 
+# start_idx = 700
+# end_idx = 880
 # clustergrid_small = sns.clustermap(corr_df.loc[feature_names[start_idx:end_idx], feature_names[start_idx:end_idx]], cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20),
 #                                    col_cluster=False, row_cluster=False)
-# clustergrid_small.savefig(os.path.join(plot_dir, 'spearman_correlation_dp_functional_markers_clustermap_small_3.png'), dpi=300)
+# clustergrid_small.savefig(os.path.join(plot_dir, 'spearman_correlation_dp_functional_markers_clustermap_small_700.png'), dpi=300)
 # plt.close()

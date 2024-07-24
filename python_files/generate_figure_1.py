@@ -77,6 +77,9 @@ for fov in overlay_fovs:
 # generate color overlays
 cell_table_clusters = pd.read_csv(os.path.join(base_dir, 'analysis_files/cell_table_clusters.csv'))
 
+# scale bars: 800 um, 1/8 = 100um
+# crops = 500 pixels, 500/2048 = 0.25, one quarter the size. Scale bar = 1/2 of the crop size
+
 
 crop_cmap = pd.DataFrame({'cell_cluster_broad': ['Cancer', 'Structural', 'Mono_Mac', 'T', 'Other', 'Granulocyte', 'NK', 'B'],
                           'color': ['dimgrey', 'darksalmon', 'red', 'navajowhite', 'yellowgreen', 'aqua', 'dodgerblue', 'darkviolet']})

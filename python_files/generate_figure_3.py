@@ -34,6 +34,7 @@ fig, ax = plt.subplots(figsize=(3,3))
 sns.scatterplot(data=ranked_features, x='med_diff', y='log_pval', alpha=1, hue='importance_score', palette=sns.color_palette("icefire", as_cmap=True),
                 s=2.5, edgecolor='none', ax=ax)
 ax.set_xlim(-3, 3)
+ax.set_ylim(0, 8)
 sns.despine()
 
 # add gradient legend
@@ -45,6 +46,8 @@ plt.tight_layout()
 
 plt.savefig(os.path.join(plot_dir, 'Figure3a_volcano.pdf'))
 plt.close()
+
+text_df = ranked_features.loc[ranked_features.feature_name_unique.isin(['PDL1+__APC', 'T__cluster_broad_density', 'cancer_diversity']), :]
 
 
 # compare ratio features to best individual feature that is part of the ratio
@@ -97,6 +100,9 @@ plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Figure3b_ratio_vs_density.pdf'))
 plt.close()
 
+# annotate specific features
+text_df = comparison_df.loc[comparison_df.original_feature == 'T__Cancer__ratio__cancer_core', :]
+text_df = ranked_features.loc[ranked_features.feature_name_unique == 'Cancer__cluster_broad_density__cancer_core', :]
 
 # look at enrichment by compartment
 top_counts = ranked_features.iloc[:100, :].groupby('compartment').count().iloc[:, 0]
@@ -115,8 +121,11 @@ ratio_df = ratio_df.sort_values(by='ratio', ascending=False)
 fig, ax = plt.subplots(figsize=(4, 3))
 sns.barplot(data=ratio_df, x='compartment', y='ratio', color='grey', ax=ax)
 sns.despine()
+ax.set_ylim(-0.7, 1.5)
 plt.savefig(os.path.join(plot_dir, 'Figure3c_enrichment_by_compartment.pdf'))
 plt.close()
+
+print(top_counts)
 
 # look at enrichment of spatial features
 spatial_features = ['mixing_score', 'cell_diversity', 'compartment_area_ratio', 'pixie_ecm',
@@ -139,13 +148,14 @@ ratio_df = pd.DataFrame({'spatial_feature': top_ratio.index, 'ratio': top_ratio.
 ratio_df = ratio_df.sort_values(by='ratio', ascending=False)
 
 fig, ax = plt.subplots(figsize=(4, 3))
-ax.set_ylim(-0.6, 0.6)
+ax.set_ylim(-0.7, 1.5)
 sns.barplot(data=ratio_df, x='spatial_feature', y='ratio', color='grey', ax=ax)
 sns.despine()
 
 plt.savefig(os.path.join(plot_dir, 'Figure3d_enrichment_by_spatial.pdf'))
 plt.close()
 
+print(top_count_spatial)
 
 # plot top features
 plot_features = ranked_features.copy()
@@ -156,7 +166,7 @@ plot_features['density'] = plot_features.feature_type == 'density'
 plot_features['diversity'] = plot_features.feature_type.isin(['region_diversity', 'cell_diversity'])
 plot_features['phenotype'] = plot_features.feature_type == 'functional_marker'
 plot_features['sign'] = plot_features.med_diff > 0
-plot_features = plot_features.iloc[:53, :]
+plot_features = plot_features.iloc[:52, :]
 plot_features = plot_features[['feature_name', 'feature_name_unique', 'compartment', 'ratio', 'density', 'diversity', 'phenotype', 'sign']]
 plot_features = plot_features.drop_duplicates()
 plot_features_sort = plot_features.sort_values(by='feature_name')
@@ -164,7 +174,7 @@ plot_features_sort.to_csv(os.path.join(plot_dir, 'Figure3e_top_hits.csv'))
 
 
 # PDL1+__CD68 macs on nivo example
-combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
+combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features_with_outcomes.csv'))
 
 feature_name = 'PDL1+__CD68_Mac'
 timepoint = 'on_nivo'
@@ -325,15 +335,15 @@ diversity_colormap = pd.DataFrame({'border_plot': ['Cancer', 'Structural', 'Mono
                              'color': ['white', 'darksalmon', 'red', 'navajowhite',  'yellowgreen', 'aqua', 'dodgerblue', 'darkviolet', 'dimgrey']})
 
 
-# subset = plot_df.loc[plot_df.raw_mean < .25, :]
-#
-# pats = [59, 62, 64, 100]
+# subset = plot_df.loc[plot_df.raw_mean > 0.8, :]
+# #
+# pats = [33, 59, 62, 65, 100, 115]
 # pats = [7, 20, 50, 82, 106, 107, 112, 127]
 # fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
 #
 # # 33, 62 previously included
 #
-# figure_dir = os.path.join(plot_dir, 'Figure4_border_diversity_pos2')
+# figure_dir = os.path.join(plot_dir, 'Figure3_border_diversity_test')
 # if not os.path.exists(figure_dir):
 #     os.mkdir(figure_dir)
 #
@@ -342,7 +352,7 @@ diversity_colormap = pd.DataFrame({'border_plot': ['Cancer', 'Structural', 'Mono
 #     if not os.path.exists(pat_dir):
 #         os.mkdir(pat_dir)
 #     pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == 'on_nivo'), 'fov'].unique()
-#     pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
+#     pat_df = cell_table_clusters.loc[cell_table_clusters.fov.isin(pat_fovs), :]
 #
 #     cohort_cluster_plot(
 #         fovs=pat_fovs,
@@ -358,7 +368,7 @@ diversity_colormap = pd.DataFrame({'border_plot': ['Cancer', 'Structural', 'Mono
 #         display_fig=False,
 #     )
 
-fovs = ['TONIC_TMA12_R2C4', 'TONIC_TMA14_R11C4'] # 64, 82
+fovs = ['TONIC_TMA6_R7C6', 'TONIC_TMA14_R11C4'] # 33, 82
 
 subset_dir = os.path.join(plot_dir, 'Figure3g_border_diversity')
 if not os.path.exists(subset_dir):
@@ -380,8 +390,8 @@ cohort_cluster_plot(
 
 
 # same thing for compartment masks
-compartment_colormap = pd.DataFrame({'tumor_region': ['cancer_core', 'cancer_border', 'stroma_border', 'stroma_core'],
-                         'color': ['blue', 'deepskyblue', 'lightcoral', 'firebrick']})
+compartment_colormap = pd.DataFrame({'tumor_region': ['cancer_core', 'cancer_border', 'stroma_border', 'stroma_core', 'immune_agg'],
+                         'color': ['blue', 'deepskyblue', 'lightcoral', 'firebrick', 'firebrick']})
 subset_mask_dir = os.path.join(plot_dir, 'Figure3g_border_diversity_masks')
 if not os.path.exists(subset_mask_dir):
     os.mkdir(subset_mask_dir)
@@ -402,8 +412,10 @@ cohort_cluster_plot(
 
 # crop overlays
 fov1 = fovs[0]
-row_start, col_start = 600, 900
+row_start, col_start = 1200, 900
 row_len, col_len = 600, 600
+
+# scale bars: 100 um = 2048 pixels / 8 = 256 pixels, 100um = 256 / 600 = 0.426666666666666 of image
 
 for dir in [subset_dir, subset_mask_dir]:
     fov1_image = io.imread(os.path.join(dir, 'cluster_masks_colored', fov1 + '.tiff'))

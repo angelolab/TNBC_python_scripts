@@ -13,11 +13,11 @@ BASE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/"
 SUPPLEMENTARY_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs")
 
 # plot key features from primary tumors
-combined_df = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/timepoint_combined_features.csv'))
+combined_df = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/timepoint_combined_features_with_outcomes.csv'))
 
 for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
-    for feature, plot_name, lims in zip(['B__NK__ratio__cancer_core', 'HLADR+__APC', 'Cancer__Structural__ratio__cancer_border'],
-                                  ['11a', '11b', '11c'], [[-5, 7], [0, 1.2], [1, 12]]):
+    for feature, plot_name, lims in zip(['B__NK__ratio__cancer_core', 'CD68_Mac__cluster_density', 'Vim+__CD4T'],
+                                  ['11a', '11b', '11c'], [[-5, 7], [0, 0.1], [0, 1.2]]):
 
         plot_df = combined_df.loc[(combined_df.feature_name_unique == feature) &
                                   (combined_df.Timepoint == timepoint), :]
@@ -36,8 +36,8 @@ for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
 
 # top features from baseline
 for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
-    for feature, plot_name, lims in zip(['diversity_cell_cluster__Cancer_2__stroma_border', 'CD38+__Immune_Other', 'Other__Structural__ratio'],
-                                  ['11d', '11e', '11f'], [[0, 3], [-0.2, 1], [-10, 3]]):
+    for feature, plot_name, lims in zip(['Structural__cluster_broad_density__stroma_border', 'Other__Cancer__ratio__stroma_core', 'NK__Other__ratio__stroma_border'],
+                                  ['11d', '11e', '11f'], [[0, 1], [-11, 4], [-10, 0]]):
 
         plot_df = combined_df.loc[(combined_df.feature_name_unique == feature) &
                                   (combined_df.Timepoint == timepoint), :]

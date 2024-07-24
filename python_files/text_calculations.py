@@ -67,6 +67,7 @@ ttest_ind(comparison_df.density_score.values, comparison_df.ratio_score.values)
 from statsmodels.stats.proportion import proportions_ztest
 
 ranked_features['compartment_binary'] = ranked_features.compartment.apply(lambda x: 'compartment' if x != 'all' else 'all')
+feature_metadata['compartment_binary'] = feature_metadata.compartment.apply(lambda x: 'compartment' if x != 'all' else 'all')
 top_counts = ranked_features.iloc[:100, :].groupby('compartment_binary').count().iloc[:, 0]
 total_counts = feature_metadata.groupby('compartment_binary').count().iloc[:, 0]
 
@@ -88,9 +89,7 @@ total_counts_spatial = feature_metadata.groupby('spatial_feature').count().iloc[
 stat, pval = proportions_ztest(top_count_spatial, total_counts_spatial)
 
 # PDL1+ macs
-clinical_benefit = outcomes_df[['Patient_ID', 'Clinical_benefit']].drop_duplicates()
-combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
-combined_df = combined_df.merge(clinical_benefit, on='Patient_ID', how='left')
+combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features_with_outcomes.csv'))
 
 feature_name = 'PDL1+__CD68_Mac'
 timepoint = 'on_nivo'
@@ -102,6 +101,28 @@ plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
 ttest_ind(plot_df.loc[plot_df.Clinical_benefit == 'Yes', 'raw_mean'].values,
             plot_df.loc[plot_df.Clinical_benefit == 'No', 'raw_mean'].values)
 
+
+# shared/non-shared features over time
+ranked_features = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_ranking.csv'))
+top_features = ranked_features.loc[ranked_features.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), :]
+top_feature_names = top_features.feature_name_unique[:100].unique()
+top_features = top_features.loc[top_features.feature_name_unique.isin(top_feature_names), :]
+top_features_wide = pd.pivot(top_features, index='feature_name_unique', columns='comparison', values='feature_rank_global')
+top_features_wide['top_100_count'] = top_features_wide.apply(lambda x: np.sum(x[:4] <= 100), axis=1)
+top_features_wide['top_200_count'] = top_features_wide.apply(lambda x: np.sum(x[:4] <= 200), axis=1)
+top_features_wide['top_350_count'] = top_features_wide.apply(lambda x: np.sum(x[:4] <= 350), axis=1)
+
+# look at top 100 repeats
+len([x for x in top_features_wide.loc[top_features_wide.top_100_count > 1, ].index if 'cancer_border' in x])
+
+np.sum(top_features_wide.top_350_count > 1)
+len(top_features_wide.loc[top_features_wide.top_350_count > 2, ].index)
+
+shared_3 = top_features_wide.loc[top_features_wide.top_350_count > 2, ].index
+len(shared_3)
+len([x for x in shared_3 if 'diversity' in x])
+len([x for x in shared_3 if 'ratio' in x])
+
 # lasso model accuracies
 cv_scores = pd.read_csv(os.path.join(base_dir, 'multivariate_lasso', 'formatted_cv_scores.csv'))
 print(np.mean(cv_scores.loc[np.logical_and(cv_scores.assay == 'MIBI', cv_scores.variable == 'primary'), 'value']))
@@ -110,6 +131,9 @@ print(np.mean(cv_scores.loc[np.logical_and(cv_scores.assay == 'MIBI', cv_scores.
 
 ttest_ind(cv_scores.loc[np.logical_and(cv_scores.assay == 'MIBI', cv_scores.variable == 'primary'), 'value'],
             cv_scores.loc[np.logical_and(cv_scores.assay == 'MIBI', cv_scores.variable == 'baseline'), 'value'])
+
+ttest_ind(cv_scores.loc[np.logical_and(cv_scores.assay == 'MIBI', cv_scores.variable == 'primary'), 'value'],
+            cv_scores.loc[np.logical_and(cv_scores.assay == 'MIBI', cv_scores.variable == 'pre_nivo'), 'value'])
 
 print(np.mean(cv_scores.loc[np.logical_and(cv_scores.assay == 'MIBI', cv_scores.variable == 'on_nivo'), 'value']))
 

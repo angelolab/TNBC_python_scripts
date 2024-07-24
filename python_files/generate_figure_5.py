@@ -23,12 +23,12 @@ cv_scores = pd.read_csv(os.path.join(base_dir, 'multivariate_lasso', 'formatted_
 
 
 # compare AUCs
-ttest_ind(cv_scores.loc[np.logical_and(cv_scores.assay == 'rna', cv_scores.variable == 'baseline'), 'value'],
-          cv_scores.loc[np.logical_and(cv_scores.assay == 'rna', cv_scores.variable == 'post_induction'), 'value'])
+ttest_ind(cv_scores.loc[np.logical_and(cv_scores.assay == 'RNA', cv_scores.variable == 'baseline'), 'value'],
+          cv_scores.loc[np.logical_and(cv_scores.assay == 'RNA', cv_scores.variable == 'pre_nivo'), 'value'])
 
 
 fig, ax = plt.subplots(1, 1, figsize=(6, 4))
-order = ['primary', 'baseline', 'post_induction','on_nivo']
+order = ['primary', 'baseline', 'pre_nivo','on_nivo']
 sns.stripplot(data=cv_scores, x='variable', y='value', hue='assay',
               order=order, ax=ax, dodge=True)
 sns.boxplot(data=cv_scores, x='variable', y='value', hue='assay',
@@ -40,7 +40,7 @@ ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
 
 sns.despine()
 plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure6_AUC_combined.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure5a.pdf'))
 plt.close()
 
 
@@ -52,22 +52,26 @@ mibi_rankings = all_model_rankings.loc[np.logical_and(all_model_rankings.modalit
 
 # annotate required channels per feature
 channels_reqs = {'T_Other__cluster_density__cancer_border': ['CD3', 'CD4', 'CD8', 'CD45', 'ECAD', 'H3K27', 'H3K9'],
-                 'Cancer_Other__proportion_of__Cancer': ['ECAD', 'CK17'],
-                 'B__Stroma__ratio__cancer_border': ['CD20', 'ECAD', 'Collagen1', 'Fibronectin'],
-                 'cancer_diversity': ['ECAD', 'CK17'],
-                 'cancer_diversity_stroma_core': ['ECAD', 'CK17'],
-                 'TIM3+__T_Other': ['TIM3', 'CD3', 'CD4', 'CD8'],
-                 'TBET+__T_Other': ['TBET', 'CD3', 'CD4', 'CD8'],
-                 'Other__distance_to__Cancer__cancer_border': ['CD56', 'CD14', 'CD45', 'ECAD', 'SMA'],
-                 'area_nuclear__NK': ['CD56'],
-                 'TCF1+__Cancer': ['TCF1'],
-                 'PDL1+__Fibroblast': ['PDL1', 'FAP', 'SMA'],
-                 'cancer_diversity_cancer_border': ['ECAD', 'CK17'],
+                 'CD45RO+__Immune_Other__cancer_border': ['CD45', 'CD3', 'CD4', 'CD8', 'CD14', 'CD20', 'CD56', 'CD68', 'CD163', 'CD11c', 'HLADR'],
+                 'Cancer_3__proportion_of__Cancer': ['ECAD', 'CK17'],
+                 'NK__Structural__ratio__cancer_border': ['CD56', 'Collagen', 'Fibronectin', 'FAP', 'ECAD', 'CK17', 'SMA'],
+                 'B__Cancer__ratio': ['CD20', 'ECAD', 'CK17'],
+                 'cluster_5__proportion': ['CD31', 'FOXP3', 'ChyTr', 'Calprotectin'],
                  'Fe+__all': ['Fe'],
-                 'TBET+__all': ['TBET'],
-                 'PDL1+__Treg': ['FOXP3'],
-                 'NK__Stroma__ratio__cancer_border': ['CD56'],
-                 'fiber_orientation': ['Collagen1']}
+                 'CD45RO+__Other': ['CD45RO'],
+                 'Smooth_Muscle__proportion_of__Structural': ['SMA'],
+                 'B__Structural__ratio__cancer_border': ['B'],
+                 'Endothelium__cluster_density__cancer_border':['CD31'],
+                 'TCF1+__Cancer_1': ['TCF1'],
+                 'T__Cancer__ratio__cancer_border': ['CD3'],
+                 'Smooth_Muscle__cluster_density': ['SMA'],
+                 'Mono_Mac__Cancer__ratio__cancer_border': ['CD14'],
+                 'cancer_diversity_stroma_core': ['ECAD', 'CK17'],
+                 'HLADR+__Immune_Other__cancer_border': ['HLADR'],
+                 'Ki67+__Cancer_2__stroma_core': ['Ki67'],
+                 'NK__Structural__ratio__cancer_core': ['CD56'],
+                 'num_concavities_nuclear__Cancer_1': ['ECAD'],
+                 }
 
 channel_counts = mibi_rankings[['feature_name_unique', 'coef_norm', 'top_ranked']].copy()
 channel_counts = channel_counts.sort_values('coef_norm', ascending=False)
@@ -87,17 +91,17 @@ fig, ax = plt.subplots(1, 1, figsize=(3, 4))
 sns.lineplot(data=channel_counts, x='total_channels', y='coef_cdf', ax=ax, estimator=None, errorbar=None)
 ax.set_title('CDF of model weights based on required channels')
 ax.set_ylim([0, 1])
-ax.set_xlim([0, 22])
+ax.set_xlim([0, 30])
 
 plt.tight_layout()
 sns.despine()
-plt.savefig(os.path.join(plot_dir, 'Figure6_model_weight_cdf.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure5d.pdf'))
 plt.close()
 
 
 # barchart with number of required channels per feature
-feature_names = ['total cd38', 'NK/T', 'PDL1 APC', 'Cancer 3', 'B/Stroma', 'Canc div', 'CD8T border']
-channel_counts = [3, 5, 5, 3, 6, 3, 5]
+feature_names = ['total cd38', 'structural in stroma border', 'PDL1 APC', 'Cancer 3', 'B/Structural', 'CD8T border']
+channel_counts = [3, 5, 5, 3, 6, 5]
 
 fig, ax = plt.subplots(1, 1, figsize=(3, 4))
 sns.barplot(y=feature_names, x=channel_counts, ax=ax, color='grey')
@@ -105,7 +109,7 @@ sns.barplot(y=feature_names, x=channel_counts, ax=ax, color='grey')
 ax.set_title('Number of channels per feature')
 plt.tight_layout()
 sns.despine()
-plt.savefig(os.path.join(plot_dir, 'Figure6_channels_per_feature.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure5b.pdf'))
 plt.close()
 
 # barchart with number of transcripts per signature
@@ -133,8 +137,8 @@ gene_counts.columns = gene_counts.iloc[0, :]
 gene_counts = gene_counts.iloc[1:, :]
 gene_counts['cytolytic activity'] = ['GZMA', 'PRF1'] + [None] * (len(gene_counts) - 2)
 
-signatures = ['Coactivation_molecules', 'Th1_signature', 'T_reg_traffic', 'Matrix', 'cytolytic activity',
-              'Proliferation_rate', 'M1_signatures']
+signatures = ['Coactivation_molecules', 'Th1_signature', 'Matrix', 'cytolytic activity',
+              'Antitumor_cytokines', 'M1_signatures']
 
 transcript_counts = [np.sum(gene_counts[x].values != None) for x in signatures]
 
@@ -147,5 +151,5 @@ ax.set_xlim([0, 20])
 ax.set_title('Number of transcripts per signature')
 plt.tight_layout()
 sns.despine()
-plt.savefig(os.path.join(plot_dir, 'Figure6_transcripts_per_signature.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure5c.pdf'))
 plt.close()

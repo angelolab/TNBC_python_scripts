@@ -14,7 +14,13 @@ import numpy as np
 base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
 sequence_dir = os.path.join(base_dir, 'sequencing_data')
 
-harmonized_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/harmonized_metadata.csv'))
+harmonized_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/all_fovs/harmonized_metadata.csv'))
+
+# anonymize patient IDs
+patient_ID_mapping = pd.read_csv(os.path.join(base_dir, 'final_patient_mapping.csv'))
+harmonized_metadata = pd.merge(harmonized_metadata, patient_ID_mapping, on='Patient_ID', how='left')
+harmonized_metadata = harmonized_metadata.drop(columns=['Patient_ID'])
+harmonized_metadata = harmonized_metadata.rename(columns={'new_Patient_ID': 'Patient_ID'})
 
 #
 # calculate gene set enrichment scores
@@ -46,7 +52,7 @@ ss.res2d.to_csv(os.path.join(sequence_dir, 'preprocessing/msigdb_ssgsea_es.csv')
 # calculate other gene sets
 
 # Load data
-metadata_sub = harmonized_metadata[["rna_seq_sample_id","Timepoint","Clinical_benefit"]]
+metadata_sub = harmonized_metadata[["rna_seq_sample_id","Timepoint"]]
 metadata_sub = metadata_sub.dropna()
 metadata_sub = metadata_sub.drop_duplicates()
 
@@ -199,6 +205,12 @@ all_gene_scores_dt.to_csv(os.path.join(sequence_dir, 'preprocessing/misc_gene_se
 genomics_feature_df = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_WES_meta_table.tsv'), sep='\t')
 genomics_feature_df = genomics_feature_df.rename(columns={'Individual.ID': 'Patient_ID', 'timepoint': 'Timepoint'})
 
+# anonymize patient IDs
+patient_ID_mapping = pd.read_csv(os.path.join(base_dir, 'final_patient_mapping.csv'))
+genomics_feature_df = pd.merge(genomics_feature_df, patient_ID_mapping, on='Patient_ID', how='left')
+genomics_feature_df = genomics_feature_df.drop(columns=['Patient_ID'])
+genomics_feature_df = genomics_feature_df.rename(columns={'new_Patient_ID': 'Patient_ID'})
+
 # add in new IC10 predictions
 new_ic10 = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/tonic_predictions.txt'), sep='\t')
 new_ic10['Experiment.System.ID'] = new_ic10['Sample'].apply(lambda x: x.split('_vs')[0])
@@ -206,7 +218,7 @@ new_ic10 = new_ic10.rename(columns={'voting': 'Eniclust_2'})
 genomics_feature_df = pd.merge(genomics_feature_df, new_ic10[['Experiment.System.ID', 'Eniclust_2']], on='Experiment.System.ID', how='left')
 
 # drop columns which aren't needed for analysis
-drop_cols = ['Localization', 'induction_arm', 'Experiment.System.ID', 'B2']
+drop_cols = ['Localization', 'induction_arm', 'Experiment.System.ID', 'B2', 'Clinical_benefit']
 genomics_feature_df = genomics_feature_df.drop(columns=drop_cols)
 
 # check which columns have non-numeric values
@@ -264,7 +276,7 @@ RNA_feature_df = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_imm
 RNA_feature_df_genes = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_immune_sig_gene_TPM_table.tsv'), sep='\t')
 RNA_feature_df = pd.merge(RNA_feature_df, RNA_feature_df_genes, on='sample_identifier', how='left')
 RNA_feature_df = RNA_feature_df.rename(columns={'sample_identifier': 'rna_seq_sample_id'})
-RNA_feature_df = RNA_feature_df.merge(harmonized_metadata[['rna_seq_sample_id', 'Clinical_benefit', 'Timepoint', 'Patient_ID', 'Tissue_ID']].drop_duplicates(),
+RNA_feature_df = RNA_feature_df.merge(harmonized_metadata[['rna_seq_sample_id', 'Timepoint', 'Patient_ID', 'Tissue_ID']].drop_duplicates(),
                                     on='rna_seq_sample_id', how='left')
 RNA_feature_df = RNA_feature_df.drop(columns=['rna_seq_sample_id'])
 RNA_feature_df['TME_subtype_immune'] = RNA_feature_df['TME_subtype'].apply(lambda x: 0 if x == 'F' or x == 'D' else 1)
@@ -276,13 +288,13 @@ RNA_feature_df.to_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_immune_sig
 # proccess other gene scores files
 msigdb_scores = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/msigdb_ssgsea_es.csv'))
 msigdb_scores = msigdb_scores.rename(columns={'Name': 'rna_seq_sample_id', 'Term': 'feature_name', 'NES': 'feature_value'})
-msigdb_scores = msigdb_scores.merge(harmonized_metadata[['rna_seq_sample_id', 'Clinical_benefit', 'Timepoint', 'Patient_ID', 'Tissue_ID']].drop_duplicates(),
+msigdb_scores = msigdb_scores.merge(harmonized_metadata[['rna_seq_sample_id', 'Timepoint', 'Patient_ID', 'Tissue_ID']].drop_duplicates(),
                                     on='rna_seq_sample_id', how='left')
 msigdb_scores = msigdb_scores.drop(columns=['ES', 'rna_seq_sample_id'])
 
 other_scores = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/misc_gene_set_scores.csv'))
 other_scores_long = pd.melt(other_scores, id_vars=['rna_seq_sample_id'], var_name='feature_name', value_name='feature_value')
-other_scores_long = other_scores_long.merge(harmonized_metadata[['rna_seq_sample_id', 'Clinical_benefit', 'Timepoint', 'Patient_ID', 'Tissue_ID']].drop_duplicates(),
+other_scores_long = other_scores_long.merge(harmonized_metadata[['rna_seq_sample_id', 'Timepoint', 'Patient_ID', 'Tissue_ID']].drop_duplicates(),
                                     on='rna_seq_sample_id', how='left')
 other_scores_long = other_scores_long.drop(columns=['rna_seq_sample_id'])
 
@@ -295,7 +307,7 @@ rs_cgas = rs_cgas.merge(rna_ids, on='Experiment.System.ID', how='left')
 rs_cgas = rs_cgas.drop(columns=['Experiment.System.ID', 'sample_identifier'])
 rs_cgas_long = pd.melt(rs_cgas, id_vars=['Tissue_ID'], var_name='feature_name', value_name='feature_value')
 
-rs_cgas_long = rs_cgas_long.merge(harmonized_metadata[['Clinical_benefit', 'Timepoint', 'Patient_ID', 'Tissue_ID']].drop_duplicates(),
+rs_cgas_long = rs_cgas_long.merge(harmonized_metadata[['Timepoint', 'Patient_ID', 'Tissue_ID']].drop_duplicates(),
                                     on='Tissue_ID', how='left')
 
 # combine together
@@ -312,7 +324,7 @@ genomics_feature_df = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONI
 genomics_feature_df = pd.merge(genomics_feature_df, harmonized_metadata[['Patient_ID', 'Timepoint', 'Tissue_ID']].drop_duplicates(),
                                on=['Patient_ID', 'Timepoint'], how='left')
 
-genomics_feature_df_long = pd.melt(genomics_feature_df, id_vars=['Patient_ID', 'Timepoint', 'Tissue_ID', 'Clinical_benefit'],
+genomics_feature_df_long = pd.melt(genomics_feature_df, id_vars=['Patient_ID', 'Timepoint', 'Tissue_ID'],
                                    var_name='feature_name', value_name='feature_value')
 
 # label summary metrics
@@ -380,7 +392,7 @@ genomics_feature_df_long.loc[genomics_feature_df_long.feature_name.isin(pam), 'f
 
 # transform RNA features to long format
 RNA_feature_df = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_immune_sig_score_and_genes_processed.csv'))
-RNA_feature_df_long = pd.melt(RNA_feature_df, id_vars=['Patient_ID', 'Timepoint', 'Tissue_ID', 'Clinical_benefit'],
+RNA_feature_df_long = pd.melt(RNA_feature_df, id_vars=['Patient_ID', 'Timepoint', 'Tissue_ID'],
                                    var_name='feature_name', value_name='feature_value')
 
 # label cell type signatures
@@ -422,6 +434,10 @@ genomics_feature_df_long_combined = pd.concat([genomics_feature_df_long, RNA_fea
 # compute z-scores for each feature
 genomics_feature_df_long_combined = genomics_feature_df_long_combined.rename(columns={'feature_value': 'raw_value'})
 genomics_feature_df_wide = genomics_feature_df_long_combined.pivot(index=['Tissue_ID'], columns='feature_name', values='raw_value')
+
+# remove columns that sum to 0
+genomics_feature_df_wide = genomics_feature_df_wide.loc[:, genomics_feature_df_wide.sum() != 0]
+
 zscore_df = (genomics_feature_df_wide - genomics_feature_df_wide.mean()) / genomics_feature_df_wide.std()
 
 # add z-scores to original df

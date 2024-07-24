@@ -17,7 +17,9 @@ SUPPLEMENTARY_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs")
 all_model_rankings = pd.read_csv(os.path.join(BASE_DIR, 'multivariate_lasso/intermediate_results', 'all_model_rankings.csv'))
 
 # plot top features
-sns.stripplot(data=all_model_rankings.loc[all_model_rankings.top_ranked, :], x='timepoint', y='importance_score', hue='modality')
+all_model_plot = all_model_rankings.loc[all_model_rankings.timepoint != 'primary', :]
+sns.stripplot(data=all_model_plot.loc[all_model_plot.top_ranked, :], x='timepoint', y='importance_score', hue='modality',
+              order=['baseline', 'pre_nivo', 'on_nivo'])
 plt.title('Top ranked features')
 plt.ylim([0, 1.05])
 plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_12d.pdf'))
@@ -34,7 +36,7 @@ plt.close()
 rna_rankings_top = all_model_rankings.loc[np.logical_and(all_model_rankings.modality == 'RNA', all_model_rankings.top_ranked), :]
 rna_baseline = rna_rankings_top.loc[rna_rankings_top.timepoint == 'baseline', 'feature_name_unique'].values
 rna_nivo = rna_rankings_top.loc[rna_rankings_top.timepoint == 'on_nivo', 'feature_name_unique'].values
-rna_induction = rna_rankings_top.loc[rna_rankings_top.timepoint == 'post_induction', 'feature_name_unique'].values
+rna_induction = rna_rankings_top.loc[rna_rankings_top.timepoint == 'pre_nivo', 'feature_name_unique'].values
 
 venn3([set(rna_baseline), set(rna_nivo), set(rna_induction)], ('Baseline', 'Nivo', 'Induction'))
 plt.title('RNA top ranked features')
@@ -45,7 +47,7 @@ plt.close()
 mibi_rankings_top = all_model_rankings.loc[np.logical_and(all_model_rankings.modality == 'MIBI', all_model_rankings.top_ranked), :]
 mibi_baseline = mibi_rankings_top.loc[mibi_rankings_top.timepoint == 'baseline', 'feature_name_unique'].values
 mibi_nivo = mibi_rankings_top.loc[mibi_rankings_top.timepoint == 'on_nivo', 'feature_name_unique'].values
-mibi_induction = mibi_rankings_top.loc[mibi_rankings_top.timepoint == 'post_induction', 'feature_name_unique'].values
+mibi_induction = mibi_rankings_top.loc[mibi_rankings_top.timepoint == 'pre_nivo', 'feature_name_unique'].values
 
 venn3([set(mibi_baseline), set(mibi_nivo), set(mibi_induction)], ('Baseline', 'Nivo', 'Induction'))
 plt.title('MIBI top ranked features')
