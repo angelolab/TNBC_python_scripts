@@ -44,7 +44,7 @@ area_df = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir', 'fov_annotation
 annotations_by_mask = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir', 'cell_annotation_mask.csv'))
 fiber_stats = pd.read_csv(os.path.join(intermediate_dir, 'fiber_segmentation_processed_data', 'fiber_stats_table.csv'))
 fiber_tile_df = pd.read_csv(os.path.join(intermediate_dir, 'fiber_segmentation_processed_data/tile_stats_512', 'fiber_stats_table-tile_512.csv'))
-kmeans_cell_table = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/neighborhood_analysis_round2/cell_cluster_radius100_frequency_12', 'cell_table_clusters.csv'))
+kmeans_cell_table = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/neighborhood_analysis/cell_cluster_radius100_frequency_12', 'cell_table_clusters.csv'))
 mixing_scores = pd.read_csv(os.path.join(intermediate_dir, 'spatial_analysis/mixing_score/cell_cluster_broad/homogeneous_mixing_scores.csv'))
 
 # merge cell-level annotations
