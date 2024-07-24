@@ -1,5 +1,6 @@
 import os
 import shutil
+import numpy as np
 
 import pandas as pd
 import matplotlib
@@ -50,7 +51,7 @@ plt.savefig(os.path.join(plot_dir, 'figure1b_venn_diagram.pdf'), dpi=300, bbox_i
 plt.close()
 
 # identify representative images for visualization
-study_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), 'fov'].values
+study_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), 'fov'].values
 
 # representative images
 fov_list = ['TONIC_TMA21_R6C6', 'TONIC_TMA2_R6C6', 'TONIC_TMA18_R4C5', 'TONIC_TMA20_R12C4', 'TONIC_TMA10_R3C1', 'TONIC_TMA10_R6C2']
@@ -175,6 +176,7 @@ for fov, crop_info in crop_dict.items():
 
 
 # cell cluster heatmap
+study_fovs = np.delete(study_fovs, np.where(study_fovs == 'TONIC_TMA14_R1C1'))
 
 # Markers to include in the heatmap
 markers = ["ECAD", "CK17", "CD45", "CD3", "CD4", "CD8", "FOXP3", "CD20", "CD56", "CD14", "CD68",
