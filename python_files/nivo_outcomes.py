@@ -137,6 +137,8 @@ ranked_features_df.to_csv(os.path.join(base_dir, 'analysis_files/feature_ranking
 sequence_dir = os.path.join(base_dir, 'sequencing_data')
 genomics_df = pd.read_csv(os.path.join(sequence_dir, 'processed_genomics_features.csv'))
 
+genomics_df = pd.merge(genomics_df, outcome_data, on='Patient_ID')
+
 plot_hits = False
 method = 'ttest'
 
