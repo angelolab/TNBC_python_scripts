@@ -52,7 +52,7 @@ for metric in ['Timepoint']:
     data = all_data[all_data.Timepoint == 'baseline'] if metric == 'Localization' else all_data
 
     groups = np.unique(data.Localization) if metric == 'Localization' else \
-        ['primary', 'baseline', 'post_induction', 'on_nivo']
+        ['primary', 'baseline', 'pre_nivo', 'on_nivo']
     dfs = []
     for group in groups:
         sub_data = data[data[metric] == group]
