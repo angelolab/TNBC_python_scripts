@@ -282,7 +282,7 @@ for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
 
 # identify patients to show for visualization
 # # check for longitudinal patients
-# longitudinal_patients = combined_df.loc[combined_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo',]), :]
+# longitudinal_patients = combined_df.loc[combined_df.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo',]), :]
 # longitudinal_patients = longitudinal_patients.loc[longitudinal_patients.Clinical_benefit == 'Yes', :]
 # longitudinal_patients = longitudinal_patients.loc[longitudinal_patients.feature_name_unique == 'T__Cancer__ratio__cancer_border', :]
 #
