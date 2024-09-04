@@ -11,16 +11,21 @@ import skimage.io as io
 
 from alpineer.io_utils import list_folders
 
+# This script takes the many distinct dataframes generated from the previous script and
+# combines them together into a single unified dataframe for downstream analysis
 
-local_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/Data/'
-plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
-intermediate_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files'
-output_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/output_files'
-analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
+
+base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/'
+intermediate_dir = os.path.join(base_dir, 'intermediate_files')
+output_dir = os.path.join(base_dir, 'output_files')
+analysis_dir =  os.path.join(base_dir, 'analysis_files')
+
+TIMEPOINT_NAMES = ['primary', 'baseline', 'pre_nivo', 'on_nivo']
+study_name = 'TONIC'
 
 # load datasets
 cluster_df_core = pd.read_csv(os.path.join(output_dir, 'cluster_df_per_core.csv'))
-metadata_df_core = pd.read_csv(os.path.join(intermediate_dir, 'metadata/TONIC_data_per_core.csv'))
+metadata_df_core = pd.read_csv(os.path.join(intermediate_dir, f'metadata/{study_name}_data_per_core.csv'))
 functional_df_core = pd.read_csv(os.path.join(output_dir, 'functional_df_per_core_filtered_deduped.csv'))
 morph_df_core = pd.read_csv(os.path.join(output_dir, 'morph_df_per_core_filtered_deduped.csv'))
 mixing_df = pd.read_csv(os.path.join(output_dir, 'formatted_mixing_scores.csv'))
@@ -33,10 +38,12 @@ ecm_clusters = pd.read_csv(os.path.join(intermediate_dir, 'ecm_pixel_clustering/
 ecm_object_ratio = pd.read_csv(os.path.join(intermediate_dir, 'ecm_pixel_clustering/shape_analysis/fov_object_mean_ratio.csv'))
 ecm_object_diff = pd.read_csv(os.path.join(intermediate_dir, 'ecm_pixel_clustering/shape_analysis/fov_object_mean_diff_norm.csv'))
 ecm_neighborhoods = pd.read_csv(os.path.join(intermediate_dir, 'ecm_pixel_clustering/neighborhood/fov_neighborhood_counts.csv'))
+image_clusters = pd.read_csv(os.path.join(output_dir, 'neighborhood_image_proportions.csv'))
+compartment_clusters = pd.read_csv(os.path.join(output_dir, 'neighborhood_compartment_proportions.csv'))
 
 # load metadata
 harmonized_metadata_df = pd.read_csv(os.path.join(analysis_dir, 'harmonized_metadata.csv'))
-compartment_area = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir/individual_masks-no_tagg_tls/fov_annotation_mask_area.csv'))
+compartment_area = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir/fov_annotation_mask_area.csv'))
 
 
 # compute shannon diversity from list of proportions
@@ -47,15 +54,15 @@ def shannon_diversity(proportions):
 
 # create lookup table for mapping individual cell types to broader categories
 broad_to_narrow = {'Cancer': ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad', 'Cancer_SMA',
-                              'Cancer_Vim', 'Cancer_Other', 'Cancer_Mono', 'Cancer', 'Cancer_EMT'],
+                              'Cancer_Vim', 'Cancer_Other', 'Cancer_Mono', 'Cancer_1', 'Cancer_2', 'Cancer_3', 'Cancer'],
                    'Immune': ['CD68', 'CD163', 'CD68_CD163_DP', 'CD4_Mono', 'CD14', 'CD11c_HLADR',
-                              'CD20', 'CD31', 'CD31_VIM', 'FAP', 'FAP_SMA', 'SMA', 'CD56',
-                              'Neutrophil', 'Mast', 'CD4T', 'CD4T_HLADR', 'CD8T', 'Treg', 'CD3_DN',
-                              'CD4T_CD8T_DP', 'Immune_Other', 'M1_Mac', 'M2_Mac', 'Mac_Other',
+                              'CD20', 'CD56', 'Neutrophil', 'Mast', 'CD4T', 'CD4T_HLADR', 'CD8T', 'Treg', 'CD3_DN',
+                              'CD4T_CD8T_DP', 'Immune_Other', 'CD68_Mac', 'CD163_Mac', 'Mac_Other',
                               'Monocyte', 'APC', 'B', 'CD4T', 'CD8T', 'Treg', 'T_Other',
                               'Neutrophil', 'Mast', 'NK', 'Mono_Mac', 'Granulocyte', 'T'],
-                   'Stroma': ['Stroma_Collagen', 'Stroma_Fibronectin', 'VIM', 'Other',
-                              'Endothelium', 'Fibroblast', 'Stroma'],
+                   'Structural': ['Stroma_Collagen', 'Stroma_Fibronectin', 'VIM', 'CD31', 'CD31_VIM',
+                              'FAP', 'FAP_SMA', 'SMA', 'Other', 'Endothelium', 'Fibroblast',
+                              'Structural', 'CAF', 'Smooth_Muscle'],
                    }
 # reverse lookup table
 narrow_to_broad = {}
@@ -69,14 +76,13 @@ fov_data = []
 diversity_features = [['cluster_broad_freq', 'cluster_broad_diversity'],
                       ['immune_freq', 'immune_diversity'],
                       ['cancer_freq', 'cancer_diversity'],
-                      ['stroma_freq', 'stroma_diversity']]
+                      ['structural_freq', 'structural_diversity']]
 
 # diversity_features = [['meta_cluster_freq', 'meta_cluster_diversity']]
 
 for cluster_name, feature_name in diversity_features:
     input_df = cluster_df_core[cluster_df_core['metric'].isin([cluster_name])]
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-    #for compartment in ['all']:
         compartment_df = input_df[input_df.subset == compartment].copy()
         wide_df = pd.pivot(compartment_df, index='fov', columns=['cell_type'], values='value')
         wide_df['value'] = wide_df.apply(shannon_diversity, axis=1)
@@ -121,7 +127,6 @@ for cluster_name, feature_name, cell_pop_level in abundance_features:
         input_df = input_df[~input_df.cell_type.isin(['B', 'NK'])]
 
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-    #for compartment in ['all']:
         compartment_df = input_df[input_df.subset == compartment].copy()
         compartment_df['feature_name'] = compartment_df.cell_type + '__' + feature_name
         compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
@@ -146,13 +151,12 @@ for cluster_name, feature_name, cell_pop_level in abundance_features:
 # compute ratio of broad cell type abundances
 input_df = cluster_df_core[cluster_df_core['metric'].isin(['cluster_broad_density'])]
 for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-#for compartment in ['all']:
     compartment_df = input_df[input_df.subset == compartment].copy()
     cell_types = compartment_df.cell_type.unique()
 
-    # put cancer and stromal cells last
-    cell_types = [cell_type for cell_type in cell_types if cell_type not in ['Cancer', 'Stroma']]
-    cell_types = cell_types + ['Cancer', 'Stroma']
+    # put cancer and structural cells last
+    cell_types = [cell_type for cell_type in cell_types if cell_type not in ['Cancer', 'Structural']]
+    cell_types = cell_types + ['Cancer', 'Structural']
 
     for cell_type1, cell_type2 in itertools.combinations(cell_types, 2):
         cell_type1_df = compartment_df[compartment_df.cell_type == cell_type1].copy()
@@ -191,10 +195,9 @@ for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_borde
         fov_data.append(cell_type1_df)
 
 # compute ratio of specific cell type abundances
-cell_ratios = [('CD8T', 'CD4T'), ('CD4T', 'Treg'), ('CD8T', 'Treg'), ('M1_Mac', 'M2_Mac')]
+cell_ratios = [('CD8T', 'CD4T'), ('CD4T', 'Treg'), ('CD8T', 'Treg'), ('CD68_Mac', 'CD163_Mac')]
 input_df = cluster_df_core[cluster_df_core.metric == 'cluster_density'].copy()
 for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-#for compartment in ['all']:
     compartment_df = input_df[input_df.subset == compartment].copy()
     for cell_type1, cell_type2 in cell_ratios:
         cell_type1_df = compartment_df[compartment_df.cell_type == cell_type1].copy()
@@ -209,6 +212,7 @@ for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_borde
         cell_type1_df = cell_type1_df[cell_mask]
         cell_type2_df = cell_type2_df[cell_mask]
 
+        # add minimum density to avoid log2(0)
         cell_type1_df['ratio'] = np.log2((cell_type1_df.value.values + minimum_density) /
                                          (cell_type2_df.value.values + minimum_density))
 
@@ -232,15 +236,14 @@ for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_borde
 
 
 # compute proportion of cells in a given cell type
-cell_groups = {'Cancer': ['Cancer', 'Cancer_EMT', 'Cancer_Other'],
-               'Mono_Mac': ['M1_Mac', 'M2_Mac', 'Mac_Other', 'Monocyte', 'APC'],
+cell_groups = {'Cancer': ['Cancer_1', 'Cancer_2', 'Cancer_3'],
+               'Mono_Mac': ['CD68_Mac', 'CD163_Mac', 'Mac_Other', 'Monocyte', 'APC'],
                'T': ['CD4T', 'CD8T', 'Treg', 'T_Other'],
                'Granulocyte': ['Neutrophil', 'Mast'],
-               'Stroma': ['Fibroblast', 'Stroma']}
+               'Structural': ['Endothelium', 'CAF', 'Fibroblast', 'Smooth_Muscle']}
 
 input_df = cluster_df_core[cluster_df_core.metric == 'cluster_density'].copy()
 for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-#for compartment in ['all']:
     compartment_df = input_df[input_df.subset == compartment].copy()
     for broad_cell_type, cell_types in cell_groups.items():
         # get the total for all cell types
@@ -250,6 +253,8 @@ for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_borde
 
         # normalize each cell type by the total
         cell_type_df = cell_type_df.merge(grouped_df, on='fov')
+        idx_nonzero = np.where(cell_type_df.fov_sum != 0)[0]
+        cell_type_df = cell_type_df.iloc[idx_nonzero, :].copy()
         cell_type_df['value'] = cell_type_df.value / cell_type_df.fov_sum
 
         cell_type_df['feature_name'] = cell_type_df.cell_type + '__proportion_of__' + broad_cell_type
@@ -278,7 +283,6 @@ functional_features = [['cluster_freq', 'med'],
 for functional_name, cell_pop_level in functional_features:
     input_df = functional_df_core[functional_df_core['metric'].isin([functional_name])]
     for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-    #for compartment in ['all']:
         compartment_df = input_df[input_df.subset == compartment].copy()
         compartment_df['feature_name'] = compartment_df.functional_marker + '+__' + compartment_df.cell_type
 
@@ -309,7 +313,6 @@ morphology_features = [['cluster_freq', 'med'],
 # morphology_features = [['meta_cluster_freq', 'narrow']]
 for morphology_name, cell_pop_level in morphology_features:
     input_df = morph_df_core[morph_df_core['metric'].isin([morphology_name])]
-    #for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'tls', 'tagg', 'all']:
     for compartment in ['all']:
         compartment_df = input_df[input_df.subset == compartment].copy()
         compartment_df['feature_name'] = compartment_df.morphology_feature + '__' + compartment_df.cell_type
@@ -339,14 +342,13 @@ for morphology_name, cell_pop_level in morphology_features:
 input_df = diversity_df[diversity_df['metric'] == 'cluster_freq']
 input_df = input_df[input_df.diversity_feature == 'diversity_cell_cluster']
 for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-#for compartment in ['all']:
     compartment_df = input_df[input_df.subset == compartment].copy()
     compartment_df['feature_name'] = compartment_df.diversity_feature + '__' + compartment_df.cell_type
 
     if compartment == 'all':
         compartment_df['feature_name_unique'] = compartment_df.diversity_feature + '__' + compartment_df.cell_type
     else:
-        compartment_df[ 'feature_name_unique'] = compartment_df.diversity_feature + '__' + compartment_df.cell_type + '__' + compartment
+        compartment_df['feature_name_unique'] = compartment_df.diversity_feature + '__' + compartment_df.cell_type + '__' + compartment
 
     compartment_df = compartment_df.rename(columns={'subset': 'compartment'})
 
@@ -362,7 +364,6 @@ for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_borde
 # compute distance features
 input_df = distance_df[distance_df['metric'].isin(['cluster_broad_freq'])]
 for compartment in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border', 'all']:
-#for compartment in ['all']:
     compartment_df = input_df[input_df.subset == compartment].copy()
     compartment_df['feature_name'] = compartment_df.cell_type + '__distance_to__' + compartment_df.linear_distance
 
@@ -445,6 +446,35 @@ mixing_df = mixing_df[['fov', 'value', 'feature_name', 'feature_name_unique', 'c
                        'cell_pop', 'cell_pop_level', 'feature_type', 'feature_type_detail', 'feature_type_detail_2']]
 fov_data.append(mixing_df)
 
+# add kmeans cluster proportions
+# image proportions
+image_clusters = image_clusters.rename(columns={'proportion': 'value'})
+image_clusters['feature_name'] = 'cluster_' + image_clusters.kmeans_neighborhood.astype(str) + '__proportion'
+image_clusters['feature_name_unique'] = 'cluster_' + image_clusters.kmeans_neighborhood.astype(str) + '__proportion'
+image_clusters['compartment'] = 'all'
+image_clusters['cell_pop'] = 'kmeans_cluster'
+image_clusters['cell_pop_level'] = 'med'
+image_clusters['feature_type'] = 'kmeans_cluster'
+image_clusters['feature_type_detail'] = 'cluster_' + image_clusters.kmeans_neighborhood.astype(str)
+image_clusters['feature_type_detail_2'] = ''
+image_clusters = image_clusters[['fov', 'value', 'feature_name', 'feature_name_unique',
+                                 'compartment', 'cell_pop', 'cell_pop_level', 'feature_type', 'feature_type_detail', 'feature_type_detail_2']]
+fov_data.append(image_clusters)
+
+# compartment proportions
+compartment_clusters = compartment_clusters.rename(columns={'proportion': 'value'})
+compartment_clusters['feature_name'] = 'cluster_' + compartment_clusters.kmeans_neighborhood.astype(str) + '__proportion'
+compartment_clusters['feature_name_unique'] = 'cluster_' + compartment_clusters.kmeans_neighborhood.astype(str) + '__proportion' + '__' + compartment_clusters.mask_name
+compartment_clusters['compartment'] = compartment_clusters.mask_name
+compartment_clusters['cell_pop'] = 'kmeans_cluster'
+compartment_clusters['cell_pop_level'] = 'med'
+compartment_clusters['feature_type'] = 'kmeans_cluster'
+compartment_clusters['feature_type_detail'] = 'cluster_' + compartment_clusters.kmeans_neighborhood.astype(str)
+compartment_clusters['feature_type_detail_2'] = compartment_clusters.mask_name
+compartment_clusters = compartment_clusters[['fov', 'value', 'feature_name', 'feature_name_unique',
+                                             'compartment', 'cell_pop', 'cell_pop_level', 'feature_type', 'feature_type_detail', 'feature_type_detail_2']]
+fov_data.append(compartment_clusters)
+
 # add ecm clustering results
 ecm_frac = 1 - ecm_df.No_ECM.values
 ecm_df['Cold_Coll_Norm'] = ecm_df.Cold_Coll.values / ecm_frac
@@ -497,7 +527,7 @@ fov_data.append(ecm_frac_df)
 
 
 # add ecm pixel cluster density
-area_df = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir/individual_masks-no_tagg_tls/fov_annotation_mask_area.csv'))
+area_df = pd.read_csv(os.path.join(intermediate_dir, 'mask_dir/fov_annotation_mask_area.csv'))
 area_df = area_df.loc[area_df.compartment == 'all', ['fov', 'area']]
 ecm_clusters_density = pd.merge(ecm_clusters, area_df, on='fov')
 ecm_clusters_density['density'] = ecm_clusters_density['counts'] / ecm_clusters_density['area']
@@ -633,6 +663,9 @@ fiber_tile_df = fiber_tile_df[['fov', 'value', 'feature_name', 'feature_name_uni
                         'compartment', 'cell_pop', 'cell_pop_level', 'feature_type', 'feature_type_detail', 'feature_type_detail_2']]
 fov_data.append(fiber_tile_df)
 
+#
+# Once individual files have been generated, we combine and standardize them
+#
 
 # compute z-scores for each feature
 fov_data_df = pd.concat(fov_data)
@@ -665,9 +698,13 @@ grouped = grouped.reset_index()
 grouped.to_csv(os.path.join(analysis_dir, 'timepoint_features.csv'), index=False)
 
 #
+# The code below only needs to be run once to identify correlated features, after which
+# it can be skipped and the output file can be read in
+#
+
 # filter FOV features based on correlation in compartments
 #
-# study_fovs = harmonized_metadata_df.loc[harmonized_metadata_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), 'fov'].unique()
+# study_fovs = harmonized_metadata_df.loc[harmonized_metadata_df.Timepoint.isin(TIMEPOINT_NAMES), 'fov'].unique()
 # fov_data_df = pd.read_csv(os.path.join(analysis_dir, 'fov_features.csv'))
 #
 # # filter out features that are highly correlated in compartments
@@ -709,10 +746,10 @@ grouped.to_csv(os.path.join(analysis_dir, 'timepoint_features.csv'), index=False
 #             exclude_list.append(feature_name + '__' + compartment)
 #
 # exclude_df = pd.DataFrame({'feature_name_unique': exclude_list})
-# exclude_df.to_csv(os.path.join(output_dir, 'exclude_features_compartment_correlation.csv'), index=False)
+# exclude_df.to_csv(os.path.join(intermediate_dir, 'post_processing', 'exclude_features_compartment_correlation.csv'), index=False)
 
 # use pre-defined list of features to exclude
-exclude_df = pd.read_csv(os.path.join(output_dir, 'exclude_features_compartment_correlation.csv'))
+exclude_df = pd.read_csv(os.path.join(intermediate_dir, 'post_processing', 'exclude_features_compartment_correlation.csv'))
 
 fov_data_df_filtered = fov_data_df.loc[~fov_data_df.feature_name_unique.isin(exclude_df.feature_name_unique.values), :]
 fov_data_df_filtered.to_csv(os.path.join(analysis_dir, 'fov_features_filtered.csv'), index=False)

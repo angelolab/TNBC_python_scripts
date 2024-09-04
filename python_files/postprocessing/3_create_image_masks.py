@@ -14,23 +14,28 @@ from scipy.ndimage import gaussian_filter
 from alpineer.io_utils import list_folders
 from python_files import utils
 
-# real paths
-channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
-seg_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/segmentation_data/deepcell_output'
-mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/mask_dir/'
-analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
-cell_table_clusters = pd.read_csv(os.path.join(analysis_dir, 'cell_table_clusters.csv'))
+# This script creates image masks defining the tumor compartments and slide background to be
+# be used in subsequent feature extraction pipeline
 
+# set up paths
+base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
+channel_dir = os.path.join(base_dir, 'image_data/samples/')
+seg_dir = os.path.join(base_dir,'segmentation_data/deepcell_output')
+mask_dir = os.path.join(base_dir, 'intermediate_files/mask_dir/')
+analysis_dir = os.path.join(base_dir,'analysis_files')
+
+
+cell_table_clusters = pd.read_csv(os.path.join(analysis_dir, 'cell_table_clusters.csv'))
 folders = list_folders(channel_dir)
 
 # create directories to hold masks
 intermediate_dir = os.path.join(mask_dir, 'intermediate_masks')
 if not os.path.exists(intermediate_dir):
-    os.mkdir(intermediate_dir)
+    os.makedirs(intermediate_dir)
 
 individual_dir = os.path.join(mask_dir, 'individual_masks')
 if not os.path.exists(individual_dir):
-    os.mkdir(individual_dir)
+    os.makedirs(individual_dir)
 
 # loop over each FOV and generate the appropriate masks
 for folder in folders:
@@ -114,14 +119,14 @@ for folder in folders:
     # read in generated masks
     intermediate_folder = os.path.join(intermediate_dir, folder)
     cancer_mask = io.imread(os.path.join(intermediate_folder, 'cancer_mask.png'))
+    gold_mask = io.imread(os.path.join(intermediate_folder, 'gold_mask.png'))
     tls_mask = io.imread(os.path.join(intermediate_folder, 'tls_mask.png'))
     tagg_mask = io.imread(os.path.join(intermediate_folder, 'tagg_mask.png'))
-    gold_mask = io.imread(os.path.join(intermediate_folder, 'gold_mask.png'))
 
     # create a single unified mask; TLS and background override tumor compartments
+    cancer_mask[gold_mask == 1] = 0
     cancer_mask[tls_mask == 1] = 5
     cancer_mask[tagg_mask == 1] = 6
-    cancer_mask[gold_mask == 1] = 0
 
     # save individual masks
     processed_folder = os.path.join(individual_dir, folder)
@@ -136,22 +141,28 @@ for folder in folders:
 
 # compute the area of each mask
 area_df = utils.calculate_mask_areas(mask_dir=individual_dir, fovs=folders)
+
+# combine tls and tagg masks into single immune_agg compartment
+for fov in np.unique(area_df.fov):
+    fov_df = area_df[area_df.fov == fov]
+    tls_tagg_sum = fov_df[fov_df.compartment == 'tls'].area.values[0] + fov_df[fov_df.compartment == 'tagg'].area.values[0]
+    area_df = pd.concat([pd.DataFrame([['immune_agg', tls_tagg_sum, fov]], columns=area_df.columns), area_df], ignore_index=True)
 area_df.to_csv(os.path.join(mask_dir, 'fov_annotation_mask_area.csv'), index=False)
 
 # create combined images for visualization
 for folder in folders[:20]:
-    cluster_overlay = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/cell_cluster_overlay', folder + '.png'))
-    compartment_overlay = io.imread(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/compartment_overlay', folder + '.png'))
+    cluster_overlay = io.imread(os.path.join(base_dir, 'overlay_dir/cell_cluster_overlay', folder + '.png'))
+    compartment_overlay = io.imread(os.path.join(base_dir, 'overlay_dir/compartment_overlay', folder + '.png'))
     gold_chan = io.imread(os.path.join(channel_dir, folder, 'Au.tiff'))
     border_mask = io.imread(os.path.join(intermediate_dir, folder, 'cancer_mask.png'))
+    gold_mask = io.imread(os.path.join(intermediate_dir, folder, 'gold_mask.png'))
     tls_mask = io.imread(os.path.join(intermediate_dir, folder, 'tls_mask.png'))
     tagg_mask = io.imread(os.path.join(intermediate_dir, folder, 'tagg_mask.png'))
-    gold_mask = io.imread(os.path.join(intermediate_dir, folder, 'gold_mask.png'))
 
     # create a single unified mask; TLS and background override tumor compartments
+    border_mask[gold_mask == 1] = 0
     border_mask[tls_mask == 1] = 5
     border_mask[tagg_mask == 1] = 6
-    border_mask[gold_mask == 1] = 0
 
     # make top row shorter than bottom row
     fig, ax = plt.subplots(2, 2, figsize=(15, 10), gridspec_kw={'height_ratios': [1, 2]})
@@ -163,7 +174,7 @@ for folder in folders[:20]:
     ax[1, 1].axis('off')
 
     plt.tight_layout()
-    plt.savefig(os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/overlay_dir/combined_mask_overlay', folder + '.png'))
+    plt.savefig(os.path.join(base_dir, 'overlay_dir/combined_mask_overlay', folder + '.png'))
     plt.close()
 
 
@@ -174,5 +185,8 @@ for i in range(0, 1400, 200):
     # assignment_table.to_csv(os.path.join(mask_dir, 'annotation_files', 'cell_annotation_mask_{}'.format(i)), index=False)
     # assignment_table = pd.read_csv(os.path.join(mask_dir, 'annotation_files', 'cell_annotation_mask_{}'.format(i)))
     all_assignment_table = pd.concat([all_assignment_table, assignment_table])
+
+# replace tls and tagg assignments with immune_agg
+all_assignment_table = all_assignment_table.replace({'tls': 'immune_agg', 'tagg': 'immune_agg'})
 
 all_assignment_table.to_csv(os.path.join(mask_dir, 'cell_annotation_mask.csv'), index=False)

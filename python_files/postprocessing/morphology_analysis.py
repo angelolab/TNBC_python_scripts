@@ -7,14 +7,16 @@ import matplotlib.pyplot as plt
 from itertools import combinations
 import seaborn as sns
 from scipy.stats import spearmanr
+import shutil
 
-data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data'
-metadata_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/data/metadata'
 plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots/'
+output_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/output_files'
+analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
 
+filtered_morph_df = pd.read_csv(os.path.join(output_dir, 'morph_df_per_core_filtered.csv'))
 
 # heatmap of functional marker expression per cell type
-plot_df = filtered_morph_df.loc[filtered_morph_df.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), :]
+plot_df = filtered_morph_df.loc[filtered_morph_df.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), :]
 plot_df = plot_df.loc[plot_df.metric == 'cluster_broad_freq', :]
 
 # # compute z-score within each functional marker
@@ -71,7 +73,7 @@ block4 = ['eccentricity_nuclear', 'major_axis_equiv_diam_ratio_nuclear', 'perim_
 
 # look at correlation between cell types
 working_df_subset = working_df_subset.loc[working_df_subset.metric == 'cluster_freq', :]
-plot_subset = working_df_subset.loc[working_df_subset.cell_type.isin(['Cancer', 'Cancer_EMT', 'Cancer_Other']), :]
+plot_subset = working_df_subset.loc[working_df_subset.cell_type.isin(['Cancer_1', 'Cancer_2', 'Cancer_3']), :]
 plot_subset['feature_name'] = plot_subset.cell_type + '_' + plot_subset.morphology_feature
 df_wide = plot_subset.pivot(index='fov', columns='feature_name', values='value')
 
@@ -83,7 +85,8 @@ plt.close()
 
 
 # look at images that are high for each feature to assess quality
-feature_name = 'area__Stroma'
+feature_df = pd.read_csv(os.path.join(analysis_dir, 'feature_ranking.csv'))
+feature_name = 'area__Structural'
 data_subset = feature_df.loc[feature_df.feature_name_unique == feature_name, :]
 data_subset.sort_values(by='raw_value', ascending=False, inplace=True)
 

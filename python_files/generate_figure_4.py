@@ -16,329 +16,383 @@ import skimage.io as io
 
 base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
 metadata_dir = os.path.join(base_dir, 'intermediate_files/metadata')
-plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/figures/'
-harmonized_metadata = pd.read_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'))
+plot_dir = os.path.join(base_dir, 'figures')
 seg_dir = os.path.join(base_dir, 'segmentation_data/deepcell_output')
-image_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples/'
-feature_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_metadata.csv'))
+image_dir = os.path.join(base_dir, 'image_data/samples/')
 
-study_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), 'fov'].values
-
-
+# load files
+harmonized_metadata = pd.read_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'))
 ranked_features_all = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_ranking.csv'))
-ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo'])]
+ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
+top_features = ranked_features.loc[ranked_features.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), :]
+top_features = top_features.iloc[:100, :]
 
 
-# plot total volcano
-fig, ax = plt.subplots(figsize=(3,3))
-# color pallete options: Greys, magma, vlag, icefire
-sns.scatterplot(data=ranked_features, x='med_diff', y='log_pval', alpha=1, hue='importance_score', palette=sns.color_palette("icefire", as_cmap=True),
-                s=2.5, edgecolor='none', ax=ax)
-ax.set_xlim(-3, 3)
-sns.despine()
+# summarize distribution of top features
+top_features_by_comparison = top_features[['feature_name_unique', 'comparison']].groupby('comparison').count().reset_index()
+top_features_by_comparison.columns = ['comparison', 'num_features']
+top_features_by_comparison = top_features_by_comparison.sort_values('num_features', ascending=False)
 
-# add gradient legend
-norm = plt.Normalize(ranked_features.importance_score.min(), ranked_features.importance_score.max())
-sm = plt.cm.ScalarMappable(cmap="icefire", norm=norm)
-ax.get_legend().remove()
-ax.figure.colorbar(sm, ax=ax)
+fig, ax = plt.subplots(figsize=(4, 4))
+sns.barplot(data=top_features_by_comparison, x='comparison', y='num_features', color='grey', ax=ax)
+plt.xticks(rotation=90)
 plt.tight_layout()
-
-plt.savefig(os.path.join(plot_dir, 'Figure4_volcano.pdf'))
-plt.close()
-
-
-
-
-# look at enrichment by compartment
-top_counts = ranked_features.iloc[:100, :].groupby('compartment').count().iloc[:, 0]
-
-total_counts = feature_metadata.groupby('compartment').count().iloc[:, 0]
-
-top_prop = top_counts / np.sum(top_counts)
-total_prop = total_counts / np.sum(total_counts)
-
-top_ratio = top_prop / total_prop
-top_ratio = np.log2(top_ratio)
-ratio_df = pd.DataFrame({'compartment': top_ratio.index, 'ratio': top_ratio.values})
-ratio_df = ratio_df.sort_values(by='ratio', ascending=False)
-
-fig, ax = plt.subplots(figsize=(4, 3))
-sns.barplot(data=ratio_df, x='compartment', y='ratio', color='grey', ax=ax)
 sns.despine()
-plt.savefig(os.path.join(plot_dir, 'Figure4_enrichment_by_compartment.pdf'))
+plt.savefig(os.path.join(plot_dir, 'Figure4a_num_features.pdf'))
 plt.close()
 
-# compare ratio features to best individual feature that is part of the ratio
-top_ratios = ranked_features.iloc[:100, :]
-top_ratios = top_ratios.loc[top_ratios.feature_type.isin(['density_ratio']), :]
+# heatmap of top features over time
+timepoints = ['primary', 'baseline', 'pre_nivo' , 'on_nivo']
 
-cell_types, rankings, feature_num, score = [], [], [], []
-for idx, row in top_ratios.iterrows():
-    candidate_features = ranked_features.loc[ranked_features.compartment == row.compartment, :]
-    candidate_features = candidate_features.loc[candidate_features.feature_type == 'density', :]
-    candidate_features = candidate_features.loc[candidate_features.comparison == row.comparison, :]
-    candidate_features = candidate_features.loc[candidate_features.feature_type_detail.isin([row.feature_type_detail, row.feature_type_detail_2]), :]
-    candidate_features = candidate_features.loc[candidate_features.cell_pop_level == 'broad', :]
-    feature_num.append(candidate_features.shape[0])
-    best_rank = candidate_features.combined_rank.min()
-    candidate_features = candidate_features.loc[candidate_features.combined_rank == best_rank, :]
-    if candidate_features.shape[0] != 0:
-        # just take first in case there are ties
-        candidate_features = candidate_features.iloc[0:1, :]
+timepoint_features = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
+feature_ranking_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_ranking.csv'))
+feature_ranking_df = feature_ranking_df[np.isin(feature_ranking_df['comparison'], timepoints)]
+feature_ranking_df = feature_ranking_df.sort_values(by = 'feature_rank_global', ascending=True)
 
-        cell_types.append(candidate_features.feature_name_unique.values)
-        rankings.append(candidate_features.combined_rank.values)
-        score.append(candidate_features.importance_score.values)
-    else:
-        cell_types.append(['None'])
-        rankings.append([0])
-        score.append([0])
+#access the top response-associated features (unique because a feature could be in the top in multiple timepoints)
+top_features = np.unique(feature_ranking_df.loc[:, 'feature_name_unique'][:100])
 
+#compute the 90th percentile of importance scores and plot the distribution
+perc = np.percentile(feature_ranking_df.importance_score, 90)
+# _, axes = plt.subplots(1, 1, figsize = (4.5, 3.5), gridspec_kw={'hspace': 0.45, 'wspace': 0.4, 'bottom':0.15})
+# g = sns.histplot(np.abs(feature_ranking_df.importance_score), ax = axes, color = '#1885F2')
+# g.tick_params(labelsize=12)
+# g.set_xlabel('importance score', fontsize = 12)
+# g.set_ylabel('count', fontsize = 12)
+# axes.axvline(perc, color = 'k', ls = '--', lw = 1, label = '90th percentile')
+# g.legend(bbox_to_anchor=(0.98, 0.95), loc='upper right', borderaxespad=0, prop={'size':10})
+# plt.show()
 
-comparison_df = pd.DataFrame({'cell_type': np.concatenate(cell_types), 'rank': np.concatenate(rankings), 'feature_num': feature_num, 'density_score': np.concatenate(score)})
-comparison_df['original_ranking'] = top_ratios.combined_rank.values
-comparison_df['original_feature'] = top_ratios.feature_name_unique.values
-comparison_df['ratio_score'] = top_ratios.importance_score.values
-comparison_df = comparison_df.loc[comparison_df.feature_num == 2, :]
-comparison_df['feature_id'] = np.arange(comparison_df.shape[0])
+#subset data based on the 90th percentile
+feature_ranking_df = feature_ranking_df[feature_ranking_df['importance_score'] > perc]
 
-plot_df = pd.melt(comparison_df, id_vars=['feature_id'], value_vars=['density_score', 'ratio_score'])
-plot_df['variable'] = pd.Categorical(plot_df['variable'], categories=['ratio_score', 'density_score'], ordered=True)
-# remove border from dots
-fig, ax = plt.subplots(figsize=(4, 3))
-sns.lineplot(data=plot_df, x='variable', y='value', units='feature_id', estimator=None,
-             color='grey', alpha=0.5, marker='o', markeredgewidth=0, markersize=5, ax=ax) # markeredgecolor='none'
-sns.despine()
-plt.ylim(0, 1)
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure4_ratio_vs_density.pdf'))
-plt.close()
+#min max scale the importance scores (scales features from 0 to 1)
+from sklearn.preprocessing import MinMaxScaler
+scaled_perc_scores = MinMaxScaler().fit_transform(feature_ranking_df['importance_score'].values.reshape(-1,1))
+feature_ranking_df.loc[:, 'scaled_percentile_importance'] = scaled_perc_scores
 
+#pivot the dataframe for plotting (feature x timepoint)
+pivot_df = feature_ranking_df.loc[:, ['scaled_percentile_importance', 'feature_name_unique', 'comparison']].pivot(index = 'feature_name_unique', columns = 'comparison')
+pivot_df.columns = pivot_df.columns.droplevel(0)
+pivot_df = pivot_df.loc[:, timepoints] #reorder
+pivot_df.fillna(0, inplace = True) #set features with nan importance scores (i.e. not in the top 90th percentile) to 0
 
-# look at enrichment of spatial features
-spatial_features = ['mixing_score', 'cell_diversity', 'compartment_area_ratio', 'pixie_ecm',
-                    'compartment_area', 'fiber', 'linear_distance', 'ecm_fraction', 'ecm_cluster']
-spatial_mask = np.logical_or(ranked_features.feature_type.isin(spatial_features), ranked_features.compartment != 'all')
-ranked_features['spatial_feature'] = spatial_mask
+#subset according to top response-associated features
+pivot_df = pivot_df.loc[top_features, :]
 
-spatial_mask_metadata = np.logical_or(feature_metadata.feature_type.isin(spatial_features), feature_metadata.compartment != 'all')
-feature_metadata['spatial_feature'] = spatial_mask_metadata
+#access the top 100 feature-timepoint pairs
+pivot_df_top = feature_ranking_df[:100].loc[:, ['scaled_percentile_importance', 'feature_name_unique', 'comparison']].pivot(index = 'feature_name_unique', columns = 'comparison')
+pivot_df_top.columns = pivot_df_top.columns.droplevel(0)
+pivot_df_top = pivot_df_top.loc[:, timepoints] #reorder
+pivot_df_top.fillna(0, inplace = True) #set features with nan importance scores (i.e. not in the top 90th percentile) to 0
 
-top_count_spatial = ranked_features.iloc[:100, :].groupby('spatial_feature').count().iloc[:, 0]
+#assign feature with delta label for plot order
+feat_timepoint_dict = {'CD38+__Immune_Other': 'baseline',
+ 'diversity_cell_cluster__Cancer_2__stroma_border': 'on_nivo',
+ 'NK__Other__ratio__cancer_border':'baseline__pre_nivo__on_nivo',
+ 'CD45RO+__Fibroblast':'pre_nivo',
+ 'PDL1+__CD4T':'pre_nivo',
+ 'CD69+__CD4T':'pre_nivo',
+ 'TBET+__Treg':'pre_nivo',
+ 'diversity_cell_cluster__Monocyte__cancer_border':'pre_nivo',
+ 'PDL1+__Monocyte':'pre_nivo',
+ 'TBET+__CD4T':'pre_nivo__on_nivo',
+ 'CD45RO+__Monocyte':'pre_nivo',
+ 'PDL1+__CD163_Mac':'pre_nivo',
+ 'CD45RO+__CAF':'pre_nivo',
+ 'CD45RO+__Immune_Other':'pre_nivo',
+ 'CD45RO__CD69+__NK':'pre_nivo',
+ 'Ki67+__T_Other':'pre_nivo',
+ 'PDL1+__APC':'pre_nivo',
+ 'CD45RO+__CAF__cancer_border':'pre_nivo',
+ 'PDL1+__Mac_Other':'pre_nivo',
+ 'B__NK__ratio__cancer_core':'primary',
+ 'T__Cancer__ratio__cancer_border':'baseline__pre_nivo__on_nivo',
+ 'T__Cancer__ratio__cancer_core':'pre_nivo__on_nivo',
+ 'CD45RO+__CD68_Mac':'baseline__pre_nivo__on_nivo',
+ 'diversity_cell_cluster__Cancer_1__stroma_core':'baseline__pre_nivo__on_nivo',
+ 'Other__Structural__ratio':'baseline__pre_nivo__on_nivo',
+ 'Other__Cancer__ratio__stroma_border':'baseline__pre_nivo__on_nivo',
+ 'diversity_cell_cluster__Fibroblast__cancer_border':'pre_nivo__on_nivo',
+ 'Other__Cancer__ratio__cancer_border':'pre_nivo__on_nivo',
+ 'cluster_broad_diversity_cancer_border':'pre_nivo__on_nivo',
+ 'diversity_cell_cluster__APC':'baseline__pre_nivo__on_nivo',
+ 'T__Cancer__ratio__stroma_border':'baseline__on_nivo',
+ 'diversity_cell_cluster__Cancer_2__stroma_core':'baseline__on_nivo',
+ 'NK__T__ratio__cancer_border':'baseline__on_nivo',
+ 'Other__Cancer__ratio__stroma_core':'baseline__pre_nivo__on_nivo',
+ 'diversity_cell_cluster__CAF':'baseline__on_nivo',
+ 'cluster_3__proportion__stroma_border':'on_nivo',
+ 'B__Structural__ratio__cancer_border':'on_nivo',
+ 'Cancer_3__proportion_of__Cancer':'on_nivo',
+ 'T__cluster_broad_density__cancer_border':'on_nivo',
+ 'diversity_cell_cluster__Cancer_2':'on_nivo',
+ 'B__Cancer__ratio__stroma_border':'on_nivo',
+ 'CD8T__cluster_density__cancer_border':'on_nivo',
+ 'Cancer_Immune_mixing_score':'on_nivo',
+ 'NK__Structural__ratio__cancer_border':'on_nivo',
+ 'B__Cancer__ratio__cancer_border':'on_nivo',
+ 'diversity_cell_cluster__Cancer_1':'on_nivo',
+ 'NK__Structural__ratio__cancer_core':'on_nivo',
+ 'Other__Structural__ratio__cancer_core':'on_nivo',
+ 'Cancer_1__proportion_of__Cancer':'on_nivo',
+ 'cancer_diversity':'on_nivo',
+ 'CD8T__cluster_density':'on_nivo',
+ 'Monocyte__proportion_of__Mono_Mac__cancer_core':'on_nivo',
+ 'cluster_2__proportion':'on_nivo',
+ 'B__Cancer__ratio':'on_nivo',
+ 'B__Granulocyte__ratio':'on_nivo',
+ 'cluster_broad_diversity_cancer_core':'on_nivo',
+ 'CD69+__all':'on_nivo',
+ 'Mono_Mac__T__ratio':'on_nivo',
+ 'Cancer_3__proportion_of__Cancer__stroma_core':'on_nivo',
+ 'cancer_diversity_stroma_core':'on_nivo',
+ 'T__Cancer__ratio':'on_nivo',
+ 'Cancer_1__proportion_of__Cancer__stroma_core':'on_nivo',
+ 'Mono_Mac__Cancer__ratio__stroma_border':'on_nivo',
+ 'NK__Cancer__ratio__stroma_border':'on_nivo',
+ 'B__Structural__ratio':'on_nivo',
+ 'B__T__ratio__cancer_core':'on_nivo',
+ 'T_Other__cluster_density__cancer_border':'on_nivo',
+ 'PDL1+__Cancer_3__stroma_border':'on_nivo',
+ 'NK__Cancer__ratio':'on_nivo',
+ 'diversity_cell_cluster__Neutrophil':'on_nivo',
+ 'diversity_cell_cluster__Fibroblast':'on_nivo',
+ 'diversity_cell_cluster__Cancer_3':'on_nivo',
+ 'diversity_cell_cluster__Smooth_Muscle':'on_nivo',
+ 'Other__Cancer__ratio':'baseline__pre_nivo__on_nivo',
+ 'T__Structural__ratio__cancer_core':'on_nivo',
+ 'diversity_cell_cluster__Endothelium':'on_nivo',
+ 'T__Structural__ratio':'on_nivo',
+ 'Other__Cancer__ratio__cancer_core':'pre_nivo__on_nivo',
+ 'PDL1+__CAF__cancer_border':'pre_nivo__on_nivo',
+ 'PDL1+__CD68_Mac':'pre_nivo__on_nivo',
+ 'CD8T__Treg__ratio__cancer_core':'pre_nivo__on_nivo',
+ 'CD45RO+__all':'pre_nivo__on_nivo',
+ 'diversity_cell_cluster__CAF__cancer_border':'pre_nivo__on_nivo',
+ 'CD45RO+__Monocyte__cancer_border':'pre_nivo',
+ 'CD4T__cluster_density__cancer_border':'on_nivo',
+ 'Ki67+__Cancer_2__stroma_core':'on_nivo',
+ 'Mono_Mac__Structural__ratio__cancer_core': 'on_nivo',
+ 'Structural__cluster_broad_density__stroma_border': 'baseline__on_nivo',
+ 'T_Other__cluster_density':'on_nivo',
+ 'T__cluster_broad_density':'on_nivo',
+ 'stroma_core__stroma_border__log2_ratio': 'on_nivo',
+ 'diversity_cell_cluster__CD163_Mac__cancer_border': 'pre_nivo__on_nivo',
+ 'cluster_3__proportion__cancer_core': 'pre_nivo',
+ 'cancer_border__stroma_core__log2_ratio': 'on_nivo',
+ 'cancer_border__proportion': 'on_nivo',
+ 'TCF1+__all': 'on_nivo',
+ 'PDL1+__Neutrophil': 'pre_nivo',
+ 'PDL1+__CD8T': 'pre_nivo',
+ 'PD1+__all': 'on_nivo',
+ 'Other__cluster_broad_density': 'baseline__on_nivo',
+ 'NK__T__ratio__cancer_core': 'on_nivo',
+ 'NK__Cancer__ratio__cancer_border': 'on_nivo',
+ 'Mono_Mac__Cancer__ratio': 'on_nivo',
+ 'Ki67+__Fibroblast__cancer_border': 'on_nivo',
+ 'Ki67+__Cancer_1__stroma_border': 'on_nivo',
+ 'Immune_Other__cluster_density': 'on_nivo',
+ 'Cancer__Structural__ratio': 'on_nivo',
+ 'CD45RO+__Immune_Other__cancer_border': 'pre_nivo',
+ 'CD45RB+__all': 'on_nivo',
+ 'B__T__ratio': 'on_nivo',
+ 'B__Structural__ratio__cancer_core': 'on_nivo',
+ 'B__Other__ratio': 'on_nivo',
+ 'B__NK__ratio': 'on_nivo',
+ 'B__Mono_Mac__ratio': 'on_nivo'
+}
 
-total_counts_spatial = feature_metadata.groupby('spatial_feature').count().iloc[:, 0]
+#sort dataframe by delta group and get the order of the ticks
+pivot_df["group"] = pivot_df.index.map(feat_timepoint_dict) 
+pivot_df["group"] = pd.Categorical(pivot_df["group"], categories=['primary__baseline__pre_nivo__on_nivo', 'baseline__pre_nivo__on_nivo', 'pre_nivo__on_nivo', 'baseline__pre_nivo', 'baseline__on_nivo', 'primary__on_nivo', 'on_nivo', 'pre_nivo', 'baseline', 'primary'], ordered=True)
+pivot_df.sort_values("group", inplace=True) 
+xlabs = list(pivot_df.index)
 
-top_prop = top_count_spatial / np.sum(top_count_spatial)
-total_prop = total_counts_spatial / np.sum(total_counts_spatial)
+#plot clustermap
+from matplotlib.patches import Rectangle
+cmap = ['#D8C198', '#D88484', '#5AA571', '#4F8CBE']
+sns.set_style('ticks')
 
-top_ratio = top_prop / total_prop
-top_ratio = np.log2(top_ratio)
-ratio_df = pd.DataFrame({'spatial_feature': top_ratio.index, 'ratio': top_ratio.values})
-ratio_df = ratio_df.sort_values(by='ratio', ascending=False)
+pivot_df_run = pivot_df.loc[xlabs, :].copy()
+pivot_df_run.drop(columns  = ['group'], inplace=True)
+pivot_df_top_run = pivot_df_top.loc[xlabs, :].copy()
 
-fig, ax = plt.subplots(figsize=(4, 3))
-ax.set_ylim(-0.6, 0.6)
-sns.barplot(data=ratio_df, x='spatial_feature', y='ratio', color='grey', ax=ax)
-sns.despine()
+g = sns.clustermap(data = pivot_df_run, yticklabels=True, cmap = 'Blues', vmin = 0, vmax = 1, row_cluster = False,
+                   col_cluster = False, figsize = (5, 15), cbar_pos=(1, .03, .02, .1), dendrogram_ratio=0.1, colors_ratio=0.01,
+                   col_colors=cmap)
 
-plt.savefig(os.path.join(plot_dir, 'Figure4_enrichment_by_spatial.pdf'))
-plt.close()
+g.tick_params(labelsize=12)
 
+ax = g.ax_heatmap
+ax.set_ylabel('Response-associated Features', fontsize = 12)
+ax.set_xlabel('Timepoint', fontsize = 12)
 
-# plot top features
-plot_features = ranked_features.copy()
-plot_features['ratio'] = plot_features.feature_type.isin(['density_ratio', 'density_proportion'])
-plot_features['density'] = plot_features.feature_type == 'density'
-plot_features['diversity'] = plot_features.feature_type.isin(['region_diversity', 'cell_diversity'])
-plot_features['phenotype'] = plot_features.feature_type == 'functional_marker'
-plot_features['sign'] = plot_features.med_diff > 0
-plot_features = plot_features.iloc[:53, :]
-plot_features = plot_features[['feature_name', 'feature_name_unique', 'compartment', 'ratio', 'density', 'diversity', 'phenotype', 'sign']]
-plot_features = plot_features.drop_duplicates()
-plot_features_sort = plot_features.sort_values(by='feature_name')
-plot_features_sort.to_csv(os.path.join(plot_dir, 'Figure4_top_hits.csv'))
+ax.axvline(x=0, color='k',linewidth=2.5)
+ax.axvline(x=1, color='k',linewidth=1.5)
+ax.axvline(x=2, color='k',linewidth=1.5)
+ax.axvline(x=3, color='k',linewidth=1.5)
+ax.axvline(x=4, color='k',linewidth=2.5)
+ax.axhline(y=0, color='k',linewidth=2.5)
+ax.axhline(y=len(pivot_df), color='k',linewidth=2.5)
 
+x0, _y0, _w, _h = g.cbar_pos
+for spine in g.ax_cbar.spines:
+    g.ax_cbar.spines[spine].set_color('k')
+    g.ax_cbar.spines[spine].set_linewidth(1)
 
-# PDL1+__M1 on nivo example
-combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features.csv'))
+for i in range(0, pivot_df_top_run.shape[0]):
+    row = pivot_df_top_run.astype('bool').iloc[i, :]
+    ids = np.where(row == True)[0]
+    for id in ids:
+        #creates rectangle at given indices of top 100 feature timepoint pairs (x = timepoint_index, y = feature_index)
+        rect = Rectangle((id, i), 1, 1, fill=False, edgecolor='red', lw=0.5, zorder = 10)
 
-feature_name = 'PDL1+__M1_Mac'
-timepoint = 'on_nivo'
+        # Add it to the plot
+        g.ax_heatmap.add_patch(rect)
 
-plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
-                                    (combined_df.Timepoint == timepoint), :]
+        # Redraw the figure
+        plt.draw()
 
-fig, ax = plt.subplots(1, 1, figsize=(2, 4))
-sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
-                color='black', ax=ax)
-sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
-                color='grey', ax=ax, showfliers=False, width=0.3)
-ax.set_title(feature_name + ' ' + timepoint)
-ax.set_ylim([0, 1])
-sns.despine()
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure4_feature_{}_{}.pdf'.format(feature_name, timepoint)))
-plt.close()
-
-cell_table_func = pd.read_csv(os.path.join(base_dir, 'analysis_files/cell_table_func_single_positive.csv'))
-
-# corresponding overlays
-subset = plot_df.loc[plot_df.raw_mean < 0.08, :]
-
-pats = [37, 33, 59, 62, 64, 65] # responders
-pats = [24, 60, 87, 88, 107, 114] # nonresponders
-fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
-
-cell_table_subset = cell_table_func.loc[(cell_table_func.fov.isin(fovs)), :]
-cell_table_subset['M1_plot'] = cell_table_subset.cell_cluster
-cell_table_subset.loc[cell_table_subset.cell_cluster != 'M1_Mac', 'M1_plot'] = 'Other'
-cell_table_subset.loc[(cell_table_subset.cell_cluster == 'M1_Mac') & (cell_table_subset.PDL1.values), 'M1_plot'] = 'M1_PDL1+'
-
-m1_colormap = pd.DataFrame({'M1_plot': ['M1_Mac', 'Other', 'M1_PDL1+'],
-                         'color': ['blue','grey', 'lightsteelblue']})
-m1_plot_dir = os.path.join(plot_dir, 'Figure4_M1_overlays_neg')
-if not os.path.exists(m1_plot_dir):
-    os.mkdir(m1_plot_dir)
-
-
-for pat in pats:
-    pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == 'on_nivo'), 'fov'].unique()
-    pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
-
-    pat_dir = os.path.join(m1_plot_dir, 'patient_{}'.format(pat))
-    if not os.path.exists(pat_dir):
-        os.mkdir(pat_dir)
-
-    cohort_cluster_plot(
-        fovs=pat_fovs,
-        seg_dir=seg_dir,
-        save_dir=pat_dir,
-        cell_data=pat_df,
-        erode=True,
-        fov_col=settings.FOV_ID,
-        label_col=settings.CELL_LABEL,
-        cluster_col='M1_plot',
-        seg_suffix="_whole_cell.tiff",
-        cmap=m1_colormap,
-        display_fig=False,
-    )
-
-
-# create crops for selected FOVs
-fovs = ['TONIC_TMA6_R7C6', 'TONIC_TMA11_R7C4', 'TONIC_TMA11_R4C2', 'TONIC_TMA20_R2C3'] # patient 33, 62, 60, 114
-
-subset_dir = os.path.join(plot_dir, 'Figure4_M1_overlays_selected')
-if not os.path.exists(subset_dir):
-    os.mkdir(subset_dir)
-
-
-cohort_cluster_plot(
-    fovs=fovs,
-    seg_dir=seg_dir,
-    save_dir=subset_dir,
-    cell_data=cell_table_subset,
-    erode=True,
-    fov_col=settings.FOV_ID,
-    label_col=settings.CELL_LABEL,
-    cluster_col='M1_plot',
-    seg_suffix="_whole_cell.tiff",
-    cmap=m1_colormap,
-    display_fig=False,
-)
-
-
-# select crops for visualization
-fov1 = fovs[0]
-row_start, col_start = 1448, 1300
-row_len, col_len = 600, 600
-
-fov1_image = io.imread(os.path.join(subset_dir, 'cluster_masks_colored', fov1 + '.tiff'))
-fov1_image = fov1_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
-io.imsave(os.path.join(subset_dir, 'cluster_masks_colored', fov1 + '_crop.tiff'), fov1_image)
-
-
-fov2 = fovs[1]
-row_start, col_start = 900, 600
-row_len, col_len = 600, 600
-
-fov2_image = io.imread(os.path.join(subset_dir, 'cluster_masks_colored', fov2 + '.tiff'))
-fov2_image = fov2_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
-io.imsave(os.path.join(subset_dir, 'cluster_masks_colored', fov2 + '_crop.tiff'), fov2_image)
-
-
-fov3 = fovs[2]
-row_start, col_start = 600, 1100
-row_len, col_len = 600, 600
-
-fov3_image = io.imread(os.path.join(subset_dir, 'cluster_masks_colored', fov3 + '.tiff'))
-fov3_image = fov3_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
-io.imsave(os.path.join(subset_dir, 'cluster_masks_colored', fov3 + '_crop.tiff'), fov3_image)
-
-
-fov4 = fovs[3]
-row_start, col_start = 800, 0
-row_len, col_len = 600, 600
-
-fov4_image = io.imread(os.path.join(subset_dir, 'cluster_masks_colored', fov4 + '.tiff'))
-fov4_image = fov4_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
-io.imsave(os.path.join(subset_dir, 'cluster_masks_colored', fov4 + '_crop.tiff'), fov4_image)
-
-
-# diversity of cancer border on nivo
-feature_name = 'cluster_broad_diversity_cancer_border'
-timepoint = 'on_nivo'
-
-plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
-                                    (combined_df.Timepoint == timepoint), :]
-
-fig, ax = plt.subplots(1, 1, figsize=(2, 4))
-sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
-                color='black', ax=ax)
-sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
-                color='grey', ax=ax, showfliers=False, width=0.3)
-ax.set_title(feature_name + ' ' + timepoint)
-ax.set_ylim([0, 2])
-sns.despine()
-plt.tight_layout()
-plt.savefig(os.path.join(plot_dir, 'Figure4_feature_{}_{}.pdf'.format(feature_name, timepoint)))
-plt.close()
+plt.savefig(os.path.join(base_dir, 'figures', 'Figure4b.pdf'), bbox_inches = 'tight', dpi =300)
 
 
+# longitudinal T / Cancer ratios
+combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features_with_outcomes.csv'))
 
-# corresponding overlays
+
+# generate summary plots
+for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
+
+    plot_df = combined_df.loc[(combined_df.feature_name_unique == 'T__Cancer__ratio__cancer_border') &
+                              (combined_df.Timepoint == timepoint), :]
+
+    fig, ax = plt.subplots(1, 1, figsize=(2, 4))
+    sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                    color='black', ax=ax)
+    sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                    color='grey', ax=ax, showfliers=False, width=0.3)
+    ax.set_title('T/C ratio ' + ' ' + timepoint)
+    ax.set_ylim([-15, 0])
+    sns.despine()
+    plt.tight_layout()
+    plt.savefig(os.path.join(plot_dir, 'Figure4c_T_C_ratio_{}.pdf'.format(timepoint)))
+    plt.close()
+
+
+# identify patients to show for visualization
+# # check for longitudinal patients
+# longitudinal_patients = combined_df.loc[combined_df.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo',]), :]
+# longitudinal_patients = longitudinal_patients.loc[longitudinal_patients.Clinical_benefit == 'Yes', :]
+# longitudinal_patients = longitudinal_patients.loc[longitudinal_patients.feature_name_unique == 'T__Cancer__ratio__cancer_border', :]
+#
+# longitudinal_wide = longitudinal_patients.pivot(index=['Patient_ID'], columns='Timepoint', values='raw_mean')
+#
+#
+# # corresponding overlays
 cell_table_clusters = pd.read_csv(os.path.join(base_dir, 'analysis_files/cell_table_clusters.csv'))
-annotations_by_mask = pd.read_csv(os.path.join(base_dir, 'intermediate_files/mask_dir/individual_masks-no_tagg_tls/cell_annotation_mask.csv'))
+annotations_by_mask = pd.read_csv(os.path.join(base_dir, 'intermediate_files/mask_dir', 'cell_annotation_mask.csv'))
 annotations_by_mask = annotations_by_mask.rename(columns={'mask_name': 'tumor_region'})
 cell_table_clusters = cell_table_clusters.merge(annotations_by_mask, on=['fov', 'label'], how='left')
 
-subset = plot_df.loc[plot_df.raw_mean < .25, :]
+#
+tc_colormap = pd.DataFrame({'T_C_ratio': ['T', 'Cancer', 'Other_region', 'Other_cells'],
+                         'color': ['yellow','white', 'grey', 'grey']})
+#
+# # pick patients for visualization
+# subset = plot_df.loc[plot_df.raw_mean > -4, :]
+#
+# pats = [26, 33, 59, 62, 64, 65, 115, 118]
+# fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
+#
+# # add column for T in cancer border, T elsewhere, and others
+# cell_table_subset = cell_table_clusters.loc[(cell_table_clusters.fov.isin(fovs)), :]
+# cell_table_subset['T_C_ratio'] = cell_table_subset.cell_cluster_broad
+# cell_table_subset.loc[~cell_table_subset.T_C_ratio.isin(['T', 'Cancer']), 'T_C_ratio'] = 'Other_cells'
+# cell_table_subset.loc[cell_table_subset.tumor_region != 'cancer_border', 'T_C_ratio'] = 'Other_region'
+#
+# #outside_t = (cell_table_subset.cell_cluster_broad == 'T') & (cell_table_subset.tumor_region != 'cancer_border')
+# #outside_cancer = (cell_table_subset.cell_cluster_broad == 'Cancer') & (cell_table_subset.tumor_region != 'cancer_border')
+# #cell_table_subset.loc[outside_t, 'T_C_ratio'] = 'T_outside'
+# #cell_table_subset.loc[outside_cancer, 'T_C_ratio'] = 'Cancer_outside'
+#
+# tc_nivo_plot_dir = os.path.join(plot_dir, 'Figure5_tc_overlays_nivo')
+# if not os.path.exists(tc_nivo_plot_dir):
+#     os.mkdir(tc_nivo_plot_dir)
+#
+#
+# for pat in pats:
+#     pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == timepoint), 'fov'].unique()
+#     pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
+#
+#     pat_dir = os.path.join(tc_nivo_plot_dir, 'patient_{}'.format(pat))
+#     if not os.path.exists(pat_dir):
+#         os.mkdir(pat_dir)
+#
+#     cohort_cluster_plot(
+#         fovs=pat_fovs,
+#         seg_dir=seg_dir,
+#         save_dir=pat_dir,
+#         cell_data=pat_df,
+#         erode=True,
+#         fov_col=settings.FOV_ID,
+#         label_col=settings.CELL_LABEL,
+#         cluster_col='T_C_ratio',
+#         seg_suffix="_whole_cell.tiff",
+#         cmap=tc_colormap,
+#         display_fig=False,
+#     )
+#
+#
+# ## check for induction FOVs
+timepoint = 'pre_nivo'
 
-pats = [59, 62, 64, 100]
-pats = [7, 20, 50, 82, 106, 107, 112, 127]
+plot_df = combined_df.loc[(combined_df.feature_name_unique == 'T__Cancer__ratio__cancer_border') &
+                                    (combined_df.Timepoint == timepoint), :]
+#
+# fig, ax = plt.subplots(1, 1, figsize=(2, 4))
+# sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+#                 color='black', ax=ax)
+# sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+#                 color='grey', ax=ax, showfliers=False, width=0.3)
+# ax.set_title(feature_name + ' ' + timepoint)
+# ax.set_ylim([-15, 0])
+# sns.despine()
+# plt.tight_layout()
+# plt.savefig(os.path.join(plot_dir, 'Figure5_feature_{}_{}.pdf'.format(feature_name, timepoint)))
+# plt.close()
+#
+#
+# # pick patients for visualization
+subset = plot_df.loc[plot_df.raw_mean > -6, :]
+pats = subset.loc[subset.Clinical_benefit == 'Yes', 'Patient_ID'].unique()
+
+pats = [26, 4, 5, 11, 40, 37, 46, 56, 62, 64, 65, 102]
 fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
 
-# 33, 62 previously included
-
-# add column for CD8T in cancer border, CD8T elsewhere, and others
+# add column for T in cancer border, T elsewhere, and others
 cell_table_subset = cell_table_clusters.loc[(cell_table_clusters.fov.isin(fovs)), :]
-cell_table_subset['border_plot'] = cell_table_subset.cell_cluster_broad
-cell_table_subset.loc[cell_table_subset.tumor_region != 'cancer_border', 'border_plot'] = 'Other_region'
+cell_table_subset['T_C_ratio'] = cell_table_subset.cell_cluster_broad
+cell_table_subset.loc[~cell_table_subset.T_C_ratio.isin(['T', 'Cancer']), 'T_C_ratio'] = 'Other_cells'
+cell_table_subset.loc[cell_table_subset.tumor_region != 'cancer_border', 'T_C_ratio'] = 'Other_region'
 
-figure_dir = os.path.join(plot_dir, 'Figure4_border_diversity_neg')
-if not os.path.exists(figure_dir):
-    os.mkdir(figure_dir)
+#outside_t = (cell_table_subset.cell_cluster_broad == 'T') & (cell_table_subset.tumor_region != 'cancer_border')
+#outside_cancer = (cell_table_subset.cell_cluster_broad == 'Cancer') & (cell_table_subset.tumor_region != 'cancer_border')
+#cell_table_subset.loc[outside_t, 'T_C_ratio'] = 'T_outside'
+#cell_table_subset.loc[outside_cancer, 'T_C_ratio'] = 'Cancer_outside'
 
-diversity_colormap = pd.DataFrame({'border_plot': ['Cancer', 'Stroma', 'Granulocyte', 'T', 'B', 'Mono_Mac', 'Other', 'NK', 'Other_region'],
-                         'color': ['white', 'lightcoral', 'sandybrown', 'lightgreen', 'aqua', 'dodgerblue', 'darkviolet', 'crimson', 'gray']})
+tc_induction_plot_dir = os.path.join(plot_dir, 'Figure5_tc_overlays_induction')
+if not os.path.exists(tc_induction_plot_dir):
+    os.mkdir(tc_induction_plot_dir)
 
 
 for pat in pats:
-    pat_dir = os.path.join(figure_dir, 'patient_{}'.format(pat))
+    pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == timepoint), 'fov'].unique()
+    pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
+
+    pat_dir = os.path.join(tc_induction_plot_dir, 'patient_{}'.format(pat))
     if not os.path.exists(pat_dir):
         os.mkdir(pat_dir)
-    pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == 'on_nivo'), 'fov'].unique()
-    pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
 
     cohort_cluster_plot(
         fovs=pat_fovs,
@@ -348,15 +402,163 @@ for pat in pats:
         erode=True,
         fov_col=settings.FOV_ID,
         label_col=settings.CELL_LABEL,
-        cluster_col='border_plot',
+        cluster_col='T_C_ratio',
         seg_suffix="_whole_cell.tiff",
-        cmap=diversity_colormap,
+        cmap=tc_colormap,
         display_fig=False,
     )
+#
+# ## check for baseline FOVs
+# timepoint = 'baseline'
+#
+# plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
+#                                     (combined_df.Timepoint == timepoint), :]
+#
+# fig, ax = plt.subplots(1, 1, figsize=(2, 4))
+# sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+#                 color='black', ax=ax)
+# sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+#                 color='grey', ax=ax, showfliers=False, width=0.3)
+# ax.set_title(feature_name + ' ' + timepoint)
+# ax.set_ylim([-15, 0])
+# sns.despine()
+# plt.tight_layout()
+# plt.savefig(os.path.join(plot_dir, 'Figure5_feature_{}_{}.pdf'.format(feature_name, timepoint)))
+# plt.close()
+#
+#
+# # pick patients for visualization
+# subset = plot_df.loc[plot_df.raw_mean > -6, :]
+#
+# pats = [26, 5, 11, 56, 64, 65, 84, 100, 102, 115, 118]
+# fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
+#
+# # add column for T in cancer border, T elsewhere, and others
+# cell_table_subset = cell_table_clusters.loc[(cell_table_clusters.fov.isin(fovs)), :]
+# cell_table_subset['T_C_ratio'] = cell_table_subset.cell_cluster_broad
+# cell_table_subset.loc[~cell_table_subset.T_C_ratio.isin(['T', 'Cancer']), 'T_C_ratio'] = 'Other_cells'
+# cell_table_subset.loc[cell_table_subset.tumor_region != 'cancer_border', 'T_C_ratio'] = 'Other_region'
+#
+# #outside_t = (cell_table_subset.cell_cluster_broad == 'T') & (cell_table_subset.tumor_region != 'cancer_border')
+# #outside_cancer = (cell_table_subset.cell_cluster_broad == 'Cancer') & (cell_table_subset.tumor_region != 'cancer_border')
+# #cell_table_subset.loc[outside_t, 'T_C_ratio'] = 'T_outside'
+# #cell_table_subset.loc[outside_cancer, 'T_C_ratio'] = 'Cancer_outside'
+#
+# tc_baseline_plot_dir = os.path.join(plot_dir, 'Figure5_tc_overlays_baseline')
+# if not os.path.exists(tc_baseline_plot_dir):
+#     os.mkdir(tc_baseline_plot_dir)
+#
+#
+# for pat in pats:
+#     pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == timepoint), 'fov'].unique()
+#     pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
+#
+#     pat_dir = os.path.join(tc_baseline_plot_dir, 'patient_{}'.format(pat))
+#     if not os.path.exists(pat_dir):
+#         os.mkdir(pat_dir)
+#
+#     cohort_cluster_plot(
+#         fovs=pat_fovs,
+#         seg_dir=seg_dir,
+#         save_dir=pat_dir,
+#         cell_data=pat_df,
+#         erode=True,
+#         fov_col=settings.FOV_ID,
+#         label_col=settings.CELL_LABEL,
+#         cluster_col='T_C_ratio',
+#         seg_suffix="_whole_cell.tiff",
+#         cmap=tc_colormap,
+#         display_fig=False,
+#     )
+#
+# ## check for primary FOVs
+# timepoint = 'primary_untreated'
+#
+# plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
+#                                     (combined_df.Timepoint == timepoint), :]
+#
+# fig, ax = plt.subplots(1, 1, figsize=(2, 4))
+# sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+#                 color='black', ax=ax)
+# sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+#                 color='grey', ax=ax, showfliers=False, width=0.3)
+# ax.set_title(feature_name + ' ' + timepoint)
+# ax.set_ylim([-15, 0])
+# sns.despine()
+# plt.tight_layout()
+# plt.savefig(os.path.join(plot_dir, 'Figure5_feature_{}_{}.pdf'.format(feature_name, timepoint)))
+# plt.close()
+#
+#
+# # pick patients for visualization
+# # subset = plot_df.loc[plot_df.Clinical_benefit == "Yes", :]
+#
+# pats = [26, 59, 105, 4, 26, 11, 37, 14, 46, 62, 121, 85]
+# fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID.isin(pats) & harmonized_metadata.MIBI_data_generated.values), 'fov'].unique()
+#
+# # add column for T in cancer border, T elsewhere, and others
+# cell_table_subset = cell_table_clusters.loc[(cell_table_clusters.fov.isin(fovs)), :]
+# cell_table_subset['T_C_ratio'] = cell_table_subset.cell_cluster_broad
+# cell_table_subset.loc[~cell_table_subset.T_C_ratio.isin(['T', 'Cancer']), 'T_C_ratio'] = 'Other_cells'
+# cell_table_subset.loc[cell_table_subset.tumor_region != 'cancer_border', 'T_C_ratio'] = 'Other_region'
+#
+# #outside_t = (cell_table_subset.cell_cluster_broad == 'T') & (cell_table_subset.tumor_region != 'cancer_border')
+# #outside_cancer = (cell_table_subset.cell_cluster_broad == 'Cancer') & (cell_table_subset.tumor_region != 'cancer_border')
+# #cell_table_subset.loc[outside_t, 'T_C_ratio'] = 'T_outside'
+# #cell_table_subset.loc[outside_cancer, 'T_C_ratio'] = 'Cancer_outside'
+#
+# tc_primary_plot_dir = os.path.join(plot_dir, 'Figure5_tc_overlays_primary')
+# if not os.path.exists(tc_primary_plot_dir):
+#     os.mkdir(tc_primary_plot_dir)
+#
+#
+# for pat in pats:
+#     pat_fovs = harmonized_metadata.loc[(harmonized_metadata.Patient_ID == pat) & (harmonized_metadata.MIBI_data_generated.values) & (harmonized_metadata.Timepoint == timepoint), 'fov'].unique()
+#     pat_df = cell_table_subset.loc[cell_table_subset.fov.isin(pat_fovs), :]
+#
+#     pat_dir = os.path.join(tc_primary_plot_dir, 'patient_{}'.format(pat))
+#     if not os.path.exists(pat_dir):
+#         os.mkdir(pat_dir)
+#
+#     cohort_cluster_plot(
+#         fovs=pat_fovs,
+#         seg_dir=seg_dir,
+#         save_dir=pat_dir,
+#         cell_data=pat_df,
+#         erode=True,
+#         fov_col=settings.FOV_ID,
+#         label_col=settings.CELL_LABEL,
+#         cluster_col='T_C_ratio',
+#         seg_suffix="_whole_cell.tiff",
+#         cmap=tc_colormap,
+#         display_fig=False,
+#     )
 
-fovs = ['TONIC_TMA12_R2C4', 'TONIC_TMA14_R11C4'] # 64, 82
 
-subset_dir = os.path.join(plot_dir, 'Figure4_border_diversity_selected')
+# generate crops for selected FOVs
+
+# nivo: 33, 65, 115
+# pre nivo: 37
+# baseline: 26
+# primary: 4, 11, 37
+fovs = ['TONIC_TMA12_R5C6', 'TONIC_TMA2_R11C6', 'TONIC_TMA5_R5C2', 'TONIC_TMA2_R8C4'] # 65 (nivo), 5 (pre nivo), 26 (baseline), 4 (primary)
+#fovs = ['TONIC_TMA12_R6C2', 'TONIC_TMA11_R7C6', 'TONIC_TMA11_R8C1', 'TONIC_TMA7_R10C4', 'TONIC_TMA2_R11C6']
+cell_table_clusters = pd.read_csv(os.path.join(base_dir, 'analysis_files/cell_table_clusters.csv'))
+annotations_by_mask = pd.read_csv(os.path.join(base_dir, 'intermediate_files/mask_dir', 'cell_annotation_mask.csv'))
+annotations_by_mask = annotations_by_mask.rename(columns={'mask_name': 'tumor_region'})
+cell_table_clusters = cell_table_clusters.merge(annotations_by_mask, on=['fov', 'label'], how='left')
+
+# add column for border location
+cell_table_subset = cell_table_clusters.loc[(cell_table_clusters.fov.isin(fovs)), :]
+cell_table_subset['T_C_ratio'] = cell_table_subset.cell_cluster_broad
+cell_table_subset.loc[~cell_table_subset.T_C_ratio.isin(['T', 'Cancer']), 'T_C_ratio'] = 'Other_cells'
+cell_table_subset.loc[cell_table_subset.tumor_region != 'cancer_border', 'T_C_ratio'] = 'Other_region'
+
+tc_colormap = pd.DataFrame({'T_C_ratio': ['T', 'Cancer', 'Other_region', 'Other_cells'],
+                         'color': ['yellow','white', 'grey', 'grey']})
+
+
+subset_dir = os.path.join(plot_dir, 'Figure4c_tc_ratio_overlays')
 if not os.path.exists(subset_dir):
     os.mkdir(subset_dir)
 
@@ -368,17 +570,17 @@ cohort_cluster_plot(
     erode=True,
     fov_col=settings.FOV_ID,
     label_col=settings.CELL_LABEL,
-    cluster_col='border_plot',
+    cluster_col='T_C_ratio',
     seg_suffix="_whole_cell.tiff",
-    cmap=diversity_colormap,
+    cmap=tc_colormap,
     display_fig=False,
 )
 
 
 # same thing for compartment masks
-compartment_colormap = pd.DataFrame({'tumor_region': ['cancer_core', 'cancer_border', 'stroma_border', 'stroma_core'],
-                         'color': ['blue', 'deepskyblue', 'lightcoral', 'firebrick']})
-subset_mask_dir = os.path.join(plot_dir, 'Figure4_border_diversity_selected_masks')
+compartment_colormap = pd.DataFrame({'tumor_region': ['cancer_core', 'cancer_border', 'stroma_border', 'stroma_core', 'immune_agg'],
+                         'color': ['blue', 'deepskyblue', 'lightcoral', 'firebrick', 'firebrick']})
+subset_mask_dir = os.path.join(plot_dir, 'Figure4c_tc_overlays_masks')
 if not os.path.exists(subset_mask_dir):
     os.mkdir(subset_mask_dir)
 
@@ -395,11 +597,12 @@ cohort_cluster_plot(
     cmap=compartment_colormap,
     display_fig=False,
 )
+# scale bars: 100 um = 2048 pixels / 8 = 256 pixels, 100um = 256 / 600 = 0.426666666666666 of image
 
 # crop overlays
 fov1 = fovs[0]
-row_start, col_start = 600, 900
-row_len, col_len = 600, 600
+row_start, col_start = 1350, 200
+row_len, col_len = 600, 900
 
 for dir in [subset_dir, subset_mask_dir]:
     fov1_image = io.imread(os.path.join(dir, 'cluster_masks_colored', fov1 + '.tiff'))
@@ -407,10 +610,28 @@ for dir in [subset_dir, subset_mask_dir]:
     io.imsave(os.path.join(dir, 'cluster_masks_colored', fov1 + '_crop.tiff'), fov1_image)
 
 fov2 = fovs[1]
-row_start, col_start = 100, 400
-row_len, col_len = 600, 600
+row_start, col_start = 1200, 250
+row_len, col_len = 600, 900
 
 for dir in [subset_dir, subset_mask_dir]:
     fov2_image = io.imread(os.path.join(dir, 'cluster_masks_colored', fov2 + '.tiff'))
     fov2_image = fov2_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
     io.imsave(os.path.join(dir, 'cluster_masks_colored', fov2 + '_crop.tiff'), fov2_image)
+
+fov3 = fovs[2]
+row_start, col_start = 700, 450
+row_len, col_len = 900, 600
+
+for dir in [subset_dir, subset_mask_dir]:
+    fov3_image = io.imread(os.path.join(dir, 'cluster_masks_colored', fov3 + '.tiff'))
+    fov3_image = fov3_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
+    io.imsave(os.path.join(dir, 'cluster_masks_colored', fov3 + '_crop.tiff'), fov3_image)
+
+fov4 = fovs[3]
+row_start, col_start = 1200, 750
+row_len, col_len = 600, 900
+
+for dir in [subset_dir, subset_mask_dir]:
+    fov4_image = io.imread(os.path.join(dir, 'cluster_masks_colored', fov4 + '.tiff'))
+    fov4_image = fov4_image[row_start:row_start + row_len, col_start:col_start + col_len, :]
+    io.imsave(os.path.join(dir, 'cluster_masks_colored', fov4 + '_crop.tiff'), fov4_image)

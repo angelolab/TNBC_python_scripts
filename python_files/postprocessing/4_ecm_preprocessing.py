@@ -25,12 +25,11 @@ from python_files import utils
 #
 # This script is for generating the ECM assignments for image crops
 #
-
-out_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/ecm'
-channel_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples'
-analysis_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files'
-mask_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/mask_dir/individual_masks/'
-plot_dir = '/Users/noahgreenwald/Documents/Grad_School/Lab/TNBC/plots'
+base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/'
+out_dir = os.path.join(base_dir, 'intermediate_files/ecm')
+channel_dir =  os.path.join(base_dir, 'image_data/samples')
+analysis_dir =  os.path.join(base_dir, 'analysis_files')
+mask_dir =  os.path.join(base_dir, 'intermediate_files/ecm/masks')
 
 #
 # Visualization to assess spatial patterns in signal
@@ -158,7 +157,7 @@ pickle.dump(kmeans_pipe, open(os.path.join(out_dir, 'tile_classification_kmeans_
 
 
 # load the model
-kmeans_pipe = pickle.load(open(os.path.join(plot_dir, 'tile_classification_kmeans_pipe.pkl'), 'rb'))
+kmeans_pipe = pickle.load(open(os.path.join(out_dir, 'tile_classification_kmeans_pipe.pkl'), 'rb'))
 
 kmeans_preds = kmeans_pipe.predict(tiled_crops[channels].values)
 
@@ -217,76 +216,41 @@ for cluster in tiled_crops.cluster.unique():
                 check_contrast=False)
 
 
-# generate crops around cells to classify using the trained model
-cell_table_clusters = pd.read_csv(os.path.join(analysis_dir, 'combined_cell_table_normalized_cell_labels_updated.csv'))
-#cell_table_clusters = cell_table_clusters[cell_table_clusters.fov.isin(fov_subset)]
-cell_table_clusters = cell_table_clusters[['fov', 'centroid-0', 'centroid-1', 'label']]
+# plot distribution of clusters in each fov
+cluster_counts = tiled_crops.groupby('fov').value_counts(['tile_cluster'])
+cluster_counts = cluster_counts.reset_index()
+cluster_counts.columns = ['fov', 'tile_cluster', 'count']
+cluster_counts = cluster_counts.pivot(index='fov', columns='tile_cluster', values='count')
+cluster_counts = cluster_counts.fillna(0)
+cluster_counts = cluster_counts.apply(lambda x: x / x.sum(), axis=1)
 
-cell_crops = utils.generate_crop_sum_dfs(channel_dir=channel_dir,
-                                         mask_dir=mask_dir,
-                                         channels=channels,
-                                         crop_size=crop_size, fovs=fov_subset,
-                                         cell_table=cell_table_clusters)
+# plot the cluster counts
+cluster_counts_clustermap = sns.clustermap(cluster_counts, cmap='Reds', figsize=(10, 10))
+plt.savefig(os.path.join(out_dir, 'fov_cluster_counts.png'), dpi=300)
+plt.close()
 
-# normalize based on ecm area
-cell_crops = utils.normalize_by_ecm_area(crop_sums=cell_crops, crop_size=crop_size,
-                                         channels=channels)
 
-cell_classifications = kmeans_pipe.predict(cell_crops[channels].values.astype('float64'))
-cell_crops['ecm_cluster'] = cell_classifications
+# use kmeans to cluster fovs
+fov_kmeans_pipe = make_pipeline(KMeans(n_clusters=5, random_state=0))
+fov_kmeans_pipe.fit(cluster_counts.values)
 
-no_ecm_mask_cell = cell_crops.ecm_fraction < 0.1
+# save the trained pipeline
+pickle.dump(fov_kmeans_pipe, open(os.path.join(out_dir, 'fov_classification_kmeans_pipe.pkl'), 'wb'))
 
-cell_crops.loc[no_ecm_mask_cell, 'ecm_cluster'] = -1
 
-# replace cluster integers with cluster names
-replace_dict = {0: 'Hot_Coll', 1: 'Fibro_Coll', 2: 'VIM_Fibro', 3: 'Cold_Coll',
-                -1: 'no_ecm'}
+# load the model
+fov_kmeans_pipe = pickle.load(open(os.path.join(out_dir, 'fov_classification_kmeans_pipe.pkl'), 'rb'))
+kmeans_preds = fov_kmeans_pipe.predict(cluster_counts.values)
 
-cell_crops['ecm_cluster'] = cell_crops['ecm_cluster'].replace(replace_dict)
-cell_crops.to_csv(os.path.join(out_dir, 'cell_crops.csv'), index=False)
 
-# QC clustering results
+# get average cluster count in each kmeans cluster
+cluster_counts['fov_cluster'] = kmeans_preds
+cluster_means = cluster_counts.groupby('fov_cluster').mean()
 
-# generate image with each crop set to the value of the cluster its assigned to
-metadata_df = pd.read_csv(os.path.join(out_dir, 'metadata_df.csv'))
-img = 'TONIC_TMA20_R5C3'
-cluster_crop_img = np.zeros((2048, 2048))
+cluster_means_clustermap = sns.clustermap(cluster_means, cmap='Reds', figsize=(10, 10))
 
-metadata_subset = tiled_crops[tiled_crops.fov == img]
-for row_crop, col_crop, cluster in zip(metadata_subset.row_coord, metadata_subset.col_coord, metadata_subset.cluster):
-    if cluster == 'no_ecm':
-        cluster = 0
-    elif cluster == 'Hot_Coll':
-        cluster = 1
-    elif cluster == 'Cold_Coll':
-        cluster = 2
-    cluster_crop_img[row_crop:row_crop + crop_size, col_crop:col_crop + crop_size] = int(cluster)
+rename_dict = {0: 'No_ECM', 1: 'Hot_Coll', 2: 'Cold_Coll', 3: 'Hot_Cold_Coll', 4: 'Hot_No_ECM'}
+cluster_counts['fov_cluster'] = cluster_counts['fov_cluster'].replace(rename_dict)
 
-io.imshow(cluster_crop_img)
-
-# preprocessing for simCLR
-
-image_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/image_data/samples'
-all_fovs = os.listdir(image_dir)
-crop_size = 256
-
-for tma in range(1, 25):
-    tma_fovs = [fov for fov in all_fovs if fov.startswith('TONIC_TMA{}_'.format(tma))]
-    all_crops = []
-    crop_ids = []
-
-    for fov in tma_fovs:
-        image_data = load_utils.load_imgs_from_tree(data_dir=image_dir, fovs=[fov],
-                                                    channels=['Collagen1', 'Fibronectin', 'FAP', 'Vim', 'SMA'])
-        # crop image data
-        for i in range(0, image_data.shape[1], crop_size):
-            for j in range(0, image_data.shape[2], crop_size):
-                crop = image_data[0, i:i + crop_size, j:j + crop_size, :]
-                all_crops.append(crop)
-                crop_ids.append(fov + '_{}_{}'.format(i, j))
-
-    all_crops = np.stack(all_crops)
-    out_file = os.path.join('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/ecm/image_data_{}.npz'.format(tma))
-    np.savez_compressed(out_file, data=all_crops, crops=crop_ids)
-
+# save the cluster counts
+cluster_counts.to_csv(os.path.join(out_dir, 'fov_cluster_counts.csv'))
