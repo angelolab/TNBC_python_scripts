@@ -439,10 +439,11 @@ def occupancy_division_factor(occupancy_group: pd.api.typing.DataFrameGroupBy,
 # occupancy statistic helpers
 def compute_occupancy_statistics(
     cell_table: pd.DataFrame, pop_col: str = "cell_cluster_broad",
-    pop_subset: Optional[List[str]] = None, tiles_per_row_col: int = 8,
-    max_image_size: int = 2048, positive_threshold: int = 20
+    pop_subset: Optional[List[str]] = None, tiles_per_row_col: int = 4,
+    max_image_size: int = 2048, positive_threshold: int = 0.0, sample_dir: Union[str, pathlib.Path]
 ):
-    """Compute the occupancy statistics over a cohort.
+    """Compute the occupancy statistics over a cohort, based on z-scored cell counts per tile 
+    across the cohort.
 
     Args:
         cell_table (pd.DataFrame):
@@ -456,9 +457,9 @@ def compute_occupancy_statistics(
             The row/col dims of tiles to define over each image
         max_image_size (int):
             Maximum size of an image passed in, assuming square images
-            NOTE: all images should have an image size that is a factor of max_image_size
+            NOTE: all images should have an image size that is a factor of `max_image_size`
         positive_threshold (int):
-            The cell count in a tile required for positivity
+            The z-scored cell count in a tile required for positivity
 
     Returns:
         Dict[str, float]:
@@ -496,6 +497,8 @@ def compute_occupancy_statistics(
         names=["fov", "tile_row", "tile_col", pop_col]
     ).to_frame(index=False)
 
+    # compute the total occupancy of each tile for each population type
+    # NOTE: need to merge this way to account for tiles with 0 counts
     occupancy_counts: pd.DataFrame = cell_table.groupby(
         ["fov", "tile_row", "tile_col", pop_col]
     ).size().reset_index(name="occupancy")
@@ -505,9 +508,21 @@ def compute_occupancy_statistics(
         how="left"
     )
     occupancy_counts["occupancy"].fillna(0, inplace=True)
-    print(occupancy_counts[["tile_row", "tile_col"]].drop_duplicates())
+    # print(occupancy_counts[["tile_row", "tile_col"]].drop_duplicates())
 
-    occupancy_counts["is_positive"] = occupancy_counts["occupancy"] > positive_threshold
+    # zscore the tile counts across the cohort grouped by the cell types
+    occupancy_counts["zscore_occupancy"] = occupancy_stats.groupby(
+        [pop_col]
+    )["occupancy"].transform(lambda x: zscore(x, ddof=0))
+
+    # mark tiles as positive depending on the positive_threshold value
+    occupancy_counts["is_positive"] = occupancy_counts["zscore_occupancy"] > positive_threshold
+
+    # total up the positive tiles per FOV and cell type
+    occupancy_counts_grouped: pd.DataFrame = occupancy_counts.groupby(["fov", pop_col]).apply(
+        lambda row: row["is_positive"].sum()
+    ).reset_ondex("total_positive_tiles")
+
     # occupancy_counts_grouped: pd.DataFrame = occupancy_counts.groupby(["fov", pop_col]).apply(
     #     lambda row: row["is_positive"].sum() / occupancy_division_factor(
     #         row, tiles_per_row_col, max_image_size, cell_table
@@ -515,9 +530,36 @@ def compute_occupancy_statistics(
     # ).reset_index(name="percent_positive")
     occupancy_counts_grouped: pd.DataFrame = occupancy_counts.groupby(["fov", pop_col]).apply(
         lambda row: row["is_positive"].sum()
-    ).reset_index(name="total_positive")
+    ).reset_index(name="total_positive_tiles")
 
-    return occupancy_counts, occupancy_counts_grouped
+    # get the max image size, this will determine how many tiles there are when finding percentages
+    occupancy_counts_grouped["image_size"] = occupancy_counts_grouped.apply(
+        lambda row: io.imread(os.path.join(samples_dir, row["fov"], "Calprotectin.tiff")).shape[0],
+        axis=1
+    )
+    occupancy_stats_grouped["max_tiles"] = occupancy_stats_grouped.apply(
+        lambda row: tiles_per_row_col ** 2 ** (1 / (max_image_size / row["image_size"])),
+        axis=1
+    )
+
+    # determine the percent positivity of tiles
+    occupancy_counts_grouped["percent_positive_tiles"] = \
+        occupancy_stats_grouped["total_positive_tiles"] / occupancy_stats_grouped["max_tiles"]
+
+    # occupancy_stats_grouped: pd.DataFrame = occupancy_stats.groupby(
+    #     ["fov", "cell_cluster_broad"]
+    # ).apply(lambda row: row["is_positive"].sum()).reset_index(name="total_positive_tiles")
+
+    # # everything after here is grouped
+    # occupancy_stats_grouped["num_cells"] = occupancy_stats.groupby(
+    #     ["fov", "cell_cluster_broad", "positivity_threshold"]
+    # ).apply(lambda row: row["occupancy"].sum()).values
+
+    # occuapcny_stats_grouped["max_tiles"] = occupancy_count
+
+    return occupancy_counts_grouped
+
+    # return occupancy_counts, occupancy_counts_grouped
 
     # # define the occupancy_stats array
     # occupancy_stats = xr.DataArray(
