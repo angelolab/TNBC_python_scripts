@@ -250,16 +250,6 @@ def occupancy_df_helper(cell_table, cluster_col_name, drop_cols, result_name, su
     # get all the FOV names
     fov_names = cell_table_small["fov"].unique()
 
-    # if a population subset is specified, first validate then truncate the cell table accordingly
-    if pop_subset:
-        verify_in_list(
-            specified_populations=pop_subset,
-            valid_populations=cell_table_small[cluster_col_name].unique()
-        )
-    # otherwise, use all possible subsets as defined by pop_col
-    else:
-        pop_subset = cell_table_small[cluster_col_name].unique()
-
     # define the tile size in pixels for each FOV
     tile_size = max_image_size // tiles_per_row_col
 
@@ -273,7 +263,7 @@ def occupancy_df_helper(cell_table, cluster_col_name, drop_cols, result_name, su
             cell_table_small["fov"].unique(),
             cell_table_small["tile_row"].unique(),
             cell_table_small["tile_col"].unique(),
-            cell_table_small[pop_col].unique()
+            cell_table_small[cluster_col_name].unique()
         ],
         names=["fov", "tile_row", "tile_col", cluster_col_name]
     ).to_frame(index=False)
@@ -296,8 +286,8 @@ def occupancy_df_helper(cell_table, cluster_col_name, drop_cols, result_name, su
     # print(occupancy_counts[["tile_row", "tile_col"]].drop_duplicates())
 
     # zscore the tile counts across the cohort grouped by the cell types
-    occupancy_counts["zscore_occupancy"] = occupancy_stats.groupby(
-        [pop_col]
+    occupancy_counts["zscore_occupancy"] = occupancy_counts.groupby(
+        [cluster_col_name]
     )["occupancy"].transform(lambda x: zscore(x, ddof=0))
 
     # mark tiles as positive depending on the positive_threshold value
@@ -309,7 +299,7 @@ def occupancy_df_helper(cell_table, cluster_col_name, drop_cols, result_name, su
         occupancy_zscore_groupby.append(subset_col)
     occupancy_counts_grouped: pd.DataFrame = occupancy_counts.groupby(occupancy_zscore_groupby).apply(
         lambda row: row["is_positive"].sum()
-    ).reset_ondex("total_positive_tiles")
+    ).reset_index(name="total_positive_tiles")
 
     # get the max image size, this will determine how many tiles there are when finding percentages
     occupancy_counts_grouped["image_size"] = occupancy_counts_grouped.apply(
