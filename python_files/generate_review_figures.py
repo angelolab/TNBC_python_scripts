@@ -30,7 +30,7 @@ clinical_data = clinical_data.rename(columns={'PatientID': 'Patient_ID'})
 cell_table = cell_table.merge(clinical_data, on=['Patient_ID', 'BiopsyPhase'])
 cell_table_adj = cell_table[cell_table.isPerProtocol]
 cell_table_adj = cell_table_adj[cell_table_adj.cellAnnotation.isin(['TME', 'invasive'])]
-cell_table_adj = cell_table_adj[cell_table_adj.BiopsyPhase!='Post-treatment']
+cell_table_adj = cell_table_adj[cell_table_adj.BiopsyPhase != 'Post-treatment']
 
 assignments = pd.read_csv('/Volumes/Shared/Noah Greenwald/NTPublic/intermediate_files/mask_dir/individual_masks_all/cell_annotation_mask.csv')
 areas = pd.read_csv('/Volumes/Shared/Noah Greenwald/NTPublic/intermediate_files/mask_dir/individual_masks_all/fov_annotation_mask_area.csv')
@@ -166,7 +166,7 @@ line_15 = mlines.Line2D([], [], color="purple", marker='_', label="15% of images
 line_20 = mlines.Line2D([], [], color="black", marker='_', label="20% of images", linestyle='None')
 plt.legend(handles=[line_5, line_10, line_15, line_20], loc='upper right')
 plt.tight_layout()
-plt.savefig(os.path.join(low_cellularity_viz_dir, 'cell_counts_thresholded.pdf'), bbox_inches='tight', dpi=300)
+plt.savefig(os.path.join(low_cellularity_viz_dir, 'low_cell_counts_thresholded.pdf'), bbox_inches='tight', dpi=300)
 
 # generate predictions with various low cellularity images dropped
 for drop_perc in [0.0, 0.05, 0.10, 0.15, 0.20]:
@@ -233,35 +233,35 @@ for drop_perc in [0.0, 0.05, 0.10, 0.15, 0.20]:
                                             per_cell_stats=per_cell_stats, per_img_stats=per_img_stats)
     adata_processed.write_h5ad(os.path.join(data_dir, 'adata', f'adata_processed_{str(drop_perc * 100)}.h5ad'))
 
-    # Save finalized tables to csv
-    output_dir = os.path.join(data_dir, f'SpaceCat_{str(drop_perc * 100)}')
-    os.makedirs(output_dir, exist_ok=True)
-    adata_processed.uns['combined_feature_data'].to_csv(os.path.join(output_dir, 'combined_feature_data.csv'), index=False)
-    adata_processed.uns['combined_feature_data_filtered'].to_csv(os.path.join(output_dir, 'combined_feature_data_filtered.csv'), index=False)
-    adata_processed.uns['feature_metadata'].to_csv(os.path.join(output_dir, 'feature_metadata.csv'), index=False)
-    adata_processed.uns['excluded_features'].to_csv(os.path.join(output_dir, 'excluded_features.csv'), index=False)
+# Save finalized tables to csv
+output_dir = os.path.join(data_dir, f'SpaceCat_{str(drop_perc * 100)}')
+os.makedirs(output_dir, exist_ok=True)
+adata_processed.uns['combined_feature_data'].to_csv(os.path.join(output_dir, 'combined_feature_data.csv'), index=False)
+adata_processed.uns['combined_feature_data_filtered'].to_csv(os.path.join(output_dir, 'combined_feature_data_filtered.csv'), index=False)
+adata_processed.uns['feature_metadata'].to_csv(os.path.join(output_dir, 'feature_metadata.csv'), index=False)
+adata_processed.uns['excluded_features'].to_csv(os.path.join(output_dir, 'excluded_features.csv'), index=False)
 
-    df_0 = pd.read_csv('/Users/csowers/Documents/TONIC_reviews/low_cellularity/SpaceCat_0.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv')
-    df_5 = pd.read_csv('/Users/csowers/Documents/TONIC_reviews/low_cellularity/SpaceCat_5.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv')
-    df_10 = pd.read_csv('/Users/csowers/Documents/TONIC_reviews/low_cellularity/SpaceCat_10.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv')
-    df_15 = pd.read_csv('/Users/csowers/Documents/TONIC_reviews/low_cellularity/SpaceCat_15.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv')
-    df_20 = pd.read_csv('/Users/csowers/Documents/TONIC_reviews/low_cellularity/SpaceCat_20.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv')
+df_0 = pd.read_csv('/Users/csowers/Documents/TONIC_reviews/low_cellularity/SpaceCat_0.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv')
+df_5 = pd.read_csv('/Users/csowers/Documents/TONIC_reviews/low_cellularity/SpaceCat_5.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv')
+df_10 = pd.read_csv('/Users/csowers/Documents/TONIC_reviews/low_cellularity/SpaceCat_10.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv')
+df_15 = pd.read_csv('/Users/csowers/Documents/TONIC_reviews/low_cellularity/SpaceCat_15.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv')
+df_20 = pd.read_csv('/Users/csowers/Documents/TONIC_reviews/low_cellularity/SpaceCat_20.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv')
 
-    df_0 = df_0.mean()
-    df_5 = df_5.mean()
-    df_10 = df_10.mean()
-    df_15 = df_15.mean()
-    df_20 = df_20.mean()
-    df = pd.concat([df_0, df_5, df_10, df_15, df_20], axis=1)
-    df = df.rename(columns={0: 'All images', 1: 'Drop 5% of images', 2: 'Drop 10% of images',
-                            3: 'Drop 15% of images', 4: 'Drop 20% of images'})
-    df = df.reset_index()
-    df = df.rename(columns={'index':'Timepoint'})
-    df = pd.melt(df, ['Timepoint'])
+df_0 = df_0.mean()
+df_5 = df_5.mean()
+df_10 = df_10.mean()
+df_15 = df_15.mean()
+df_20 = df_20.mean()
+df = pd.concat([df_0, df_5, df_10, df_15, df_20], axis=1)
+df = df.rename(columns={0: 'All images', 1: 'Drop 5% of images', 2: 'Drop 10% of images',
+                        3: 'Drop 15% of images', 4: 'Drop 20% of images'})
+df = df.reset_index()
+df = df.rename(columns={'index':'Timepoint'})
+df = pd.melt(df, ['Timepoint'])
 
-    sns.lineplot(data=df[df.variable == 'All images'], x='Timepoint', y='value', hue='variable', palette=sns.color_palette(['blue']))
-    sns.lineplot(data=df[df.variable != 'All images'], x='Timepoint', y='value', hue='variable', palette=sns.color_palette(['pink', 'red', 'purple', 'black']), linestyle='--')
-    plt.savefig(os.path.join(low_cellularity_viz_dir, 'prediction_comparisons.pdf'), bbox_inches='tight', dpi=300)
+sns.lineplot(data=df[df.variable == 'All images'], x='Timepoint', y='value', hue='variable', palette=sns.color_palette(['blue']))
+sns.lineplot(data=df[df.variable != 'All images'], x='Timepoint', y='value', hue='variable', palette=sns.color_palette(['pink', 'red', 'purple', 'black']), linestyle='--')
+plt.savefig(os.path.join(low_cellularity_viz_dir, 'low_cellularity_prediction_comparisons.pdf'), bbox_inches='tight', dpi=300)
 
 
 ## 3.7 Fiber feature usefulness ##
@@ -360,7 +360,7 @@ g = sns.catplot(x='ecm_cluster', y='value', data=temp_df,
                 kind='strip', col='functional_marker', sharey=False)
 plt.suptitle('Functional expression in Structural Cells')
 plt.subplots_adjust(top=0.85)
-plt.savefig(os.path.join(ecm_cluster_viz_dir, 'Functional_expression_Structural.pdf'), bbox_inches='tight', dpi=300)
+plt.savefig(os.path.join(ecm_cluster_viz_dir, 'ECM_Functional_expression_Structural.pdf'), bbox_inches='tight', dpi=300)
 
 # look at M2 macrophages
 temp_df = plot_df[plot_df.subset == 'all']
@@ -372,7 +372,7 @@ g = sns.catplot(x='ecm_cluster', y='value', data=temp_df,
                 kind='box', col='functional_marker', sharey=False)
 plt.suptitle('Functional expression in CD68 Macrophages')
 plt.subplots_adjust(top=0.85)
-plt.savefig(os.path.join(ecm_cluster_viz_dir, 'Functional_expression_CD68_Mac.pdf'), bbox_inches='tight', dpi=300)
+plt.savefig(os.path.join(ecm_cluster_viz_dir, 'ECM_Functional_expression_CD68_Mac.pdf'), bbox_inches='tight', dpi=300)
 
 
 ## 4.1 Wang et al. cell interactions ##
@@ -511,7 +511,7 @@ for idx, feature in enumerate(input_df_filtered.feature_name_unique.unique()):
     g.set_ylabel('Frequency', fontsize=14)
     fdr_pval = input_df_filtered[np.isin(input_df_filtered['feature_name_unique'], feature)]['fdr_pval'].values[0]
     plt.text(.3, .9, "fdr_pval ={:.2f}".format(fdr_pval), transform=g.transAxes, fontsize=14)
-plt.savefig(os.path.join(immune_agg_viz_dir, 'outcome_plots.pdf'), bbox_inches='tight')
+plt.savefig(os.path.join(immune_agg_viz_dir, 'immune_agg_feature_plots.pdf'), bbox_inches='tight')
 
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
@@ -521,8 +521,11 @@ ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['
 
 # make volcano plots
 for subset in ['all', 'immune_agg']:
-    if subset == 'immune_agg':
-        ranked_features = ranked_features[ranked_features.compartment == 'immune_agg']
+    plot_title = 'All Features'
+    if subset=='immune_agg':
+        ranked_features = ranked_features[ranked_features.compartment=='immune_agg']
+        plot_title = 'Immune Aggregate Features'
+
 
     # plot total volcano
     fig, ax = plt.subplots(figsize=(3,3))
@@ -537,6 +540,7 @@ for subset in ['all', 'immune_agg']:
     sm = plt.cm.ScalarMappable(cmap="icefire", norm=norm)
     ax.get_legend().remove()
     ax.figure.colorbar(sm, ax=ax)
+    plt.title(plot_title)
     plt.tight_layout()
     plt.savefig(os.path.join(immune_agg_viz_dir, f'Figure3a_volcano-{subset}.pdf'))
 
