@@ -13,6 +13,9 @@ from SpaceCat.preprocess import preprocess_table
 from SpaceCat.features import SpaceCat
 from ark.utils.plot_utils import color_segmentation_by_stat
 
+import random
+random.seed(13)
+
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
@@ -136,7 +139,7 @@ blue_line = mlines.Line2D([], [], color="#1f77b4", marker="o", label="SpaceCat",
 orange_line = mlines.Line2D([], [], color="gold", marker="o", label="Wang et al.", linestyle='None')
 plt.legend(handles=[blue_line, orange_line], loc='lower right')
 sns.despine()
-plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'NTPublic', 'NT_prediction_comparison.pdf'), bbox_inches='tight', dpi =300)
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'NTPublic', 'NT_prediction_comparison.pdf'), bbox_inches='tight', dpi=300)
 
 
 ## 3.2 Low cellularity ##
@@ -398,6 +401,109 @@ g.map_dataframe(sns.stripplot, x="ecm_cluster", y="value", data=temp_df, color='
 plt.suptitle('Functional expression in CD68 Macrophages')
 plt.subplots_adjust(top=0.85)
 plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'ECM_clusters', 'Functional_expression_CD68_Mac.pdf'), bbox_inches='tight', dpi=300)
+
+
+## 3.9 Location bias for features associated with immune cells ##
+
+###### change this dir and upload finalized tonic spacecat files
+data_dir = '/Users/csowers/Documents/TONIC_reviews'
+ranked_features_all = pd.read_csv(os.path.join(data_dir, 'SpaceCat/feature_ranking.csv'))
+ranked_features = ranked_features_all.loc[
+    ranked_features_all.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
+feature_metadata = pd.read_csv(os.path.join(data_dir, 'SpaceCat/feature_metadata.csv'))
+
+immune_cells = ['Immune', 'Mono_Mac', 'B', 'T', 'Granulocyte', 'NK'] + ['CD68_Mac', 'CD163_Mac', 'Mac_Other',
+                                                                        'Monocyte', 'APC'] + ['CD4T', 'CD8T', 'Treg',
+                                                                                              'T_Other'] + [
+                   'Neutrophil', 'Mast']
+immmune_feature_names = []
+for cell in (immune_cells):
+    for feat in ranked_features.feature_name.unique():
+        if cell in feat:
+            immmune_feature_names.append(feat)
+
+immune_features = ranked_features[ranked_features.feature_name.isin(immmune_feature_names)]
+immune_features_comp = immune_features[immune_features.compartment != 'all']
+
+fig, axs = plt.subplots(2, 2, figsize=(8, 8), layout='constrained')
+fig.suptitle('Changes in compartment features when dropping immune specific features')
+fig2, axs2 = plt.subplots(2, 2, figsize=(8, 8), layout='constrained')
+fig2.suptitle('Changes in compartment features when dropping immune specific features')
+
+for immune_drop, coords in [[0, (0, 0)], [0.10, (0, 1)], [0.25, (1, 0)], [0.50, (1, 1)]]:
+    i, j = coords
+    feature_df = immune_features_comp
+    if immune_drop == 0.0:
+        feature_df = ranked_features
+    # subset features
+    idx_list = list(feature_df.index)
+    sample_perc = int(len(idx_list) * immune_drop)
+    sub_idx_list = random.sample(idx_list, sample_perc)
+    sub_df = ranked_features[~ranked_features.index.isin(sub_idx_list)]
+    sub_df_comp = ranked_features[~ranked_features.index.isin(sub_idx_list)]
+    sub_df_comp = sub_df_comp[sub_df_comp.compartment != 'all']
+
+    # calculate abundance of each compartment in the top 100 and across all features
+    total_counts = sub_df_comp.groupby('compartment').count().iloc[:, 0]
+    sub_prop = total_counts / np.sum(total_counts)
+
+    # create df
+    ratio_df = pd.DataFrame({'compartment': sub_prop.index, 'ratio': sub_prop.values})
+    ratio_df = ratio_df.sort_values(by='ratio', ascending=False)
+    ratio_df.loc[ratio_df.compartment == 'all', 'color_order'] = 5
+    ratio_df.loc[ratio_df.compartment == 'cancer_core', 'color_order'] = 1
+    ratio_df.loc[ratio_df.compartment == 'cancer_border', 'color_order'] = 2
+    ratio_df.loc[ratio_df.compartment == 'stroma_border', 'color_order'] = 3
+    ratio_df.loc[ratio_df.compartment == 'stroma_core', 'color_order'] = 4
+
+    cmap = ['blue', 'deepskyblue', 'lightcoral', 'firebrick', 'grey']
+    sns.barplot(data=ratio_df, x='compartment', y='ratio', hue='color_order', palette=cmap, ax=axs[i][j])
+    sns.despine()
+    axs[i][j].set_ylim(0, 0.5)
+    axs[i][j].set_ylabel('')
+    axs[i][j].tick_params(axis='x', labelrotation=60)
+    axs[i][j].get_legend().remove()
+    axs[i][j].set_title(f'Drop {int(immune_drop * 100)}%')
+    if immune_drop == 0.0:
+        axs[i][j].set_title(f'All features')
+
+    # look at enrichment by compartment
+    top_counts = sub_df.iloc[:100, :].groupby('compartment').count().iloc[:, 0]
+    total_counts = sub_df.groupby('compartment').count().iloc[:, 0]
+
+    # calculate abundance of each compartment in the top 100 and across all features
+    top_prop = top_counts / np.sum(top_counts)
+    total_prop = total_counts / np.sum(total_counts)
+    top_ratio = top_prop / total_prop
+    top_ratio = np.log2(top_ratio)
+
+    # create df
+    ratio_df = pd.DataFrame({'compartment': top_ratio.index, 'ratio': top_ratio.values})
+    ratio_df = ratio_df.sort_values(by='ratio', ascending=False)
+
+    ratio_df.loc[ratio_df.compartment == 'all', 'color_order'] = 1
+    ratio_df.loc[ratio_df.compartment == 'cancer_core', 'color_order'] = 2
+    ratio_df.loc[ratio_df.compartment == 'cancer_border', 'color_order'] = 3
+    ratio_df.loc[ratio_df.compartment == 'stroma_border', 'color_order'] = 4
+    ratio_df.loc[ratio_df.compartment == 'stroma_core', 'color_order'] = 5
+
+    cmap = ['grey', 'blue', 'deepskyblue', 'lightcoral', 'firebrick']
+
+    sns.barplot(data=ratio_df, x='compartment', y='ratio', hue='color_order', palette=cmap, ax=axs2[i][j])
+    sns.despine()
+    axs2[i][j].set_ylim(-0.8, 1.3)
+    axs2[i][j].set_ylabel('')
+    axs2[i][j].tick_params(axis='x', labelrotation=60)
+    axs2[i][j].get_legend().remove()
+    axs2[i][j].set_title(f'Drop {int(immune_drop * 100)}%')
+    if immune_drop == 0.0:
+        axs2[i][j].set_title(f'All features')
+
+os.makedirs(os.path.join(SUPPLEMENTARY_FIG_DIR, 'location_bias'), exist_ok=True)
+fig.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'location_bias', 'location_bias_compartment_features.pdf'),
+            bbox_inches='tight', dpi=300)
+fig2.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'location_bias', 'location_bias_all_features.pdf'),
+             bbox_inches='tight', dpi=300)
 
 
 ## 4.1 Wang et al. cell interactions ##
@@ -703,6 +809,3 @@ plt.savefig(os.path.join(functional_marker_viz_dir, 'functional_marker_auto_thre
 
 
 ## 4.8 NT pre-treatment features ##
-
-
-## 3.9 Location bias for features associated with immune cells ##
