@@ -1193,8 +1193,17 @@ def run_diversity_mixing_tuning_tests(
     pixel_radii = [base_pixel_radius * tm for tm in threshold_mults]
 
     # define lists to store the diversity and mixing scores respectively
-    diversity_scores = {pr: [] for pr in pixel_radii}
-    mixing_scores = {pr: [] for pr in pixel_radii}
+    diversity_pixel_radius_data = {
+        pr: {
+            cell_type_col: [],
+            "diversity_scores": []
+        } for pr in pixel_radii
+    }
+    mixing_pixel_radius_data = {
+        pr: {
+            "mixing_score_type": [],
+            "mixing_scores": []
+        } for pr in pixel_radii}
 
     # iterate over each pixel radii
     for i, pixel_radius in enumerate(pixel_radii):
@@ -1224,13 +1233,11 @@ def run_diversity_mixing_tuning_tests(
         )
 
         # append the data to the diversity data list, faceted by cell type
-        diversity_scores[pixel_radius].append(
-            list(
-                zip(
-                    list(diversity_data["cell_cluster_broad"]),
-                    list(diversity_data["diversity_cell_cluster_broad"])
-                )
-            )
+        diversity_pixel_radius_data[pixel_radius][cell_type_col].extend(
+            list(diversity_data["cell_cluster_broad"])
+        )
+        diversity_pixel_radius_data[pixel_radius]["diversity_scores"].extend(
+            list(diversity_data["diversity_cell_cluster_broad"])
         )
 
         # define the final mixing score DataFrame
@@ -1264,14 +1271,92 @@ def run_diversity_mixing_tuning_tests(
                 counts.append(cell_counts)
 
             # append the data to the mixing score list, associate with mixing score type
-            mixing_scores[pixel_radius].append(
-                list(
-                    zip(
-                        [f"{mixing_prefix}_mixing_score"] * len(scores),
-                        scores
-                    )
-                )
+            mixing_pixel_radius_data[pixel_radius]["mixing_score_type"].extend(
+                [f"{mixing_prefix}_mixing_score"] * len(scores)
             )
+            mixing_pixel_radius_data[pixel_radius]["mixing_scores"].extend(scores)
+
+    # plot the diversity score experiments
+    data_diversity = []
+    cell_cluster_types = []
+    labels_diversity = []
+    for i, diversity_score_data in enumerate(diversity_pixel_radius_data):
+        data_diversity.append(diversity_score_data["diversity_scores"])
+        cell_cluster_types.append(diversity_score_data[cell_type_col])
+        labels_diversity.append([threshold_mult_strs[i]] * len(diversity_score_data["diversity_scores"]))
+
+    plt.figure(figsize=(25, 15))
+    sns.boxplot(x=labels_diversity, y=data_diversity, hue=cell_cluster_types)
+    plt.title(
+        "Distribution of broad cell cluster neighborhood diversity across pixel radius values (1x = 50)",
+        fontsize=32,
+        pad=16
+    )
+    plt.xlabel(
+        "log2(pixel radius multiplier)",
+        fontsize=24,
+        labelpad=16
+    )
+    plt.ylabel(
+        "Cell neighborhood diversity score",
+        fontsize=24,
+        labelpad=16
+    )
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.legend(
+        title="Broad cell cluster",
+        bbox_to_anchor=(1, 1),
+        loc="upper left",
+        title_fontsize=24,
+        fontsize=18
+    )
+    plt.savefig(
+        pathlib.Path(save_dir) /
+        f"neighborhood_diversity_cell_cluster_broad_box.pdf",
+        dpi=300
+    )
+
+    # plot the mixing score experiments
+    data_mixing = []
+    mixing_score_types = []
+    labels_mixing = []
+    for i, mixing_score_data in enumerate(diversity_pixel_radius_data):
+        data_diversity.append(mixing_score_data["mixing_scores"])
+        mixing_score_types.append(mixing_score_data["mixing_score_type"])
+        labels_mixing.append([threshold_mult_strs[i]] * len(mixing_score_data["mixing_score_type"]))
+
+    plt.figure(figsize=(25, 15))
+    sns.boxplot(x=labels_mixing, y=data_mixing, hue=mixing_score_types)
+    plt.title(
+        "Distribution of broad cell cluster mixing scores across pixel radius values (1x = 50)",
+        fontsize=32,
+        pad=16
+    )
+    plt.xlabel(
+        "log2(pixel radius multiplier)",
+        fontsize=24,
+        labelpad=16
+    )
+    plt.ylabel(
+        "Mixing score",
+        fontsize=24,
+        labelpad=16
+    )
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.legend(
+        title="Broad cell cluster interaction",
+        bbox_to_anchor=(1, 1),
+        loc="upper left",
+        title_fontsize=24,
+        fontsize=18
+    )
+    plt.savefig(
+        pathlib.Path(save_dir) /
+        f"mixing_score_cell_cluster_broad_box.pdf",
+        dpi=300
+    )
 
 
 def random_feature_generation(combined_df, seed_num, tonic_features_df, feature_metadata):
