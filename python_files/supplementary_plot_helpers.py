@@ -1313,7 +1313,7 @@ def run_diversity_mixing_tuning_tests(
     )
     plt.savefig(
         pathlib.Path(save_dir) /
-        f"neighborhood_diversity_cell_cluster_broad_box.pdf",
+        f"diversity_cell_cluster_broad_box.pdf",
         dpi=300
     )
 
