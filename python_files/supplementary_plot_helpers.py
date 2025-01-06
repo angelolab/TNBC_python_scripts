@@ -20,6 +20,12 @@ from PIL import Image, ImageDraw, ImageFont
 from typing import Dict, List, Optional, Tuple, TypedDict, Union, Literal
 from skimage.io import imread
 import geopandas as gpd
+from ark.analysis.neighborhood_analysis import (
+    create_neighborhood_matrix,
+    compute_cell_ratios,
+    compute_mixing_score
+)
+from ark.analysis.cell_neighborhood_stats import generate_neighborhood_diversity_analysis
 from ark.utils import plot_utils, data_utils
 from alpineer.io_utils import list_folders, list_files, remove_file_extensions, validate_paths
 from alpineer.load_utils import load_imgs_from_tree, load_imgs_from_dir
@@ -173,6 +179,15 @@ MARKER_INFO = {
         "x_ticks": np.array([0, 0.1, 0.2, 0.3]),
         "x_tick_labels": np.array([0, 0.1, 0.2, 0.3]),
     }
+}
+
+MIXING_INFO = {
+    'Cancer_Immune': (['Cancer'], ['T', 'B', 'Mono_Mac', 'NK', 'Granulocyte']),
+    'Cancer_Structural': (['Cancer'], ['Structural']),
+    'Structural_Immune': (['Structural'], ['T', 'B', 'Mono_Mac', 'NK', 'Granulocyte']),
+    'Structural_T': (['Structural'], ['T']),
+    'Structural_B': (['Structural'], ['B']),
+    'Structural_Mono_Mac': (['Structural'], ['Mono_Mac'])
 }
 
 # generate stitching/annotation function, used by panel validation and acquisition order tiling
@@ -1138,6 +1153,125 @@ def run_cancer_mask_inclusion_tests(
         pathlib.Path(save_dir) / f"border_size_cancer_region_percentages_box.pdf",
         dpi=300
     )
+
+
+def run_diversity_mixing_tuning_tests(
+    cell_table: pd.DataFrame, dist_mat_dir: Union[str, pathlib.Path],
+    neighbors_mat_dir: Union[str, pathlib.Path],
+    save_dir: Union[str, pathlib.Path], threshold_mults: List[float],
+    mixing_info: Dict[Tuple[List[str], List[str]]],
+    base_pixel_radius: int = 50, cell_type_col: str = "cell_cluster_broad"
+):
+    """Create grouped box plots showing how much changing the pixel radius parameter for 
+    neighborhood analysis affects the distributions of the downstream diversity scores and 
+    mixing scores. Two separate box plots are created for each, and the grouping happens 
+    by the specified `cluster_col`.
+
+    NOTE: the bins (30), ratio_threshold (5), and cell_count_threshold (200) parameters 
+    for the mixing score pipeline are held constant.
+
+    Args:
+        cell_table (pd.DataFrame):
+            Cell table with clustered cell populations
+        dist_mat_dir (Union[str, pathlib.Path]):
+            The folder containing the distance matrices used for neighborhood analysis
+        neighbors_mat_dir (Union[str, pathlib.Path]):
+            The folder containing the intermediate neighborhood matrices
+            # NOTE: this is needed to run `generate_neighborhood_diversity_analysis` correctly
+        save_dir (Union[str, pathlib.Path]):
+            The directory to save the box plots
+        threshold_mults (List[float]):
+            What value to multiply the base params to test in this function
+        mixing_populations (Dict[Tuple[List[str], List[str]]]):
+            What populations to include for mixing of each cell type
+        base_pixel_radius (int):
+            The pixel radius currently used for neighborhood analysis
+        cell_type_col (str):
+            The column used to group the boxplot by
+    """
+    # define each pixel radii to test
+    pixel_radii = [base_pixel_radius * tm for tm in threshold_mults]
+
+    # define lists to store the diversity and mixing scores respectively
+    diversity_scores = {pr: [] for pr in pixel_radii}
+    mixing_scores = {pr: [] for pr in pixel_radii}
+
+    # iterate over each pixel radii
+    for i, pixel_radius in enumerate(pixel_radii):
+        # create the neighborhood matrix with the given pixel radius
+        neighbor_counts, neighbor_freqs = create_neighborhood_matrix(
+            all_data,
+            dist_mat_dir,
+            included_fovs=all_data["fov"].unique(),
+            distlim=pixel_radius,
+            cell_type_col=cell_type_col
+        )
+
+        # the diversity score calculation requires saving out the neighbor matrix
+        ## TODO: save neighbor counts and neighbor freqs to specified folder
+        counts_path = os.path.join(
+            neighbors_mat_dir, f"neighborhood_counts-{cell_type_col}_radius{pixel_radius}.csv"
+        )
+        freqs_path = os.path.join(
+            neighbors_mat_dir, f"neighborhood_freqs-{cell_type_col}_radius{pixel_radius}.csv"
+        )
+        neighbor_counts.to_csv(counts_path, index=False)
+        neighbor_freqs.to_csv(freqs_path, index=False)
+
+        # generate the corresponding diversity score
+        diversity_data = generate_neighborhood_diversity_analysis(
+            neighbors_mat_dir, pixel_radius, [cluster_col]
+        )
+
+        # append the data to the diversity data list, faceted by cell type
+        diversity_scores[pixel_radius].append(
+            list(
+                zip(
+                    list(diversity_data["cell_cluster_broad"]),
+                    list(diversity_data["diversity_cell_cluster_broad"])
+                )
+            )
+        )
+
+        # define the final mixing score DataFrame
+        all_mixing_scores = None
+
+        # iterate over each mixing score populations
+        for mixing_prefix, cells in zip(mixing_info.keys(), mixing_info.values()):
+            population_1_cells, population_2_cells = cells
+
+            # compute the cell ratios between the two
+            ratios = compute_cell_ratios(
+                neighbor_counts, population_1_cells, population_2_cells,
+                fov_list=all_data["fov"].unique(), bin_number=50, cell_col=cell_type_col
+            )
+            ratios = ratios.rename(columns={"cell_ratio": f"{mixing_prefix}_cell_ratio"})
+
+            # compute the mixing scores per FOV
+            scores, counts = [], []
+            for fov in all_fovs:
+                fov_neighbor_counts = neighbor_counts[neighbor_counts["fov"] == fov]
+                fov_score, cell_counts = compute_mixing_score(
+                    fov_neighbor_counts,
+                    population_1_cells,
+                    population_2_cells,
+                    mixing_type,
+                    ratio_threshold=5,
+                    cell_count_thresh=200,
+                    cell_col=cell_type_col
+                )
+                scores.append(fov_score)
+                counts.append(cell_counts)
+
+            # append the data to the mixing score list, associate with mixing score type
+            mixing_scores[pixel_radius].append(
+                list(
+                    zip(
+                        [f"{mixing_prefix}_mixing_score"] * len(scores),
+                        scores
+                    )
+                )
+            )
 
 
 def random_feature_generation(combined_df, seed_num, tonic_features_df, feature_metadata):
