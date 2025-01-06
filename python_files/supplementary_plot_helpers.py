@@ -1283,7 +1283,9 @@ def run_diversity_mixing_tuning_tests(
     for i, diversity_score_data in enumerate(diversity_pixel_radius_data):
         data_diversity.append(diversity_score_data["diversity_scores"])
         cell_cluster_types.append(diversity_score_data[cell_type_col])
-        labels_diversity.append([threshold_mult_strs[i]] * len(diversity_score_data["diversity_scores"]))
+        labels_diversity.append(
+            [threshold_mult_strs[i]] * len(diversity_score_data["diversity_scores"])
+        )
 
     plt.figure(figsize=(25, 15))
     sns.boxplot(x=labels_diversity, y=data_diversity, hue=cell_cluster_types)
@@ -1324,7 +1326,9 @@ def run_diversity_mixing_tuning_tests(
     for i, mixing_score_data in enumerate(diversity_pixel_radius_data):
         data_diversity.append(mixing_score_data["mixing_scores"])
         mixing_score_types.append(mixing_score_data["mixing_score_type"])
-        labels_mixing.append([threshold_mult_strs[i]] * len(mixing_score_data["mixing_score_type"]))
+        labels_mixing.append(
+            [threshold_mult_strs[i]] * len(mixing_score_data["mixing_score_type"])
+        )
 
     plt.figure(figsize=(25, 15))
     sns.boxplot(x=labels_mixing, y=data_mixing, hue=mixing_score_types)
