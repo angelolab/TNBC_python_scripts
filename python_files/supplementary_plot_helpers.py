@@ -33,10 +33,7 @@ from alpineer.misc_utils import verify_in_list
 from .utils import  QuantileNormalization
 from python_files.utils import compare_populations
 
-# import multipletests library from statsmodels
 from statsmodels.stats.multitest import multipletests
-
-# from .utils import remove_ticks,
 
 ACQUISITION_ORDER_INDICES = [
     11, 12, 13, 14, 15, 17, 18, 20, 22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 35,
@@ -1159,7 +1156,7 @@ def run_diversity_mixing_tuning_tests(
     cell_table: pd.DataFrame, dist_mat_dir: Union[str, pathlib.Path],
     neighbors_mat_dir: Union[str, pathlib.Path],
     save_dir: Union[str, pathlib.Path], threshold_mults: List[float],
-    mixing_info: Dict[Tuple[List[str], List[str]]],
+    mixing_info: Dict[str, Tuple[List[str], List[str]]],
     base_pixel_radius: int = 50, cell_type_col: str = "cell_cluster_broad"
 ):
     """Create grouped box plots showing how much changing the pixel radius parameter for 
@@ -1167,8 +1164,9 @@ def run_diversity_mixing_tuning_tests(
     mixing scores. Two separate box plots are created for each, and the grouping happens 
     by the specified `cluster_col`.
 
-    NOTE: the bins (30), ratio_threshold (5), and cell_count_threshold (200) parameters 
-    for the mixing score pipeline are held constant.
+    NOTE: the bins (30), mixing_type ("homogeneous"), ratio_threshold (5), and 
+    cell_count_threshold (200) values for the mixing score pipeline are held constant 
+    per the original mixing score param settings.
 
     Args:
         cell_table (pd.DataFrame):
@@ -1182,7 +1180,7 @@ def run_diversity_mixing_tuning_tests(
             The directory to save the box plots
         threshold_mults (List[float]):
             What value to multiply the base params to test in this function
-        mixing_populations (Dict[Tuple[List[str], List[str]]]):
+        mixing_populations (Dict[str, Tuple[List[str], List[str]]]):
             What populations to include for mixing of each cell type
         base_pixel_radius (int):
             The pixel radius currently used for neighborhood analysis
@@ -1207,29 +1205,33 @@ def run_diversity_mixing_tuning_tests(
 
     # iterate over each pixel radii
     for i, pixel_radius in enumerate(pixel_radii):
-        # create the neighborhood matrix with the given pixel radius
-        neighbor_counts, neighbor_freqs = create_neighborhood_matrix(
-            all_data,
-            dist_mat_dir,
-            included_fovs=all_data["fov"].unique(),
-            distlim=pixel_radius,
-            cell_type_col=cell_type_col
-        )
-
         # the diversity score calculation requires saving out the neighbor matrix
-        ## TODO: save neighbor counts and neighbor freqs to specified folder
         counts_path = os.path.join(
             neighbors_mat_dir, f"neighborhood_counts-{cell_type_col}_radius{pixel_radius}.csv"
         )
         freqs_path = os.path.join(
             neighbors_mat_dir, f"neighborhood_freqs-{cell_type_col}_radius{pixel_radius}.csv"
         )
-        neighbor_counts.to_csv(counts_path, index=False)
-        neighbor_freqs.to_csv(freqs_path, index=False)
+
+        # create the neighborhood matrix with the given pixel radius and save the data
+        if os.path.exists(counts_path):
+            neighbor_counts = pd.read_csv(counts_path)
+            neighbor_freqs = pd.read_csv(freqs_path)
+        else:
+            neighbor_counts, neighbor_freqs = create_neighborhood_matrix(
+                cell_table,
+                dist_mat_dir,
+                included_fovs=cell_table["fov"].unique(),
+                distlim=pixel_radius,
+                cell_type_col=cell_type_col
+            )
+
+            neighbor_counts.to_csv(counts_path, index=False)
+            neighbor_freqs.to_csv(freqs_path, index=False)
 
         # generate the corresponding diversity score
         diversity_data = generate_neighborhood_diversity_analysis(
-            neighbors_mat_dir, pixel_radius, [cluster_col]
+            neighbors_mat_dir, pixel_radius, [cell_type_col]
         )
 
         # append the data to the diversity data list, faceted by cell type
@@ -1250,19 +1252,19 @@ def run_diversity_mixing_tuning_tests(
             # compute the cell ratios between the two
             ratios = compute_cell_ratios(
                 neighbor_counts, population_1_cells, population_2_cells,
-                fov_list=all_data["fov"].unique(), bin_number=50, cell_col=cell_type_col
+                fov_list=cell_table["fov"].unique(), bin_number=50, cell_col=cell_type_col
             )
             ratios = ratios.rename(columns={"cell_ratio": f"{mixing_prefix}_cell_ratio"})
 
             # compute the mixing scores per FOV
             scores, counts = [], []
-            for fov in all_fovs:
+            for fov in cell_table["fov"].unique():
                 fov_neighbor_counts = neighbor_counts[neighbor_counts["fov"] == fov]
                 fov_score, cell_counts = compute_mixing_score(
                     fov_neighbor_counts,
                     population_1_cells,
                     population_2_cells,
-                    mixing_type,
+                    mixing_type="homogeneous",
                     ratio_threshold=5,
                     cell_count_thresh=200,
                     cell_col=cell_type_col

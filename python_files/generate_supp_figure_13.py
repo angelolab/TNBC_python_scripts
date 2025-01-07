@@ -2,13 +2,8 @@ import matplotlib
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
-import numpy as np
 import os
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-from matplotlib_venn import venn3
 
 import python_files.supplementary_plot_helpers as supplementary_plot_helpers
 
@@ -32,7 +27,7 @@ if not os.path.exists(diversity_mixing_pipeline_tuning_dir):
 cell_table_full = pd.read_csv(os.path.join(BASE_DIR, "analysis_files/cell_table_clusters.csv"))
 supplementary_plot_helpers.run_diversity_mixing_tuning_tests(
     cell_table_full, dist_mat_dir=dist_mat_dir,
-    neighbors_mat_dir=neighbor_mat_dir,
+    neighbors_mat_dir=neighbors_mat_dir,
     save_dir=diversity_mixing_pipeline_tuning_dir,
     threshold_mults=[1/4, 1/2, 3/4, 7/8, 1, 8/7, 4/3, 2, 4],
     mixing_info=supplementary_plot_helpers.MIXING_INFO,
