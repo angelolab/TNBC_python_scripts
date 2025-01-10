@@ -1284,7 +1284,7 @@ def run_diversity_mixing_tuning_tests(
     labels_diversity = []
     for i, (_, diversity_score_data) in enumerate(diversity_pixel_radius_data.items()):
         data_diversity.append(diversity_score_data["diversity_scores"])
-        cell_cluster_types.append(diversity_pixel_radius_data[cell_type_col])
+        cell_cluster_types.append(diversity_score_data[cell_type_col])
         labels_diversity.append(
             [threshold_mult_strs[i]] * len(diversity_score_data["diversity_scores"])
         )
