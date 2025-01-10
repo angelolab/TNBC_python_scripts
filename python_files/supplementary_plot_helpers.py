@@ -1189,6 +1189,7 @@ def run_diversity_mixing_tuning_tests(
     """
     # define each pixel radii to test
     pixel_radii = [base_pixel_radius * tm for tm in threshold_mults]
+    threshold_mult_strs = [str(np.round(np.log2(tm), 3)) for tm in threshold_mults]
 
     # define lists to store the diversity and mixing scores respectively
     diversity_pixel_radius_data = {
@@ -1277,6 +1278,11 @@ def run_diversity_mixing_tuning_tests(
                 [f"{mixing_prefix}_mixing_score"] * len(scores)
             )
             mixing_pixel_radius_data[pixel_radius]["mixing_scores"].extend(scores)
+
+    with open(os.path.join(save_dir, "full_diversity_experiment_dict.json"), "w") as outfile:
+        json.dump(diversity_pixel_radius_data, outfile)
+    with open(os.path.join(save_dir, "full_mixing_experiment_dict.json"), "w") as outfile:
+        json.dump(mixing_pixel_radius_data, outfile)
 
     # plot the diversity score experiments
     data_diversity = []
