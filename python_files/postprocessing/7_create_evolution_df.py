@@ -216,7 +216,7 @@ timepoint_features = timepoint_features.merge(patient_metadata[['Patient_ID']].d
 # Hacky, remove once metadata is updated
 timepoint_features = timepoint_features.loc[timepoint_features.Patient_ID < 200, :]
 timepoint_features = timepoint_features.loc[timepoint_features.Timepoint.isin(TIMEPOINT_NAMES), :]
-timepoint_features = timepoint_features[['Tissue_ID', 'feature_name', 'feature_name_unique', 'raw_mean', 'raw_std', 'normalized_mean', 'normalized_std', 'Patient_ID', 'Timepoint'O]]
+timepoint_features = timepoint_features[['Tissue_ID', 'feature_name', 'feature_name_unique', 'raw_mean', 'raw_std', 'normalized_mean', 'normalized_std', 'Patient_ID', 'Timepoint']]
 
 # look at evolution
 evolution_df = pd.read_csv(os.path.join(analysis_dir, 'timepoint_evolution_features.csv'))
