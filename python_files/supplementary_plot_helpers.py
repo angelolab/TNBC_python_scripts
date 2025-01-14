@@ -183,7 +183,6 @@ MIXING_INFO = {
     'Cancer_Structural': (['Cancer'], ['Structural']),
     'Structural_Immune': (['Structural'], ['T', 'B', 'Mono_Mac', 'NK', 'Granulocyte']),
     'Structural_T': (['Structural'], ['T']),
-    'Structural_B': (['Structural'], ['B']),
     'Structural_Mono_Mac': (['Structural'], ['Mono_Mac'])
 }
 
@@ -1316,6 +1315,7 @@ def run_diversity_mixing_tuning_tests(
         title_fontsize=24,
         fontsize=18
     )
+    plt.tight_layout()
     plt.savefig(
         pathlib.Path(save_dir) /
         f"neighborhood_diversity_cell_cluster_broad_box.pdf",
@@ -1359,6 +1359,8 @@ def run_diversity_mixing_tuning_tests(
         title_fontsize=24,
         fontsize=18
     )
+    plt.tight_layout()
+
     plt.savefig(
         pathlib.Path(save_dir) /
         f"mixing_score_cell_cluster_broad_box.pdf",
