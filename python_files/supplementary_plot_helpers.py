@@ -1289,6 +1289,7 @@ def run_diversity_mixing_tuning_tests(
             [threshold_mult_strs[i]] * len(diversity_score_data["diversity_scores"])
         )
 
+    sns.set(style="white")
     plt.figure(figsize=(25, 15))
     sns.boxplot(x=labels_diversity, y=data_diversity, hue=cell_cluster_types)
     plt.title(
@@ -1333,6 +1334,7 @@ def run_diversity_mixing_tuning_tests(
             [threshold_mult_strs[i]] * len(mixing_score_data["mixing_scores"])
         )
 
+    sns.set(style="white")
     plt.figure(figsize=(25, 15))
     sns.boxplot(x=labels_mixing, y=data_mixing, hue=mixing_score_types)
     plt.title(
