@@ -139,6 +139,7 @@ plt.xlabel('')
 blue_line = mlines.Line2D([], [], color="#1f77b4", marker="o", label="SpaceCat", linestyle='None')
 orange_line = mlines.Line2D([], [], color="gold", marker="o", label="Wang et al.", linestyle='None')
 plt.legend(handles=[blue_line, orange_line], loc='lower right')
+plt.ylim((0, 1))
 sns.despine()
 plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'NTPublic', 'NT_prediction_comparison.pdf'), bbox_inches='tight', dpi=300)
 
