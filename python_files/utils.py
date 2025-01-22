@@ -11,6 +11,7 @@ import os
 import pandas as pd
 from skimage import morphology
 from scipy.ndimage import gaussian_filter
+from scipy.stats import zscore
 from skimage.segmentation import find_boundaries
 from skimage.measure import label
 import skimage.io as io
@@ -227,6 +228,155 @@ def create_long_df_by_functional(func_table, cluster_col_name, drop_cols, result
         long_df_all = pd.concat([long_df_all, long_df], axis=0, ignore_index=True)
 
     return long_df_all
+
+
+def occupancy_df_helper(cell_table, cluster_col_name, drop_cols, result_name, subset_col=None,
+                        tiles_per_row_col=4, max_image_size=2048, positive_threshold=0):
+    """Helper function for creating the unmelted occupancy table
+
+    Args:
+        cell_table (pd.DataFrame): the dataframe containing information on each cell
+        cluster_col_name (str): the column name in cell_table that contains the cluster information
+        drop_cols (list): list of columns to drop from cell_table
+        result_name (str): the name of this statistic in the returned df
+        subset_col (str): the name of the subset col to group by, if not provided then skip
+        tiles_per_row_col (int): the row/col dims of tiles to define over each image
+        max_image_size (int): maximum size of an image passed in, assuming square images
+        positive_threshold (int): the z-scored cell count in a tile required for positivity
+
+    Returns:
+        pd.DataFrame: occupancy stats in unmelted format"""
+
+    verify_in_list(cell_type_col=cluster_col_name, cell_table_columns=cell_table.columns)
+    verify_in_list(drop_cols=drop_cols, cell_table_columns=cell_table.columns)
+    if subset_col is not None:
+        verify_in_list(subset_col=subset_col, cell_table_columns=cell_table.columns)
+
+    # remove the drop columns
+    cell_table_small = cell_table.loc[:, ~cell_table.columns.isin(drop_cols)]
+
+    # get all the FOV names
+    fov_names = cell_table_small["fov"].unique()
+
+    # define the tile size in pixels for each FOV
+    tile_size = max_image_size // tiles_per_row_col
+
+    # define the tile for each cell
+    cell_table_small["tile_row"] = (cell_table_small["centroid-1"] // tile_size).astype(int)
+    cell_table_small["tile_col"] = (cell_table_small["centroid-0"] // tile_size).astype(int)
+
+    # Create a DataFrame with all combinations of fov, tile_row, tile_col, and pop_col
+    all_combos: pd.DataFrame = pd.MultiIndex.from_product(
+        [
+            cell_table_small["fov"].unique(),
+            cell_table_small["tile_row"].unique(),
+            cell_table_small["tile_col"].unique(),
+            cell_table_small[cluster_col_name].unique()
+        ],
+        names=["fov", "tile_row", "tile_col", cluster_col_name]
+    ).to_frame(index=False)
+
+    occupancy_count_groupby = ["fov", "tile_row", "tile_col", cluster_col_name]
+    if subset_col:
+        occupancy_group_by.append("subset_col")
+
+    # compute the total occupancy of each tile for each population type
+    # NOTE: need to merge this way to account for tiles with 0 counts
+    occupancy_counts = cell_table_small.groupby(
+        occupancy_count_groupby
+    ).size().reset_index(name="occupancy")
+    occupancy_counts = pd.merge(
+        all_combos, occupancy_counts,
+        on=occupancy_count_groupby,
+        how="left"
+    )
+    occupancy_counts["occupancy"].fillna(0, inplace=True)
+    # print(occupancy_counts[["tile_row", "tile_col"]].drop_duplicates())
+
+    # zscore the tile counts across the cohort grouped by the cell types
+    occupancy_counts["zscore_occupancy"] = occupancy_counts.groupby(
+        [cluster_col_name]
+    )["occupancy"].transform(lambda x: zscore(x, ddof=0))
+
+    # mark tiles as positive depending on the positive_threshold value
+    occupancy_counts["is_positive"] = occupancy_counts["zscore_occupancy"] > positive_threshold
+
+    # total up the positive tiles per FOV and cell type
+    occupancy_zscore_groupby = ["fov", cluster_col_name]
+    if subset_col is not None:
+        occupancy_zscore_groupby.append(subset_col)
+    occupancy_counts_grouped: pd.DataFrame = occupancy_counts.groupby(occupancy_zscore_groupby).apply(
+        lambda row: row["is_positive"].sum()
+    ).reset_index(name="total_positive_tiles")
+
+    # get the max image size, this will determine how many tiles there are when finding percentages
+    occupancy_counts_grouped["image_size"] = occupancy_counts_grouped.apply(
+        lambda row: io.imread(os.path.join(samples_dir, row["fov"], "Calprotectin.tiff")).shape[0],
+        axis=1
+    )
+    occupancy_stats_grouped["max_tiles"] = occupancy_stats_grouped.apply(
+        lambda row: tiles_per_row_col ** 2 ** (1 / (max_image_size / row["image_size"])),
+        axis=1
+    )
+
+    # determine the percent positivity of tiles
+    occupancy_counts_grouped["percent_positive_tiles"] = \
+        occupancy_stats_grouped["total_positive_tiles"] / occupancy_stats_grouped["max_tiles"]
+
+    # reshape to long df
+    occupancy_long_df = pd.melt(
+        occupancy_counts_grouped[occupancy_zscore_groupby + ["percent_positive_tiles"]],
+        id_vars=occupancy_zscore_groupby,
+        var_name='functional_marker'
+    )
+    occupancy_long_df['metric'] = result_name
+    occupancy_long_df = long_df.rename(columns={cluster_col_name: "cell_type"})
+    if subset_col is not None:
+        occupancy_long_df.rename(columns={subset_col: "subset"})
+
+    return occupancy_long_df
+
+
+def create_long_df_by_occupancy(cell_table, cluster_col_name, drop_cols, result_name,
+                                subset_col=None, tiles_per_row_col=4, max_image_size=2048,
+                                positive_threshold=0):
+    """Compute the occupancy statistics over a cohort, based on z-scored cell counts per tile 
+    across the cohort.
+
+    Args:
+        cell_table (pd.DataFrame): the dataframe containing information on each cell
+        cluster_col_name (str): the column name in cell_table that contains the cluster information
+        drop_cols (list): list of columns to drop from cell_table
+        result_name (str): the name of this statistic in the returned df
+        subset_col (str): the column name in cell_table to subset by
+        tiles_per_row_col (int): the row/col dims of tiles to define over each image
+        max_image_size (int): maximum size of an image passed in, assuming square images
+        positive_threshold (int): the z-scored cell count in a tile required for positivity
+
+    Returns:
+        pd.DataFrame: long format dataframe containing the summarized occupancy data"""
+
+    # first generate df without subsetting
+    drop_cols_all = drop_cols.copy()
+    if subset_col is not None:
+        drop_cols_all = drop_cols + [subset_col]
+
+    occupancy_long_all_compartments = occupancy_df_helper(
+        cell_table, cluster_col_name, drop_cols, result_name, None,
+        tiles_per_row_col, max_image_size, positive_threshold
+    )
+    long_df_all["subset"] = "all"
+
+    if subset_col is not None:
+        occupancy_long_per_compartment = occupancy_df_helper(
+            cell_table, cluster_col_name, drop_cols, result_name, subset_col,
+            tiles_per_row_col, max_image_size, positive_threshold
+        )
+        occupancy_long_comb = pd.concat(
+            [occupancy_long_all_compartments, occupancy_long_per_compartment]
+        )
+
+    return occupancy_long_comb
 
 
 def create_channel_mask(img, intensity_thresh, sigma, min_mask_size=0, max_hole_size=100000):
