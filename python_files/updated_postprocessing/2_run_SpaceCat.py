@@ -43,7 +43,9 @@ markers = ['CD11c', 'CD14', 'CD163', 'CD20', 'CD3', 'CD31', 'CD38', 'CD4', 'CD45
            'TCF1', 'TIM3', 'Vim'] + [col for col in cell_table.columns if '+' in col]
 centroid_cols = ['centroid-0', 'centroid-1']
 cell_data_cols = ['fov', 'label', 'cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad',
-                  'compartment', 'compartment_area', 'area', 'major_axis_length', 'cell_size',
+                  'compartment', 'compartment_area',
+                  'area', 'area_nuclear', 'cell_size', 'cell_size_nuclear', 'centroid-0', 'centroid-1',
+                  'centroid-0_nuclear', 'centroid-1_nuclear','centroid_dif', 'centroid_dif_nuclear', 'major_axis_length',
                   'distance_to__B', 'distance_to__Cancer', 'distance_to__Granulocyte', 'distance_to__Mono_Mac',
                   'distance_to__NK', 'distance_to__Other', 'distance_to__Structural', 'distance_to__T']
 
@@ -60,16 +62,6 @@ adata.obsm['spatial'] = cell_table.loc[:, centroid_cols].values
 # save the anndata object
 os.makedirs(os.path.join(SpaceCat_dir, 'adata'), exist_ok=True)
 adata.write_h5ad(os.path.join(SpaceCat_dir, 'adata', 'adata.h5ad'))
-
-functional_marker_thresholds = [['Ki67', 0.002], ['CD38', 0.004], ['CD45RB', 0.001], ['CD45RO', 0.002],
-                                ['CD57', 0.002], ['CD69', 0.002], ['GLUT1', 0.002], ['IDO', 0.001],
-                                ['LAG3', 0.002], ['PD1', 0.0005], ['PDL1', 0.001],
-                                ['HLA1', 0.001], ['HLADR', 0.001], ['TBET', 0.0015], ['TCF1', 0.001],
-                                ['TIM3', 0.001], ['Vim', 0.002], ['Fe', 0.1]]
-
-adata_processed = preprocess_table(adata, functional_marker_thresholds, image_key='fov',
-                                   seg_label_key='label')
-adata_processed.write_h5ad(os.path.join(SpaceCat_dir, 'adata', 'adata.h5ad'))
 
 # run SpaceCat
 adata = anndata.read_h5ad(os.path.join(SpaceCat_dir, 'adata', 'adata.h5ad'))
