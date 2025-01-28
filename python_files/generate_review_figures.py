@@ -8,6 +8,7 @@ import seaborn as sns
 import matplotlib.lines as mlines
 from sklearn.pipeline import make_pipeline
 from sklearn.cluster import KMeans
+from venny4py.venny4py import venny4py
 
 from SpaceCat.preprocess import preprocess_table
 from SpaceCat.features import SpaceCat
@@ -27,11 +28,14 @@ SPACECAT_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/TONIC_SpaceCat"
 
 
 ## 2.5 & 4.3 SpaceCat prediction comparison ##
+## 4.1 Wang et al. cell interactions ##
+
+# NT DATA COMPARISON
 NT_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'NTPublic')
 
 # read in data
 NT_DIR = '/Volumes/Shared/Noah Greenwald/NTPublic'
-cell_table = pd.read_csv(os.path.join(NT_DIR, 'analysis_files/cell_table_final.csv'))
+cell_table = pd.read_csv(os.path.join(NT_DIR, 'analysis_files/cell_table.csv'))
 clinical_data = pd.read_csv(os.path.join(NT_DIR, 'analysis_files/clinical.csv'))
 clinical_data = clinical_data.rename(columns={'PatientID': 'Patient_ID'})
 cell_table = cell_table.merge(clinical_data, on=['Patient_ID', 'BiopsyPhase'])
@@ -75,6 +79,34 @@ adata_processed = preprocess_table(adata, functional_marker_thresholds, image_ke
                                    seg_label_key='label', seg_dir=None, mask_dir=None)
 adata_processed.write_h5ad(os.path.join(NT_DIR, 'adata', 'adata_preprocessed.h5ad'))
 
+# NT cell interactions
+adata = anndata.read_h5ad(os.path.join(NT_DIR, 'adata', 'adata_preprocessed.h5ad'))
+neighborhood_mat = adata.obsm['neighbors_counts_cell_cluster_radius25']
+neighborhood_mat = pd.concat([adata.obs.loc[:, ['fov', 'label', 'cell_cluster']], neighborhood_mat], axis=1)
+interactions_df = neighborhood_mat[['fov', 'cell_cluster']]
+
+# define epithelial and TME cell clusters
+ep_cells = ['Epithelial_1', 'Epithelial_3', 'Epithelial_2']
+tme_cells = ['APC', 'B', 'CD4T', 'CD8T', 'DC', 'Endothelial',
+       'Fibroblast', 'M2_Mac', 'NK', 'Neutrophil', 'PDPN', 'Plasma',
+       'Treg']
+interactions_df['Epi'] = neighborhood_mat[ep_cells].sum(axis=1)
+interactions_df['TME'] = neighborhood_mat[tme_cells].sum(axis=1)
+interactions_df = interactions_df.groupby(by=['fov', 'cell_cluster']).sum(numeric_only=True).reset_index()
+interactions_df = interactions_df.merge(adata.obs[['fov', 'cell_size']].groupby(by='fov').count().reset_index(), on='fov')
+interactions_df = interactions_df.rename(columns={'cell_size': 'total_cells'})
+interactions_df['Epi'] = interactions_df['Epi'] / interactions_df['total_cells']
+interactions_df['TME'] = interactions_df['TME'] / interactions_df['total_cells']
+interactions_df['isEpi'] = interactions_df['cell_cluster'].isin(ep_cells)
+interactions_df['isEpi'] = ['Epi' if check else 'TME' for check in interactions_df['isEpi']]
+
+# sum total homotypic and heterotypic interactions per cell type
+interactions_df = pd.melt(interactions_df, id_vars=['fov', 'cell_cluster', 'isEpi'], value_vars=['Epi', 'TME'])
+interactions_df['feature_type'] = [cell + 'Hom' if cell == interactions_df['variable'][i] else cell + 'Het' for i, cell in enumerate(interactions_df.isEpi)]
+interactions_df['feature'] = interactions_df["cell_cluster"].astype(str) + '__' + interactions_df["feature_type"].astype(str)
+interactions_df = interactions_df.pivot(index='fov', columns='feature', values='value').reset_index()
+interactions_df.to_csv(os.path.join(NT_DIR, 'SpaceCat', 'Epi_TME_interactions.csv'), index=False)
+
 # Initialize the class
 adata_processed = anndata.read_h5ad(os.path.join(NT_DIR, 'adata', 'adata_preprocessed.h5ad'))
 
@@ -95,7 +127,8 @@ per_cell_stats = [
     ['morphology', 'cell_cluster', ['cell_size']]
 ]
 per_img_stats = [
-    ['mixing_score', mixing_df]
+    ['mixing_score', mixing_df],
+    ['cell_interactions', interactions_df]
 ]
 
 # Generate features and save anndata
@@ -104,16 +137,28 @@ adata_processed = features.run_spacecat(functional_feature_level='cell_cluster',
                                         specified_ratios_cluster_key='cell_cluster', specified_ratios=ratio_pairings,
                                         per_cell_stats=per_cell_stats, per_img_stats=per_img_stats,
                                         correlation_filtering_thresh=0.95)
-adata_processed.write_h5ad(os.path.join(NT_DIR, 'adata', 'adata_processed.h5ad'))
 
 # Save finalized tables to csv
-folder = 'SpaceCat'
+folder = 'SpaceCat_NT_combined'
 os.makedirs(os.path.join(NT_DIR, folder), exist_ok=True)
+adata_processed.write_h5ad(os.path.join(NT_DIR, folder, 'adata_processed.h5ad'))
 adata_processed.uns['combined_feature_data'].to_csv(os.path.join(NT_DIR, folder, 'combined_feature_data.csv'), index=False)
 adata_processed.uns['combined_feature_data_filtered'].to_csv(os.path.join(NT_DIR, folder, 'combined_feature_data_filtered.csv'), index=False)
 adata_processed.uns['feature_metadata'].to_csv(os.path.join(NT_DIR, folder, 'feature_metadata.csv'), index=False)
 adata_processed.uns['excluded_features'].to_csv(os.path.join(NT_DIR, folder, 'excluded_features.csv'), index=False)
 
+# Save finalized tables to csv
+combined_feature_data = adata_processed.uns['combined_feature_data']
+combined_feature_data = combined_feature_data[combined_feature_data.feature_type != 'cell_interactions']
+combined_feature_data_filtered = adata_processed.uns['combined_feature_data_filtered']
+combined_feature_data_filtered = combined_feature_data_filtered[combined_feature_data_filtered.feature_type != 'cell_interactions']
+folder = 'SpaceCat'
+os.makedirs(os.path.join(NT_DIR, folder), exist_ok=True)
+adata_processed.write_h5ad(os.path.join(NT_DIR, folder, 'adata_processed.h5ad'))
+combined_feature_data.to_csv(os.path.join(NT_DIR, folder, 'combined_feature_data.csv'), index=False)
+combined_feature_data_filtered.to_csv(os.path.join(NT_DIR, folder, 'combined_feature_data_filtered.csv'), index=False)
+
+NT_DIR = '/Volumes/Shared/Noah Greenwald/NTPublic'
 pred_chemo = pd.read_csv(os.path.join(NT_DIR, 'SpaceCat/prediction_model/chemotherapy/patient_outcomes/all_timepoints_results.csv'))
 pred_chemo_immuno = pd.read_csv(os.path.join(NT_DIR, 'SpaceCat/prediction_model/immunotherapy+chemotherapy/patient_outcomes/all_timepoints_results.csv'))
 pred_chemo = pred_chemo.rename(columns={'auc_baseline_list': 'baseline_C', 'auc_on_treatment_list': 'on_treatment_C',
@@ -124,32 +169,335 @@ NT_preds = pd.concat([pred_chemo, pred_chemo_immuno], axis=1)
 NT_preds = NT_preds[['baseline_C', 'baseline_C&I', 'on_treatment_C', 'on_treatment_C&I', 'both_C', 'both_C&I']]
 NT_preds = NT_preds.rename(columns={'baseline_C': 'Baseline (C)', 'baseline_C&I': 'Baseline (C&I)', 'on_treatment_C': 'On-treatment (C)',
                                     'on_treatment_C&I': 'On-treatment (C&I)', 'both_C': 'Both (C)', 'both_C&I': 'Both (C&I)'})
+NT_preds = NT_preds.melt()
+NT_preds['cancer_revised'] = 1
 
-fig, ax = plt.subplots(1, 1, figsize=(6, 4))
-sns.stripplot(data=NT_preds.melt(), x='variable', y='value', ax=ax, dodge=True, color='#1f77b4')
-sns.boxplot(data=NT_preds.melt(), x='variable', y='value', ax=ax, showfliers=False, color='#1f77b4', width=0.6)
-ax.scatter(list(range(0, 6)), [0.48, 0.77, 0.69, 0.77, 0.55, 0.82], color='gold', marker='o', s=16)
+pred_chemo = pd.read_csv(os.path.join(NT_DIR, 'SpaceCat_NT_combined/prediction_model/chemotherapy/patient_outcomes/all_timepoints_results.csv'))
+pred_chemo_immuno = pd.read_csv(os.path.join(NT_DIR, 'SpaceCat_NT_combined/prediction_model/immunotherapy+chemotherapy/patient_outcomes/all_timepoints_results.csv'))
+pred_chemo = pred_chemo.rename(columns={'auc_baseline_list': 'baseline_C', 'auc_on_treatment_list': 'on_treatment_C',
+                                        'auc_baseline__on_treatment_list': 'both_C'})
+pred_chemo_immuno = pred_chemo_immuno.rename(columns={'auc_baseline_list': 'baseline_C&I', 'auc_on_treatment_list': 'on_treatment_C&I',
+                                                      'auc_baseline__on_treatment_list': 'both_C&I'})
+combo_preds = pd.concat([pred_chemo, pred_chemo_immuno], axis=1)
+combo_preds = combo_preds[['baseline_C', 'baseline_C&I', 'on_treatment_C', 'on_treatment_C&I', 'both_C', 'both_C&I']]
+combo_preds = combo_preds.rename(columns={'baseline_C': 'Baseline (C)', 'baseline_C&I': 'Baseline (C&I)', 'on_treatment_C': 'On-treatment (C)',
+                                          'on_treatment_C&I': 'On-treatment (C&I)', 'both_C': 'Both (C)', 'both_C&I': 'Both (C&I)'})
+combo_preds = combo_preds.melt()
+combo_preds['cancer_revised'] = 2
+
+og_preds = pd.read_csv(os.path.join(NT_DIR, 'NT_preds.csv'))
+og_preds = og_preds.replace('Base&On', 'Both')
+og_preds['variable'] = og_preds['Timepoint'] + ' (' + og_preds['Arm'] + ')'
+og_preds = og_preds[['Fold', 'LassoAUC', 'variable']]
+og_preds = og_preds.pivot(index='Fold', columns='variable')
+og_preds.columns = og_preds.columns.droplevel(0)
+og_preds = og_preds.melt()
+og_preds['cancer_revised'] = 0
+all_preds = pd.concat([NT_preds, og_preds, combo_preds])
+
+fig, ax = plt.subplots()
+sns.boxplot(data=all_preds, x='variable', y='value', ax=ax, width=0.6, hue='cancer_revised',
+            palette=sns.color_palette(["gold", "#1f77b4", "darkseagreen"]), showfliers=False)
+sns.stripplot(data=all_preds, x='variable', y='value', ax=ax, hue='cancer_revised',
+              palette=sns.color_palette(["gold", "#1f77b4", "darkseagreen"]), dodge=True, jitter=0.2)
+fig.set_figheight(4)
+fig.set_figwidth(8)
 plt.xticks(rotation=45)
-plt.ylim(0.45, 0.85)
-plt.title('SpaceCat Prediction on NT data')
+plt.title('Wang et al. dataset predictions')
 plt.ylabel('AUC')
 plt.xlabel('')
-
-# Create custom legend handles
-blue_line = mlines.Line2D([], [], color="#1f77b4", marker="o", label="SpaceCat", linestyle='None')
-orange_line = mlines.Line2D([], [], color="gold", marker="o", label="Wang et al.", linestyle='None')
-plt.legend(handles=[blue_line, orange_line], loc='lower right')
 plt.ylim((0, 1))
+
+# Add the custom legend
+yellow_line = mlines.Line2D([], [], color="gold", marker="o", label="Wang et al. predictions", linestyle='None')
+blue_line = mlines.Line2D([], [], color="#1f77b4", marker="o", label="SpaceCat predictions", linestyle='None')
+green_line = mlines.Line2D([], [], color="darkseagreen", marker="o", label="SpaceCat & Wang et al. features", linestyle='None')
+plt.legend(handles=[yellow_line, blue_line, green_line], loc='lower right')
 sns.despine()
-plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'NTPublic', 'NT_prediction_comparison.pdf'), bbox_inches='tight', dpi=300)
+plt.savefig(os.path.join(NT_viz_dir, 'NT_prediction_comparison.pdf'), bbox_inches='tight', dpi=300)
+
+# TONIC DATA COMPARISON
+BASE_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
+SpaceCat_dir = os.path.join(BASE_DIR, 'TONIC_SpaceCat')
+
+# add interaction features
+adata = anndata.read_h5ad(os.path.join(SpaceCat_dir, 'SpaceCat', 'adata_processed.h5ad'))
+neighborhood_mat = adata.obsm['neighbors_counts_cell_cluster_radius50']
+neighborhood_mat = pd.concat([adata.obs.loc[:, ['fov', 'label', 'cell_cluster']], neighborhood_mat], axis=1)
+interactions_df = neighborhood_mat[['fov', 'cell_cluster']]
+# define epithelial and TME cell clusters
+ep_cells = ['Cancer_1', 'Cancer_2', 'Cancer_3']
+tme_cells = ['CD68_Mac', 'CD163_Mac', 'Mac_Other', 'Monocyte', 'APC', 'B',
+             'CD4T', 'CD8T', 'Treg', 'T_Other', 'Neutrophil', 'Mast',
+             'Endothelium', 'CAF', 'Fibroblast', 'Smooth_Muscle', 'NK', 'Immune_Other', 'Other']
+interactions_df['Epi'] = neighborhood_mat[ep_cells].sum(axis=1)
+interactions_df['TME'] = neighborhood_mat[tme_cells].sum(axis=1)
+interactions_df = interactions_df.groupby(by=['fov', 'cell_cluster']).sum(numeric_only=True).reset_index()
+
+interactions_df = interactions_df.merge(adata.obs[['fov', 'cell_size']].groupby(by='fov').count().reset_index(), on='fov')
+interactions_df = interactions_df.rename(columns={'cell_size': 'total_cells'})
+interactions_df['Epi'] = interactions_df['Epi'] / interactions_df['total_cells']
+interactions_df['TME'] = interactions_df['TME'] / interactions_df['total_cells']
+interactions_df['isEpi'] = interactions_df['cell_cluster'].isin(ep_cells)
+interactions_df['isEpi'] = ['Epi' if check else 'TME' for check in interactions_df['isEpi']]
+
+# sum total homotypic and heterotypic interactions per cell type
+interactions_df = pd.melt(interactions_df, id_vars=['fov', 'cell_cluster', 'isEpi'], value_vars=['Epi', 'TME'])
+interactions_df['feature_type'] = [cell + 'Hom' if cell == interactions_df['variable'][i] else cell + 'Het' for i, cell in enumerate(interactions_df.isEpi)]
+interactions_df['feature'] = interactions_df["cell_cluster"].astype(str) + '__' + interactions_df["feature_type"].astype(str)
+interactions_df = interactions_df.pivot(index='fov', columns='feature', values='value').reset_index()
+interactions_df.to_csv(os.path.join(SpaceCat_dir, 'Epi_TME_interactions.csv'), index=False)
+
+# run SpaceCat
+adata = anndata.read_h5ad(os.path.join(SpaceCat_dir, 'adata', 'adata.h5ad'))
+
+# read in image level dataframes
+fiber_df = pd.read_csv(os.path.join(SpaceCat_dir, 'fiber_stats_table.csv'))
+fiber_tile_df = pd.read_csv(os.path.join(SpaceCat_dir, 'fiber_stats_per_tile.csv'))
+mixing_df = pd.read_csv(os.path.join(SpaceCat_dir, 'formatted_mixing_scores.csv'))
+kmeans_img_proportions = pd.read_csv(os.path.join(SpaceCat_dir, 'neighborhood_image_proportions.csv'))
+kmeans_compartment_proportions = pd.read_csv(os.path.join(SpaceCat_dir, 'neighborhood_compartment_proportions.csv'))
+pixie_ecm = pd.read_csv(os.path.join(SpaceCat_dir, 'pixie_ecm_stats.csv'))
+ecm_frac = pd.read_csv(os.path.join(SpaceCat_dir, 'ecm_fraction_stats.csv'))
+ecm_clusters = pd.read_csv(os.path.join(SpaceCat_dir, 'ecm_cluster_stats.csv'))
+cell_interactions = pd.read_csv(os.path.join(SpaceCat_dir, 'Epi_TME_interactions.csv'))
+
+# specify cell type pairs to compute a ratio for
+ratio_pairings = [('CD8T', 'CD4T'), ('CD4T', 'Treg'), ('CD8T', 'Treg'), ('CD68_Mac', 'CD163_Mac')]
+
+# specify addtional per cell and per image stats
+per_cell_stats = [
+    ['morphology', 'cell_cluster', ['area', 'major_axis_length']],
+    ['linear_distance', 'cell_cluster_broad', ['distance_to__B', 'distance_to__Cancer', 'distance_to__Granulocyte', 'distance_to__Mono_Mac',
+                                               'distance_to__NK', 'distance_to__Other', 'distance_to__Structural', 'distance_to__T']]
+
+]
+
+per_img_stats = [
+    ['fiber', fiber_df],
+    ['fiber', fiber_tile_df],
+    ['mixing_score', mixing_df],
+    ['kmeans_cluster', kmeans_img_proportions],
+    ['kmeans_cluster', kmeans_compartment_proportions],
+    ['pixie_ecm', pixie_ecm],
+    ['ecm_fraction', ecm_frac],
+    ['ecm_cluster', ecm_clusters],
+    ['cell_interactions', cell_interactions]
+]
+features = SpaceCat(adata, image_key='fov', seg_label_key='label', cell_area_key='area',
+                    cluster_key=['cell_cluster', 'cell_cluster_broad'],
+                    compartment_key='compartment', compartment_area_key='compartment_area')
+
+# Generate features and save anndata
+adata_processed = features.run_spacecat(functional_feature_level='cell_cluster', diversity_feature_level='cell_cluster', pixel_radius=50,
+                                        specified_ratios_cluster_key='cell_cluster', specified_ratios=ratio_pairings,
+                                        per_cell_stats=per_cell_stats, per_img_stats=per_img_stats)
+
+# Save finalized tables to csv
+folder = 'SpaceCat_NT_combined'
+os.makedirs(os.path.join(SpaceCat_dir, folder), exist_ok=True)
+adata_processed.write_h5ad(os.path.join(SpaceCat_dir, folder, 'adata_processed.h5ad'))
+adata_processed.uns['combined_feature_data'].to_csv(os.path.join(SpaceCat_dir, folder, 'combined_feature_data.csv'), index=False)
+adata_processed.uns['combined_feature_data_filtered'].to_csv(os.path.join(SpaceCat_dir, folder, 'combined_feature_data_filtered.csv'), index=False)
+adata_processed.uns['feature_metadata'].to_csv(os.path.join(SpaceCat_dir, folder, 'feature_metadata.csv'), index=False)
+adata_processed.uns['excluded_features'].to_csv(os.path.join(SpaceCat_dir, folder, 'excluded_features.csv'), index=False)
+
+# Save finalized tables to csv
+combined_feature_data = adata_processed.uns['combined_feature_data']
+combined_feature_data = combined_feature_data[combined_feature_data.feature_type != 'cell_interactions']
+combined_feature_data_filtered = adata_processed.uns['combined_feature_data_filtered']
+combined_feature_data_filtered = combined_feature_data_filtered[combined_feature_data_filtered.feature_type != 'cell_interactions']
+folder = 'SpaceCat'
+os.makedirs(os.path.join(NT_DIR, folder), exist_ok=True)
+adata_processed.write_h5ad(os.path.join(NT_DIR, folder, 'adata_processed.h5ad'))
+combined_feature_data.to_csv(os.path.join(NT_DIR, folder, 'combined_feature_data.csv'), index=False)
+combined_feature_data_filtered.to_csv(os.path.join(NT_DIR, folder, 'combined_feature_data_filtered.csv'), index=False)
+
+## NT features only on TONIC
+data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/TONIC_SpaceCat/NT_features_only'
+os.makedirs(os.path.join(data_dir, 'analysis_files'), exist_ok=True)
+os.makedirs(os.path.join(data_dir, 'output_files'), exist_ok=True)
+harmonized_metadata = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files/harmonized_metadata.csv')
+
+fov_data_df = pd.read_csv(os.path.join(data_dir, 'combined_feature_data.csv'))
+fov_data_df_sub = fov_data_df[fov_data_df.feature_type.isin(['density', 'cell_interactions'])]
+fov_data_df_sub = fov_data_df_sub[fov_data_df_sub.compartment == 'all']
+
+fov_data_df_Ki67 = fov_data_df[fov_data_df.compartment == 'all']
+fov_data_df_Ki67 = fov_data_df[fov_data_df.feature_name.str.contains('Ki67+')]
+fov_data_df = pd.concat([fov_data_df_sub, fov_data_df_Ki67])
+fov_data_df.loc[fov_data_df['feature_type'] == 'cell_interactions', 'cell_pop_level'] = 'nan'
+fov_data_df = pd.merge(fov_data_df, harmonized_metadata[['Tissue_ID', 'fov']], on='fov', how='left')
+grouped = fov_data_df.groupby(['Tissue_ID', 'feature_name', 'feature_name_unique', 'compartment',
+                               'cell_pop_level', 'feature_type']).agg({'raw_value': ['mean', 'std'],
+                                                                       'normalized_value': ['mean', 'std']})
+grouped.columns = ['raw_mean', 'raw_std', 'normalized_mean', 'normalized_std']
+grouped = grouped.reset_index()
+grouped.to_csv(os.path.join(data_dir, 'analysis_files', 'timepoint_features.csv'), index=False)
+
+SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs/review_figures"
+NT_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'NTPublic')
+
+preds = pd.read_csv(os.path.join(SpaceCat_dir, 'SpaceCat/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
+preds = preds[['auc_primary_list', 'auc_baseline_list', 'auc_post_induction_list', 'auc_on_nivo_list']]
+preds = preds.rename(columns={'auc_primary_list': 'Primary', 'auc_baseline_list': 'Baseline',
+                              'auc_post_induction_list': 'Pre nivo', 'auc_on_nivo_list': 'On nivo'})
+preds = preds.melt()
+preds['Analysis'] = 0
+
+adj_preds = pd.read_csv(os.path.join(SpaceCat_dir, 'SpaceCat_NT_combined/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
+adj_preds = adj_preds[['auc_primary_list', 'auc_baseline_list', 'auc_post_induction_list', 'auc_on_nivo_list']]
+adj_preds = adj_preds.rename(columns={'auc_primary_list': 'Primary', 'auc_baseline_list': 'Baseline',
+                                      'auc_post_induction_list': 'Pre nivo', 'auc_on_nivo_list': 'On nivo'})
+adj_preds = adj_preds.melt()
+adj_preds['Analysis'] = 2
+
+nt_feats_preds = pd.read_csv(os.path.join(SpaceCat_dir, 'NT_features_only/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
+nt_feats_preds = nt_feats_preds[['auc_primary_list', 'auc_baseline_list', 'auc_post_induction_list', 'auc_on_nivo_list']]
+nt_feats_preds = nt_feats_preds.rename(columns={'auc_primary_list': 'Primary', 'auc_baseline_list': 'Baseline',
+                                                'auc_post_induction_list': 'Pre nivo', 'auc_on_nivo_list': 'On nivo'})
+nt_feats_preds = nt_feats_preds.melt()
+nt_feats_preds['Analysis'] = 1
+all_preds = pd.concat([preds, adj_preds, nt_feats_preds])
+
+fig, ax = plt.subplots()
+sns.boxplot(data=all_preds, x='variable', y='value', ax=ax, width=0.6, hue='Analysis',
+            palette=sns.color_palette(["#1f77b4", 'gold', "darkseagreen"]), showfliers=False)
+sns.stripplot(data=all_preds, x='variable', y='value', ax=ax, hue='Analysis',
+              palette=sns.color_palette(["#1f77b4", 'gold', "darkseagreen"]), dodge=True, jitter=0.2)
+
+fig.set_figheight(4)
+fig.set_figwidth(8)
+plt.xticks(rotation=45)
+plt.title('TONIC dataset prediction')
+plt.ylabel('AUC')
+plt.xlabel('')
+plt.ylim((0, 1))
+plt.legend(loc='lower right').set_title('')
+sns.despine()
+
+blue_line = mlines.Line2D([], [], color="#1f77b4", marker="o", label="SpaceCat features", linestyle='None')
+yellow_line = mlines.Line2D([], [], color="gold", marker="o", label="Wang et al. features", linestyle='None')
+green_line = mlines.Line2D([], [], color="darkseagreen", marker="o", label="SpaceCat & Wang et al. features", linestyle='None')
+plt.legend(handles=[blue_line, yellow_line, green_line], loc='lower right')
+plt.savefig(os.path.join(NT_viz_dir, 'TONIC_data_predictions.pdf'), bbox_inches='tight', dpi=300)
+
+## correlation plots for interaction features
+fov_data_df = pd.read_csv(os.path.join(os.path.join(NT_DIR, 'SpaceCat_NT_combined/combined_feature_data_filtered.csv')))
+fov_data_wide = fov_data_df.pivot(index='fov', columns='feature_name_unique', values='normalized_value')
+corr_df = fov_data_wide.corr(method='spearman')
+corr_df = corr_df.fillna(0)
+corr_df = corr_df[[col for col in corr_df.columns if np.logical_or('Het' in col, 'Hom' in col)]]
+corr_df = corr_df[np.logical_and(~corr_df.index.str.contains('Het'), ~corr_df.index.str.contains('Hom'))]
+
+# heatmap for all features
+clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+clustergrid.savefig(os.path.join(NT_viz_dir, 'interaction_feature_clustermap_filtered.pdf'), dpi=300)
+pd.DataFrame(clustergrid.data2d.index).to_csv(os.path.join(NT_viz_dir, 'interaction_feature_clustermap_order.csv'))
+plt.close()
+
+# heatmap for >0.7 correlated features
+sub_df = corr_df[corr_df.max(axis=1) > 0.7]
+clustergrid = sns.clustermap(sub_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+clustergrid.savefig(os.path.join(NT_viz_dir, 'interaction_feature_clustermap_filtered_corr70.pdf'), dpi=300)
+pd.DataFrame(clustergrid.data2d.index).to_csv(os.path.join(NT_viz_dir, 'interaction_feature_clustermap_order_corr70.csv'))
+plt.close()
+
+# heatmap for >0.9 correlated features
+sub_df = corr_df[corr_df.max(axis=1) > 0.9]
+clustergrid = sns.clustermap(sub_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+clustergrid.savefig(os.path.join(NT_viz_dir, 'interaction_feature_clustermap_filtered_corr90.pdf'), dpi=300)
+pd.DataFrame(clustergrid.data2d.index).to_csv(os.path.join(NT_viz_dir, 'interaction_feature_clustermap_order_corr90.csv'))
+plt.close()
+
+## correlation plots for mixing score features
+corr_df = fov_data_wide.corr(method='spearman')
+corr_df = corr_df.fillna(0)
+corr_df = corr_df[[col for col in corr_df.columns if 'mixing_score' in col]]
+corr_df = corr_df[np.logical_and(~corr_df.index.str.contains('Het'), ~corr_df.index.str.contains('Hom'))]
+corr_df = corr_df[~corr_df.index.str.contains('mixing_score')]
+
+# heatmap for all features
+clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+clustergrid.savefig(os.path.join(NT_viz_dir, 'mixing_score_feature_clustermap_filtered.pdf'), dpi=300)
+pd.DataFrame(clustergrid.data2d.index).to_csv(os.path.join(NT_viz_dir, 'mixing_score_feature_clustermap_order.csv'))
+plt.close()
+
+# heatmap for >0.7 correlated features
+sub_df = corr_df[corr_df.max(axis=1)>0.7]
+clustergrid = sns.clustermap(sub_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+clustergrid.savefig(os.path.join(NT_viz_dir, 'mixing_score_feature_clustermap_filtered_corr70.pdf'), dpi=300)
+pd.DataFrame(clustergrid.data2d.index).to_csv(os.path.join(NT_viz_dir, 'mixing_score_feature_clustermap_order_corr70.csv'))
+plt.close()
+
+
+## 2.8 / 4.8  Pre-treatment and On-treatment NT vs TONIC comparisons
+file_path = os.path.join(NT_DIR, '/data/41586_2023_6498_MOESM3_ESM.xlsx')
+NT_features = pd.read_excel(file_path, sheet_name=None)
+cell_table = pd.read_csv(os.path.join(NT_DIR, 'analysis_files/cell_table.csv'))
+cell_table = cell_table.replace({'{': '', '}': ''}, regex=True)
+cell_table['cell_meta_cluster'] = [cell.replace('^', '')for cell in cell_table['cell_meta_cluster']]
+cell_dict = dict(zip(cell_table.cell_meta_cluster, cell_table.cell_cluster))
+
+density_pvals = NT_features['Table 8 Densities p values'][['Time point', 'Cell phenotype', 'p.value', 'Arm']]
+density_pvals = density_pvals.rename(columns={'Cell phenotype': 'feature_name_unique'})
+density_pvals = density_pvals.replace(cell_dict)
+density_pvals['feature_name_unique'] = density_pvals['feature_name_unique'] + '__cell_cluster_density'
+
+ki67_pvals = NT_features['Table 11 Ki67 p values'][['Time point', 'Cell phenotype', 'p.value', 'Unnamed: 10']]
+ki67_pvals = ki67_pvals.rename(columns={'Unnamed: 10': 'Arm'})
+ki67_pvals = ki67_pvals.rename(columns={'Cell phenotype': 'feature_name_unique'})
+ki67_pvals = ki67_pvals.replace(cell_dict)
+ki67_pvals['feature_name_unique'] = 'Ki67+__' + ki67_pvals['feature_name_unique']
+
+interaction_pvals = NT_features['Table 10 Interaction p values'][['Time point', 'from', 'to cell phenotype', 'p.value', 'Arm']]
+ep_cells = cell_table[cell_table.isEpithelial == 1].cell_meta_cluster.unique()
+tme_cells = cell_table[cell_table.isEpithelial == 0].cell_meta_cluster.unique()
+interaction_pvals['from'] = interaction_pvals['from'].replace('Epithelial', 'Epi')
+interaction_pvals['isEpi'] = ['Epi' if cell in ep_cells else 'TME' for cell in interaction_pvals['to cell phenotype']]
+interaction_pvals['interaction'] = ['Hom' if f == Epi else 'Het' for f, Epi in zip(interaction_pvals['from'], interaction_pvals['isEpi'])]
+interaction_pvals = interaction_pvals.replace(cell_dict)
+interaction_pvals['feature_name_unique'] = interaction_pvals['to cell phenotype'] + '__' + interaction_pvals['from'] + interaction_pvals['interaction']
+interaction_pvals = interaction_pvals[['Time point', 'feature_name_unique', 'p.value', 'Arm']]
+
+features = pd.concat([density_pvals, ki67_pvals, interaction_pvals])
+features = features[features['p.value']<=0.05]
+sig_features = features.replace({'Cancer_1__TMEHet': 'Cancer_Immune_mixing_score',
+                                 'Cancer_2__TMEHet': 'Cancer_Immune_mixing_score',
+                                 'Cancer_3__TMEHet': 'Cancer_Immune_mixing_score',
+                                 'CD4T__TMEHom': 'Structural_T_mixing_score',
+                                 'CD8T__TMEHom': 'Structural_T_mixing_score',
+                                 'Treg__TMEHom': 'Structural_T_mixing_score'})
+pre_treatment_features = sig_features[sig_features['Time point'] == 'Baseline']
+on_treatment_features = sig_features[sig_features['Time point'] == 'On-treatment']
+
+tonic_features = pd.read_csv(os.path.join(SPACECAT_DIR, '/SpaceCat/analysis_files/feature_ranking.csv'))
+tonic_features = tonic_features[tonic_features['pval']<=0.05]
+tonic__sig_features = tonic_features[tonic_features.compartment == 'all']
+tonic_pre_treatment_features = tonic__sig_features[tonic__sig_features.comparison.isin(['baseline', 'pre_nivo'])]
+tonic_pre_treatment_features = tonic_pre_treatment_features[['feature_name_unique', 'pval', 'comparison']]
+tonic_on_treatment_features = tonic__sig_features[tonic__sig_features.comparison == 'on_nivo']
+tonic_on_treatment_features = tonic_on_treatment_features[['feature_name_unique', 'pval', 'comparison']]
+
+NT_feats = set(pre_treatment_features.feature_name_unique.unique())
+TONIC_feats = set(tonic_pre_treatment_features.feature_name_unique.unique())
+sets = {'Wang et al.': NT_feats, 'TONIC': TONIC_feats,}
+venny4py(sets=sets, colors="yb")
+plt.title("Pre-treatment Features")
+plt.savefig(os.path.join(NT_viz_dir, 'Pre_treatment_features.pdf'), bbox_inches='tight', dpi=300)
+
+NT_feats = set(on_treatment_features.feature_name_unique.unique())
+TONIC_feats = set(tonic_on_treatment_features.feature_name_unique.unique())
+sets = {'Wang et al.': NT_feats, 'TONIC': TONIC_feats}
+venny4py(sets=sets, colors="yb")
+plt.title("On-treatment Features")
+plt.savefig(os.path.join(NT_viz_dir, 'On_treatment_features.pdf'), bbox_inches='tight', dpi=300)
 
 
 ## 3.2 Low cellularity ##
 
 low_cellularity_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'low_cellularity')
 os.makedirs(low_cellularity_viz_dir, exist_ok=True)
-
-###### change this dir and upload finalized tonic spacecat files
 adata = anndata.read_h5ad(os.path.join(SPACECAT_DIR, 'adata', 'adata_preprocessed.h5ad'))
 cell_table = adata.obs
 
@@ -507,167 +855,6 @@ fig2.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'location_bias', 'location_bias
              bbox_inches='tight', dpi=300)
 
 
-## 4.1 Wang et al. cell interactions ##
-
-NT_interactions_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'NT_interaction_features')
-os.makedirs(NT_interactions_viz_dir, exist_ok=True)
-
-adata = anndata.read_h5ad(os.path.join(SPACECAT_DIR, 'SpaceCat/adata/adata_preprocessed.h5ad'))
-neighborhood_mat = adata.obsm['neighbors_counts_cell_cluster_radius50']
-neighborhood_mat = pd.concat([adata.obs.loc[:, ['fov', 'label', 'cell_cluster']], neighborhood_mat], axis=1)
-interactions_df = neighborhood_mat[['fov', 'cell_cluster']]
-
-# define epithelial and TME cell clusters
-ep_cells = ['Cancer_1', 'Cancer_2', 'Cancer_3']
-tme_cells = ['CD68_Mac', 'CD163_Mac', 'Mac_Other', 'Monocyte', 'APC', 'B',
-             'CD4T', 'CD8T', 'Treg', 'T_Other', 'Neutrophil', 'Mast',
-             'Endothelium', 'CAF', 'Fibroblast', 'Smooth_Muscle', 'NK', 'Immune_Other', 'Other']
-
-interactions_df['Epi'] = neighborhood_mat[ep_cells].sum(axis=1)
-interactions_df['TME'] = neighborhood_mat[tme_cells].sum(axis=1)
-interactions_df = interactions_df.groupby(by=['fov', 'cell_cluster']).sum(numeric_only=True).reset_index()
-
-interactions_df = interactions_df.merge(adata.obs[['fov', 'area']].groupby(by='fov').count().reset_index(), on='fov')
-interactions_df = interactions_df.rename(columns={'area': 'total_cells'})
-interactions_df['Epi'] = interactions_df['Epi'] / interactions_df['total_cells']
-interactions_df['TME'] = interactions_df['TME'] / interactions_df['total_cells']
-interactions_df['isEpi'] = interactions_df['cell_cluster'].isin(ep_cells)
-interactions_df['isEpi'] = ['Epi' if check else 'TME' for check in interactions_df['isEpi']]
-
-# sum total homotypic and heterotypic interactions per cell type
-interactions_df = pd.melt(interactions_df, id_vars=['fov', 'cell_cluster', 'isEpi'], value_vars=['Epi', 'TME'])
-interactions_df['feature_type'] = [cell + 'Hom' if cell == interactions_df['variable'][i] else cell + 'Het' for i, cell in enumerate(interactions_df.isEpi)]
-interactions_df['feature'] = interactions_df["cell_cluster"].astype(str) + '__' + interactions_df["feature_type"].astype(str)
-interactions_df = interactions_df.pivot(index='fov', columns='feature', values='value').reset_index()
-interactions_df.to_csv(os.path.join(NT_interactions_viz_dir, 'Epi_TME_interactions.csv'), index=False)
-
-# run SpaceCat with interaction features included
-adata = anndata.read_h5ad(os.path.join(SPACECAT_DIR, 'adata', 'adata.h5ad'))
-
-# read in image level dataframes
-fiber_df = pd.read_csv(os.path.join(SPACECAT_DIR, 'fiber_stats_table.csv'))
-fiber_tile_df = pd.read_csv(os.path.join(SPACECAT_DIR, 'fiber_stats_per_tile.csv'))
-mixing_df = pd.read_csv(os.path.join(SPACECAT_DIR, 'formatted_mixing_scores.csv'))
-kmeans_img_proportions = pd.read_csv(os.path.join(SPACECAT_DIR, 'neighborhood_image_proportions.csv'))
-kmeans_compartment_proportions = pd.read_csv(os.path.join(SPACECAT_DIR, 'neighborhood_compartment_proportions.csv'))
-pixie_ecm = pd.read_csv(os.path.join(SPACECAT_DIR, 'pixie_ecm_stats.csv'))
-ecm_frac = pd.read_csv(os.path.join(SPACECAT_DIR, 'ecm_fraction_stats.csv'))
-ecm_clusters = pd.read_csv(os.path.join(SPACECAT_DIR, 'ecm_cluster_stats.csv'))
-cell_interactions = pd.read_csv(os.path.join(NT_interactions_viz_dir, 'Epi_TME_interactions.csv'))
-
-# specify cell type pairs to compute a ratio for
-ratio_pairings = [('CD8T', 'CD4T'), ('CD4T', 'Treg'), ('CD8T', 'Treg'), ('CD68_Mac', 'CD163_Mac')]
-# specify addtional per cell and per image stats
-per_cell_stats=[
-    ['morphology', 'cell_cluster', ['area', 'major_axis_length']],
-    ['linear_distance', 'cell_cluster_broad', ['distance_to__B', 'distance_to__Cancer', 'distance_to__Granulocyte', 'distance_to__Mono_Mac',
-                                               'distance_to__NK', 'distance_to__Other', 'distance_to__Structural', 'distance_to__T']]
-
-]
-per_img_stats=[
-    ['fiber', fiber_df],
-    ['fiber', fiber_tile_df],
-    ['mixing_score', mixing_df],
-    ['kmeans_cluster', kmeans_img_proportions],
-    ['kmeans_cluster', kmeans_compartment_proportions],
-    ['pixie_ecm', pixie_ecm],
-    ['ecm_fraction', ecm_frac],
-    ['ecm_cluster', ecm_clusters],
-    ['cell_interactions', cell_interactions]
-]
-
-features = SpaceCat(adata, image_key='fov', seg_label_key='label', cell_area_key='area',
-                    cluster_key=['cell_cluster', 'cell_cluster_broad'],
-                    compartment_key='compartment', compartment_area_key='compartment_area')
-# Generate features and save anndata
-adata_processed = features.run_spacecat(functional_feature_level='cell_cluster', diversity_feature_level='cell_cluster', pixel_radius=50,
-                                        specified_ratios_cluster_key='cell_cluster', specified_ratios=ratio_pairings,
-                                        per_cell_stats=per_cell_stats, per_img_stats=per_img_stats)
-os.makedirs(os.path.join(NT_interactions_viz_dir, 'adata'), exist_ok=True)
-adata_processed.write_h5ad(os.path.join(NT_interactions_viz_dir, 'adata', 'adata_processed.h5ad'))
-
-# plot prediction comparison
-preds = pd.read_csv(os.path.join(NT_interactions_viz_dir, 'prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
-preds = preds[['auc_primary_list', 'auc_baseline_list', 'auc_post_induction_list', 'auc_on_nivo_list']]
-preds = preds.rename(columns={'auc_primary_list': 'Primary', 'auc_baseline_list': 'Baseline',
-                              'auc_post_induction_list': 'Pre nivo', 'auc_on_nivo_list': 'On nivo'})
-preds = preds.melt()
-preds['Analysis'] = 'excluding'
-
-adj_preds = pd.read_csv(os.path.join(NT_interactions_viz_dir, 'prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
-adj_preds = adj_preds[['auc_primary_list', 'auc_baseline_list', 'auc_post_induction_list', 'auc_on_nivo_list']]
-adj_preds = adj_preds.rename(columns={'auc_primary_list': 'Primary', 'auc_baseline_list': 'Baseline',
-                                      'auc_post_induction_list': 'Pre nivo', 'auc_on_nivo_list': 'On nivo'})
-adj_preds = adj_preds.melt()
-adj_preds['Analysis'] = 'including'
-all_preds = pd.concat([preds, adj_preds])
-
-fig, ax = plt.subplots()
-sns.boxplot(data=all_preds, x='variable', y='value', ax=ax, width=0.6, hue='Analysis',
-           palette=sns.color_palette(["#1f77b4", "gold"]), showfliers=False)
-sns.stripplot(data=all_preds, x='variable', y='value', ax=ax, hue='Analysis',
-           palette=sns.color_palette(["#1f77b4", "gold"]), dodge=True, jitter=0.2)
-
-plt.xticks(rotation=45)
-plt.title('TONIC prediction including and excluding interaction features')
-plt.ylabel('AUC')
-plt.xlabel('')
-plt.legend(loc='lower right').set_title('')
-sns.despine()
-blue_line = mlines.Line2D([], [], color="#1f77b4", marker="o", label="excluding", linestyle='None')
-yellow_line = mlines.Line2D([], [], color="gold", marker="o", label="including", linestyle='None')
-plt.legend(handles=[blue_line, yellow_line], loc='lower right')
-plt.savefig(os.path.join(NT_interactions_viz_dir, 'cell_interaction_prediction_comparison.pdf'), bbox_inches='tight', dpi=300)
-
-## correlation plots for interaction features
-fov_data_df = pd.read_csv(os.path.join(os.path.join(NT_interactions_viz_dir, 'SpaceCat/combined_feature_data_filtered.csv')))
-fov_data_wide = fov_data_df.pivot(index='fov', columns='feature_name_unique', values='normalized_value')
-corr_df = fov_data_wide.corr(method='spearman')
-corr_df = corr_df.fillna(0)
-corr_df = corr_df[[col for col in corr_df.columns if np.logical_or('Het' in col, 'Hom' in col)]]
-corr_df = corr_df[np.logical_and(~corr_df.index.str.contains('Het'), ~corr_df.index.str.contains('Hom'))]
-
-# heatmap for all features
-clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
-clustergrid.savefig(os.path.join(NT_interactions_viz_dir, 'interaction_feature_clustermap_filtered.pdf'), dpi=300)
-pd.DataFrame(clustergrid.data2d.index).to_csv(os.path.join(NT_interactions_viz_dir, 'interaction_feature_clustermap_order.csv'))
-plt.close()
-
-# heatmap for >0.7 correlated features
-sub_df = corr_df[corr_df.max(axis=1)>0.7]
-clustergrid = sns.clustermap(sub_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
-clustergrid.savefig(os.path.join(NT_interactions_viz_dir, 'interaction_feature_clustermap_filtered_corr70.pdf'), dpi=300)
-pd.DataFrame(clustergrid.data2d.index).to_csv(os.path.join(NT_interactions_viz_dir, 'interaction_feature_clustermap_order_corr70.csv'))
-plt.close()
-
-# heatmap for >0.9 correlated features
-sub_df = corr_df[corr_df.max(axis=1)>0.9]
-clustergrid = sns.clustermap(sub_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
-clustergrid.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'NT_interaction_features/interaction_feature_clustermap_filtered_corr90.pdf'), dpi=300)
-pd.DataFrame(clustergrid.data2d.index).to_csv(os.path.join(SUPPLEMENTARY_FIG_DIR, 'NT_interaction_features/interaction_feature_clustermap_order_corr90.csv'))
-plt.close()
-
-## correlation plots for mixing score features
-corr_df = fov_data_wide.corr(method='spearman')
-corr_df = corr_df.fillna(0)
-corr_df = corr_df[[col for col in corr_df.columns if 'mixing_score' in col]]
-corr_df = corr_df[np.logical_and(~corr_df.index.str.contains('Het'), ~corr_df.index.str.contains('Hom'))]
-corr_df = corr_df[~corr_df.index.str.contains('mixing_score')]
-
-# heatmap for all features
-clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
-clustergrid.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'NT_interaction_features/mixing_score_feature_clustermap_filtered.pdf'), dpi=300)
-pd.DataFrame(clustergrid.data2d.index).to_csv(os.path.join(SUPPLEMENTARY_FIG_DIR, 'NT_interaction_features/mixing_score_feature_clustermap_order.csv'))
-plt.close()
-
-# heatmap for >0.7 correlated features
-sub_df = corr_df[corr_df.max(axis=1)>0.7]
-clustergrid = sns.clustermap(sub_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
-clustergrid.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'NT_interaction_features/mixing_score_feature_clustermap_filtered_corr70.pdf'), dpi=300)
-pd.DataFrame(clustergrid.data2d.index).to_csv(os.path.join(SUPPLEMENTARY_FIG_DIR, 'NT_interaction_features/mixing_score_feature_clustermap_order_corr70.csv'))
-plt.close()
-
-
 ## 4.6.1 immune_agg features ##
 
 immune_agg_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "immune_agg_features")
@@ -805,6 +992,3 @@ for i, txt in enumerate(functional_marker_thresholds.marker):
 
 plt.savefig(os.path.join(functional_marker_viz_dir, 'functional_marker_auto_thresholds.pdf'), bbox_inches='tight',
             dpi=300)
-
-
-## 4.8 NT pre-treatment features ##
