@@ -9,10 +9,13 @@ import matplotlib.lines as mlines
 from sklearn.pipeline import make_pipeline
 from sklearn.cluster import KMeans
 from venny4py.venny4py import venny4py
+import matplotlib.patches as mpatches
+from statsmodels.stats.multitest import multipletests
 
 from SpaceCat.preprocess import preprocess_table
 from SpaceCat.features import SpaceCat
 from ark.utils.plot_utils import color_segmentation_by_stat
+from python_files.utils import compare_populations
 
 import random
 random.seed(13)
@@ -495,9 +498,142 @@ plt.savefig(os.path.join(NT_viz_dir, 'On_treatment_features.pdf'), bbox_inches='
 
 
 ## 3.2 Low cellularity ##
-
 low_cellularity_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'low_cellularity')
 os.makedirs(low_cellularity_viz_dir, exist_ok=True)
+
+# EXPLORATORY ANALYSIS
+adata = anndata.read_h5ad(os.path.join(SpaceCat_dir, 'adata', 'adata.h5ad'))
+harmonized_metadata = pd.read_csv(ANALYSIS_DIR, 'harmonized_metadata.csv')
+
+cell_table = adata.obs
+cellularity_df = cell_table.groupby(by='fov', observed=True).count().sort_values(by='label').label.reset_index()
+cellularity_df['low_cellularity'] = 'No'
+cellularity_df.iloc[:int(round(len(cellularity_df)*.1, 0)), -1] = 'Yes'
+cellularity_df = cellularity_df.drop(columns='label')
+cellularity_df = cellularity_df.merge(harmonized_metadata[['fov', 'Patient_ID']], on='fov')
+cellularity_df.to_csv(os.path.join(low_cellularity_viz_dir, 'low_cellularity_images.csv'), index=False)
+
+# low cellularity by patient
+patient_counts = cellularity_df.groupby(by=['Patient_ID', 'low_cellularity']).count().reset_index()
+patient_counts_total = cellularity_df[['fov', 'Patient_ID']].groupby(by='Patient_ID').count().reset_index()
+
+bar1 = sns.barplot(x="Patient_ID",  y="fov", data=patient_counts_total, color='lightblue')
+norm_cell = patient_counts[patient_counts.low_cellularity == 'No']
+bar2 = sns.barplot(x="Patient_ID", y="fov", data=norm_cell, estimator=sum, ci=None,  color='darkblue')
+top_bar = mpatches.Patch(color='lightblue', label='Low cellularity images')
+bottom_bar = mpatches.Patch(color='darkblue', label='Regular images')
+plt.legend(handles=[top_bar, bottom_bar])
+plt.xticks([])
+plt.title("Low Cellularity by Patient")
+plt.ylabel("# of Images")
+plt.savefig(os.path.join(low_cellularity_viz_dir, 'Low_cellularity_by_patient.pdf'), bbox_inches='tight', dpi=300)
+
+# low cellularity by timepoint
+cellularity_df = pd.read_csv(os.path.join(SUPPLEMENTARY_FIG_DIR, 'low_cellularity', 'low_cellularity_images.csv'))
+cellularity_df = cellularity_df.merge(harmonized_metadata[['fov', 'Timepoint']], on='fov')
+timepoint_counts = cellularity_df.groupby(by=['Timepoint', 'low_cellularity']).count().reset_index()
+timepoint_counts_total = cellularity_df[['fov', 'Timepoint']].groupby(by='Timepoint').count().reset_index()
+sort_dict = {'baseline': 0, 'primary': 1, 'pre_nivo': 2, 'on_nivo': 3}
+timepoint_counts_total = timepoint_counts_total.iloc[timepoint_counts_total['Timepoint'].map(sort_dict).sort_values().index]
+
+bar1 = sns.barplot(x="Timepoint",  y="fov", data=timepoint_counts_total, color='lightblue')
+norm_cell = timepoint_counts[timepoint_counts.low_cellularity == 'No']
+bar2 = sns.barplot(x="Timepoint", y="fov", data=norm_cell, estimator=sum, ci=None,  color='darkblue')
+top_bar = mpatches.Patch(color='lightblue', label='Low cellularity images')
+bottom_bar = mpatches.Patch(color='darkblue', label='Regular images')
+plt.legend(handles=[top_bar, bottom_bar])
+plt.xticks(rotation=45)
+plt.title("Low Cellularity by Timepoint")
+plt.ylabel("# of Images")
+plt.savefig(os.path.join(low_cellularity_viz_dir, 'Low_cellularity_by_timepoint.pdf'), bbox_inches='tight', dpi=300)
+
+# low cellularity vs regular image features
+harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'analysis_files/harmonized_metadata.csv'))
+feature_metadata = pd.read_csv(os.path.join(SpaceCat_dir, 'feature_metadata.csv'))
+cellularity_data = pd.read_csv(os.path.join(SUPPLEMENTARY_FIG_DIR, 'low_cellularity', 'low_cellularity_images.csv'))
+combined_df = pd.read_csv(os.path.join(SpaceCat_dir, 'combined_feature_data_filtered.csv'))
+combined_df = combined_df.merge(cellularity_data, on='fov')
+combined_df = combined_df.merge(harmonized_metadata[['fov', 'Timepoint']], on='fov')
+combined_df.to_csv(os.path.join(low_cellularity_viz_dir, 'combined_feature_data_filtered.csv'), index=False)
+
+# generate a single set of top hits across all comparisons
+method = 'ttest'
+total_dfs = []
+for comparison in combined_df.Timepoint.unique():
+    population_df = compare_populations(feature_df=combined_df, pop_col='low_cellularity',
+                                        timepoints=[comparison], pop_1='No', pop_2='Yes', method=method,
+                                        feature_suff='value')
+    if np.sum(~population_df.log_pval.isna()) == 0:
+        continue
+    long_df = population_df[['feature_name_unique', 'log_pval', 'mean_diff', 'med_diff']]
+    long_df['comparison'] = comparison
+    long_df = long_df.dropna()
+    long_df['pval'] = 10 ** (-long_df.log_pval)
+    long_df['fdr_pval'] = multipletests(long_df.pval, method='fdr_bh')[1]
+    total_dfs.append(long_df)
+
+ranked_features_df = pd.concat(total_dfs)
+ranked_features_df['log10_qval'] = -np.log10(ranked_features_df.fdr_pval)
+ranked_features_df['pval_rank'] = ranked_features_df.fdr_pval.rank(ascending=True)
+ranked_features_df['cor_rank'] = ranked_features_df.med_diff.abs().rank(ascending=False)
+ranked_features_df['combined_rank'] = (ranked_features_df.pval_rank.values + ranked_features_df.cor_rank.values) / 2
+
+max_rank = len(~ranked_features_df.med_diff.isna())
+normalized_rank = ranked_features_df.combined_rank / max_rank
+ranked_features_df['importance_score'] = 1 - normalized_rank
+ranked_features_df = ranked_features_df.sort_values('importance_score', ascending=False)
+ranked_features_df['signed_importance_score'] = ranked_features_df.importance_score * np.sign(
+    ranked_features_df.med_diff)
+ranked_features_df = ranked_features_df.merge(feature_metadata, on='feature_name_unique', how='left')
+
+feature_type_dict = {'functional_marker': 'phenotype', 'linear_distance': 'interactions',
+                     'density': 'density', 'cell_diversity': 'diversity', 'density_ratio': 'density',
+                     'mixing_score': 'interactions', 'region_diversity': 'diversity',
+                     'compartment_area_ratio': 'compartment', 'density_proportion': 'density',
+                     'morphology': 'phenotype', 'pixie_ecm': 'ecm', 'fiber': 'ecm', 'ecm_cluster': 'ecm',
+                     'compartment_area': 'compartment', 'ecm_fraction': 'ecm'}
+ranked_features_df['feature_type_broad'] = ranked_features_df.feature_type.map(feature_type_dict)
+ranked_features_df['feature_rank_global_evolution'] = ranked_features_df.importance_score.rank(ascending=False)
+ranked_features_no_evo = ranked_features_df.loc[
+                         ranked_features_df.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), :]
+ranked_features_no_evo['feature_rank_global'] = ranked_features_no_evo.importance_score.rank(ascending=False)
+ranked_features_df = ranked_features_df.merge(
+    ranked_features_no_evo.loc[:, ['feature_name_unique', 'comparison', 'feature_rank_global']],
+    on=['feature_name_unique', 'comparison'], how='left')
+
+# get ranking for each comparison
+ranked_features_df['feature_rank_comparison'] = np.nan
+for comparison in ranked_features_df.comparison.unique():
+    ranked_features_comp = ranked_features_df.loc[ranked_features_df.comparison == comparison, :]
+    ranked_features_comp['temp_comparison'] = ranked_features_comp.importance_score.rank(ascending=False)
+    ranked_features_df = ranked_features_df.merge(
+        ranked_features_comp.loc[:, ['feature_name_unique', 'comparison', 'temp_comparison']],
+        on=['feature_name_unique', 'comparison'], how='left')
+    ranked_features_df['feature_rank_comparison'] = ranked_features_df['temp_comparison'].fillna(
+        ranked_features_df['feature_rank_comparison'])
+    ranked_features_df.drop(columns='temp_comparison', inplace=True)
+# saved formatted df
+ranked_features_df.to_csv(os.path.join(low_cellularity_viz_dir, 'cellularity_feature_ranking.csv'), index=False)
+
+# top features by type
+top_fts = ranked_features_df[:100]
+top_fts_type = top_fts[['feature_name_unique', 'feature_type']].groupby(by='feature_type').count().reset_index()
+top_fts_type = top_fts_type.sort_values(by='feature_name_unique')
+sns.barplot(top_fts_type, y='feature_type', x='feature_name_unique')
+plt.ylabel("Feature Type")
+plt.title("Top Features Differing Between Low Cellularity and Regular Images")
+plt.savefig(os.path.join(low_cellularity_viz_dir, 'Low_cellularity_features_by_type.pdf'), bbox_inches='tight', dpi=300)
+
+# top features by timepoint
+top_fts_tp = top_fts[['feature_name_unique', 'comparison']].groupby(by='comparison').count().reset_index()
+top_fts_tp = top_fts_tp.sort_values(by='feature_name_unique')
+sns.barplot(top_fts_tp, y='comparison', x='feature_name_unique')
+plt.ylabel("Timepoint")
+plt.title("Top Features Differing Between Low Cellularity and Regular Images")
+plt.savefig(os.path.join(low_cellularity_viz_dir, 'Low_cellularity_features_by_timepoint.pdf'), bbox_inches='tight', dpi=300)
+
+
+# DROPPING LOW CELL IMAGES
 adata = anndata.read_h5ad(os.path.join(SPACECAT_DIR, 'adata', 'adata_preprocessed.h5ad'))
 cell_table = adata.obs
 
