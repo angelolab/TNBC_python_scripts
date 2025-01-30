@@ -178,6 +178,17 @@ MARKER_INFO = {
     }
 }
 
+DIVERSITY_BROAD_CELL_CLUSTER_ORDER = [
+    "Cancer",
+    "Structural"
+    "B",
+    "Mono_Mac",
+    "Granulocyte",
+    "T",
+    "Other",
+    "NK"
+]
+
 MIXING_INFO = {
     'Cancer_Immune': (['Cancer'], ['T', 'B', 'Mono_Mac', 'NK', 'Granulocyte']),
     'Cancer_Structural': (['Cancer'], ['Structural']),
@@ -185,6 +196,13 @@ MIXING_INFO = {
     'Structural_T': (['Structural'], ['T']),
     'Structural_Mono_Mac': (['Structural'], ['Mono_Mac'])
 }
+MIXING_INTERACTION_ORDER = [
+    "Cancer_Immune_mixing_score",
+    "Cancer_Structural_mixing_score",
+    "Structural_T_mixing_score",
+    "Structural_Mono_Mac_mixing_score",
+    "Structural_Immune_mixing_score"
+]
 
 # generate stitching/annotation function, used by panel validation and acquisition order tiling
 def stitch_and_annotate_padded_img(image_data: xr.DataArray, padding: int = 25,
@@ -1203,6 +1221,11 @@ def run_diversity_mixing_tuning_tests(
             "mixing_scores": []
         } for pr in pixel_radii}
 
+    with open(os.path.join(save_dir, "full_diversity_experiment_dict.json")) as infile:
+        diversity_pixel_radius_data = json.load(infile)
+    with open(os.path.join(save_dir, "full_mixing_experiment_dict.json")) as infile:
+        mixing_pixel_radius_data = json.load(infile)
+
     # iterate over each pixel radii
     for i, pixel_radius in enumerate(pixel_radii):
         # the diversity score calculation requires saving out the neighbor matrix
@@ -1278,6 +1301,11 @@ def run_diversity_mixing_tuning_tests(
             )
             mixing_pixel_radius_data[pixel_radius]["mixing_scores"].extend(scores)
 
+    with open(os.path.join(save_dir, "full_diversity_experiment_dict.json"), "w") as outfile:
+        json.dump(diversity_pixel_radius_data, outfile, indent=4)
+    with open(os.path.join(save_dir, "full_mixing_experiment_dict.json"), "w") as outfile:
+        json.dump(mixing_pixel_radius_data, outfile, indent=4)
+
     # plot the diversity score experiments
     data_diversity = []
     cell_cluster_types = []
@@ -1291,7 +1319,12 @@ def run_diversity_mixing_tuning_tests(
 
     sns.set(style="white")
     plt.figure(figsize=(25, 15))
-    sns.boxplot(x=labels_diversity, y=data_diversity, hue=cell_cluster_types)
+    sns.boxplot(
+        x=labels_diversity,
+        y=data_diversity,
+        hue=cell_cluster_types,
+        hue_order=DIVERSITY_BROAD_CELL_CLUSTER_ORDER
+    )
     plt.title(
         "Distribution of broad cell cluster neighborhood diversity across pixel radius values (1x = 50)",
         fontsize=32,
@@ -1319,7 +1352,7 @@ def run_diversity_mixing_tuning_tests(
     plt.tight_layout()
     plt.savefig(
         pathlib.Path(save_dir) /
-        f"neighborhood_diversity_cell_cluster_broad_box.pdf",
+        f"neighborhood_diversity_cell_cluster_broad_box_test.pdf",
         dpi=300
     )
 
@@ -1336,7 +1369,12 @@ def run_diversity_mixing_tuning_tests(
 
     sns.set(style="white")
     plt.figure(figsize=(25, 15))
-    sns.boxplot(x=labels_mixing, y=data_mixing, hue=mixing_score_types)
+    sns.boxplot(
+        x=labels_mixing,
+        y=data_mixing,
+        hue=mixing_score_types,
+        hue_order=MIXING_INTERACTION_ORDER
+    )
     plt.title(
         "Distribution of broad cell cluster mixing scores across pixel radius values (1x = 50)",
         fontsize=32,
@@ -1365,7 +1403,7 @@ def run_diversity_mixing_tuning_tests(
 
     plt.savefig(
         pathlib.Path(save_dir) /
-        f"mixing_score_cell_cluster_broad_box.pdf",
+        f"mixing_score_cell_cluster_broad_box_test.pdf",
         dpi=300
     )
 
