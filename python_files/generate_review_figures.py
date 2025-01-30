@@ -475,8 +475,10 @@ pre_treatment_features = sig_features[sig_features['Time point'] == 'Baseline']
 on_treatment_features = sig_features[sig_features['Time point'] == 'On-treatment']
 
 tonic_features = pd.read_csv(os.path.join(SPACECAT_DIR, '/SpaceCat/analysis_files/feature_ranking.csv'))
-tonic_features = tonic_features[tonic_features['pval']<=0.05]
+tonic_features = tonic_features[tonic_features['fdr_pval'] <= 0.05]
 tonic__sig_features = tonic_features[tonic_features.compartment == 'all']
+tonic__sig_features = tonic__sig_features[~tonic__sig_features.feature_name_unique.str.contains('core')]
+tonic__sig_features = tonic__sig_features[~tonic__sig_features.feature_name_unique.str.contains('border')]
 tonic_pre_treatment_features = tonic__sig_features[tonic__sig_features.comparison.isin(['baseline', 'pre_nivo'])]
 tonic_pre_treatment_features = tonic_pre_treatment_features[['feature_name_unique', 'pval', 'comparison']]
 tonic_on_treatment_features = tonic__sig_features[tonic__sig_features.comparison == 'on_nivo']
@@ -484,7 +486,7 @@ tonic_on_treatment_features = tonic_on_treatment_features[['feature_name_unique'
 
 NT_feats = set(pre_treatment_features.feature_name_unique.unique())
 TONIC_feats = set(tonic_pre_treatment_features.feature_name_unique.unique())
-sets = {'Wang et al.': NT_feats, 'TONIC': TONIC_feats,}
+sets = {'Wang et al.': NT_feats, 'TONIC': TONIC_feats}
 venny4py(sets=sets, colors="yb")
 plt.title("Pre-treatment Features")
 plt.savefig(os.path.join(NT_viz_dir, 'Pre_treatment_features.pdf'), bbox_inches='tight', dpi=300)
@@ -495,6 +497,35 @@ sets = {'Wang et al.': NT_feats, 'TONIC': TONIC_feats}
 venny4py(sets=sets, colors="yb")
 plt.title("On-treatment Features")
 plt.savefig(os.path.join(NT_viz_dir, 'On_treatment_features.pdf'), bbox_inches='tight', dpi=300)
+
+# compare SpaceCat features
+NT_features = pd.read_csv(os.path.join(NT_DIR, 'SpaceCat/analysis_files/feature_ranking_immunotherapy+chemotherapy.csv'))
+NT_features = NT_features[NT_features['fdr_pval'] <= 0.05]
+NT__sig_features = NT_features[NT_features.compartment == 'all']
+for feature in NT__sig_features.feature_name_unique.unique():
+    if 'Epithelial' in feature:
+        feature_new = feature.replace('Epithelial', 'Cancer')
+        NT__sig_features = NT__sig_features.replace({feature: feature_new})
+NT__sig_features = NT__sig_features[~NT__sig_features.feature_name_unique.str.contains('core')]
+NT__sig_features = NT__sig_features[~NT__sig_features.feature_name_unique.str.contains('border')]
+NT_pre_treatment_features = NT__sig_features[NT__sig_features.comparison == 'Baseline']
+NT_pre_treatment_features = NT_pre_treatment_features[['feature_name_unique', 'pval', 'comparison']]
+NT_on_treatment_features = NT__sig_features[NT__sig_features.comparison == 'On-treatment']
+NT_on_treatment_features = NT_on_treatment_features[['feature_name_unique', 'pval', 'comparison']]
+
+NT_feats = set(NT_pre_treatment_features.feature_name_unique.unique())
+TONIC_feats = set(tonic_pre_treatment_features.feature_name_unique.unique())
+sets = {'Wang et al.': NT_feats, 'TONIC': TONIC_feats}
+venny4py(sets=sets, colors="yb")
+plt.title("Pre-treatment Features")
+plt.savefig(os.path.join(NT_viz_dir, 'SpaceCat_pre_treatment_features.pdf'), bbox_inches='tight', dpi=300)
+
+NT_feats = set(NT_on_treatment_features.feature_name_unique.unique())
+TONIC_feats = set(tonic_on_treatment_features.feature_name_unique.unique())
+sets = {'Wang et al.': NT_feats, 'TONIC': TONIC_feats}
+venny4py(sets=sets, colors="yb")
+plt.title("On-treatment Features")
+plt.savefig(os.path.join(NT_viz_dir, 'SpaceCat_on_treatment_features.pdf'), bbox_inches='tight', dpi=300)
 
 
 ## 3.2 Low cellularity ##
