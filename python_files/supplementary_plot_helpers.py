@@ -1221,11 +1221,6 @@ def run_diversity_mixing_tuning_tests(
             "mixing_scores": []
         } for pr in pixel_radii}
 
-    with open(os.path.join(save_dir, "full_diversity_experiment_dict.json")) as infile:
-        diversity_pixel_radius_data = json.load(infile)
-    with open(os.path.join(save_dir, "full_mixing_experiment_dict.json")) as infile:
-        mixing_pixel_radius_data = json.load(infile)
-
     # iterate over each pixel radii
     for i, pixel_radius in enumerate(pixel_radii):
         # the diversity score calculation requires saving out the neighbor matrix
@@ -1300,11 +1295,6 @@ def run_diversity_mixing_tuning_tests(
                 [f"{mixing_prefix}_mixing_score"] * len(scores)
             )
             mixing_pixel_radius_data[pixel_radius]["mixing_scores"].extend(scores)
-
-    with open(os.path.join(save_dir, "full_diversity_experiment_dict.json"), "w") as outfile:
-        json.dump(diversity_pixel_radius_data, outfile, indent=4)
-    with open(os.path.join(save_dir, "full_mixing_experiment_dict.json"), "w") as outfile:
-        json.dump(mixing_pixel_radius_data, outfile, indent=4)
 
     # plot the diversity score experiments
     data_diversity = []
