@@ -383,7 +383,7 @@ blue_line = mlines.Line2D([], [], color="#1f77b4", marker="o", label="SpaceCat f
 yellow_line = mlines.Line2D([], [], color="gold", marker="o", label="Wang et al. features", linestyle='None')
 green_line = mlines.Line2D([], [], color="darkseagreen", marker="o", label="SpaceCat & Wang et al. features", linestyle='None')
 plt.legend(handles=[blue_line, yellow_line, green_line], loc='lower right')
-plt.savefig(os.path.join(NT_viz_dir, 'TONIC_data_predictions.pdf'), bbox_inches='tight', dpi=300)
+plt.savefig(os.path.join(NT_viz_dir, 'TONIC_prediction_comparison.pdf'), bbox_inches='tight', dpi=300)
 
 ## correlation plots for interaction features
 fov_data_df = pd.read_csv(os.path.join(os.path.join(NT_DIR, 'SpaceCat_NT_combined/combined_feature_data_filtered.csv')))
@@ -652,6 +652,7 @@ top_fts_type = top_fts[['feature_name_unique', 'feature_type']].groupby(by='feat
 top_fts_type = top_fts_type.sort_values(by='feature_name_unique')
 sns.barplot(top_fts_type, y='feature_type', x='feature_name_unique')
 plt.ylabel("Feature Type")
+plt.xlabel("Count")
 plt.title("Top Features Differing Between Low Cellularity and Regular Images")
 plt.savefig(os.path.join(low_cellularity_viz_dir, 'Low_cellularity_features_by_type.pdf'), bbox_inches='tight', dpi=300)
 
@@ -660,6 +661,7 @@ top_fts_tp = top_fts[['feature_name_unique', 'comparison']].groupby(by='comparis
 top_fts_tp = top_fts_tp.sort_values(by='feature_name_unique')
 sns.barplot(top_fts_tp, y='comparison', x='feature_name_unique')
 plt.ylabel("Timepoint")
+plt.xlabel("Count")
 plt.title("Top Features Differing Between Low Cellularity and Regular Images")
 plt.savefig(os.path.join(low_cellularity_viz_dir, 'Low_cellularity_features_by_timepoint.pdf'), bbox_inches='tight', dpi=300)
 
