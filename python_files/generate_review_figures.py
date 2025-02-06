@@ -15,7 +15,7 @@ from statsmodels.stats.multitest import multipletests
 from SpaceCat.preprocess import preprocess_table
 from SpaceCat.features import SpaceCat
 from ark.utils.plot_utils import color_segmentation_by_stat
-from python_files.utils import compare_populations
+from python_files.utils import compare_populations, compare_timepoints, summarize_timepoint_enrichment
 
 import random
 random.seed(13)
@@ -801,6 +801,28 @@ plt.title('Prediction when dropping low cellularity images')
 sns.despine()
 plt.gca().legend().set_title('')
 plt.savefig(os.path.join(REVIEW_FIG_DIR, 'low_cellularity', 'low_cellularity_prediction_comparisons.pdf'), bbox_inches = 'tight', dpi =300)
+
+
+## 3.5 Baseline to On-nivo feature evolution ##
+
+baseline_on_nivo_viz_dir = os.path.join(REVIEW_FIG_DIR, 'baseline_on_nivo_evolution')
+harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'harmonized_metadata.csv'))
+timepoint_features = pd.read_csv(os.path.join(SPACECAT_DIR, 'analysis_files/timepoint_features_filtered.csv'))
+timepoint_features = timepoint_features.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint', 'baseline__on_nivo']].drop_duplicates(), on='Tissue_ID')
+feature_subset = timepoint_features.loc[(timepoint_features.baseline__on_nivo) & (timepoint_features.Timepoint.isin(['baseline', 'on_nivo'])), :]
+
+for paired_status in ['baseline__on_nivo', None]:
+    subdir_name = 'paired' if paired_status else 'unpaired'
+    subdir_path = os.path.join(baseline_on_nivo_viz_dir, subdir_name)
+    os.makedirs(subdir_path)
+
+    primary_met_means = compare_timepoints(
+        feature_df=timepoint_features, timepoint_1_name='baseline', timepoint_1_list=['baseline'],
+        timepoint_2_name='on_nivo', timepoint_2_list=['on_nivo'], paired=paired_status, feature_suff='mean')
+
+    summarize_timepoint_enrichment(input_df=primary_met_means, feature_df=timepoint_features,
+                                   timepoints=['baseline', 'on_nivo'],
+                                   pval_thresh=2, diff_thresh=0.3, output_dir=os.path.join(baseline_on_nivo_viz_dir, subdir_name))
 
 
 ## 3.7 Fiber feature usefulness ##
