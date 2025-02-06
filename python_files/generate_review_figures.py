@@ -26,7 +26,7 @@ matplotlib.rcParams['ps.fonttype'] = 42
 ANALYSIS_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files"
 INTERMEDIATE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files"
 OUTPUT_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/output_files"
-SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs/review_figures"
+REVIEW_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs/review_figures"
 SPACECAT_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/TONIC_SpaceCat"
 
 
@@ -34,7 +34,7 @@ SPACECAT_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/TONIC_SpaceCat"
 ## 4.1 Wang et al. cell interactions ##
 
 # NT DATA COMPARISON
-NT_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'NTPublic')
+NT_viz_dir = os.path.join(REVIEW_FIG_DIR, 'NTPublic')
 
 # read in data
 NT_DIR = '/Volumes/Shared/Noah Greenwald/NTPublic'
@@ -338,8 +338,7 @@ grouped.columns = ['raw_mean', 'raw_std', 'normalized_mean', 'normalized_std']
 grouped = grouped.reset_index()
 grouped.to_csv(os.path.join(data_dir, 'analysis_files', 'timepoint_features.csv'), index=False)
 
-SUPPLEMENTARY_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs/review_figures"
-NT_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'NTPublic')
+NT_viz_dir = os.path.join(REVIEW_FIG_DIR, 'NTPublic')
 
 preds = pd.read_csv(os.path.join(SpaceCat_dir, 'SpaceCat/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
 preds = preds[['auc_primary_list', 'auc_baseline_list', 'auc_post_induction_list', 'auc_on_nivo_list']]
@@ -529,7 +528,7 @@ plt.savefig(os.path.join(NT_viz_dir, 'SpaceCat_on_treatment_features.pdf'), bbox
 
 
 ## 3.2 Low cellularity ##
-low_cellularity_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'low_cellularity')
+low_cellularity_viz_dir = os.path.join(REVIEW_FIG_DIR, 'low_cellularity')
 os.makedirs(low_cellularity_viz_dir, exist_ok=True)
 
 # EXPLORATORY ANALYSIS
@@ -560,7 +559,7 @@ plt.ylabel("# of Images")
 plt.savefig(os.path.join(low_cellularity_viz_dir, 'Low_cellularity_by_patient.pdf'), bbox_inches='tight', dpi=300)
 
 # low cellularity by timepoint
-cellularity_df = pd.read_csv(os.path.join(SUPPLEMENTARY_FIG_DIR, 'low_cellularity', 'low_cellularity_images.csv'))
+cellularity_df = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'low_cellularity', 'low_cellularity_images.csv'))
 cellularity_df = cellularity_df.merge(harmonized_metadata[['fov', 'Timepoint']], on='fov')
 timepoint_counts = cellularity_df.groupby(by=['Timepoint', 'low_cellularity']).count().reset_index()
 timepoint_counts_total = cellularity_df[['fov', 'Timepoint']].groupby(by='Timepoint').count().reset_index()
@@ -581,7 +580,7 @@ plt.savefig(os.path.join(low_cellularity_viz_dir, 'Low_cellularity_by_timepoint.
 # low cellularity vs regular image features
 harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'analysis_files/harmonized_metadata.csv'))
 feature_metadata = pd.read_csv(os.path.join(SpaceCat_dir, 'feature_metadata.csv'))
-cellularity_data = pd.read_csv(os.path.join(SUPPLEMENTARY_FIG_DIR, 'low_cellularity', 'low_cellularity_images.csv'))
+cellularity_data = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'low_cellularity', 'low_cellularity_images.csv'))
 combined_df = pd.read_csv(os.path.join(SpaceCat_dir, 'combined_feature_data_filtered.csv'))
 combined_df = combined_df.merge(cellularity_data, on='fov')
 combined_df = combined_df.merge(harmonized_metadata[['fov', 'Timepoint']], on='fov')
@@ -801,14 +800,14 @@ plt.ylabel('Mean AUC')
 plt.title('Prediction when dropping low cellularity images')
 sns.despine()
 plt.gca().legend().set_title('')
-plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'low_cellularity', 'low_cellularity_prediction_comparisons.pdf'), bbox_inches = 'tight', dpi =300)
+plt.savefig(os.path.join(REVIEW_FIG_DIR, 'low_cellularity', 'low_cellularity_prediction_comparisons.pdf'), bbox_inches = 'tight', dpi =300)
 
 
 ## 3.7 Fiber feature usefulness ##
 
 # color fibers by alignment & length stats
 fiber_table = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'fiber_segmentation_processed_data/fiber_object_table.csv'))
-fibseg_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'fiber_features/fiber_masks')
+fibseg_dir = os.path.join(REVIEW_FIG_DIR, 'fiber_features/fiber_masks')
 
 feature_fovs = {
     'alignment_score': ['TONIC_TMA14_R8C3', 'TONIC_TMA4_R10C1'],
@@ -829,7 +828,7 @@ for metric in feature_fovs:
         cmap="Blues", seg_suffix="_fiber_labels.tiff", erode=True)
 
 #  ECM stats
-ecm_cluster_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'ECM_clusters')
+ecm_cluster_viz_dir = os.path.join(REVIEW_FIG_DIR, 'ECM_clusters')
 os.makedirs(ecm_cluster_viz_dir, exist_ok=True)
 
 ecm_dir = os.path.join(INTERMEDIATE_DIR, 'ecm')
@@ -906,7 +905,7 @@ g = sns.catplot(x='ecm_cluster', y='value', data=temp_df,
 g.map_dataframe(sns.stripplot, x="ecm_cluster", y="value", data=temp_df, color='black', jitter=0.3)
 plt.suptitle('Functional expression in Structural Cells')
 plt.subplots_adjust(top=0.85)
-plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'ECM_clusters', 'Functional_expression_Structural.pdf'), bbox_inches='tight', dpi=300)
+plt.savefig(os.path.join(REVIEW_FIG_DIR, 'ECM_clusters', 'Functional_expression_Structural.pdf'), bbox_inches='tight', dpi=300)
 
 # look at M2 macrophages
 temp_df = plot_df[plot_df.subset == 'all']
@@ -919,7 +918,7 @@ g = sns.catplot(x='ecm_cluster', y='value', data=temp_df,
 g.map_dataframe(sns.stripplot, x="ecm_cluster", y="value", data=temp_df, color='black', jitter=0.3)
 plt.suptitle('Functional expression in CD68 Macrophages')
 plt.subplots_adjust(top=0.85)
-plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'ECM_clusters', 'Functional_expression_CD68_Mac.pdf'), bbox_inches='tight', dpi=300)
+plt.savefig(os.path.join(REVIEW_FIG_DIR, 'ECM_clusters', 'Functional_expression_CD68_Mac.pdf'), bbox_inches='tight', dpi=300)
 
 
 ## 3.9 Location bias for features associated with immune cells ##
@@ -1017,16 +1016,150 @@ for immune_drop, coords in [[0, (0, 0)], [0.10, (0, 1)], [0.25, (1, 0)], [0.50, 
     if immune_drop == 0.0:
         axs2[i][j].set_title(f'All features')
 
-os.makedirs(os.path.join(SUPPLEMENTARY_FIG_DIR, 'location_bias'), exist_ok=True)
-fig.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'location_bias', 'location_bias_compartment_features.pdf'),
+os.makedirs(os.path.join(REVIEW_FIG_DIR, 'location_bias'), exist_ok=True)
+fig.savefig(os.path.join(REVIEW_FIG_DIR, 'location_bias', 'location_bias_compartment_features.pdf'),
             bbox_inches='tight', dpi=300)
-fig2.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'location_bias', 'location_bias_all_features.pdf'),
+fig2.savefig(os.path.join(REVIEW_FIG_DIR, 'location_bias', 'location_bias_all_features.pdf'),
              bbox_inches='tight', dpi=300)
+
+
+## 4.5 Other/Stroma_Collagen/Stroma_Fibronectin to Cancer reassignment ##
+
+reclustering_dir = os.path.join(REVIEW_FIG_DIR, "Cancer_reclustering")
+os.makedirs(reclustering_dir, exist_ok=True)
+
+adata = anndata.read_h5ad(os.path.join(SPACECAT_DIR, 'adata', 'adata_preprocessed.h5ad'))
+cell_table = adata.obs
+cancer_cells = cell_table[cell_table.cell_cluster_broad == 'Cancer']
+non_cancer_cells = cell_table[cell_table.cell_cluster_broad != 'Cancer']
+
+# Area distribution of cancer vs noncancer cells
+ax = sns.histplot(non_cancer_cells.area, color="blue", alpha=0, label="Non-cancer cells", binwidth=50)
+sns.histplot(non_cancer_cells.area, color="blue", alpha=0.5, label="Non-cancer cells", binwidth=50)
+sns.histplot(cancer_cells.area, color="red", alpha=0.5, label="Cancer cells", binwidth=50)
+plt.xlabel("Value")
+plt.ylabel("Frequency")
+plt.xlim((0, 2500))
+plt.legend()
+labels = ["Non-cancer Cells", "Cancer cells", "Cancer cell median"]
+handles, _ = ax.get_legend_handles_labels()
+handles.append(plt.axvline(x=cancer_cells.area.median(), c='red'))
+plt.title("Cell Area Distribution")
+plt.xlabel('Area')
+plt.savefig(os.path.join(reclustering_dir, 'cancer_noncancer_area_dist.pdf'), bbox_inches='tight')
+
+
+# Cancer neighborhood proportions
+neighbors_mat = adata.obsm['neighbors_freqs_cell_cluster_radius50']
+neighborhood_mat = pd.concat([adata.obs.loc[:, ['fov', 'label', 'area', 'cell_cluster', 'cell_meta_cluster']],
+                             neighbors_mat], axis=1)
+def cancer_sum(row, cluster_level):
+    row = row.drop(['fov', 'label', cluster_level])
+    return row.sum()
+
+cancer_neighbors = neighborhood_mat[neighborhood_mat.cell_cluster.isin(['Cancer_1', 'Cancer_2', 'Cancer_3'])]
+cancer_neighbors = cancer_neighbors[['fov', 'label', 'area', 'cell_cluster', 'Cancer_1', 'Cancer_2', 'Cancer_3']]
+cancer_neighbors['cancer_neighbors_prop'] = cancer_neighbors.apply(cancer_sum, cluster_level='cell_cluster', axis=1)
+
+plt.hist(cancer_neighbors.cancer_neighbors_prop, bins=20, density=True, rwidth=0.9, edgecolor='black')
+plt.title('Cancer cell proportion of Cancer cell neighborhoods')
+plt.xlabel('Cancer proportion')
+plt.ylabel('Density')
+plt.savefig(os.path.join(reclustering_dir, 'cancer_neighborhood_proportion_cancer.pdf'), bbox_inches='tight')
+
+
+neighborhood_counts = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/spatial_analysis/neighborhood_mats/neighborhood_counts-cell_meta_cluster_radius50.csv')
+neighborhood_counts = neighborhood_counts[neighborhood_counts.fov.isin(cell_table.fov.unique())]
+cancer_cell_types = ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad', 'Cancer_SMA', 'Cancer_Vim', 'Cancer_Other',
+                     'Cancer_Mono']
+neighborhood_counts_meta = neighborhood_counts.iloc[:, :3]
+neighborhood_counts = neighborhood_counts.iloc[:, 3:]
+
+tables = {}
+for c in ['Other', 'Stroma_Collagen', 'Stroma_Fibronectin']:
+    neighborhood_counts_c = neighborhood_counts.drop(columns=[c])
+    neighborhood_freqs_c = neighborhood_counts_c.div(neighborhood_counts_c.sum(axis=1), axis=0)
+    neighborhood_freqs_c = neighborhood_counts_meta.merge(neighborhood_freqs_c, left_index=True, right_index=True)
+
+    c_neighbors = neighborhood_freqs_c[neighborhood_freqs_c.cell_meta_cluster == c]
+    c_neighbors_cancer = c_neighbors[['fov', 'label', 'cell_meta_cluster'] + cancer_cell_types]
+    c_neighbors_cancer['cancer_neighbors_prop'] = c_neighbors_cancer.apply(cancer_sum, cluster_level='cell_meta_cluster', axis=1)
+    c_neighbors_cancer_sub = c_neighbors_cancer
+    tables[c] = c_neighbors_cancer_sub[['fov', 'label', 'cell_meta_cluster', 'cancer_neighbors_prop']]
+new_cancer_cells = pd.concat(tables.values())
+new_cancer_cells['cancer_test'] = False
+new_cancer_cells.loc[new_cancer_cells['cancer_neighbors_prop'] >= 0.7, 'cancer_test'] = True
+
+cell_table_adj = cell_table.copy()
+cell_table_adj = cell_table_adj.merge(new_cancer_cells, on=['fov', 'label', 'cell_meta_cluster'], how='left')
+cell_table_adj['cell_cluster_broad_new'] = cell_table_adj['cell_cluster_broad'].copy()
+cell_table_adj['cell_meta_cluster_new'] = cell_table_adj['cell_meta_cluster'].copy()
+cell_table_adj['cell_cluster_new'] = cell_table_adj['cell_cluster'].copy()
+cell_table_adj.loc[cell_table_adj['cancer_test']==True, 'cell_cluster_broad_new'] = 'Cancer'
+cell_table_adj.loc[cell_table_adj['cancer_test']==True, 'cell_meta_cluster_new'] = 'Cancer_new'
+cell_table_adj['cell_cluster_new'] = cell_table_adj['cell_cluster_new'].cat.add_categories('Cancer_new')
+cell_table_adj.loc[cell_table_adj['cancer_test']==True, 'cell_cluster_new'] = 'Cancer_new'
+
+fig, axes = plt.subplots(1, 3, figsize=(10, 4))
+fig.suptitle('Cancer cell proportion of cell neighborhoods')
+fig.supxlabel('Cancer proportion')
+fig.supylabel('Density')
+for c, ax in zip(['Other', 'Stroma_Collagen', 'Stroma_Fibronectin'], axes.flat):
+    cluster_table_sub = cell_table_adj[cell_table_adj.cell_meta_cluster.isin([c, 'Cancer_new'])]
+    ax.hist(cluster_table_sub.cancer_neighbors_prop, bins=20, density=True, rwidth=0.9, edgecolor='black')
+    ax.set_xlim((0, 1))
+    ax.set_ylim((0, 10))
+    ax.set_title(f'{c} neighborhoods')
+plt.savefig(os.path.join(reclustering_dir, 'misc_neighborhood_proportion_cancer.pdf'), bbox_inches='tight')
+
+
+fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+cancer_table = cell_table_adj[cell_table_adj.cell_cluster_broad_new=='Cancer'][['fov', 'cell_cluster_new']]
+cancer_table_counts = cancer_table.groupby(by=['cell_cluster_new'], observed=True).count().reset_index()
+cancer_table_counts = cancer_table_counts.sort_values(by='fov', ascending=False)
+total_count = cancer_table_counts[['fov']].sum()
+cancer_table_counts['cancer_prop'] = cancer_table_counts['fov'].div(total_count.values[0])
+plt.bar(cancer_table_counts.cell_cluster_new, cancer_table_counts.cancer_prop, color=['lightgrey']*(len(cancer_table_counts)-1)+['green'])
+plt.xticks(rotation=45)
+plt.title('Cancer cell cluster proportions')
+green_patch = mpatches.Patch(color='green', label='New Cancer cells')
+grey_patch = mpatches.Patch(color='lightgrey', label='Original Cancer cells')
+plt.legend(handles=[green_patch, grey_patch])
+plt.savefig(os.path.join(reclustering_dir, 'Cancer_cell_new_proportions_broad.pdf'), bbox_inches='tight')
+
+fig, ax = plt.subplots(1, 1, figsize=(8, 4))
+cancer_table = cell_table_adj[cell_table_adj.cell_cluster_broad_new=='Cancer'][['fov', 'cell_meta_cluster_new']]
+cancer_table_counts = cancer_table.groupby(by=['cell_meta_cluster_new'], observed=True).count().reset_index()
+cancer_table_counts = cancer_table_counts.sort_values(by='fov', ascending=False)
+total_count = cancer_table_counts[['fov']].sum()
+cancer_table_counts['cancer_prop'] = cancer_table_counts['fov'].div(total_count.values[0])
+plt.bar(cancer_table_counts.cell_meta_cluster_new, cancer_table_counts.cancer_prop, color=['lightgrey']*(len(cancer_table_counts)-1)+['green'])
+plt.xticks(rotation=45)
+plt.title('Cancer cell cluster proportions')
+green_patch = mpatches.Patch(color='green', label='New Cancer cells')
+grey_patch = mpatches.Patch(color='lightgrey', label='Original Cancer cells')
+plt.legend(handles=[green_patch, grey_patch])
+plt.savefig(os.path.join(reclustering_dir, 'Cancer_cell_new_proportions.pdf'), bbox_inches='tight')
+
+counts_table = cell_table_adj[cell_table_adj.cell_meta_cluster.isin(['Other', 'Stroma_Collagen', 'Stroma_Fibronectin'])][['cell_meta_cluster', 'cell_meta_cluster_new']]
+counts_table = counts_table.groupby(by=['cell_meta_cluster', 'cell_meta_cluster_new'], observed=True).value_counts().reset_index()
+counts_table.loc[counts_table.cell_meta_cluster_new!='Cancer_new', 'cell_meta_cluster_new'] = 'Same'
+counts_table = counts_table.pivot(index='cell_meta_cluster', columns='cell_meta_cluster_new', values='count').reset_index()
+row_sums = counts_table.select_dtypes(include='number').sum(axis=1)
+counts_table.iloc[:, 1:] = counts_table.iloc[:, 1:].div(row_sums, axis=0)
+
+counts_table.plot(x='cell_meta_cluster', kind='barh', stacked=True, title='Proportion of reassigned Cancer cells',
+                  mark_right=True, color=['green', 'lightgrey'])
+green_patch = mpatches.Patch(color='green', label='New Cancer cells')
+grey_patch = mpatches.Patch(color='lightgrey', label='Non-cancer')
+plt.legend(handles=[green_patch, grey_patch])
+plt.ylabel('Cell Type')
+plt.savefig(os.path.join(reclustering_dir, 'reassigned_cancer_cells.pdf'), bbox_inches='tight')
 
 
 ## 4.6.1 immune_agg features ##
 
-immune_agg_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "immune_agg_features")
+immune_agg_viz_dir = os.path.join(REVIEW_FIG_DIR, "immune_agg_features")
 os.makedirs(immune_agg_viz_dir, exist_ok=True)
 
 # generate violin plots for top immune_agg features
@@ -1058,7 +1191,7 @@ plt.savefig(os.path.join(immune_agg_viz_dir, 'immune_agg_feature_plots.pdf'), bb
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
-ranked_features_all = pd.read_csv(os.path.join(SUPPLEMENTARY_FIG_DIR, 'immune_agg_features', 'feature_ranking.csv'))
+ranked_features_all = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'immune_agg_features', 'feature_ranking.csv'))
 ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
 
 # make volcano plots
@@ -1087,14 +1220,14 @@ for subset in ['all', 'immune_agg']:
     plt.savefig(os.path.join(immune_agg_viz_dir, f'Figure3a_volcano-{subset}.pdf'))
 
 # generate prediction comparison boxplot
-preds = pd.read_csv(os.path.join(SUPPLEMENTARY_FIG_DIR, 'immune_agg_features', 'all_timepoints_results_MIBI-immune_agg.csv'))
+preds = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'immune_agg_features', 'all_timepoints_results_MIBI-immune_agg.csv'))
 preds = preds[['auc_primary_list', 'auc_baseline_list', 'auc_post_induction_list', 'auc_on_nivo_list']]
 preds = preds.rename(columns={'auc_primary_list': 'Primary', 'auc_baseline_list': 'Baseline',
                               'auc_post_induction_list': 'Pre nivo', 'auc_on_nivo_list': 'On nivo'})
 preds = preds.melt()
 preds['immune_agg'] = 'include'
 
-old_preds = pd.read_csv(os.path.join(SUPPLEMENTARY_FIG_DIR, 'immune_agg_features', 'all_timepoints_results_MIBI.csv'))
+old_preds = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'immune_agg_features', 'all_timepoints_results_MIBI.csv'))
 old_preds = old_preds[['auc_primary_list', 'auc_baseline_list', 'auc_post_induction_list', 'auc_on_nivo_list']]
 old_preds = old_preds.rename(columns={'auc_primary_list': 'Primary', 'auc_baseline_list': 'Baseline',
                                       'auc_post_induction_list': 'Pre nivo', 'auc_on_nivo_list': 'On nivo'})
@@ -1117,13 +1250,13 @@ green_line = mlines.Line2D([], [], color="darkseagreen", marker="o", label="excl
 plt.legend(handles=[blue_line, green_line], loc='lower right')
 sns.despine()
 
-plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'immune_agg_features', 'immune_agg_prediction_comparison.pdf'),
+plt.savefig(os.path.join(REVIEW_FIG_DIR, 'immune_agg_features', 'immune_agg_prediction_comparison.pdf'),
             bbox_inches='tight', dpi=300)
 
 
 ## 4.10.3 functional marker thresholding in SpaceCat ##
 
-functional_marker_viz_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "functional_marker_auto_thresholds")
+functional_marker_viz_dir = os.path.join(REVIEW_FIG_DIR, "functional_marker_auto_thresholds")
 os.makedirs(functional_marker_viz_dir, exist_ok=True)
 
 # Functional marker thresholding
