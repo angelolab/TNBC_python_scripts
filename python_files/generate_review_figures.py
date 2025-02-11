@@ -1045,6 +1045,45 @@ fig2.savefig(os.path.join(REVIEW_FIG_DIR, 'location_bias', 'location_bias_all_fe
              bbox_inches='tight', dpi=300)
 
 
+## 3.11 Evolution features ##
+BASE_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/TONIC_SpaceCat/SpaceCat'
+ranked_features = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature_ranking.csv'))
+
+overlap_type_dict = {'global': [['primary', 'baseline', 'pre_nivo', 'on_nivo'],
+                                ['primary__baseline', 'baseline__pre_nivo', 'baseline__on_nivo', 'pre_nivo__on_nivo']],
+                     'primary': [['primary'], ['primary__baseline']],
+                     'baseline': [['baseline'], ['primary__baseline', 'baseline__pre_nivo', 'baseline__on_nivo']],
+                     'pre_nivo': [['pre_nivo'], ['baseline__pre_nivo', 'pre_nivo__on_nivo']],
+                     'on_nivo': [['on_nivo'], ['baseline__on_nivo', 'pre_nivo__on_nivo']]}
+overlap_results = {}
+for overlap_type, comparisons in overlap_type_dict.items():
+    static_comparisons, evolution_comparisons = comparisons
+
+    overlap_top_features = ranked_features.copy()
+    overlap_top_features = overlap_top_features.loc[overlap_top_features.comparison.isin(static_comparisons + evolution_comparisons)]
+    overlap_top_features.loc[overlap_top_features.comparison.isin(static_comparisons), 'comparison'] = 'static'
+    overlap_top_features.loc[overlap_top_features.comparison.isin(evolution_comparisons), 'comparison'] = 'evolution'
+    overlap_top_features = overlap_top_features[['feature_name_unique', 'comparison']].drop_duplicates()
+    overlap_top_features = overlap_top_features.iloc[:100, :]
+    static_ids = overlap_top_features.loc[
+        overlap_top_features.comparison == 'static', 'feature_name_unique'].unique()
+    evolution_ids = overlap_top_features.loc[
+        overlap_top_features.comparison == 'evolution', 'feature_name_unique'].unique()
+
+    overlap_results[overlap_type] = {'static_ids': static_ids, 'evolution_ids': evolution_ids}
+
+overlap_features = list(set(static_ids).intersection(set(evolution_ids)))
+evolution_ids = [feature for feature in evolution_ids if feature not in overlap_features]
+evolution_feature_data = ranked_features[ranked_features.feature_name_unique.isin(evolution_ids)]
+evolution_feature_data = evolution_feature_data[evolution_feature_data.comparison.isin(['primary__baseline', 'baseline__pre_nivo', 'baseline__on_nivo', 'pre_nivo__on_nivo'])]
+evolution_feature_data = evolution_feature_data[['feature_name_unique', 'log_pval', 'mean_diff', 'med_diff',
+       'comparison', 'pval', 'fdr_pval', 'log10_qval', 'pval_rank', 'cor_rank',
+       'combined_rank', 'importance_score', 'signed_importance_score',
+       'feature_name', 'compartment', 'cell_pop_level', 'feature_type']]
+evolution_feature_data.sort_values(by='feature_name_unique', inplace=True)
+evolution_feature_data.to_csv(os.path.join(REVIEW_FIG_DIR, '9c_static_vs_evolution_features', 'evolution_features_table.csv'), index=False)
+
+
 ## 4.5 Other/Stroma_Collagen/Stroma_Fibronectin to Cancer reassignment ##
 
 reclustering_dir = os.path.join(REVIEW_FIG_DIR, "Cancer_reclustering")
