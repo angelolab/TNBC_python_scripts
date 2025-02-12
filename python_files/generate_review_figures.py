@@ -434,6 +434,7 @@ plt.close()
 
 
 ## 2.8 / 4.8  Pre-treatment and On-treatment NT vs TONIC comparisons
+# Original NT features
 file_path = os.path.join(NT_DIR, '/data/41586_2023_6498_MOESM3_ESM.xlsx')
 NT_features = pd.read_excel(file_path, sheet_name=None)
 cell_table = pd.read_csv(os.path.join(NT_DIR, 'analysis_files/cell_table.csv'))
@@ -1081,7 +1082,7 @@ evolution_feature_data = evolution_feature_data[['feature_name_unique', 'log_pva
        'combined_rank', 'importance_score', 'signed_importance_score',
        'feature_name', 'compartment', 'cell_pop_level', 'feature_type']]
 evolution_feature_data.sort_values(by='feature_name_unique', inplace=True)
-evolution_feature_data.to_csv(os.path.join(REVIEW_FIG_DIR, '9c_static_vs_evolution_features', 'evolution_features_table.csv'), index=False)
+evolution_feature_data.to_csv(os.path.join(REVIEW_FIG_DIR, 'evolution_features_and_multivariate_modeling', 'evolution_features_table.csv'), index=False)
 
 
 ## 4.5 Other/Stroma_Collagen/Stroma_Fibronectin to Cancer reassignment ##
