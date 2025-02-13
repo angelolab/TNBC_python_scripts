@@ -1047,6 +1047,8 @@ fig2.savefig(os.path.join(REVIEW_FIG_DIR, 'location_bias', 'location_bias_all_fe
 
 
 ## 3.11 Evolution features ##
+
+# longitudinal features
 BASE_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/TONIC_SpaceCat/SpaceCat'
 ranked_features = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature_ranking.csv'))
 
@@ -1082,7 +1084,39 @@ evolution_feature_data = evolution_feature_data[['feature_name_unique', 'log_pva
        'combined_rank', 'importance_score', 'signed_importance_score',
        'feature_name', 'compartment', 'cell_pop_level', 'feature_type']]
 evolution_feature_data.sort_values(by='feature_name_unique', inplace=True)
-evolution_feature_data.to_csv(os.path.join(REVIEW_FIG_DIR, 'evolution_features_and_multivariate_modeling', 'evolution_features_table.csv'), index=False)
+evolution_feature_data.to_csv(os.path.join(REVIEW_FIG_DIR, 'evolution_features_and_multimodal_modeling', 'evolution_features_table.csv'), index=False)
+
+# multimodal modeling
+# run all_timepoints_combined_modalities.R script
+# multimodal prediction plots
+multi_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/sequencing_data/multimodal_prediction'
+baseline_results = pd.read_csv(os.path.join(multi_dir, 'baseline_results.csv'))
+pre_nivo_results = pd.read_csv(os.path.join(multi_dir, 'pre_nivo_results.csv'))
+on_nivo_results = pd.read_csv(os.path.join(multi_dir, 'on_nivo_results.csv'))
+
+baseline_results['Timepoint'] = 'Baseline'
+baseline_results = baseline_results.rename(columns={'auc_baseline_list': 'Combined', 'auc_rna_baseline_list': 'RNA', 'auc_protein_baseline_list': 'MIBI'})
+pre_nivo_results['Timepoint'] = 'Pre nivo'
+pre_nivo_results = pre_nivo_results.rename(columns={'auc_induction_list': 'Combined', 'auc_rna_induction_list': 'RNA', 'auc_protein_induction_list': 'MIBI'})
+on_nivo_results['Timepoint'] = 'On nivo'
+on_nivo_results = on_nivo_results.rename(columns={'auc_on_nivo_list': 'Combined', 'auc_rna_on_nivo_list': 'RNA', 'auc_protein_on_nivo_list': 'MIBI'})
+all_results = pd.concat([baseline_results, pre_nivo_results, on_nivo_results])
+all_results = all_results[['Timepoint', 'Combined']]
+
+fig, ax = plt.subplots()
+sns.boxplot(data=all_results, x='Timepoint', y='Combined', ax=ax, width=0.6,
+            palette=sns.color_palette(["chocolate"]), showfliers=False)
+sns.stripplot(data=all_results, x='Timepoint', y='Combined', ax=ax,
+              palette=sns.color_palette(["chocolate"]), jitter=0.1)
+fig.set_figheight(5)
+fig.set_figwidth(6)
+plt.xticks(rotation=45)
+plt.title('Combined MIBI & RNA multivariate model accuracy')
+plt.ylabel('AUC')
+plt.xlabel('')
+plt.ylim((0, 1))
+sns.despine()
+plt.savefig(os.path.join(REVIEW_FIG_DIR, 'evolution_features_and_multimodal_modeling', 'combined_model_prediction.pdf'), bbox_inches='tight', dpi=300)
 
 
 ## 4.5 Other/Stroma_Collagen/Stroma_Fibronectin to Cancer reassignment ##
