@@ -1119,6 +1119,44 @@ sns.despine()
 plt.savefig(os.path.join(REVIEW_FIG_DIR, 'evolution_features_and_multimodal_modeling', 'combined_model_prediction.pdf'), bbox_inches='tight', dpi=300)
 
 
+## 4.4 Limit multivariate model features ##
+limit_features_dir = os.path.join(REVIEW_FIG_DIR, 'limit_model_features')
+
+preds_5 = pd.read_csv(os.path.join(limit_features_dir, 'prediction_model_5/patient_outcomes/all_timepoints_results_MIBI.csv'))
+preds_10 = pd.read_csv(os.path.join(limit_features_dir, 'limit_model_features/prediction_model_10/patient_outcomes/all_timepoints_results_MIBI.csv'))
+preds_15 = pd.read_csv(os.path.join(limit_features_dir, 'limit_model_features/prediction_model_15/patient_outcomes/all_timepoints_results_MIBI.csv'))
+preds_20 = pd.read_csv(os.path.join(limit_features_dir, 'prediction_model_20/patient_outcomes/all_timepoints_results_MIBI.csv'))
+preds_reg = pd.read_csv(os.path.join(SPACECAT_DIR, 'SpaceCat/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
+
+df_5 = preds_5.mean()
+df_10 = preds_10.mean()
+df_15 = preds_15.mean()
+df_20 = preds_20.mean()
+df_reg = preds_reg.mean()
+df = pd.concat([df_reg, df_20, df_15, df_10, df_5], axis=1)
+df = df.rename(columns={0: 'All features', 1: 'Top 20 features', 2: 'Top 15 features', 3: 'Top 10 features', 4: 'Top 5 features'})
+
+df = df.reset_index()
+df.replace('auc_on_nivo_list', 'On nivo', inplace=True)
+df.replace('auc_post_induction_list', 'Pre nivo', inplace=True)
+df.replace('auc_primary_list', 'Primary', inplace=True)
+df.replace('auc_baseline_list', 'Baseline', inplace=True)
+df['order'] = df['index'].replace({'Primary':0, 'Baseline':1, 'Pre nivo':2, 'On nivo': 3})
+df = df.sort_values(by='order')
+df = df.drop(columns=['order'])
+df = df.rename(columns={'index': 'Timepoint'})
+df = pd.melt(df, ['Timepoint'])
+
+sns.scatterplot(data=df[df.variable == 'All features'], x='Timepoint', y='value', hue='variable', palette=sns.color_palette(['black']), edgecolors='black')
+sns.scatterplot(data=df[df.variable != 'All features'], x='Timepoint', y='value', hue='variable', palette=sns.color_palette(['dimgrey', 'darkgrey', 'lightgrey', 'whitesmoke']), edgecolors='black')
+plt.xticks(rotation=30)
+plt.ylabel('Mean AUC')
+plt.title('Model accuracy by feature amount')
+sns.despine()
+plt.gca().legend(loc='lower right').set_title('')
+plt.savefig(os.path.join(limit_features_dir, 'feature_cap_prediction_comparisons.pdf'), bbox_inches='tight', dpi=300)
+
+
 ## 4.5 Other/Stroma_Collagen/Stroma_Fibronectin to Cancer reassignment ##
 
 reclustering_dir = os.path.join(REVIEW_FIG_DIR, "Cancer_reclustering")
