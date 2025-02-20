@@ -160,7 +160,7 @@ plt.close()
 # get overlap between static and evolution top features
 ranked_features = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature_ranking.csv'))
 
-overlap_type_dict = {'global': [['primary_', 'baseline', 'pre_nivo', 'on_nivo'],
+overlap_type_dict = {'global': [['primary', 'baseline', 'pre_nivo', 'on_nivo'],
                                 ['primary__baseline', 'baseline__pre_nivo', 'baseline__on_nivo', 'pre_nivo__on_nivo']],
                      'primary': [['primary'], ['primary__baseline']],
                      'baseline': [['baseline'], ['primary__baseline', 'baseline__pre_nivo', 'baseline__on_nivo']],
