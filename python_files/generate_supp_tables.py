@@ -8,6 +8,7 @@ import numpy as np
 
 
 BASE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/"
+ANALYSIS_DIR = os.path.join(BASE_DIR, 'analysis_files')
 
 # supplementary tables
 save_dir = os.path.join(BASE_DIR, 'supplementary_figs/supplementary_tables')
@@ -72,3 +73,25 @@ sequencing_features = sequencing_features.loc[sequencing_features.feature_type !
 
 sequencing_features.to_csv(os.path.join(save_dir, 'Supplementary_Table_5.csv'), index=False)
 
+# feature ranking
+feature_rank = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_ranking.csv'))
+sub_columns = ['feature_name_unique', 'comparison', 'pval', 'fdr_pval', 'med_diff', 'pval_rank', 'cor_rank',
+               'combined_rank', 'importance_score', 'signed_importance_score',
+               'feature_name', 'compartment', 'cell_pop_level', 'feature_type', 'feature_type_broad']
+feature_rank_sub = feature_rank[sub_columns]
+feature_rank_sub.to_csv(os.path.join(save_dir, 'Supplementary_Table_6.csv'), index=False)
+
+# FOV counts per patient and timepoint
+harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'harmonized_metadata.csv'))
+harmonized_metadata = harmonized_metadata[harmonized_metadata.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
+mibi_metadata = harmonized_metadata[harmonized_metadata.MIBI_data_generated]
+
+mibi_counts = mibi_metadata[['Patient_ID', 'Timepoint', 'fov']].groupby(['Patient_ID', 'Timepoint'])['fov'].count().unstack(fill_value=0).stack().reset_index()
+mibi_counts = mibi_counts.rename(columns={0: 'MIBI fovs'})
+
+rna_counts = harmonized_metadata[['Patient_ID', 'Timepoint', 'rna_seq_sample_id']].drop_duplicates().groupby(['Patient_ID', 'Timepoint'])['rna_seq_sample_id'].count().unstack(fill_value=0).stack().reset_index()
+rna_counts = rna_counts.rename(columns={0: 'RNA samples'})
+
+all_counts = mibi_counts.merge(rna_counts, on=['Patient_ID', 'Timepoint'], how='outer').fillna(0)
+all_counts['MIBI fovs'] = all_counts['MIBI fovs'].astype(int)
+all_counts.sort_values(by=['Patient_ID', 'Timepoint']).to_csv(os.path.join(save_dir, 'Supplementary_Table_7.csv'), index=False)
