@@ -9,7 +9,7 @@ BASE_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
 ANALYSIS_DIR = os.path.join(BASE_DIR, 'analysis_files')
 FORMATTED_DIR = os.path.join(BASE_DIR, 'formatted_files')
 INTERMEDIATE_DIR = os.path.join(BASE_DIR, 'intermediate_files')
-SpaceCat_dir = os.path.join(BASE_DIR, 'TONIC_SpacCcat')
+SpaceCat_dir = os.path.join(BASE_DIR, 'TONIC_SpaceCcat')
 
 # read in data
 cell_table = pd.read_csv(os.path.join(ANALYSIS_DIR, 'combined_cell_table_normalized_cell_labels_updated.csv'))
@@ -131,5 +131,27 @@ excluded_features = pd.read_csv(os.path.join(ANALYSIS_DIR, 'excluded_features.cs
 excluded_features = excluded_features[~excluded_features.feature_name_unique.str.contains('immune_agg')]
 excluded_features.to_csv(os.path.join(ANALYSIS_DIR, 'excluded_features.csv'), index=False)
 
+# group by timepoint
+adata_processed = anndata.read_h5ad(os.path.join(ANALYSIS_DIR, 'adata_processed.h5ad'))
+harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'harmonized_metadata.csv'))
 
-## run 7_create_evolution_df.py and, nivo_outcomes.py, &
+fov_data_df = adata_processed.uns['combined_feature_data']
+fov_data_df = pd.merge(fov_data_df, harmonized_metadata[['Tissue_ID', 'fov']], on='fov', how='left')
+grouped = fov_data_df.groupby(['Tissue_ID', 'feature_name', 'feature_name_unique', 'compartment',
+                               'cell_pop_level', 'feature_type']).agg({'raw_value': ['mean', 'std'],
+                                                                       'normalized_value': ['mean', 'std']})
+grouped.columns = ['raw_mean', 'raw_std', 'normalized_mean', 'normalized_std']
+grouped = grouped.reset_index()
+grouped.to_csv(os.path.join(ANALYSIS_DIR, 'timepoint_features.csv'), index=False)
+
+fov_data_df_filtered = adata_processed.uns['combined_feature_data_filtered']
+fov_data_df_filtered = pd.merge(fov_data_df_filtered, harmonized_metadata[['Tissue_ID', 'fov']], on='fov', how='left')
+grouped = fov_data_df_filtered.groupby(['Tissue_ID', 'feature_name', 'feature_name_unique', 'compartment',
+                                 'cell_pop_level', 'feature_type']).agg({'raw_value': ['mean', 'std'],
+                                                                            'normalized_value': ['mean', 'std']})
+
+grouped.columns = ['raw_mean', 'raw_std', 'normalized_mean', 'normalized_std']
+grouped = grouped.reset_index()
+grouped.to_csv(os.path.join(ANALYSIS_DIR, 'timepoint_features_filtered.csv'), index=False)
+
+## run 7_create_evolution_df.py and nivo_outcomes.py
