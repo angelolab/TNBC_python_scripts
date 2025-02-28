@@ -5,9 +5,8 @@ from functools import reduce
 
 BASE_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
 ANALYSIS_DIR = os.path.join(BASE_DIR, 'analysis_files')
+FORMATTED_DIR = os.path.join(BASE_DIR, 'formatted_files')
 INTERMEDIATE_DIR = os.path.join(BASE_DIR, 'intermediate_files')
-SpaceCat_dir = os.path.join(BASE_DIR, 'TONIC_SpacCcat')
-
 
 ### KMEANS FORMATTING ###
 kmeans_dir = os.path.join(INTERMEDIATE_DIR, 'spatial_analysis/neighborhood_analysis/cell_cluster_radius100_frequency_12')
@@ -50,7 +49,7 @@ for i in output_df.columns:
 
 output_df.reset_index(inplace=True)
 output_df = output_df[output_df.fov.isin(cell_table.fov.unique())]
-output_df.to_csv(os.path.join(SpaceCat_dir, 'neighborhood_image_proportions.csv'), index=False)
+output_df.to_csv(os.path.join(FORMATTED_DIR, 'neighborhood_image_proportions.csv'), index=False)
 
 
 # stroma and cancer compartment proportions
@@ -93,7 +92,7 @@ df = df.dropna().sort_values(by=['fov', 'compartment'])
 output_df = df.pivot(index='fov', columns=['compartment', 'kmeans_neighborhood'], values='proportion')
 output_df.columns = output_df.columns.map(lambda index: f'cluster_{index[1]}__proportion__{index[0]}')
 output_df.reset_index(inplace=True)
-output_df.to_csv(os.path.join(SpaceCat_dir, 'neighborhood_compartment_proportions.csv'), index=False)
+output_df.to_csv(os.path.join(FORMATTED_DIR, 'neighborhood_compartment_proportions.csv'), index=False)
 
 
 ### MIXING SCORE FORMATTING ###
@@ -102,7 +101,7 @@ mixing_score_df = pd.read_csv(os.path.join(mixing_score_dir, 'homogeneous_mixing
 
 keep_cols = [col for col in mixing_score_df.columns if 'mixing_score' in col]
 mixing_score_df_sub = mixing_score_df[['fov'] + keep_cols]
-mixing_score_df_sub.to_csv(os.path.join(SpaceCat_dir, 'formatted_mixing_scores.csv'), index=False)
+mixing_score_df_sub.to_csv(os.path.join(FORMATTED_DIR, 'formatted_mixing_scores.csv'), index=False)
 
 
 ### CELL DISTANCES FORMATTING ###
@@ -120,7 +119,7 @@ for col in sorted(distances_df.cell_cluster_broad.unique()):
 for col in distances_df.columns:
     if not col in ['fov', 'label', 'cell_cluster_broad']:
         distances_df = distances_df.rename(columns={col: f'distance_to__{col}'})
-distances_df.to_csv(os.path.join(SpaceCat_dir, 'cell_distances_filtered.csv'), index=False)
+distances_df.to_csv(os.path.join(FORMATTED_DIR, 'cell_distances_filtered.csv'), index=False)
 
 
 ### FIBER STATS FORMATTING ###
@@ -130,7 +129,7 @@ fiber_stats.columns = fiber_stats.columns.str.replace('fiber_', '')
 for i in fiber_stats.columns:
     if i != 'fov':
         fiber_stats = fiber_stats.rename(columns={i: f'fiber_{i}'})
-fiber_stats.to_csv(os.path.join(SpaceCat_dir, 'fiber_stats_table.csv'), index=False)
+fiber_stats.to_csv(os.path.join(FORMATTED_DIR, 'fiber_stats_table.csv'), index=False)
 
 # for tiles, get max per image
 fiber_tile_df = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'fiber_segmentation_processed_data/fiber_stats_table-tile_512.csv'))
@@ -147,7 +146,7 @@ for i in fiber_tile_df_max.columns:
         fiber_tile_df_max = fiber_tile_df_max.rename(columns={i: f'max_fiber_{i}'})
 
 fiber_tile_df_max.reset_index(inplace=True, drop=True)
-fiber_tile_df_max.to_csv(os.path.join(SpaceCat_dir, 'fiber_stats_per_tile.csv'), index=False)
+fiber_tile_df_max.to_csv(os.path.join(FORMATTED_DIR, 'fiber_stats_per_tile.csv'), index=False)
 
 
 ### ECM STATS FORMATTING ###
@@ -174,7 +173,7 @@ for col in ecm_df.columns:
 #     fov_name.append(fov)
 #
 # ecm_frac_df = pd.DataFrame({'fov': fov_name, 'ecm_frac': fov_frac})
-# ecm_frac_df.to_csv(os.path.join(SpaceCat_dir, 'ecm/ecm_fraction_fov.csv'), index=False)
+# ecm_frac_df.to_csv(os.path.join(FORMATTED_DIR, 'ecm/ecm_fraction_fov.csv'), index=False)
 
 # ecm fraction
 ecm_frac_df = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'ecm/ecm_fraction_fov.csv'))
@@ -246,10 +245,10 @@ ecm_object_diff.reset_index(inplace=True)
 
 data_frames = [ecm_clusters_density, ecm_clusters_wide, ecm_neighborhood_density, ecm_neighborhoods_prop, ecm_object_ratio, ecm_object_diff]
 pixie_ecm = reduce(lambda left, right: pd.merge(left,right,on=['fov'], how='outer'), data_frames)
-pixie_ecm.to_csv(os.path.join(SpaceCat_dir, 'pixie_ecm_stats.csv'), index=False)
+pixie_ecm.to_csv(os.path.join(FORMATTED_DIR, 'pixie_ecm_stats.csv'), index=False)
 
 ecm_frac_df = ecm_frac_df[ecm_frac_df.fov.isin(np.unique(pixie_ecm.fov))]
-ecm_frac_df.to_csv(os.path.join(SpaceCat_dir, 'ecm_fraction_stats.csv'), index=False)
+ecm_frac_df.to_csv(os.path.join(FORMATTED_DIR, 'ecm_fraction_stats.csv'), index=False)
 
 ecm_df = ecm_df[ecm_df.fov.isin(np.unique(pixie_ecm.fov))]
-ecm_df.to_csv(os.path.join(SpaceCat_dir, 'ecm_cluster_stats.csv'), index=False)
+ecm_df.to_csv(os.path.join(FORMATTED_DIR, 'ecm_cluster_stats.csv'), index=False)

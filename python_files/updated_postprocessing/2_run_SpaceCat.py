@@ -2,12 +2,12 @@ import os
 import anndata
 import pandas as pd
 
-from SpaceCat.preprocess import preprocess_table
 from SpaceCat.features import SpaceCat
 
 
 BASE_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
 ANALYSIS_DIR = os.path.join(BASE_DIR, 'analysis_files')
+FORMATTED_DIR = os.path.join(BASE_DIR, 'formatted_files')
 INTERMEDIATE_DIR = os.path.join(BASE_DIR, 'intermediate_files')
 SpaceCat_dir = os.path.join(BASE_DIR, 'TONIC_SpacCcat')
 
@@ -60,21 +60,20 @@ adata.obs_names = [str(i) for i in adata.obs_names]
 adata.obsm['spatial'] = cell_table.loc[:, centroid_cols].values
 
 # save the anndata object
-os.makedirs(os.path.join(SpaceCat_dir, 'adata'), exist_ok=True)
-adata.write_h5ad(os.path.join(SpaceCat_dir, 'adata', 'adata.h5ad'))
+adata.write_h5ad(os.path.join(ANALYSIS_DIR, 'adata.h5ad'))
 
 # run SpaceCat
-adata = anndata.read_h5ad(os.path.join(SpaceCat_dir, 'adata', 'adata.h5ad'))
+adata = anndata.read_h5ad(os.path.join(ANALYSIS_DIR, 'adata.h5ad'))
 
 # read in image level dataframes
-fiber_df = pd.read_csv(os.path.join(SpaceCat_dir, 'fiber_stats_table.csv'))
-fiber_tile_df = pd.read_csv(os.path.join(SpaceCat_dir, 'fiber_stats_per_tile.csv'))
-mixing_df = pd.read_csv(os.path.join(SpaceCat_dir, 'formatted_mixing_scores.csv'))
-kmeans_img_proportions = pd.read_csv(os.path.join(SpaceCat_dir, 'neighborhood_image_proportions.csv'))
-kmeans_compartment_proportions = pd.read_csv(os.path.join(SpaceCat_dir, 'neighborhood_compartment_proportions.csv'))
-pixie_ecm = pd.read_csv(os.path.join(SpaceCat_dir, 'pixie_ecm_stats.csv'))
-ecm_frac = pd.read_csv(os.path.join(SpaceCat_dir, 'ecm_fraction_stats.csv'))
-ecm_clusters = pd.read_csv(os.path.join(SpaceCat_dir, 'ecm_cluster_stats.csv'))
+fiber_df = pd.read_csv(os.path.join(FORMATTED_DIR, 'fiber_stats_table.csv'))
+fiber_tile_df = pd.read_csv(os.path.join(FORMATTED_DIR, 'fiber_stats_per_tile.csv'))
+mixing_df = pd.read_csv(os.path.join(FORMATTED_DIR, 'formatted_mixing_scores.csv'))
+kmeans_img_proportions = pd.read_csv(os.path.join(FORMATTED_DIR, 'neighborhood_image_proportions.csv'))
+kmeans_compartment_proportions = pd.read_csv(os.path.join(FORMATTED_DIR, 'neighborhood_compartment_proportions.csv'))
+pixie_ecm = pd.read_csv(os.path.join(FORMATTED_DIR, 'pixie_ecm_stats.csv'))
+ecm_frac = pd.read_csv(os.path.join(FORMATTED_DIR, 'ecm_fraction_stats.csv'))
+ecm_clusters = pd.read_csv(os.path.join(FORMATTED_DIR, 'ecm_cluster_stats.csv'))
 
 # specify cell type pairs to compute a ratio for
 ratio_pairings = [('CD8T', 'CD4T'), ('CD4T', 'Treg'), ('CD8T', 'Treg'), ('CD68_Mac', 'CD163_Mac')]
@@ -107,13 +106,30 @@ adata_processed = features.run_spacecat(functional_feature_level='cell_cluster',
                                         specified_ratios_cluster_key='cell_cluster', specified_ratios=ratio_pairings,
                                         per_cell_stats=per_cell_stats, per_img_stats=per_img_stats)
 
-adata_processed.write_h5ad(os.path.join(SpaceCat_dir, 'adata', 'adata_processed.h5ad'))
+adata_processed.write_h5ad(os.path.join(ANALYSIS_DIR, 'adata', 'adata_processed.h5ad'))
 
 # Save finalized tables to csv
-os.makedirs(os.path.join(SpaceCat_dir, 'SpaceCat'), exist_ok=True)
-adata_processed.uns['combined_feature_data'].to_csv(os.path.join(SpaceCat_dir, 'SpaceCat', 'combined_feature_data.csv'), index=False)
-adata_processed.uns['combined_feature_data_filtered'].to_csv(os.path.join(SpaceCat_dir, 'SpaceCat', 'combined_feature_data_filtered.csv'), index=False)
-adata_processed.uns['feature_metadata'].to_csv(os.path.join(SpaceCat_dir, 'SpaceCat', 'feature_metadata.csv'), index=False)
-adata_processed.uns['excluded_features'].to_csv(os.path.join(SpaceCat_dir, 'SpaceCat', 'excluded_features.csv'), index=False)
+adata_processed.uns['combined_feature_data'].to_csv(os.path.join(ANALYSIS_DIR, 'combined_feature_data.csv'), index=False)
+adata_processed.uns['combined_feature_data_filtered'].to_csv(os.path.join(ANALYSIS_DIR, 'combined_feature_data_filtered.csv'), index=False)
+adata_processed.uns['feature_metadata'].to_csv(os.path.join(ANALYSIS_DIR, 'feature_metadata.csv'), index=False)
+adata_processed.uns['excluded_features'].to_csv(os.path.join(ANALYSIS_DIR, 'excluded_features.csv'), index=False)
+
+# filter out immune_agg features
+combined_feature_data = pd.read_csv(os.path.join(ANALYSIS_DIR, 'combined_feature_data.csv'))
+combined_feature_data = combined_feature_data[~combined_feature_data.feature_name_unique.str.contains('immune_agg')]
+combined_feature_data.to_csv(os.path.join(ANALYSIS_DIR, 'combined_feature_data.csv'), index=False)
+
+combined_feature_data_filtered = pd.read_csv(os.path.join(ANALYSIS_DIR, 'combined_feature_data_filtered.csv'))
+combined_feature_data_filtered = combined_feature_data_filtered[~combined_feature_data_filtered.feature_name_unique.str.contains('immune_agg')]
+combined_feature_data_filtered.to_csv(os.path.join(ANALYSIS_DIR, 'combined_feature_data_filtered.csv'), index=False)
+
+feature_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_metadata.csv'))
+feature_metadata = feature_metadata[~feature_metadata.feature_name_unique.str.contains('immune_agg')]
+feature_metadata.to_csv(os.path.join(ANALYSIS_DIR, 'feature_metadata.csv'), index=False)
+
+excluded_features = pd.read_csv(os.path.join(ANALYSIS_DIR, 'excluded_features.csv'))
+excluded_features = excluded_features[~excluded_features.feature_name_unique.str.contains('immune_agg')]
+excluded_features.to_csv(os.path.join(ANALYSIS_DIR, 'excluded_features.csv'), index=False)
+
 
 ## run 7_create_evolution_df.py and, nivo_outcomes.py, &
