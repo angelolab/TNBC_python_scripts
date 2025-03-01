@@ -94,4 +94,22 @@ rna_counts = rna_counts.rename(columns={0: 'RNA samples'})
 
 all_counts = mibi_counts.merge(rna_counts, on=['Patient_ID', 'Timepoint'], how='outer').fillna(0)
 all_counts['MIBI fovs'] = all_counts['MIBI fovs'].astype(int)
-all_counts.sort_values(by=['Patient_ID', 'Timepoint']).to_csv(os.path.join(save_dir, 'Supplementary_Table_7.csv'), index=False)
+all_counts.sort_values(by=['Patient_ID', 'Timepoint']).to_csv(os.path.join(save_dir, 'Supplementary_Table_7.csv'), index = False)
+
+# feature lists for timepoint models
+prediction_dir = os.path.join(BASE_DIR, 'TONIC_SpaceCat/SpaceCat/prediction_model_all_features/patient_outcomes')
+for tp in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
+    df = pd.read_csv(os.path.join(prediction_dir, f'top_features_results_{tp}_MIBI.csv'))
+    df = df.replace('NA', np.nan)
+    df.to_csv(os.path.join(prediction_dir, f'top_features_results_{tp}_MIBI.csv'), index=False)
+
+primary_fts = pd.read_csv(os.path.join(prediction_dir, 'top_features_results_primary_MIBI.csv'))
+baseline_fts = pd.read_csv(os.path.join(prediction_dir, 'top_features_results_baseline_MIBI.csv'))
+pre_nivo_fts = pd.read_csv(os.path.join(prediction_dir, 'top_features_results_pre_nivo_MIBI.csv'))
+on_nivo_fts = pd.read_csv(os.path.join(prediction_dir, 'top_features_results_on_nivo_MIBI.csv'))
+
+with pd.ExcelWriter(os.path.join(save_dir, 'Supplementary_Table_8.xlsx')) as writer:
+    primary_fts.to_excel(writer, sheet_name='primary_model_features', index=False)
+    baseline_fts.to_excel(writer, sheet_name='baseline_model_features', index=False)
+    pre_nivo_fts.to_excel(writer, sheet_name='pr_nivo_model_features', index=False)
+    on_nivo_fts.to_excel(writer, sheet_name='on_nivo_model_features', index=False)
