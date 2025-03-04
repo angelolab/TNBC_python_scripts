@@ -23,11 +23,12 @@ random.seed(13)
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
-ANALYSIS_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files"
-INTERMEDIATE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files"
-OUTPUT_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/output_files"
-REVIEW_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs/review_figures"
-SPACECAT_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/TONIC_SpaceCat"
+BASE_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
+ANALYSIS_DIR = os.path.join(BASE_DIR, "analysis_files")
+INTERMEDIATE_DIR = os.path.join(BASE_DIR, "intermediate_files")
+OUTPUT_DIR = os.path.join(BASE_DIR, "output_files")
+REVIEW_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs/review_figures")
+SPACECAT_DIR = os.path.join(BASE_DIR, "TONIC_SpaceCat")
 
 
 ## 2.5 & 4.3 SpaceCat prediction comparison ##
@@ -220,7 +221,6 @@ sns.despine()
 plt.savefig(os.path.join(NT_viz_dir, 'NT_prediction_comparison.pdf'), bbox_inches='tight', dpi=300)
 
 # TONIC DATA COMPARISON
-BASE_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
 SpaceCat_dir = os.path.join(BASE_DIR, 'TONIC_SpaceCat')
 
 # add interaction features
@@ -1119,7 +1119,31 @@ sns.despine()
 plt.savefig(os.path.join(REVIEW_FIG_DIR, 'evolution_features_and_multimodal_modeling', 'combined_model_prediction.pdf'), bbox_inches='tight', dpi=300)
 
 
+## 4.2 Keren et al comparison ##
+combined_df = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features.csv'))
+
+# generate summary plots
+plt_titles = {'primary': 'Primary', 'baseline': 'Baseline', 'pre_nivo': 'Pre nivo', 'on_nivo': 'On nivo'}
+for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
+
+    plot_df = combined_df.loc[(combined_df.feature_name_unique == 'Cancer_Immune_mixing_score') &
+                              (combined_df.Timepoint == timepoint), :]
+    fig, ax = plt.subplots(1, 1, figsize=(2, 4))
+    sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                  color='black', ax=ax)
+    sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                color='grey', ax=ax, showfliers=False, width=0.3)
+    ax.set_title(plt_titles[timepoint])
+    ax.set_ylabel('Cancer/Immune Mixing Score')
+    ax.set_ylim([0, 0.3])
+    sns.despine()
+    plt.tight_layout()
+    plt.savefig(os.path.join(REVIEW_FIG_DIR, 'Cancer_Immune_mixing', '{}.pdf'.format(timepoint)))
+    plt.close()
+
+
 ## 4.4 Limit multivariate model features ##
+
 limit_features_dir = os.path.join(REVIEW_FIG_DIR, 'limit_model_features')
 
 preds_5 = pd.read_csv(os.path.join(limit_features_dir, 'prediction_model_5/patient_outcomes/all_timepoints_results_MIBI.csv'))
