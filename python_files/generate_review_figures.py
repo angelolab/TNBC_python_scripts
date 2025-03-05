@@ -527,6 +527,25 @@ venny4py(sets=sets, colors="yb")
 plt.title("On-treatment Features")
 plt.savefig(os.path.join(NT_viz_dir, 'SpaceCat_on_treatment_features.pdf'), bbox_inches='tight', dpi=300)
 
+# plot top baseline features
+combined_df = pd.read_csv(os.path.join(NT_DIR, 'SpaceCat/analysis_files/timepoint_combined_features_immunotherapy+chemotherapy.csv'))
+for timepoint in ['Baseline', 'On-treatment']:
+    for feature, plot_name, lims in zip(['Ki67+__Treg__cancer_border', 'Ki67+__Treg__stroma_core', 'T_diversity__cancer_core'],
+                                  ['11d', '11e', '11f'], [[0, 0.8], [0, 0.6], [0, 1.7]]):
+
+        plot_df = combined_df.loc[(combined_df.feature_name_unique == feature) &
+                                  (combined_df.Timepoint == timepoint), :]
+
+        fig, ax = plt.subplots(1, 1, figsize=(2, 4))
+        sns.stripplot(data=plot_df, x='pCR', y='raw_mean', order=['pCR', 'RD'], color='black', ax=ax)
+        sns.boxplot(data=plot_df, x='pCR', y='raw_mean', order=['pCR', 'RD'], color='grey', ax=ax, showfliers=False, width=0.3)
+        ax.set_title(timepoint)
+        ax.set_ylim(lims)
+        sns.despine()
+        plt.tight_layout()
+        plt.savefig(os.path.join(REVIEW_FIG_DIR, 'review_figures/NTPublic/baseline_top_features', '{}_{}.pdf'.format(feature, timepoint)))
+        plt.close()
+
 
 ## 3.2 Low cellularity ##
 low_cellularity_viz_dir = os.path.join(REVIEW_FIG_DIR, 'low_cellularity')
