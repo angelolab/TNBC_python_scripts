@@ -11,6 +11,8 @@ from sklearn.cluster import KMeans
 from venny4py.venny4py import venny4py
 import matplotlib.patches as mpatches
 from statsmodels.stats.multitest import multipletests
+from sklearn.preprocessing import MinMaxScaler
+from matplotlib.patches import Rectangle
 
 from SpaceCat.preprocess import preprocess_table
 from SpaceCat.features import SpaceCat
@@ -1164,7 +1166,8 @@ sns.despine()
 plt.savefig(os.path.join(REVIEW_FIG_DIR, 'evolution_features_and_multimodal_modeling', 'combined_model_prediction.pdf'), bbox_inches='tight', dpi=300)
 
 
-## 4.2 Keren et al comparison ##
+## 4.2 Keren et al & Wang et al context comparison ##
+# mixing scores
 combined_df = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features.csv'))
 
 # generate summary plots
@@ -1185,6 +1188,306 @@ for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
     plt.tight_layout()
     plt.savefig(os.path.join(REVIEW_FIG_DIR, 'Cancer_Immune_mixing', '{}.pdf'.format(timepoint)))
     plt.close()
+
+# NT features for Figure 4
+params = {
+    'SpaceCat': {
+        'APC__proportion_of__Mono_Mac': 'Baseline',
+        'APC__proportion_of__Mono_Mac__cancer_border': 'Baseline__On-treatment',
+        'APC__proportion_of__Mono_Mac__cancer_core': 'On-treatment',
+        'APC__proportion_of__Mono_Mac__stroma_core': 'Baseline',
+        'AR+__Epithelial_2': 'On-treatment',
+        'AR+__Epithelial_2__stroma_core': 'On-treatment',
+        'B__Epithelial__ratio': 'On-treatment',
+        'B__Structural__ratio': 'Baseline',
+        'B__Structural__ratio__cancer_border': 'Baseline',
+        'B__Structural__ratio__stroma_border': 'Baseline',
+        'B__Structural__ratio__stroma_core': 'Baseline',
+        'B_diversity': 'On-treatment',
+        'B_diversity__stroma_border': 'Baseline',
+        'B_diversity__stroma_core': 'On-treatment',
+        'CD8T__cell_cluster_density': 'On-treatment',
+        'CD8T__cell_cluster_density__stroma_border': 'Baseline__On-treatment',
+        'CD8T__cell_cluster_density__stroma_core': 'Baseline__On-treatment',
+        'CD8T__proportion_of__T': 'On-treatment',
+        'DC__proportion_of__Mono_Mac__cancer_border': 'On-treatment',
+        'DC__proportion_of__Mono_Mac__stroma_border': 'On-treatment',
+        'Epithelial_3__cell_cluster_density': 'Baseline',
+        'Epithelial_3__cell_cluster_density__cancer_border': 'Baseline',
+        'Epithelial_3__cell_cluster_density__cancer_core': 'Baseline',
+        'Epithelial_Structural_mixing_score': 'On-treatment',
+        'Epithelial__Granulocyte__ratio': 'On-treatment',
+        'Epithelial__Mono_Mac__ratio': 'On-treatment',
+        'Epithelial__NK__ratio': 'On-treatment',
+        'Epithelial__NK__ratio__stroma_core': 'On-treatment',
+        'Epithelial__Structural__ratio': 'On-treatment',
+        'Epithelial__T__ratio': 'Baseline__On-treatment',
+        'Epithelial_diversity__cancer_core': 'On-treatment',
+        'GATA3+__Epithelial_1__stroma_border': 'On-treatment',
+        'GZMB+__APC__stroma_border': 'On-treatment',
+        'GZMB+__CD4T__stroma_core': 'On-treatment',
+        'GZMB+__CD8T': 'Baseline',
+        'GZMB+__Epithelial_3': 'On-treatment',
+        'GZMB+__Epithelial_3__cancer_border': 'On-treatment',
+        'GZMB+__Epithelial_3__cancer_core': 'On-treatment',
+        'GZMB+__Neutrophil': 'On-treatment',
+        'GZMB+__all': 'On-treatment',
+        'Granulocyte__Mono_Mac__ratio__stroma_border': 'On-treatment',
+        'Granulocyte__T__ratio__stroma_border': 'On-treatment',
+        'HLA-ABC+__Epithelial_3': 'Baseline__On-treatment',
+        'HLA-ABC+__Epithelial_3__stroma_border': 'On-treatment',
+        'HLA-DR+__APC__cancer_core': 'Baseline',
+        'HLA-DR+__Epithelial_3__cancer_core': 'On-treatment',
+        'HLA-DR+__Epithelial_3__stroma_border': 'Baseline__On-treatment',
+        'HLA-DR+__Epithelial_3__stroma_core': 'Baseline',
+        'Helios+__Neutrophil__cancer_border': 'On-treatment',
+        'ICOS+__CD4T': 'Baseline',
+        'Ki67+__CD4T__stroma_border': 'Baseline',
+        'Ki67+__CD8T': 'Baseline',
+        'Ki67+__CD8T__cancer_border': 'Baseline',
+        'Ki67+__Epithelial_1': 'Baseline',
+        'Ki67+__Epithelial_1__stroma_border': 'Baseline',
+        'Ki67+__Epithelial_1__stroma_core': 'Baseline',
+        'Ki67+__Epithelial_2': 'Baseline',
+        'Ki67+__Epithelial_2__cancer_border': 'Baseline',
+        'Ki67+__Epithelial_3': 'Baseline',
+        'Ki67+__Epithelial_3__stroma_border': 'Baseline',
+        'Ki67+__Treg__cancer_border': 'Baseline',
+        'Ki67+__Treg__stroma_core': 'Baseline',
+        'Ki67+__all': 'Baseline',
+        'Ki67__GATA3+__Epithelial_2': 'Baseline',
+        'Mono_Mac__Structural__ratio__cancer_core': 'Baseline__On-treatment',
+        'Mono_Mac_diversity__cancer_core': 'Baseline',
+        'Mono_Mac_diversity__stroma_border': 'Baseline__On-treatment',
+        'PD-L1 (73-10)+__CD4T__cancer_border': 'On-treatment',
+        'PD-L1 (73-10)+__CD4T__cancer_core': 'On-treatment',
+        'PD-L1 (73-10)+__CD8T__stroma_core': 'Baseline',
+        'PD-L1 (73-10)+__DC__cancer_border': 'On-treatment',
+        'PD-L1 (73-10)+__Epithelial_3__cancer_core': 'On-treatment',
+        'PD-L1 (73-10)+__Epithelial_3__stroma_border': 'On-treatment',
+        'PD-L1 (73-10)+__M2_Mac': 'Baseline',
+        'PD-L1 (73-10)+__Treg__cancer_border': 'On-treatment',
+        'PD-L1 (73-10)+__Treg__stroma_border': 'Baseline__On-treatment',
+        'PD-L1 (73-10)+__Treg__stroma_core': 'Baseline',
+        'PD-L1 (SP142)+__APC__cancer_border': 'On-treatment',
+        'PD-L1 (SP142)+__APC__stroma_border': 'On-treatment',
+        'Structural__T__ratio': 'Baseline__On-treatment',
+        'Structural__T__ratio__cancer_core': 'Baseline__On-treatment',
+        'T-bet+__CD8T__cancer_core': 'Baseline',
+        'T-bet+__Treg__cancer_core': 'Baseline',
+        'T-bet+__Treg__stroma_border': 'Baseline',
+        'TCF1+__Epithelial_3__stroma_border': 'On-treatment',
+        'T_diversity__cancer_core': 'Baseline',
+        'T_diversity__stroma_border': 'On-treatment',
+        'Vimentin+__M2_Mac__cancer_core': 'Baseline',
+        'all__total_density': 'Baseline',
+        'all__total_density__cancer_border': 'Baseline',
+        'all__total_density__cancer_core': 'Baseline',
+        'cancer_border__proportion': 'On-treatment',
+        'diversity_cell_cluster__B__stroma_core': 'Baseline',
+        'diversity_cell_cluster__CD8T__stroma_core': 'Baseline',
+        'diversity_cell_cluster__Epithelial_3__stroma_border': 'Baseline__On-treatment',
+        'diversity_cell_cluster__Fibroblast__stroma_border': 'Baseline',
+        'pH2AX__HLA-ABC+__Epithelial_3__stroma_border': 'On-treatment',
+        'pH2AX__PD-L1 (73-10)+__APC__cancer_border': 'Baseline',
+        'stroma_border__proportion': 'On-treatment'
+    },
+    'SpaceCat_NT_combined': {
+        'APC__proportion_of__Mono_Mac': 'Baseline',
+        'APC__proportion_of__Mono_Mac__cancer_border': 'Baseline__On-treatment',
+        'APC__proportion_of__Mono_Mac__cancer_core': 'On-treatment',
+        'APC__proportion_of__Mono_Mac__stroma_core': 'Baseline',
+        'AR+__Epithelial_2__stroma_core': 'On-treatment',
+        'B__Epithelial__ratio': 'On-treatment',
+        'B__Structural__ratio': 'Baseline',
+        'B__Structural__ratio__cancer_border': 'Baseline',
+        'B__Structural__ratio__stroma_border': 'Baseline',
+        'B__Structural__ratio__stroma_core': 'Baseline',
+        'B_diversity': 'On-treatment',
+        'B_diversity__stroma_border': 'Baseline',
+        'B_diversity__stroma_core': 'On-treatment',
+        'CD8T__TMEHom': 'On-treatment',
+        'CD8T__cell_cluster_density': 'On-treatment',
+        'CD8T__cell_cluster_density__stroma_border': 'Baseline__On-treatment',
+        'CD8T__cell_cluster_density__stroma_core': 'Baseline__On-treatment',
+        'CD8T__proportion_of__T': 'On-treatment',
+        'DC__proportion_of__Mono_Mac__cancer_border': 'On-treatment',
+        'DC__proportion_of__Mono_Mac__stroma_border': 'On-treatment',
+        'Epithelial_3__EpiHet': 'Baseline',
+        'Epithelial_3__cell_cluster_density': 'Baseline',
+        'Epithelial_3__cell_cluster_density__cancer_border': 'Baseline',
+        'Epithelial_Structural_mixing_score': 'On-treatment',
+        'Epithelial__Granulocyte__ratio': 'On-treatment',
+        'Epithelial__Mono_Mac__ratio': 'On-treatment',
+        'Epithelial__NK__ratio': 'On-treatment',
+        'Epithelial__NK__ratio__stroma_core': 'On-treatment',
+        'Epithelial__Structural__ratio': 'On-treatment',
+        'Epithelial__T__ratio': 'On-treatment',
+        'Epithelial_diversity__cancer_core': 'On-treatment',
+        'GATA3+__Epithelial_1__stroma_border': 'On-treatment',
+        'GZMB+__CD4T__stroma_core': 'On-treatment',
+        'GZMB+__CD8T': 'Baseline',
+        'GZMB+__Epithelial_3': 'On-treatment',
+        'GZMB+__Epithelial_3__cancer_border': 'On-treatment',
+        'GZMB+__Epithelial_3__cancer_core': 'On-treatment',
+        'GZMB+__Neutrophil': 'On-treatment',
+        'GZMB+__all': 'On-treatment',
+        'Granulocyte__Mono_Mac__ratio__stroma_border': 'On-treatment',
+        'Granulocyte__T__ratio__stroma_border': 'On-treatment',
+        'HLA-ABC+__Epithelial_3': 'Baseline__On-treatment',
+        'HLA-ABC+__Epithelial_3__stroma_border': 'On-treatment',
+        'HLA-DR+__APC__cancer_core': 'Baseline',
+        'HLA-DR+__Epithelial_3__cancer_core': 'On-treatment',
+        'HLA-DR+__Epithelial_3__stroma_border': 'Baseline__On-treatment',
+        'HLA-DR+__Epithelial_3__stroma_core': 'Baseline',
+        'Helios+__Neutrophil__cancer_border': 'On-treatment',
+        'ICOS+__CD4T': 'Baseline',
+        'Ki67+__CD4T__stroma_border': 'Baseline',
+        'Ki67+__CD8T': 'Baseline',
+        'Ki67+__CD8T__cancer_border': 'Baseline',
+        'Ki67+__Epithelial_1': 'Baseline',
+        'Ki67+__Epithelial_1__stroma_border': 'Baseline',
+        'Ki67+__Epithelial_1__stroma_core': 'Baseline',
+        'Ki67+__Epithelial_2': 'Baseline',
+        'Ki67+__Epithelial_2__cancer_border': 'Baseline',
+        'Ki67+__Epithelial_3': 'Baseline',
+        'Ki67+__Epithelial_3__stroma_border': 'Baseline',
+        'Ki67+__Treg__cancer_border': 'Baseline',
+        'Ki67+__Treg__stroma_core': 'Baseline',
+        'Ki67+__all': 'Baseline',
+        'Ki67__GATA3+__Epithelial_2': 'Baseline',
+        'M2_Mac__TMEHom': 'On-treatment',
+        'Mono_Mac__Structural__ratio__cancer_core': 'Baseline__On-treatment',
+        'Mono_Mac_diversity__cancer_core': 'Baseline',
+        'Mono_Mac_diversity__stroma_border': 'Baseline__On-treatment',
+        'PD-L1 (73-10)+__CD4T__cancer_border': 'On-treatment',
+        'PD-L1 (73-10)+__CD4T__cancer_core': 'On-treatment',
+        'PD-L1 (73-10)+__CD8T__stroma_core': 'Baseline',
+        'PD-L1 (73-10)+__DC__cancer_border': 'On-treatment',
+        'PD-L1 (73-10)+__Epithelial_3__cancer_core': 'On-treatment',
+        'PD-L1 (73-10)+__Epithelial_3__stroma_border': 'On-treatment',
+        'PD-L1 (73-10)+__M2_Mac': 'Baseline',
+        'PD-L1 (73-10)+__Treg__cancer_border': 'On-treatment',
+        'PD-L1 (73-10)+__Treg__stroma_border': 'On-treatment',
+        'PD-L1 (73-10)+__Treg__stroma_core': 'Baseline',
+        'PD-L1 (SP142)+__APC__cancer_border': 'On-treatment',
+        'PD-L1 (SP142)+__APC__stroma_border': 'On-treatment',
+        'Structural__T__ratio': 'Baseline__On-treatment',
+        'Structural__T__ratio__cancer_core': 'Baseline__On-treatment',
+        'T-bet+__CD8T__cancer_core': 'Baseline',
+        'T-bet+__Treg__cancer_core': 'Baseline',
+        'T-bet+__Treg__stroma_border': 'Baseline',
+        'TCF1+__Epithelial_3__stroma_border': 'On-treatment',
+        'T_diversity__cancer_core': 'Baseline',
+        'T_diversity__stroma_border': 'On-treatment',
+        'Vimentin+__M2_Mac__cancer_core': 'Baseline',
+        'all__total_density': 'Baseline',
+        'all__total_density__cancer_border': 'Baseline',
+        'all__total_density__cancer_core': 'Baseline',
+        'cancer_border__proportion': 'On-treatment',
+        'diversity_cell_cluster__B__stroma_core': 'Baseline',
+        'diversity_cell_cluster__CD8T__stroma_core': 'Baseline',
+        'diversity_cell_cluster__Epithelial_3__stroma_border': 'Baseline__On-treatment',
+        'diversity_cell_cluster__Fibroblast__stroma_border': 'Baseline',
+        'pH2AX__HLA-ABC+__Epithelial_3__stroma_border': 'On-treatment',
+        'pH2AX__PD-L1 (73-10)+__APC__cancer_border': 'Baseline',
+        'stroma_border__proportion': 'On-treatment'
+    }
+}
+for dir_name, feat_timepoint_dict in params:
+    metadata_dir = os.path.join(BASE_DIR, 'NTPublic/intermediate_files/metadata')
+    plot_dir = os.path.join(REVIEW_FIG_DIR, 'NTPublic/Figure4', dir_name)
+    os.makedirs(plot_dir, exist_ok=True)
+
+    # load files
+    harmonized_metadata = pd.read_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'))
+    ranked_features_all = pd.read_csv(os.path.join(BASE_DIR, 'NTPublic', dir_name, 'analysis_files/feature_ranking_immunotherapy+chemotherapy.csv'))
+    ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['Baseline', 'On-treatment'])]
+    top_features = ranked_features.loc[ranked_features.comparison.isin(['Baseline', 'On-treatment']), :]
+    top_features = top_features.iloc[:100, :]
+
+    # summarize distribution of top features
+    top_features_by_comparison = top_features[['feature_name_unique', 'comparison']].groupby('comparison').count().reset_index()
+    top_features_by_comparison.columns = ['comparison', 'num_features']
+    top_features_by_comparison = top_features_by_comparison.sort_values('num_features', ascending=False)
+    fig, ax = plt.subplots(figsize=(4, 4))
+    sns.barplot(data=top_features_by_comparison, x='comparison', y='num_features', color='grey', ax=ax)
+    plt.xticks(rotation=90)
+    plt.tight_layout()
+    sns.despine()
+    plt.savefig(os.path.join(plot_dir, 'Figure4a_num_features.pdf'))
+    plt.close()
+
+    # heatmap of top features over time
+    timepoints = ['Baseline', 'On-treatment']
+    timepoint_features = pd.read_csv(os.path.join(BASE_DIR, 'NTPublic', dir_name, 'analysis_files/timepoint_combined_features_immunotherapy+chemotherapy.csv'))
+    feature_ranking_df = pd.read_csv(os.path.join(BASE_DIR, 'NTPublic', dir_name, 'analysis_files/feature_ranking_immunotherapy+chemotherapy.csv'))
+    feature_ranking_df = feature_ranking_df[np.isin(feature_ranking_df['comparison'], timepoints)]
+    feature_ranking_df = feature_ranking_df.sort_values(by='feature_rank_global', ascending=True)
+
+    #access the top response-associated features
+    top_features = np.unique(feature_ranking_df.loc[:, 'feature_name_unique'][:100])
+    perc = np.percentile(feature_ranking_df.importance_score, 90)
+    feature_ranking_df = feature_ranking_df[feature_ranking_df['importance_score'] > perc]
+
+    #min max scale the importance scores (scales features from 0 to 1)
+    scaled_perc_scores = MinMaxScaler().fit_transform(feature_ranking_df['importance_score'].values.reshape(-1,1))
+    feature_ranking_df.loc[:, 'scaled_percentile_importance'] = scaled_perc_scores
+
+    #pivot the dataframe for plotting (feature x timepoint)
+    pivot_df = feature_ranking_df.loc[:, ['scaled_percentile_importance', 'feature_name_unique', 'comparison']].pivot(index = 'feature_name_unique', columns = 'comparison')
+    pivot_df.columns = pivot_df.columns.droplevel(0)
+    pivot_df = pivot_df.loc[:, timepoints] #reorder
+    pivot_df.fillna(0, inplace=True) #set features with nan importance scores (i.e. not in the top 90th percentile) to 0
+    pivot_df = pivot_df.loc[top_features, :]
+
+    #access the top 100 feature-timepoint pairs
+    pivot_df_top = feature_ranking_df[:100].loc[:, ['scaled_percentile_importance', 'feature_name_unique', 'comparison']].pivot(index='feature_name_unique', columns = 'comparison')
+    pivot_df_top.columns = pivot_df_top.columns.droplevel(0)
+    pivot_df_top = pivot_df_top.loc[:, timepoints] #reorder
+    pivot_df_top.fillna(0, inplace=True) #set features with nan importance scores (i.e. not in the top 90th percentile) to 0
+
+    #sort dataframe by delta group and get the order of the ticks
+    pivot_df["group"] = pivot_df.index.map(feat_timepoint_dict)
+    pivot_df["group"] = pd.Categorical(pivot_df["group"], categories=['Baseline__On-treatment', 'Baseline', 'On-treatment'], ordered=True)
+    pivot_df.index.name='idx'
+    pivot_df.sort_values(by=["group", "idx"], inplace=True)
+    xlabs = list(pivot_df.index)
+
+    #plot clustermap
+    cmap = ['#D8C198', '#D88484', '#5AA571', '#4F8CBE']
+    sns.set_style('ticks')
+    pivot_df_run = pivot_df.loc[xlabs, :].copy()
+    pivot_df_run.drop(columns=['group'], inplace=True)
+    pivot_df_top_run = pivot_df_top.loc[xlabs, :].copy()
+    g = sns.clustermap(data=pivot_df_run, yticklabels=True, cmap='Blues', vmin=0, vmax=1, row_cluster=False,
+                       col_cluster=False, figsize=(5, 15), cbar_pos=(1, .03, .02, .1), dendrogram_ratio=0.1, colors_ratio=0.01,
+                       col_colors=cmap)
+    g.tick_params(labelsize=12)
+    ax = g.ax_heatmap
+    ax.set_ylabel('Response-associated Features', fontsize = 12)
+    ax.set_xlabel('Timepoint', fontsize = 12)
+    ax.axvline(x=0, color='k',linewidth=2.5)
+    ax.axvline(x=1, color='k',linewidth=1.5)
+    ax.axvline(x=2, color='k',linewidth=1.5)
+    ax.axvline(x=3, color='k',linewidth=1.5)
+    ax.axvline(x=4, color='k',linewidth=2.5)
+    ax.axhline(y=0, color='k',linewidth=2.5)
+    ax.axhline(y=len(pivot_df), color='k', linewidth=2.5)
+
+    x0, _y0, _w, _h = g.cbar_pos
+    for spine in g.ax_cbar.spines:
+        g.ax_cbar.spines[spine].set_color('k')
+        g.ax_cbar.spines[spine].set_linewidth(1)
+
+    for i in range(0, pivot_df_top_run.shape[0]):
+        row = pivot_df_top_run.astype('bool').iloc[i, :]
+        ids = np.where(row==True)[0]
+        for id in ids:
+            rect = Rectangle((id, i), 1, 1, fill=False, edgecolor='red', lw=0.5, zorder=10)
+            g.ax_heatmap.add_patch(rect)
+            plt.draw()
+    plt.savefig(os.path.join(plot_dir, 'Figure4b.pdf'), bbox_inches='tight', dpi=300)
 
 
 ## 4.4 Limit multivariate model features ##
@@ -1231,7 +1534,7 @@ plt.savefig(os.path.join(limit_features_dir, 'feature_cap_prediction_comparisons
 reclustering_dir = os.path.join(REVIEW_FIG_DIR, "Cancer_reclustering")
 os.makedirs(reclustering_dir, exist_ok=True)
 
-adata = anndata.read_h5ad(os.path.join(SPACECAT_DIR, 'adata', 'adata_preprocessed.h5ad'))
+adata = anndata.read_h5ad(os.path.join(SPACECAT_DIR, 'SpaceCat', 'adata_processed.h5ad'))
 cell_table = adata.obs
 cancer_cells = cell_table[cell_table.cell_cluster_broad == 'Cancer']
 non_cancer_cells = cell_table[cell_table.cell_cluster_broad != 'Cancer']
