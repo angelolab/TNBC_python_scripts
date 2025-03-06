@@ -433,7 +433,7 @@ pd.DataFrame(clustergrid.data2d.index).to_csv(os.path.join(NT_viz_dir, 'mixing_s
 plt.close()
 
 
-## 2.8 / 4.8  Pre-treatment and On-treatment NT vs TONIC comparisons
+## 2.8 / 4.8  Pre-treatment and On-treatment NT vs TONIC comparisons ##
 # Original NT features
 file_path = os.path.join(NT_DIR, '/data/41586_2023_6498_MOESM3_ESM.xlsx')
 NT_features = pd.read_excel(file_path, sheet_name=None)
@@ -545,6 +545,32 @@ for timepoint in ['Baseline', 'On-treatment']:
         plt.tight_layout()
         plt.savefig(os.path.join(REVIEW_FIG_DIR, 'review_figures/NTPublic/baseline_top_features', '{}_{}.pdf'.format(feature, timepoint)))
         plt.close()
+
+
+## 2.9 Feature correlation plot ##
+# cluster features together to identify modules
+fov_data_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/combined_feature_data_filtered.csv'))
+fov_data_wide = fov_data_df.pivot(index='fov', columns='feature_name_unique', values='normalized_value')
+corr_df = fov_data_wide.corr(method='spearman')
+corr_df = corr_df.fillna(0)
+
+clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+matrix_order = clustergrid.dendrogram_row.reordered_ind
+
+new_tick_positions = [(i+1)-0.5 for i in range(len(matrix_order)) if (i+1)%10==0]
+new_tick_labels = [str(i+1) for i in range(len(matrix_order)) if (i+1)%10==0]
+clustergrid.ax_heatmap.set_xticks(new_tick_positions)
+clustergrid.ax_heatmap.set_yticks(new_tick_positions)
+clustergrid.ax_heatmap.set_xticklabels(new_tick_labels)
+clustergrid.ax_heatmap.set_yticklabels(new_tick_labels)
+
+clustergrid.savefig(os.path.join(os.path.join(REVIEW_FIG_DIR, 'Correlation clustermap', 'cluster_test.pdf')), dpi=300)
+plt.close()
+
+# save csv with feature order
+feature_order = [corr_df.columns[i] for i in matrix_order]
+correlation_feature_order = pd.DataFrame({'Clustermap index': range(1, len(matrix_order)+1), 'Feature name including compartment': feature_order})
+correlation_feature_order.to_csv(os.path.join(REVIEW_FIG_DIR, 'Correlation clustermap', 'clustermap_feature_order.csv'), index=False)
 
 
 ## 3.2 Low cellularity ##
