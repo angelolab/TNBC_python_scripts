@@ -1529,7 +1529,7 @@ plt.gca().legend(loc='lower right').set_title('')
 plt.savefig(os.path.join(limit_features_dir, 'feature_cap_prediction_comparisons.pdf'), bbox_inches='tight', dpi=300)
 
 
-## 4.5 Other/Stroma_Collagen/Stroma_Fibronectin to Cancer reassignment ##
+## 4.5 Other/Stroma_Collagen/Stroma_Fibronectin/SMA/VIM to Cancer reassignment ##
 
 reclustering_dir = os.path.join(REVIEW_FIG_DIR, "Cancer_reclustering")
 os.makedirs(reclustering_dir, exist_ok=True)
@@ -1574,7 +1574,7 @@ plt.ylabel('Density')
 plt.savefig(os.path.join(reclustering_dir, 'cancer_neighborhood_proportion_cancer.pdf'), bbox_inches='tight')
 
 
-neighborhood_counts = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/spatial_analysis/neighborhood_mats/neighborhood_counts-cell_meta_cluster_radius50.csv')
+neighborhood_counts = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'spatial_analysis/neighborhood_mats/neighborhood_counts-cell_meta_cluster_radius50.csv'))
 neighborhood_counts = neighborhood_counts[neighborhood_counts.fov.isin(cell_table.fov.unique())]
 cancer_cell_types = ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad', 'Cancer_SMA', 'Cancer_Vim', 'Cancer_Other',
                      'Cancer_Mono']
@@ -1582,7 +1582,7 @@ neighborhood_counts_meta = neighborhood_counts.iloc[:, :3]
 neighborhood_counts = neighborhood_counts.iloc[:, 3:]
 
 tables = {}
-for c in ['Other', 'Stroma_Collagen', 'Stroma_Fibronectin']:
+for c in ['Other', 'Stroma_Collagen', 'Stroma_Fibronectin', 'SMA', 'VIM']:
     neighborhood_counts_c = neighborhood_counts.drop(columns=[c])
     neighborhood_freqs_c = neighborhood_counts_c.div(neighborhood_counts_c.sum(axis=1), axis=0)
     neighborhood_freqs_c = neighborhood_counts_meta.merge(neighborhood_freqs_c, left_index=True, right_index=True)
@@ -1610,7 +1610,7 @@ fig, axes = plt.subplots(1, 3, figsize=(10, 4))
 fig.suptitle('Cancer cell proportion of cell neighborhoods')
 fig.supxlabel('Cancer proportion')
 fig.supylabel('Density')
-for c, ax in zip(['Other', 'Stroma_Collagen', 'Stroma_Fibronectin'], axes.flat):
+for c, ax in zip(['Other', 'Stroma_Collagen', 'Stroma_Fibronectin', 'SMA', 'VIM'], axes.flat):
     cluster_table_sub = cell_table_adj[cell_table_adj.cell_meta_cluster.isin([c, 'Cancer_new'])]
     ax.hist(cluster_table_sub.cancer_neighbors_prop, bins=20, density=True, rwidth=0.9, edgecolor='black')
     ax.set_xlim((0, 1))
@@ -1647,7 +1647,7 @@ grey_patch = mpatches.Patch(color='lightgrey', label='Original Cancer cells')
 plt.legend(handles=[green_patch, grey_patch])
 plt.savefig(os.path.join(reclustering_dir, 'Cancer_cell_new_proportions.pdf'), bbox_inches='tight')
 
-counts_table = cell_table_adj[cell_table_adj.cell_meta_cluster.isin(['Other', 'Stroma_Collagen', 'Stroma_Fibronectin'])][['cell_meta_cluster', 'cell_meta_cluster_new']]
+counts_table = cell_table_adj[cell_table_adj.cell_meta_cluster.isin(['Other', 'Stroma_Collagen', 'Stroma_Fibronectin', 'SMA', 'VIM'])][['cell_meta_cluster', 'cell_meta_cluster_new']]
 counts_table = counts_table.groupby(by=['cell_meta_cluster', 'cell_meta_cluster_new'], observed=True).value_counts().reset_index()
 counts_table.loc[counts_table.cell_meta_cluster_new!='Cancer_new', 'cell_meta_cluster_new'] = 'Same'
 counts_table = counts_table.pivot(index='cell_meta_cluster', columns='cell_meta_cluster_new', values='count').reset_index()
