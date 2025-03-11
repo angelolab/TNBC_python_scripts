@@ -1126,6 +1126,7 @@ overlap_features = list(set(static_ids).intersection(set(evolution_ids)))
 evolution_ids = [feature for feature in evolution_ids if feature not in overlap_features]
 evolution_feature_data = ranked_features[ranked_features.feature_name_unique.isin(evolution_ids)]
 evolution_feature_data = evolution_feature_data[evolution_feature_data.comparison.isin(['primary__baseline', 'baseline__pre_nivo', 'baseline__on_nivo', 'pre_nivo__on_nivo'])]
+evolution_feature_data = evolution_feature_data[evolution_feature_data.feature_rank_global_evolution <= 105]
 evolution_feature_data = evolution_feature_data[['feature_name_unique', 'log_pval', 'mean_diff', 'med_diff',
        'comparison', 'pval', 'fdr_pval', 'log10_qval', 'pval_rank', 'cor_rank',
        'combined_rank', 'importance_score', 'signed_importance_score',
