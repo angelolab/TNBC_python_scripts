@@ -64,6 +64,8 @@ feature_metadata.columns = ['Feature name', 'Feature name including compartment'
                             'Cell types used to calculate feature', 'Level of clustering granularity for cell types',
                             'Type of feature', 'Additional information about the feature', 'Additional information about the feature']
 
+correlation_feature_order = pd.read_csv(os.path.join(BASE_DIR, '/supplementary_figs/review_figures/Correlation clustermap/clustermap_feature_order.csv'))
+feature_metadata = feature_metadata.merge(correlation_feature_order, on='Feature name including compartment')
 feature_metadata.to_csv(os.path.join(save_dir, 'Supplementary_Table_4.csv'), index=False)
 
 # sequencing features
@@ -79,6 +81,7 @@ sub_columns = ['feature_name_unique', 'comparison', 'pval', 'fdr_pval', 'med_dif
                'combined_rank', 'importance_score', 'signed_importance_score',
                'feature_name', 'compartment', 'cell_pop_level', 'feature_type', 'feature_type_broad']
 feature_rank_sub = feature_rank[sub_columns]
+feature_rank_sub = feature_rank_sub[feature_rank_sub.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
 feature_rank_sub.to_csv(os.path.join(save_dir, 'Supplementary_Table_6.csv'), index=False)
 
 # FOV counts per patient and timepoint
@@ -102,23 +105,11 @@ for col in ['MIBI fovs', 'RNA samples', 'DNA samples']:
     all_counts[col] = all_counts[col].astype(int)
 all_counts.sort_values(by=['Patient_ID', 'Timepoint']).to_csv(os.path.join(save_dir, 'Supplementary_Table_7.csv'), index=False)
 
-# feature lists for timepoint models
-prediction_dir = os.path.join(BASE_DIR, 'TONIC_SpaceCat/SpaceCat/prediction_model_all_features/patient_outcomes')
-for tp in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
-    df = pd.read_csv(os.path.join(prediction_dir, f'top_features_results_{tp}_MIBI.csv'))
-    df = df.replace('NA', np.nan)
-    df.to_csv(os.path.join(prediction_dir, f'top_features_results_{tp}_MIBI.csv'), index=False)
-
-primary_fts = pd.read_csv(os.path.join(prediction_dir, 'top_features_results_primary_MIBI.csv'))
-baseline_fts = pd.read_csv(os.path.join(prediction_dir, 'top_features_results_baseline_MIBI.csv'))
-pre_nivo_fts = pd.read_csv(os.path.join(prediction_dir, 'top_features_results_pre_nivo_MIBI.csv'))
-on_nivo_fts = pd.read_csv(os.path.join(prediction_dir, 'top_features_results_on_nivo_MIBI.csv'))
-
-with pd.ExcelWriter(os.path.join(save_dir, 'Supplementary_Table_8.xlsx')) as writer:
-    primary_fts.to_excel(writer, sheet_name='primary_model_features', index=False)
-    baseline_fts.to_excel(writer, sheet_name='baseline_model_features', index=False)
-    pre_nivo_fts.to_excel(writer, sheet_name='pr_nivo_model_features', index=False)
-    on_nivo_fts.to_excel(writer, sheet_name='on_nivo_model_features', index=False)
+# top features for multivariate modeling
+all_model_rankings = pd.read_csv(os.path.join(BASE_DIR, 'multivariate_lasso/intermediate_results/all_model_rankings.csv'), index=False)
+top_model_features = all_model_rankings[all_model_rankings.top_ranked]
+top_model_features = top_model_features[['timepoint', 'modality', 'feature_name_unique', 'importance_score', 'coef_norm']]
+top_model_features.to_csv(os.path.join(save_dir, 'Supplementary_Table_8.csv'), index=False)
 
 # get overlap between static and evolution top features
 BASE_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/TONIC_SpaceCat/SpaceCat'
@@ -240,3 +231,17 @@ NT_SPACECAT_feats.sort()
 pre_treatment_table = pd.DataFrame({'TONIC features': pd.Series(TONIC_feats), 'Wang et al features': pd.Series(WANG_feats),
                                     'NT SpaceCat features': pd.Series(NT_SPACECAT_feats)})
 pre_treatment_table.to_csv(os.path.join(save_dir, 'Supplementary_Table_10.csv'), index=False)
+
+# NT feature ranking
+NT_DIR = '/Volumes/Shared/Noah Greenwald/NTPublic'
+feature_rank = pd.read_csv(os.path.join(NT_DIR, 'NT_features_only/analysis_files/feature_ranking_immunotherapy+chemotherapy.csv'))
+
+sub_columns = ['feature_name_unique', 'comparison', 'pval', 'fdr_pval', 'med_diff', 'pval_rank', 'cor_rank',
+               'combined_rank', 'importance_score', 'signed_importance_score',
+               'feature_name', 'compartment', 'cell_pop_level', 'feature_type', 'feature_type_broad']
+feature_rank_sub = feature_rank[sub_columns]
+feature_type_dict = {'functional_marker': 'phenotype', 'density': 'density', 'cell_interactions': 'interactions'}
+feature_rank_sub['feature_type_broad'] = feature_rank_sub.feature_type.map(feature_type_dict)
+feature_rank_sub = feature_rank_sub[feature_rank_sub.comparison.isin(['Baseline', 'On-treatment'])]
+
+feature_rank_sub.to_csv(os.path.join(save_dir, 'Supplementary_Table_11.csv'), index=False)
