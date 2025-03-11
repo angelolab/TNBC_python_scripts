@@ -6,6 +6,10 @@ import os
 import pandas as pd
 import numpy as np
 
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn import metrics
+
 
 BASE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/"
 ANALYSIS_DIR = os.path.join(BASE_DIR, 'analysis_files')
@@ -82,7 +86,33 @@ sub_columns = ['feature_name_unique', 'comparison', 'pval', 'fdr_pval', 'med_dif
                'feature_name', 'compartment', 'cell_pop_level', 'feature_type', 'feature_type_broad']
 feature_rank_sub = feature_rank[sub_columns]
 feature_rank_sub = feature_rank_sub[feature_rank_sub.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
-feature_rank_sub.to_csv(os.path.join(save_dir, 'Supplementary_Table_6.csv'), index=False)
+
+feature_values = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features.csv'))
+feature_values = feature_values[feature_values.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
+feature_tp_df = feature_values[['feature_name_unique', 'Timepoint']].drop_duplicates()
+
+feature_tp_df['AUC'] = np.nan
+for _, row in feature_tp_df.iterrows():
+    feature, tp, _ = row
+    data = feature_values.loc[
+        np.logical_and(feature_values.feature_name_unique == feature, feature_values.Timepoint == tp)]
+
+    X = data.raw_mean.values.reshape(-1, 1)
+    y = data.Clinical_benefit
+    try:
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=13, stratify=y)
+        model = LogisticRegression()
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        probabilities = model.predict_proba(X_test)[::, 1]
+        auc = metrics.roc_auc_score(y_test, probabilities)
+        feature_tp_df.loc[
+            np.logical_and(feature_values.feature_name_unique == feature, feature_values.Timepoint == tp), 'AUC'] = auc
+    except ValueError:
+        continue
+feature_tp_df = feature_tp_df.rename(columns={'Timepoint': 'comparison'})
+feature_rank__auc = feature_rank_sub.merge(feature_tp_df, on=['feature_name_unique', 'comparison'], how='left')
+feature_rank__auc.to_csv(os.path.join(save_dir, 'Supplementary_Table_6.csv'), index=False)
 
 # FOV counts per patient and timepoint
 harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'harmonized_metadata.csv'))
