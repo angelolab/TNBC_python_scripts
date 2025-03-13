@@ -136,7 +136,7 @@ for col in ['MIBI fovs', 'RNA samples', 'DNA samples']:
 all_counts.sort_values(by=['Patient_ID', 'Timepoint']).to_csv(os.path.join(save_dir, 'Supplementary_Table_7.csv'), index=False)
 
 # top features for multivariate modeling
-all_model_rankings = pd.read_csv(os.path.join(BASE_DIR, 'multivariate_lasso/intermediate_results/all_model_rankings.csv'), index=False)
+all_model_rankings = pd.read_csv(os.path.join(BASE_DIR, 'multivariate_lasso/intermediate_results/all_model_rankings.csv'))
 top_model_features = all_model_rankings[all_model_rankings.top_ranked]
 top_model_features = top_model_features[['timepoint', 'modality', 'feature_name_unique', 'importance_score', 'coef_norm']]
 top_model_features.to_csv(os.path.join(save_dir, 'Supplementary_Table_8.csv'), index=False)

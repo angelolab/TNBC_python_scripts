@@ -28,9 +28,9 @@ matplotlib.rcParams['ps.fonttype'] = 42
 BASE_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
 ANALYSIS_DIR = os.path.join(BASE_DIR, "analysis_files")
 INTERMEDIATE_DIR = os.path.join(BASE_DIR, "intermediate_files")
+FORMATTED_DIR = os.path.join(INTERMEDIATE_DIR, "formatted_files")
 OUTPUT_DIR = os.path.join(BASE_DIR, "output_files")
 REVIEW_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs/review_figures")
-SPACECAT_DIR = os.path.join(BASE_DIR, "TONIC_SpaceCat")
 
 
 ## 2.5 & 4.3 SpaceCat prediction comparison ##
@@ -476,7 +476,7 @@ sig_features = features.replace({'Cancer_1__TMEHet': 'Cancer_Immune_mixing_score
 pre_treatment_features = sig_features[sig_features['Time point'] == 'Baseline']
 on_treatment_features = sig_features[sig_features['Time point'] == 'On-treatment']
 
-tonic_features = pd.read_csv(os.path.join(SPACECAT_DIR, '/SpaceCat/analysis_files/feature_ranking.csv'))
+tonic_features = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_ranking.csv'))
 tonic_features = tonic_features[tonic_features['fdr_pval'] <= 0.05]
 tonic__sig_features = tonic_features[tonic_features.compartment == 'all']
 tonic__sig_features = tonic__sig_features[~tonic__sig_features.feature_name_unique.str.contains('core')]
@@ -714,7 +714,7 @@ plt.savefig(os.path.join(low_cellularity_viz_dir, 'Low_cellularity_features_by_t
 
 
 # DROPPING LOW CELL IMAGES
-adata = anndata.read_h5ad(os.path.join(SPACECAT_DIR, 'adata', 'adata_preprocessed.h5ad'))
+adata = anndata.read_h5ad(os.path.join(ANALYSIS_DIR, 'adata_preprocessed.h5ad'))
 cell_table = adata.obs
 
 cluster_counts = np.unique(cell_table.fov, return_counts=True)[1]
@@ -741,34 +741,34 @@ plt.savefig(os.path.join(low_cellularity_viz_dir, 'low_cell_counts_thresholded.p
 
 # generate predictions with various low cellularity images dropped
 for drop_perc in [0.0, 0.05, 0.10, 0.15, 0.20]:
-    adata = anndata.read_h5ad(os.path.join(SPACECAT_DIR, 'adata', 'adata_preprocessed.h5ad'))
+    adata = anndata.read_h5ad(os.path.join(ANALYSIS_DIR, 'adata_preprocessed.h5ad'))
     cell_counts = cell_table.groupby(by='fov').count().sort_values(by='label').label
     keep_fovs = cell_counts.iloc[int(round(len(y) * drop_perc, 0)):].index
     adata = adata[adata.obs.fov.isin(keep_fovs)]
 
     # read in image level dataframes
-    fiber_df = pd.read_csv(os.path.join(SPACECAT_DIR, 'fiber_stats_table.csv'))
+    fiber_df = pd.read_csv(os.path.join(, 'fiber_stats_table.csv'))
     fiber_df = fiber_df[fiber_df.fov.isin(keep_fovs)]
 
-    fiber_tile_df = pd.read_csv(os.path.join(SPACECAT_DIR, 'fiber_stats_per_tile.csv'))
+    fiber_tile_df = pd.read_csv(os.path.join(FORMATTED_DIR, 'fiber_stats_per_tile.csv'))
     fiber_tile_df = fiber_tile_df[fiber_tile_df.fov.isin(keep_fovs)]
 
-    mixing_df = pd.read_csv(os.path.join(SPACECAT_DIR, 'formatted_mixing_scores.csv'))
+    mixing_df = pd.read_csv(os.path.join(FORMATTED_DIR, 'formatted_mixing_scores.csv'))
     mixing_df = mixing_df[mixing_df.fov.isin(keep_fovs)]
 
-    kmeans_img_proportions = pd.read_csv(os.path.join(SPACECAT_DIR, 'neighborhood_image_proportions.csv'))
+    kmeans_img_proportions = pd.read_csv(os.path.join(FORMATTED_DIR, 'neighborhood_image_proportions.csv'))
     kmeans_img_proportions = kmeans_img_proportions[kmeans_img_proportions.fov.isin(keep_fovs)]
 
-    kmeans_compartment_proportions = pd.read_csv(os.path.join(SPACECAT_DIR, 'neighborhood_compartment_proportions.csv'))
+    kmeans_compartment_proportions = pd.read_csv(os.path.join(FORMATTED_DIR, 'neighborhood_compartment_proportions.csv'))
     kmeans_compartment_proportions = kmeans_compartment_proportions[kmeans_compartment_proportions.fov.isin(keep_fovs)]
 
-    pixie_ecm = pd.read_csv(os.path.join(SPACECAT_DIR, 'pixie_ecm_stats.csv'))
+    pixie_ecm = pd.read_csv(os.path.join(FORMATTED_DIR, 'pixie_ecm_stats.csv'))
     pixie_ecm = pixie_ecm[pixie_ecm.fov.isin(keep_fovs)]
 
-    ecm_frac = pd.read_csv(os.path.join(SPACECAT_DIR, 'ecm_fraction_stats.csv'))
+    ecm_frac = pd.read_csv(os.path.join(FORMATTED_DIR, 'ecm_fraction_stats.csv'))
     ecm_frac = ecm_frac[ecm_frac.fov.isin(keep_fovs)]
 
-    ecm_clusters = pd.read_csv(os.path.join(SPACECAT_DIR, 'ecm_cluster_stats.csv'))
+    ecm_clusters = pd.read_csv(os.path.join(FORMATTED_DIR, 'ecm_cluster_stats.csv'))
     ecm_clusters = ecm_clusters[ecm_clusters.fov.isin(keep_fovs)]
 
     # specify cell type pairs to compute a ratio for
@@ -802,11 +802,11 @@ for drop_perc in [0.0, 0.05, 0.10, 0.15, 0.20]:
                                             specified_ratios_cluster_key='cell_cluster',
                                             specified_ratios=ratio_pairings,
                                             per_cell_stats=per_cell_stats, per_img_stats=per_img_stats)
-    os.makedirs(os.path.join(SPACECAT_DIR, 'low_cellularity/adata'), exist_ok=True)
-    adata_processed.write_h5ad(os.path.join(SPACECAT_DIR, 'low_cellularity/adata', f'adata_processed_{str(drop_perc * 100)}.h5ad'))
+    os.makedirs(os.path.join(REVIEW_FIG_DIR, 'low_cellularity/adata'), exist_ok=True)
+    adata_processed.write_h5ad(os.path.join(REVIEW_FIG_DIR, 'low_cellularity/adata', f'adata_processed_{str(drop_perc * 100)}.h5ad'))
 
     # Save finalized tables to csv
-    output_dir = os.path.join(SPACECAT_DIR, f'low_cellularity/SpaceCat_{str(drop_perc * 100)}')
+    output_dir = os.path.join(REVIEW_FIG_DIR, f'low_cellularity/SpaceCat_{str(drop_perc * 100)}')
     os.makedirs(output_dir, exist_ok=True)
     adata_processed.uns['combined_feature_data'].to_csv(os.path.join(output_dir, 'combined_feature_data.csv'), index=False)
     adata_processed.uns['combined_feature_data_filtered'].to_csv(os.path.join(output_dir, 'combined_feature_data_filtered.csv'), index=False)
@@ -815,11 +815,11 @@ for drop_perc in [0.0, 0.05, 0.10, 0.15, 0.20]:
 
 # run postprocessing and prediction scripts
 # read in result
-df_0 = pd.read_csv(os.path.join(SPACECAT_DIR, 'low_cellularity/SpaceCat_0.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
-df_5 = pd.read_csv(os.path.join(SPACECAT_DIR, 'low_cellularity/SpaceCat_5.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
-df_10 = pd.read_csv(os.path.join(SPACECAT_DIR, 'low_cellularity/SpaceCat_10.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
-df_15 = pd.read_csv(os.path.join(SPACECAT_DIR, 'low_cellularity/SpaceCat_15.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
-df_20 = pd.read_csv(os.path.join(SPACECAT_DIR, 'low_cellularity/SpaceCat_20.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
+df_0 = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'low_cellularity/SpaceCat_0.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
+df_5 = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'low_cellularity/SpaceCat_5.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
+df_10 = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'low_cellularity/SpaceCat_10.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
+df_15 = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'low_cellularity/SpaceCat_15.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
+df_20 = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'low_cellularity/SpaceCat_20.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
 
 df_0 = df_0.mean()
 df_5 = df_5.mean()
@@ -855,7 +855,7 @@ plt.savefig(os.path.join(REVIEW_FIG_DIR, 'low_cellularity', 'low_cellularity_pre
 
 baseline_on_nivo_viz_dir = os.path.join(REVIEW_FIG_DIR, 'baseline_on_nivo_evolution')
 harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'harmonized_metadata.csv'))
-timepoint_features = pd.read_csv(os.path.join(SPACECAT_DIR, 'analysis_files/timepoint_features_filtered.csv'))
+timepoint_features = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_features_filtered.csv'))
 timepoint_features = timepoint_features.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint', 'baseline__on_nivo']].drop_duplicates(), on='Tissue_ID')
 feature_subset = timepoint_features.loc[(timepoint_features.baseline__on_nivo) & (timepoint_features.Timepoint.isin(['baseline', 'on_nivo'])), :]
 
@@ -993,11 +993,10 @@ plt.savefig(os.path.join(REVIEW_FIG_DIR, 'ECM_clusters', 'Functional_expression_
 
 ## 3.9 Location bias for features associated with immune cells ##
 
-###### change this dir and upload finalized tonic spacecat files
-ranked_features_all = pd.read_csv(os.path.join(SPACECAT_DIR, 'SpaceCat/feature_ranking.csv'))
+ranked_features_all = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_ranking.csv'))
 ranked_features = ranked_features_all.loc[
     ranked_features_all.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
-feature_metadata = pd.read_csv(os.path.join(SPACECAT_DIR, 'SpaceCat/feature_metadata.csv'))
+feature_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_metadata.csv'))
 
 immune_cells = ['Immune', 'Mono_Mac', 'B', 'T', 'Granulocyte', 'NK'] + ['CD68_Mac', 'CD163_Mac', 'Mac_Other',
                                                                         'Monocyte', 'APC'] + ['CD4T', 'CD8T', 'Treg',
@@ -1020,8 +1019,7 @@ fig2.suptitle('Changes in compartment features when dropping immune specific fea
 for immune_drop, coords in [[0, (0, 0)], [0.10, (0, 1)], [0.25, (1, 0)], [0.50, (1, 1)]]:
     i, j = coords
     feature_df = immune_features_comp
-    if immune_drop == 0.0:
-        feature_df = ranked_features
+
     # subset features
     idx_list = list(feature_df.index)
     sample_perc = int(len(idx_list) * immune_drop)
@@ -1031,7 +1029,10 @@ for immune_drop, coords in [[0, (0, 0)], [0.10, (0, 1)], [0.25, (1, 0)], [0.50, 
     sub_df_comp = sub_df_comp[sub_df_comp.compartment != 'all']
 
     # calculate abundance of each compartment in the top 100 and across all features
-    total_counts = sub_df_comp.groupby('compartment').count().iloc[:, 0]
+    drop_features = ranked_features[ranked_features.index.isin(sub_idx_list)].feature_name_unique
+    feature_metadata_sub = feature_metadata[~feature_metadata.feature_name_unique.isin(drop_features)]
+    feature_metadata_comp = feature_metadata_sub[feature_metadata_sub.compartment!='all']
+    total_counts = feature_metadata_comp.groupby('compartment').count().iloc[:, 0]
     sub_prop = total_counts / np.sum(total_counts)
 
     # create df
@@ -1078,7 +1079,7 @@ for immune_drop, coords in [[0, (0, 0)], [0.10, (0, 1)], [0.25, (1, 0)], [0.50, 
 
     sns.barplot(data=ratio_df, x='compartment', y='ratio', hue='color_order', palette=cmap, ax=axs2[i][j])
     sns.despine()
-    axs2[i][j].set_ylim(-0.8, 1.3)
+    axs2[i][j].set_ylim(-0.7, 1.6)
     axs2[i][j].set_ylabel('')
     axs2[i][j].tick_params(axis='x', labelrotation=60)
     axs2[i][j].get_legend().remove()
@@ -1499,7 +1500,7 @@ preds_5 = pd.read_csv(os.path.join(limit_features_dir, 'prediction_model_5/patie
 preds_10 = pd.read_csv(os.path.join(limit_features_dir, 'limit_model_features/prediction_model_10/patient_outcomes/all_timepoints_results_MIBI.csv'))
 preds_15 = pd.read_csv(os.path.join(limit_features_dir, 'limit_model_features/prediction_model_15/patient_outcomes/all_timepoints_results_MIBI.csv'))
 preds_20 = pd.read_csv(os.path.join(limit_features_dir, 'prediction_model_20/patient_outcomes/all_timepoints_results_MIBI.csv'))
-preds_reg = pd.read_csv(os.path.join(SPACECAT_DIR, 'SpaceCat/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
+preds_reg = pd.read_csv(os.path.join(BASE_DIR, 'prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
 
 df_5 = preds_5.mean()
 df_10 = preds_10.mean()
@@ -1535,7 +1536,7 @@ plt.savefig(os.path.join(limit_features_dir, 'feature_cap_prediction_comparisons
 reclustering_dir = os.path.join(REVIEW_FIG_DIR, "Cancer_reclustering")
 os.makedirs(reclustering_dir, exist_ok=True)
 
-adata = anndata.read_h5ad(os.path.join(SPACECAT_DIR, 'SpaceCat', 'adata_processed.h5ad'))
+adata = anndata.read_h5ad(os.path.join(ANALYSIS_DIR, 'adata_processed.h5ad'))
 cell_table = adata.obs
 cancer_cells = cell_table[cell_table.cell_cluster_broad == 'Cancer']
 non_cancer_cells = cell_table[cell_table.cell_cluster_broad != 'Cancer']
