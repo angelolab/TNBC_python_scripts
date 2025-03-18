@@ -65,8 +65,7 @@ sample_summary_df.to_csv(os.path.join(save_dir, 'Supplementary_Table_3.csv'), in
 feature_metadata = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature_metadata.csv'))
 
 feature_metadata.columns = ['Feature name', 'Feature name including compartment', 'Compartment the feature is calculated in',
-                            'Cell types used to calculate feature', 'Level of clustering granularity for cell types',
-                            'Type of feature', 'Additional information about the feature', 'Additional information about the feature']
+                            'Level of clustering granularity for cell types', 'Type of feature']
 
 correlation_feature_order = pd.read_csv(os.path.join(BASE_DIR, '/supplementary_figs/review_figures/Correlation clustermap/clustermap_feature_order.csv'))
 feature_metadata = feature_metadata.merge(correlation_feature_order, on='Feature name including compartment')
