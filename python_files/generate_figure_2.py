@@ -306,7 +306,7 @@ feature_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_me
 feature_classes = {'cell_abundance': ['density', 'density_ratio', 'density_proportion'],
                      'diversity': ['cell_diversity', 'region_diversity'],
                      'cell_phenotype': ['functional_marker', 'morphology', ],
-                     'cell_interactions': ['mixing_score', 'linear_distance'],
+                     'cell_interactions': ['mixing_score', 'linear_distance', 'kmeans_cluster'],
                    'structure': ['compartment_area_ratio', 'compartment_area', 'ecm_cluster', 'ecm_fraction', 'pixie_ecm', 'fiber']}
 
 # label with appropriate high-level summary category
@@ -330,11 +330,53 @@ plt.savefig(os.path.join(plot_dir, 'Figure2b_feature_class_counts_stacked.pdf'))
 plt.close()
 
 # cell types
-cell_classes = {'Immune': ['Immune', 'Mono_Mac', 'T', 'Granulocyte'], 'Cancer': ['Cancer'],
-                'Structural': ['Structural'], 'ECM': ['ecm'], 'Multiple': ['multiple', 'all', 'kmeans_cluster']}
+feature_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_metadata.csv'))
+feature_metadata['cell_class'] = np.nan
+immune_cell_list = ['Mono_Mac'] + ['CD68_Mac', 'CD163_Mac', 'Mac_Other', 'Monocyte', 'APC'] + ['B'] + ['T'] + \
+                   ['CD4T', 'CD8T', 'Treg', 'T_Other'] + ['Granulocyte'] + ['Neutrophil', 'Mast'] + ['NK']
+cancer_cell_list = ['Cancer'] + ['Cancer_1', 'Cancer_2', 'Cancer_3']
+structural_cell_list = ['Structural'] + ['Endothelium', 'CAF', 'Fibroblast', 'Smooth_Muscle']
 
-for cell_class in cell_classes.keys():
-    feature_metadata.loc[feature_metadata.cell_pop.isin(cell_classes[cell_class]), 'cell_class'] = cell_class
+for immune_cell in immune_cell_list:
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'density', feature_metadata.feature_name.str.contains(immune_cell)), 'cell_class'] = 'Immune'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'density_proportion', feature_metadata.feature_name.str.contains(immune_cell)), 'cell_class'] = 'Immune'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'cell_diversity', feature_metadata.feature_name.str.contains(immune_cell)), 'cell_class'] = 'Immune'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'region_diversity', feature_metadata.feature_name.str.contains(immune_cell)), 'cell_class'] = 'Immune'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'morphology', feature_metadata.feature_name.str.contains(immune_cell)), 'cell_class'] = 'Immune'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'functional_marker', feature_metadata.feature_name.str.contains(immune_cell)), 'cell_class'] = 'Immune'
+
+for cancer_cell in cancer_cell_list:
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'density', feature_metadata.feature_name.str.contains(cancer_cell)), 'cell_class'] = 'Cancer'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'density_proportion', feature_metadata.feature_name.str.contains(cancer_cell)), 'cell_class'] = 'Cancer'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'cell_diversity', feature_metadata.feature_name.str.contains(cancer_cell)), 'cell_class'] = 'Cancer'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'region_diversity', feature_metadata.feature_name.str.contains(cancer_cell)), 'cell_class'] = 'Cancer'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'morphology', feature_metadata.feature_name.str.contains(cancer_cell)), 'cell_class'] = 'Cancer'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'functional_marker', feature_metadata.feature_name.str.contains(cancer_cell)), 'cell_class'] = 'Cancer'
+
+for structural_cell in structural_cell_list:
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'density', feature_metadata.feature_name.str.contains(structural_cell)), 'cell_class'] = 'Structural'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'density_proportion', feature_metadata.feature_name.str.contains(structural_cell)), 'cell_class'] = 'Structural'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'cell_diversity', feature_metadata.feature_name.str.contains(structural_cell)), 'cell_class'] = 'Structural'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'region_diversity', feature_metadata.feature_name.str.contains(structural_cell)), 'cell_class'] = 'Structural'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'morphology', feature_metadata.feature_name.str.contains(structural_cell)), 'cell_class'] = 'Structural'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'functional_marker', feature_metadata.feature_name.str.contains(structural_cell)), 'cell_class'] = 'Structural'
+
+feature_metadata.loc[feature_metadata.feature_type == 'density_ratio', 'cell_class'] = 'Multiple'
+feature_metadata.loc[feature_metadata.feature_type == 'linear_distance', 'cell_class'] = 'Multiple'
+feature_metadata.loc[feature_metadata.feature_type == 'kmeans_cluster', 'cell_class'] = 'Multiple'
+feature_metadata.loc[feature_metadata.feature_type == 'mixing_score', 'cell_class'] = 'Multiple'
+feature_metadata.loc[feature_metadata.feature_type == 'compartment_area', 'cell_class'] = 'Multiple'
+feature_metadata.loc[feature_metadata.feature_type == 'compartment_area_ratio', 'cell_class'] = 'Multiple'
+
+feature_metadata.loc[feature_metadata.feature_type == 'fiber', 'cell_class'] = 'ECM'
+feature_metadata.loc[feature_metadata.feature_type == 'pixie_ecm', 'cell_class'] = 'ECM'
+feature_metadata.loc[feature_metadata.feature_type == 'ecm_fraction', 'cell_class'] = 'ECM'
+feature_metadata.loc[feature_metadata.feature_type == 'ecm_cluster', 'cell_class'] = 'ECM'
+
+feature_metadata.loc[feature_metadata.feature_name.str.contains('Immune_Other'), 'cell_class'] = 'Multiple'
+feature_metadata.loc[feature_metadata.feature_name.str.contains('Other'), 'cell_class'] = 'Multiple'
+feature_metadata.loc[np.logical_and(feature_metadata.feature_name.str.contains('all'),
+                                    feature_metadata.cell_class.isna()), 'cell_class'] = 'Multiple'
 
 # stacked bar version
 feature_metadata_stacked = feature_metadata.copy()
@@ -357,7 +399,7 @@ plt.close()
 
 
 # cluster features together to identify modules
-fov_data_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/fov_features_filtered.csv'))
+fov_data_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/combined_feature_data_filtered.csv'))
 fov_data_df = fov_data_df.loc[fov_data_df.fov.isin(study_fovs), :]
 
 # create wide df
