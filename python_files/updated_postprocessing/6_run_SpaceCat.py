@@ -7,9 +7,8 @@ from SpaceCat.features import SpaceCat
 
 BASE_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
 ANALYSIS_DIR = os.path.join(BASE_DIR, 'analysis_files')
-FORMATTED_DIR = os.path.join(BASE_DIR, 'formatted_files')
 INTERMEDIATE_DIR = os.path.join(BASE_DIR, 'intermediate_files')
-SpaceCat_dir = os.path.join(BASE_DIR, 'TONIC_SpaceCcat')
+FORMATTED_DIR = os.path.join(INTERMEDIATE_DIR, 'formatted_files')
 
 # read in data
 cell_table = pd.read_csv(os.path.join(ANALYSIS_DIR, 'combined_cell_table_normalized_cell_labels_updated.csv'))

@@ -5,8 +5,8 @@ from functools import reduce
 
 BASE_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
 ANALYSIS_DIR = os.path.join(BASE_DIR, 'analysis_files')
-FORMATTED_DIR = os.path.join(BASE_DIR, 'formatted_files')
 INTERMEDIATE_DIR = os.path.join(BASE_DIR, 'intermediate_files')
+FORMATTED_DIR = os.path.join(INTERMEDIATE_DIR, 'formatted_files')
 
 ### KMEANS FORMATTING ###
 kmeans_dir = os.path.join(INTERMEDIATE_DIR, 'spatial_analysis/neighborhood_analysis/cell_cluster_radius100_frequency_12')
