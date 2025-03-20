@@ -6,9 +6,9 @@ import os
 import pandas as pd
 import numpy as np
 
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
 from sklearn import metrics
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import StratifiedKFold
 
 
 BASE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/"
@@ -31,7 +31,7 @@ harmonized_metadata = harmonized_metadata.loc[harmonized_metadata.MIBI_data_gene
 harmonized_metadata = harmonized_metadata[['Patient_ID', 'Timepoint']].merge(clinical_data, on='Patient_ID')
 harmonized_metadata = harmonized_metadata[harmonized_metadata.Clinical_benefit.isin(['Yes', 'No'])]
 wes_metadata = wes_metadata.rename(columns={'Individual.ID': 'Patient_ID', 'timepoint': 'Timepoint'})
-wes_metadata = wes_metadata[['Patient_ID', 'Timepoint']].merge(clinical_data, on='Patient_ID').drop_duplicates()
+# wes_metadata = wes_metadata[['Patient_ID', 'Timepoint']].merge(clinical_data, on='Patient_ID').drop_duplicates()
 wes_metadata = wes_metadata[wes_metadata.Clinical_benefit.isin(['Yes', 'No'])]
 rna_metadata = rna_metadata[['Patient_ID', 'Timepoint']].merge(clinical_data, on='Patient_ID').drop_duplicates()
 rna_metadata = rna_metadata[rna_metadata.Clinical_benefit.isin(['Yes', 'No'])]
@@ -67,7 +67,7 @@ feature_metadata = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature_me
 feature_metadata.columns = ['Feature name', 'Feature name including compartment', 'Compartment the feature is calculated in',
                             'Level of clustering granularity for cell types', 'Type of feature']
 
-correlation_feature_order = pd.read_csv(os.path.join(BASE_DIR, '/supplementary_figs/review_figures/Correlation clustermap/clustermap_feature_order.csv'))
+correlation_feature_order = pd.read_csv(os.path.join(BASE_DIR, 'supplementary_figs/review_figures/Correlation clustermap/clustermap_feature_order.csv'))
 feature_metadata = feature_metadata.merge(correlation_feature_order, on='Feature name including compartment')
 feature_metadata.to_csv(os.path.join(save_dir, 'Supplementary_Table_4.csv'), index=False)
 
@@ -86,29 +86,43 @@ sub_columns = ['feature_name_unique', 'comparison', 'pval', 'fdr_pval', 'med_dif
 feature_rank_sub = feature_rank[sub_columns]
 feature_rank_sub = feature_rank_sub[feature_rank_sub.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
 
-feature_values = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features.csv'))
+feature_values = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features_outcome_labels.csv'))
 feature_values = feature_values[feature_values.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
 feature_tp_df = feature_values[['feature_name_unique', 'Timepoint']].drop_duplicates()
 
 feature_tp_df['AUC'] = np.nan
-for _, row in feature_tp_df.iterrows():
-    feature, tp, _ = row
+for _, row in feature_tp_df.iloc[:, :2].iterrows():
+    feature, tp = row
     data = feature_values.loc[
         np.logical_and(feature_values.feature_name_unique == feature, feature_values.Timepoint == tp)]
-
+    data.reset_index(inplace=True)
     X = data.raw_mean.values.reshape(-1, 1)
     y = data.Clinical_benefit
-    try:
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=13, stratify=y)
+
+    # Perform stratified k-fold cross-validation
+    kfold_avg_aucs = []
+    for i in range(10):
+        # Define the number of folds
+        k = 3
+        skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=i)
         model = LogisticRegression()
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
-        probabilities = model.predict_proba(X_test)[::, 1]
-        auc = metrics.roc_auc_score(y_test, probabilities)
-        feature_tp_df.loc[
-            np.logical_and(feature_values.feature_name_unique == feature, feature_values.Timepoint == tp), 'AUC'] = auc
-    except ValueError:
-        continue
+        aucs = []
+        for train_index, test_index in skf.split(X, y):
+            try:
+                X_train, X_test = X[train_index], X[test_index]
+                y_train, y_test = y[train_index], y[test_index]
+
+                model.fit(X_train, y_train)
+                y_pred = model.predict(X_test)
+                probabilities = model.predict_proba(X_test)[::, 1]
+                auc = metrics.roc_auc_score(y_test, probabilities)
+                aucs.append(auc)
+            except ValueError:
+                continue
+        kfold_avg_aucs.append(np.array(aucs).mean())
+    mean_auc = np.array(kfold_avg_aucs).mean()
+    feature_tp_df.loc[np.logical_and(feature_values.feature_name_unique == feature, feature_values.Timepoint == tp), 'AUC'] = mean_auc
+
 feature_tp_df = feature_tp_df.rename(columns={'Timepoint': 'comparison'})
 feature_rank__auc = feature_rank_sub.merge(feature_tp_df, on=['feature_name_unique', 'comparison'], how='left')
 feature_rank__auc.to_csv(os.path.join(save_dir, 'Supplementary_Table_6.csv'), index=False)
@@ -141,7 +155,6 @@ top_model_features = top_model_features[['timepoint', 'modality', 'feature_name_
 top_model_features.to_csv(os.path.join(save_dir, 'Supplementary_Table_8.csv'), index=False)
 
 # get overlap between static and evolution top features
-BASE_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/TONIC_SpaceCat/SpaceCat'
 ranked_features = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature_ranking.csv'))
 
 overlap_type_dict = {'global': [['primary', 'baseline', 'pre_nivo', 'on_nivo'],
@@ -181,7 +194,7 @@ all_features = pd.concat([static_features, evolution_features, shared_features])
 all_features.to_csv(os.path.join(save_dir, 'Supplementary_Table_9.csv'), index=False)
 
 # NT pre-treatment feature comparison
-tonic_features = pd.read_csv(os.path.join(BASE_DIR, 'TONIC_SpaceCat/SpaceCat/analysis_files/feature_ranking.csv'))
+tonic_features = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature_ranking.csv'))
 tonic_features = tonic_features[tonic_features['fdr_pval'] <= 0.05]
 tonic__sig_features = tonic_features[tonic_features.compartment == 'all']
 tonic__sig_features = tonic__sig_features[~tonic__sig_features.feature_name_unique.str.contains('core')]

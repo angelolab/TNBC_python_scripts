@@ -566,7 +566,7 @@ clustergrid.ax_heatmap.set_yticks(new_tick_positions)
 clustergrid.ax_heatmap.set_xticklabels(new_tick_labels)
 clustergrid.ax_heatmap.set_yticklabels(new_tick_labels)
 
-clustergrid.savefig(os.path.join(os.path.join(REVIEW_FIG_DIR, 'Correlation clustermap', 'cluster_test.pdf')), dpi=300)
+clustergrid.savefig(os.path.join(os.path.join(REVIEW_FIG_DIR, 'Correlation clustermap', 'feature_clustermap_numbered.pdf')), dpi=300)
 plt.close()
 
 # save csv with feature order
