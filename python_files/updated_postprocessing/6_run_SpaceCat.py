@@ -1,6 +1,7 @@
 import os
 import anndata
 import pandas as pd
+import numpy as np
 
 from SpaceCat.features import SpaceCat
 
@@ -13,7 +14,6 @@ FORMATTED_DIR = os.path.join(INTERMEDIATE_DIR, 'formatted_files')
 # read in data
 cell_table = pd.read_csv(os.path.join(ANALYSIS_DIR, 'combined_cell_table_normalized_cell_labels_updated.csv'))
 func_table = pd.read_csv(os.path.join(ANALYSIS_DIR, 'cell_table_func_all.csv'))
-func_table = func_table.drop(columns=['H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio'])
 
 for col in func_table.columns:
     if col not in ['fov', 'label', 'cell_cluster_broad', 'cell_cluster', 'cell_meta_cluster']:
@@ -22,6 +22,13 @@ for col in func_table.columns:
 
 cell_table = cell_table.merge(func_table, on=['fov', 'label', 'cell_cluster_broad', 'cell_cluster', 'cell_meta_cluster'])
 
+# remove complex morphology stats for non-Cancer cells
+complex_morph_cols = ['convex_hull_resid', 'centroid_dif', 'centroid_dif_nuclear', 'eccentricity', 'num_concavities',
+                      'perim_square_over_area', 'convex_hull_resid_nuclear', 'eccentricity_nuclear', 'num_concavities_nuclear']
+for col in complex_morph_cols:
+    cell_table.loc[cell_table.cell_cluster_broad != 'Cancer', col] = np.nan
+
+# add linear distances
 linear_dists = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'spatial_analysis/cell_neighbor_analysis/cell_distances_filtered.csv'))
 cell_table = cell_table.merge(linear_dists, on=['fov', 'label', 'cell_cluster_broad'], how='left')
 
