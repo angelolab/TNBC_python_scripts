@@ -38,9 +38,14 @@ metadata = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/harmonized_metadat
 metadata = metadata.loc[metadata.MIBI_data_generated, :]
 metadata = metadata.loc[metadata.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), :]
 
+# FOV counts per patient and timepoint
+clinical_data = pd.read_csv(os.path.join(BASE_DIR, 'intermediate_files/metadata/patient_clinical_data.csv'))
+metadata = metadata[['Patient_ID', 'Timepoint', 'MIBI_data_generated', 'Tissue_ID', 'fov', 'rna_seq_sample_id']].merge(clinical_data, on='Patient_ID')
+metadata = metadata[metadata.Clinical_benefit.isin(['Yes', 'No'])]
+
 fov_counts = metadata.groupby('Tissue_ID').size().values
 fov_counts = pd.DataFrame(fov_counts, columns=['FOV Count'])
-sns.histplot(data=fov_counts, x='FOV Count')
+sns.histplot(data=fov_counts, x='FOV Count', bins=np.array(range(1,8))-0.5, shrink=0.7)
 sns.despine()
 plt.title("Number of FOVs per Timepoint")
 plt.xlabel("Number of FOVs")
