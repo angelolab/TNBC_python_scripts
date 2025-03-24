@@ -59,17 +59,34 @@ wes_metadata = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_WES_m
 rna_metadata = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_tissue_rna_id.tsv'), sep='\t')
 rna_metadata = rna_metadata.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint']].drop_duplicates(), on='Tissue_ID', how='left')
 
+clinical_data = pd.read_csv(os.path.join(BASE_DIR, 'intermediate_files/metadata/patient_clinical_data.csv'))
+
+mibi_metadata = mibi_metadata[mibi_metadata.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
+mibi_metadata = mibi_metadata[['Patient_ID', 'Timepoint']].merge(clinical_data, on='Patient_ID')
+mibi_metadata = mibi_metadata[mibi_metadata.Clinical_benefit.isin(['Yes', 'No'])]
+wes_metadata = wes_metadata.rename(columns={'Individual.ID': 'Patient_ID', 'timepoint': 'Timepoint'})
+wes_metadata = wes_metadata[wes_metadata.Clinical_benefit.isin(['Yes', 'No'])]
+rna_metadata = rna_metadata[['Patient_ID', 'Timepoint']].merge(clinical_data, on='Patient_ID').drop_duplicates()
+rna_metadata = rna_metadata[rna_metadata.Clinical_benefit.isin(['Yes', 'No'])]
+
 # separate venn diagram per timepoint
 for timepoint, plot_name in zip(['baseline', 'pre_nivo', 'on_nivo'], ["e", "f", "g"]):
     mibi_ids = set(mibi_metadata.loc[mibi_metadata.Timepoint == timepoint, 'Patient_ID'].values)
-    wes_ids = set(wes_metadata.loc[wes_metadata.timepoint == timepoint, 'Individual.ID'].values)
+    wes_ids = set(wes_metadata.loc[wes_metadata.Timepoint == timepoint, 'Patient_ID'].values)
     rna_ids = set(rna_metadata.loc[rna_metadata.Timepoint == timepoint, 'Patient_ID'].values)
 
-    sets = {
-        'MIBI': mibi_ids,
-        'WES': wes_ids,
-        'RNA': rna_ids}
+    if timepoint == 'baseline':
+        sets = {
+            'MIBI': mibi_ids,
+            'WES': wes_ids,
+            'RNA': rna_ids}
+        venny4py(sets=sets, colors="bgr")
+    else:
+        sets = {
+            'MIBI': mibi_ids,
+            'RNA': rna_ids}
+        venny4py(sets=sets, colors="br")
 
-    venny4py(sets=sets)
-    plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_1{}.pdf'.format(plot_name)), dpi=300, bbox_inches='tight')
+    plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_1{}.pdf'.format(plot_name)), dpi=300,
+                bbox_inches='tight')
     plt.close()
