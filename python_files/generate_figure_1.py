@@ -91,7 +91,7 @@ cell_table_clusters = pd.read_csv(os.path.join(base_dir, 'analysis_files/cell_ta
 
 
 crop_cmap = pd.DataFrame({'cell_cluster_broad': ['Cancer', 'Structural', 'Mono_Mac', 'T', 'Other', 'Granulocyte', 'NK', 'B'],
-                          'color': ['dimgrey', 'darksalmon', 'red', 'navajowhite', 'yellowgreen', 'aqua', 'dodgerblue', 'darkviolet']})
+                          'color': ['dimgrey', 'darksalmon', 'red', 'yellow', 'yellowgreen', 'aqua', 'dodgerblue', 'darkviolet']})
 
 crop_plot_dir = os.path.join(plot_dir, 'Figure1_crop_overlays')
 if not os.path.exists(crop_plot_dir):
