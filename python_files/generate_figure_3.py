@@ -47,7 +47,7 @@ plt.tight_layout()
 plt.savefig(os.path.join(plot_dir, 'Figure3a_volcano.pdf'))
 plt.close()
 
-text_df = ranked_features.loc[ranked_features.feature_name_unique.isin(['PDL1+__APC', 'T__cluster_broad_density', 'cancer_diversity']), :]
+text_df = ranked_features.loc[ranked_features.feature_name_unique.isin(['PDL1+__APC', 'T__cell_cluster_broad_density', 'Cancer_diversity']), :]
 
 
 # compare ratio features to best individual feature that is part of the ratio
@@ -56,12 +56,15 @@ top_ratios = top_ratios.loc[top_ratios.feature_type.isin(['density_ratio']), :]
 
 cell_types, rankings, feature_num, score = [], [], [], []
 for idx, row in top_ratios.iterrows():
+    ratio_cell_types = row.feature_name.split('__')[:2]
+
     # find individual densities with same compartment, timepoint, and cell types as the ratio
     candidate_features = ranked_features.loc[ranked_features.compartment == row.compartment, :]
     candidate_features = candidate_features.loc[candidate_features.feature_type == 'density', :]
     candidate_features = candidate_features.loc[candidate_features.comparison == row.comparison, :]
-    candidate_features = candidate_features.loc[candidate_features.feature_type_detail.isin([row.feature_type_detail, row.feature_type_detail_2]), :]
-    candidate_features = candidate_features.loc[candidate_features.cell_pop_level == 'broad', :]
+    candidate_features = candidate_features.loc[np.logical_or(candidate_features.feature_name.str.contains(ratio_cell_types[0]),
+                                                              candidate_features.feature_name.str.contains(ratio_cell_types[1])), :]
+    candidate_features = candidate_features.loc[candidate_features.cell_pop_level == 'cell_cluster_broad', :]
 
     # save values for best density
     feature_num.append(candidate_features.shape[0])
@@ -102,7 +105,7 @@ plt.close()
 
 # annotate specific features
 text_df = comparison_df.loc[comparison_df.original_feature == 'T__Cancer__ratio__cancer_core', :]
-text_df = ranked_features.loc[ranked_features.feature_name_unique == 'Cancer__cluster_broad_density__cancer_core', :]
+text_df = ranked_features.loc[ranked_features.feature_name_unique == 'Cancer__cell_cluster_broad_density__cancer_core', :]
 
 # look at enrichment by compartment
 top_counts = ranked_features.iloc[:100, :].groupby('compartment').count().iloc[:, 0]
@@ -129,7 +132,7 @@ print(top_counts)
 
 # look at enrichment of spatial features
 spatial_features = ['mixing_score', 'cell_diversity', 'compartment_area_ratio', 'pixie_ecm',
-                    'compartment_area', 'fiber', 'linear_distance', 'ecm_fraction', 'ecm_cluster']
+                    'compartment_area', 'fiber', 'linear_distance', 'ecm_fraction', 'ecm_cluster', 'kmeans_cluster']
 spatial_mask = np.logical_or(ranked_features.feature_type.isin(spatial_features), ranked_features.compartment != 'all')
 ranked_features['spatial_feature'] = spatial_mask
 

@@ -254,7 +254,7 @@ for i in range(0, pivot_df_top_run.shape[0]):
         # Redraw the figure
         plt.draw()
 
-plt.savefig(os.path.join(base_dir, 'figures', 'Figure4b.pdf'), bbox_inches = 'tight', dpi =300)
+plt.savefig(os.path.join(plot_dir, 'Figure4b.pdf'), bbox_inches = 'tight', dpi =300)
 
 
 # longitudinal T / Cancer ratios

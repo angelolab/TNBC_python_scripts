@@ -30,6 +30,7 @@ segmentation_dir = os.path.join(base_dir, 'segmentation_data/deepcell_output/')
 harmonized_metadata = pd.read_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'))
 timepoint_metadata = pd.read_csv(os.path.join(metadata_dir, 'TONIC_data_per_timepoint.csv'))
 timepoint_metadata = timepoint_metadata.loc[timepoint_metadata.MIBI_data_generated, :]
+timepoint_metadata = timepoint_metadata[timepoint_metadata.Timepoint.isin(['baseline', 'primary', 'pre_nivo', 'on_nivo'])]
 
 outcome_data = pd.read_csv(os.path.join(base_dir, 'intermediate_files/metadata/patient_clinical_data.csv'))
 timepoint_metadata = timepoint_metadata.merge(outcome_data, on='Patient_ID')
