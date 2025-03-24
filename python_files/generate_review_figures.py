@@ -11,6 +11,8 @@ from sklearn.cluster import KMeans
 from venny4py.venny4py import venny4py
 import matplotlib.patches as mpatches
 from statsmodels.stats.multitest import multipletests
+from sklearn.preprocessing import MinMaxScaler
+from matplotlib.patches import Rectangle
 
 from SpaceCat.preprocess import preprocess_table
 from SpaceCat.features import SpaceCat
@@ -23,11 +25,12 @@ random.seed(13)
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
-ANALYSIS_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/analysis_files"
-INTERMEDIATE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files"
-OUTPUT_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/output_files"
-REVIEW_FIG_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/supplementary_figs/review_figures"
-SPACECAT_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/TONIC_SpaceCat"
+BASE_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
+ANALYSIS_DIR = os.path.join(BASE_DIR, "analysis_files")
+INTERMEDIATE_DIR = os.path.join(BASE_DIR, "intermediate_files")
+FORMATTED_DIR = os.path.join(INTERMEDIATE_DIR, "formatted_files")
+OUTPUT_DIR = os.path.join(BASE_DIR, "output_files")
+REVIEW_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs/review_figures")
 
 
 ## 2.5 & 4.3 SpaceCat prediction comparison ##
@@ -220,7 +223,6 @@ sns.despine()
 plt.savefig(os.path.join(NT_viz_dir, 'NT_prediction_comparison.pdf'), bbox_inches='tight', dpi=300)
 
 # TONIC DATA COMPARISON
-BASE_DIR = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
 SpaceCat_dir = os.path.join(BASE_DIR, 'TONIC_SpaceCat')
 
 # add interaction features
@@ -433,7 +435,7 @@ pd.DataFrame(clustergrid.data2d.index).to_csv(os.path.join(NT_viz_dir, 'mixing_s
 plt.close()
 
 
-## 2.8 / 4.8  Pre-treatment and On-treatment NT vs TONIC comparisons
+## 2.8 / 4.8  Pre-treatment and On-treatment NT vs TONIC comparisons ##
 # Original NT features
 file_path = os.path.join(NT_DIR, '/data/41586_2023_6498_MOESM3_ESM.xlsx')
 NT_features = pd.read_excel(file_path, sheet_name=None)
@@ -474,7 +476,7 @@ sig_features = features.replace({'Cancer_1__TMEHet': 'Cancer_Immune_mixing_score
 pre_treatment_features = sig_features[sig_features['Time point'] == 'Baseline']
 on_treatment_features = sig_features[sig_features['Time point'] == 'On-treatment']
 
-tonic_features = pd.read_csv(os.path.join(SPACECAT_DIR, '/SpaceCat/analysis_files/feature_ranking.csv'))
+tonic_features = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_ranking.csv'))
 tonic_features = tonic_features[tonic_features['fdr_pval'] <= 0.05]
 tonic__sig_features = tonic_features[tonic_features.compartment == 'all']
 tonic__sig_features = tonic__sig_features[~tonic__sig_features.feature_name_unique.str.contains('core')]
@@ -526,6 +528,51 @@ sets = {'Wang et al.': NT_feats, 'TONIC': TONIC_feats}
 venny4py(sets=sets, colors="yb")
 plt.title("On-treatment Features")
 plt.savefig(os.path.join(NT_viz_dir, 'SpaceCat_on_treatment_features.pdf'), bbox_inches='tight', dpi=300)
+
+# plot top baseline features
+combined_df = pd.read_csv(os.path.join(NT_DIR, 'SpaceCat/analysis_files/timepoint_combined_features_immunotherapy+chemotherapy.csv'))
+for timepoint in ['Baseline', 'On-treatment']:
+    for feature, plot_name, lims in zip(['Ki67+__Treg__cancer_border', 'Ki67+__Treg__stroma_core', 'T_diversity__cancer_core'],
+                                  ['11d', '11e', '11f'], [[0, 0.8], [0, 0.6], [0, 1.7]]):
+
+        plot_df = combined_df.loc[(combined_df.feature_name_unique == feature) &
+                                  (combined_df.Timepoint == timepoint), :]
+
+        fig, ax = plt.subplots(1, 1, figsize=(2, 4))
+        sns.stripplot(data=plot_df, x='pCR', y='raw_mean', order=['pCR', 'RD'], color='black', ax=ax)
+        sns.boxplot(data=plot_df, x='pCR', y='raw_mean', order=['pCR', 'RD'], color='grey', ax=ax, showfliers=False, width=0.3)
+        ax.set_title(timepoint)
+        ax.set_ylim(lims)
+        sns.despine()
+        plt.tight_layout()
+        plt.savefig(os.path.join(REVIEW_FIG_DIR, 'review_figures/NTPublic/baseline_top_features', '{}_{}.pdf'.format(feature, timepoint)))
+        plt.close()
+
+
+## 2.9 Feature correlation plot ##
+# cluster features together to identify modules
+fov_data_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/combined_feature_data_filtered.csv'))
+fov_data_wide = fov_data_df.pivot(index='fov', columns='feature_name_unique', values='normalized_value')
+corr_df = fov_data_wide.corr(method='spearman')
+corr_df = corr_df.fillna(0)
+
+clustergrid = sns.clustermap(corr_df, cmap='vlag', vmin=-1, vmax=1, figsize=(20, 20))
+matrix_order = clustergrid.dendrogram_row.reordered_ind
+
+new_tick_positions = [(i+1)-0.5 for i in range(len(matrix_order)) if (i+1)%10==0]
+new_tick_labels = [str(i+1) for i in range(len(matrix_order)) if (i+1)%10==0]
+clustergrid.ax_heatmap.set_xticks(new_tick_positions)
+clustergrid.ax_heatmap.set_yticks(new_tick_positions)
+clustergrid.ax_heatmap.set_xticklabels(new_tick_labels)
+clustergrid.ax_heatmap.set_yticklabels(new_tick_labels)
+
+clustergrid.savefig(os.path.join(os.path.join(REVIEW_FIG_DIR, 'Correlation clustermap', 'feature_clustermap_numbered.pdf')), dpi=300)
+plt.close()
+
+# save csv with feature order
+feature_order = [corr_df.columns[i] for i in matrix_order]
+correlation_feature_order = pd.DataFrame({'Clustermap index': range(1, len(matrix_order)+1), 'Feature name including compartment': feature_order})
+correlation_feature_order.to_csv(os.path.join(REVIEW_FIG_DIR, 'Correlation clustermap', 'clustermap_feature_order.csv'), index=False)
 
 
 ## 3.2 Low cellularity ##
@@ -667,7 +714,7 @@ plt.savefig(os.path.join(low_cellularity_viz_dir, 'Low_cellularity_features_by_t
 
 
 # DROPPING LOW CELL IMAGES
-adata = anndata.read_h5ad(os.path.join(SPACECAT_DIR, 'adata', 'adata_preprocessed.h5ad'))
+adata = anndata.read_h5ad(os.path.join(ANALYSIS_DIR, 'adata_preprocessed.h5ad'))
 cell_table = adata.obs
 
 cluster_counts = np.unique(cell_table.fov, return_counts=True)[1]
@@ -694,34 +741,34 @@ plt.savefig(os.path.join(low_cellularity_viz_dir, 'low_cell_counts_thresholded.p
 
 # generate predictions with various low cellularity images dropped
 for drop_perc in [0.0, 0.05, 0.10, 0.15, 0.20]:
-    adata = anndata.read_h5ad(os.path.join(SPACECAT_DIR, 'adata', 'adata_preprocessed.h5ad'))
+    adata = anndata.read_h5ad(os.path.join(ANALYSIS_DIR, 'adata_preprocessed.h5ad'))
     cell_counts = cell_table.groupby(by='fov').count().sort_values(by='label').label
     keep_fovs = cell_counts.iloc[int(round(len(y) * drop_perc, 0)):].index
     adata = adata[adata.obs.fov.isin(keep_fovs)]
 
     # read in image level dataframes
-    fiber_df = pd.read_csv(os.path.join(SPACECAT_DIR, 'fiber_stats_table.csv'))
+    fiber_df = pd.read_csv(os.path.join(, 'fiber_stats_table.csv'))
     fiber_df = fiber_df[fiber_df.fov.isin(keep_fovs)]
 
-    fiber_tile_df = pd.read_csv(os.path.join(SPACECAT_DIR, 'fiber_stats_per_tile.csv'))
+    fiber_tile_df = pd.read_csv(os.path.join(FORMATTED_DIR, 'fiber_stats_per_tile.csv'))
     fiber_tile_df = fiber_tile_df[fiber_tile_df.fov.isin(keep_fovs)]
 
-    mixing_df = pd.read_csv(os.path.join(SPACECAT_DIR, 'formatted_mixing_scores.csv'))
+    mixing_df = pd.read_csv(os.path.join(FORMATTED_DIR, 'formatted_mixing_scores.csv'))
     mixing_df = mixing_df[mixing_df.fov.isin(keep_fovs)]
 
-    kmeans_img_proportions = pd.read_csv(os.path.join(SPACECAT_DIR, 'neighborhood_image_proportions.csv'))
+    kmeans_img_proportions = pd.read_csv(os.path.join(FORMATTED_DIR, 'neighborhood_image_proportions.csv'))
     kmeans_img_proportions = kmeans_img_proportions[kmeans_img_proportions.fov.isin(keep_fovs)]
 
-    kmeans_compartment_proportions = pd.read_csv(os.path.join(SPACECAT_DIR, 'neighborhood_compartment_proportions.csv'))
+    kmeans_compartment_proportions = pd.read_csv(os.path.join(FORMATTED_DIR, 'neighborhood_compartment_proportions.csv'))
     kmeans_compartment_proportions = kmeans_compartment_proportions[kmeans_compartment_proportions.fov.isin(keep_fovs)]
 
-    pixie_ecm = pd.read_csv(os.path.join(SPACECAT_DIR, 'pixie_ecm_stats.csv'))
+    pixie_ecm = pd.read_csv(os.path.join(FORMATTED_DIR, 'pixie_ecm_stats.csv'))
     pixie_ecm = pixie_ecm[pixie_ecm.fov.isin(keep_fovs)]
 
-    ecm_frac = pd.read_csv(os.path.join(SPACECAT_DIR, 'ecm_fraction_stats.csv'))
+    ecm_frac = pd.read_csv(os.path.join(FORMATTED_DIR, 'ecm_fraction_stats.csv'))
     ecm_frac = ecm_frac[ecm_frac.fov.isin(keep_fovs)]
 
-    ecm_clusters = pd.read_csv(os.path.join(SPACECAT_DIR, 'ecm_cluster_stats.csv'))
+    ecm_clusters = pd.read_csv(os.path.join(FORMATTED_DIR, 'ecm_cluster_stats.csv'))
     ecm_clusters = ecm_clusters[ecm_clusters.fov.isin(keep_fovs)]
 
     # specify cell type pairs to compute a ratio for
@@ -755,11 +802,11 @@ for drop_perc in [0.0, 0.05, 0.10, 0.15, 0.20]:
                                             specified_ratios_cluster_key='cell_cluster',
                                             specified_ratios=ratio_pairings,
                                             per_cell_stats=per_cell_stats, per_img_stats=per_img_stats)
-    os.makedirs(os.path.join(SPACECAT_DIR, 'low_cellularity/adata'), exist_ok=True)
-    adata_processed.write_h5ad(os.path.join(SPACECAT_DIR, 'low_cellularity/adata', f'adata_processed_{str(drop_perc * 100)}.h5ad'))
+    os.makedirs(os.path.join(REVIEW_FIG_DIR, 'low_cellularity/adata'), exist_ok=True)
+    adata_processed.write_h5ad(os.path.join(REVIEW_FIG_DIR, 'low_cellularity/adata', f'adata_processed_{str(drop_perc * 100)}.h5ad'))
 
     # Save finalized tables to csv
-    output_dir = os.path.join(SPACECAT_DIR, f'low_cellularity/SpaceCat_{str(drop_perc * 100)}')
+    output_dir = os.path.join(REVIEW_FIG_DIR, f'low_cellularity/SpaceCat_{str(drop_perc * 100)}')
     os.makedirs(output_dir, exist_ok=True)
     adata_processed.uns['combined_feature_data'].to_csv(os.path.join(output_dir, 'combined_feature_data.csv'), index=False)
     adata_processed.uns['combined_feature_data_filtered'].to_csv(os.path.join(output_dir, 'combined_feature_data_filtered.csv'), index=False)
@@ -768,11 +815,11 @@ for drop_perc in [0.0, 0.05, 0.10, 0.15, 0.20]:
 
 # run postprocessing and prediction scripts
 # read in result
-df_0 = pd.read_csv(os.path.join(SPACECAT_DIR, 'low_cellularity/SpaceCat_0.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
-df_5 = pd.read_csv(os.path.join(SPACECAT_DIR, 'low_cellularity/SpaceCat_5.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
-df_10 = pd.read_csv(os.path.join(SPACECAT_DIR, 'low_cellularity/SpaceCat_10.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
-df_15 = pd.read_csv(os.path.join(SPACECAT_DIR, 'low_cellularity/SpaceCat_15.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
-df_20 = pd.read_csv(os.path.join(SPACECAT_DIR, 'low_cellularity/SpaceCat_20.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
+df_0 = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'low_cellularity/SpaceCat_0.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
+df_5 = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'low_cellularity/SpaceCat_5.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
+df_10 = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'low_cellularity/SpaceCat_10.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
+df_15 = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'low_cellularity/SpaceCat_15.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
+df_20 = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'low_cellularity/SpaceCat_20.0/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
 
 df_0 = df_0.mean()
 df_5 = df_5.mean()
@@ -808,7 +855,7 @@ plt.savefig(os.path.join(REVIEW_FIG_DIR, 'low_cellularity', 'low_cellularity_pre
 
 baseline_on_nivo_viz_dir = os.path.join(REVIEW_FIG_DIR, 'baseline_on_nivo_evolution')
 harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'harmonized_metadata.csv'))
-timepoint_features = pd.read_csv(os.path.join(SPACECAT_DIR, 'analysis_files/timepoint_features_filtered.csv'))
+timepoint_features = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_features_filtered.csv'))
 timepoint_features = timepoint_features.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint', 'baseline__on_nivo']].drop_duplicates(), on='Tissue_ID')
 feature_subset = timepoint_features.loc[(timepoint_features.baseline__on_nivo) & (timepoint_features.Timepoint.isin(['baseline', 'on_nivo'])), :]
 
@@ -946,11 +993,10 @@ plt.savefig(os.path.join(REVIEW_FIG_DIR, 'ECM_clusters', 'Functional_expression_
 
 ## 3.9 Location bias for features associated with immune cells ##
 
-###### change this dir and upload finalized tonic spacecat files
-ranked_features_all = pd.read_csv(os.path.join(SPACECAT_DIR, 'SpaceCat/feature_ranking.csv'))
+ranked_features_all = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_ranking.csv'))
 ranked_features = ranked_features_all.loc[
     ranked_features_all.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
-feature_metadata = pd.read_csv(os.path.join(SPACECAT_DIR, 'SpaceCat/feature_metadata.csv'))
+feature_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_metadata.csv'))
 
 immune_cells = ['Immune', 'Mono_Mac', 'B', 'T', 'Granulocyte', 'NK'] + ['CD68_Mac', 'CD163_Mac', 'Mac_Other',
                                                                         'Monocyte', 'APC'] + ['CD4T', 'CD8T', 'Treg',
@@ -973,8 +1019,7 @@ fig2.suptitle('Changes in compartment features when dropping immune specific fea
 for immune_drop, coords in [[0, (0, 0)], [0.10, (0, 1)], [0.25, (1, 0)], [0.50, (1, 1)]]:
     i, j = coords
     feature_df = immune_features_comp
-    if immune_drop == 0.0:
-        feature_df = ranked_features
+
     # subset features
     idx_list = list(feature_df.index)
     sample_perc = int(len(idx_list) * immune_drop)
@@ -984,7 +1029,10 @@ for immune_drop, coords in [[0, (0, 0)], [0.10, (0, 1)], [0.25, (1, 0)], [0.50, 
     sub_df_comp = sub_df_comp[sub_df_comp.compartment != 'all']
 
     # calculate abundance of each compartment in the top 100 and across all features
-    total_counts = sub_df_comp.groupby('compartment').count().iloc[:, 0]
+    drop_features = ranked_features[ranked_features.index.isin(sub_idx_list)].feature_name_unique
+    feature_metadata_sub = feature_metadata[~feature_metadata.feature_name_unique.isin(drop_features)]
+    feature_metadata_comp = feature_metadata_sub[feature_metadata_sub.compartment!='all']
+    total_counts = feature_metadata_comp.groupby('compartment').count().iloc[:, 0]
     sub_prop = total_counts / np.sum(total_counts)
 
     # create df
@@ -1031,7 +1079,7 @@ for immune_drop, coords in [[0, (0, 0)], [0.10, (0, 1)], [0.25, (1, 0)], [0.50, 
 
     sns.barplot(data=ratio_df, x='compartment', y='ratio', hue='color_order', palette=cmap, ax=axs2[i][j])
     sns.despine()
-    axs2[i][j].set_ylim(-0.8, 1.3)
+    axs2[i][j].set_ylim(-0.7, 1.6)
     axs2[i][j].set_ylabel('')
     axs2[i][j].tick_params(axis='x', labelrotation=60)
     axs2[i][j].get_legend().remove()
@@ -1079,6 +1127,7 @@ overlap_features = list(set(static_ids).intersection(set(evolution_ids)))
 evolution_ids = [feature for feature in evolution_ids if feature not in overlap_features]
 evolution_feature_data = ranked_features[ranked_features.feature_name_unique.isin(evolution_ids)]
 evolution_feature_data = evolution_feature_data[evolution_feature_data.comparison.isin(['primary__baseline', 'baseline__pre_nivo', 'baseline__on_nivo', 'pre_nivo__on_nivo'])]
+evolution_feature_data = evolution_feature_data[evolution_feature_data.feature_rank_global_evolution <= 105]
 evolution_feature_data = evolution_feature_data[['feature_name_unique', 'log_pval', 'mean_diff', 'med_diff',
        'comparison', 'pval', 'fdr_pval', 'log10_qval', 'pval_rank', 'cor_rank',
        'combined_rank', 'importance_score', 'signed_importance_score',
@@ -1119,12 +1168,375 @@ sns.despine()
 plt.savefig(os.path.join(REVIEW_FIG_DIR, 'evolution_features_and_multimodal_modeling', 'combined_model_prediction.pdf'), bbox_inches='tight', dpi=300)
 
 
-## 4.5 Other/Stroma_Collagen/Stroma_Fibronectin to Cancer reassignment ##
+## 4.2 Keren et al & Wang et al context comparison ##
+# mixing scores
+combined_df = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features.csv'))
+
+# generate summary plots
+plt_titles = {'primary': 'Primary', 'baseline': 'Baseline', 'pre_nivo': 'Pre nivo', 'on_nivo': 'On nivo'}
+for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
+
+    plot_df = combined_df.loc[(combined_df.feature_name_unique == 'Cancer_Immune_mixing_score') &
+                              (combined_df.Timepoint == timepoint), :]
+    fig, ax = plt.subplots(1, 1, figsize=(2, 4))
+    sns.stripplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                  color='black', ax=ax)
+    sns.boxplot(data=plot_df, x='Clinical_benefit', y='raw_mean', order=['Yes', 'No'],
+                color='grey', ax=ax, showfliers=False, width=0.3)
+    ax.set_title(plt_titles[timepoint])
+    ax.set_ylabel('Cancer/Immune Mixing Score')
+    ax.set_ylim([0, 0.3])
+    sns.despine()
+    plt.tight_layout()
+    plt.savefig(os.path.join(REVIEW_FIG_DIR, 'Cancer_Immune_mixing', '{}.pdf'.format(timepoint)))
+    plt.close()
+
+# NT features for Figure 4
+params = {
+    'SpaceCat': {
+        'APC__proportion_of__Mono_Mac': 'Baseline',
+        'APC__proportion_of__Mono_Mac__cancer_border': 'Baseline__On-treatment',
+        'APC__proportion_of__Mono_Mac__cancer_core': 'On-treatment',
+        'APC__proportion_of__Mono_Mac__stroma_core': 'Baseline',
+        'AR+__Epithelial_2': 'On-treatment',
+        'AR+__Epithelial_2__stroma_core': 'On-treatment',
+        'B__Epithelial__ratio': 'On-treatment',
+        'B__Structural__ratio': 'Baseline',
+        'B__Structural__ratio__cancer_border': 'Baseline',
+        'B__Structural__ratio__stroma_border': 'Baseline',
+        'B__Structural__ratio__stroma_core': 'Baseline',
+        'B_diversity': 'On-treatment',
+        'B_diversity__stroma_border': 'Baseline',
+        'B_diversity__stroma_core': 'On-treatment',
+        'CD8T__cell_cluster_density': 'On-treatment',
+        'CD8T__cell_cluster_density__stroma_border': 'Baseline__On-treatment',
+        'CD8T__cell_cluster_density__stroma_core': 'Baseline__On-treatment',
+        'CD8T__proportion_of__T': 'On-treatment',
+        'DC__proportion_of__Mono_Mac__cancer_border': 'On-treatment',
+        'DC__proportion_of__Mono_Mac__stroma_border': 'On-treatment',
+        'Epithelial_3__cell_cluster_density': 'Baseline',
+        'Epithelial_3__cell_cluster_density__cancer_border': 'Baseline',
+        'Epithelial_3__cell_cluster_density__cancer_core': 'Baseline',
+        'Epithelial_Structural_mixing_score': 'On-treatment',
+        'Epithelial__Granulocyte__ratio': 'On-treatment',
+        'Epithelial__Mono_Mac__ratio': 'On-treatment',
+        'Epithelial__NK__ratio': 'On-treatment',
+        'Epithelial__NK__ratio__stroma_core': 'On-treatment',
+        'Epithelial__Structural__ratio': 'On-treatment',
+        'Epithelial__T__ratio': 'Baseline__On-treatment',
+        'Epithelial_diversity__cancer_core': 'On-treatment',
+        'GATA3+__Epithelial_1__stroma_border': 'On-treatment',
+        'GZMB+__APC__stroma_border': 'On-treatment',
+        'GZMB+__CD4T__stroma_core': 'On-treatment',
+        'GZMB+__CD8T': 'Baseline',
+        'GZMB+__Epithelial_3': 'On-treatment',
+        'GZMB+__Epithelial_3__cancer_border': 'On-treatment',
+        'GZMB+__Epithelial_3__cancer_core': 'On-treatment',
+        'GZMB+__Neutrophil': 'On-treatment',
+        'GZMB+__all': 'On-treatment',
+        'Granulocyte__Mono_Mac__ratio__stroma_border': 'On-treatment',
+        'Granulocyte__T__ratio__stroma_border': 'On-treatment',
+        'HLA-ABC+__Epithelial_3': 'Baseline__On-treatment',
+        'HLA-ABC+__Epithelial_3__stroma_border': 'On-treatment',
+        'HLA-DR+__APC__cancer_core': 'Baseline',
+        'HLA-DR+__Epithelial_3__cancer_core': 'On-treatment',
+        'HLA-DR+__Epithelial_3__stroma_border': 'Baseline__On-treatment',
+        'HLA-DR+__Epithelial_3__stroma_core': 'Baseline',
+        'Helios+__Neutrophil__cancer_border': 'On-treatment',
+        'ICOS+__CD4T': 'Baseline',
+        'Ki67+__CD4T__stroma_border': 'Baseline',
+        'Ki67+__CD8T': 'Baseline',
+        'Ki67+__CD8T__cancer_border': 'Baseline',
+        'Ki67+__Epithelial_1': 'Baseline',
+        'Ki67+__Epithelial_1__stroma_border': 'Baseline',
+        'Ki67+__Epithelial_1__stroma_core': 'Baseline',
+        'Ki67+__Epithelial_2': 'Baseline',
+        'Ki67+__Epithelial_2__cancer_border': 'Baseline',
+        'Ki67+__Epithelial_3': 'Baseline',
+        'Ki67+__Epithelial_3__stroma_border': 'Baseline',
+        'Ki67+__Treg__cancer_border': 'Baseline',
+        'Ki67+__Treg__stroma_core': 'Baseline',
+        'Ki67+__all': 'Baseline',
+        'Ki67__GATA3+__Epithelial_2': 'Baseline',
+        'Mono_Mac__Structural__ratio__cancer_core': 'Baseline__On-treatment',
+        'Mono_Mac_diversity__cancer_core': 'Baseline',
+        'Mono_Mac_diversity__stroma_border': 'Baseline__On-treatment',
+        'PD-L1 (73-10)+__CD4T__cancer_border': 'On-treatment',
+        'PD-L1 (73-10)+__CD4T__cancer_core': 'On-treatment',
+        'PD-L1 (73-10)+__CD8T__stroma_core': 'Baseline',
+        'PD-L1 (73-10)+__DC__cancer_border': 'On-treatment',
+        'PD-L1 (73-10)+__Epithelial_3__cancer_core': 'On-treatment',
+        'PD-L1 (73-10)+__Epithelial_3__stroma_border': 'On-treatment',
+        'PD-L1 (73-10)+__M2_Mac': 'Baseline',
+        'PD-L1 (73-10)+__Treg__cancer_border': 'On-treatment',
+        'PD-L1 (73-10)+__Treg__stroma_border': 'Baseline__On-treatment',
+        'PD-L1 (73-10)+__Treg__stroma_core': 'Baseline',
+        'PD-L1 (SP142)+__APC__cancer_border': 'On-treatment',
+        'PD-L1 (SP142)+__APC__stroma_border': 'On-treatment',
+        'Structural__T__ratio': 'Baseline__On-treatment',
+        'Structural__T__ratio__cancer_core': 'Baseline__On-treatment',
+        'T-bet+__CD8T__cancer_core': 'Baseline',
+        'T-bet+__Treg__cancer_core': 'Baseline',
+        'T-bet+__Treg__stroma_border': 'Baseline',
+        'TCF1+__Epithelial_3__stroma_border': 'On-treatment',
+        'T_diversity__cancer_core': 'Baseline',
+        'T_diversity__stroma_border': 'On-treatment',
+        'Vimentin+__M2_Mac__cancer_core': 'Baseline',
+        'all__total_density': 'Baseline',
+        'all__total_density__cancer_border': 'Baseline',
+        'all__total_density__cancer_core': 'Baseline',
+        'cancer_border__proportion': 'On-treatment',
+        'diversity_cell_cluster__B__stroma_core': 'Baseline',
+        'diversity_cell_cluster__CD8T__stroma_core': 'Baseline',
+        'diversity_cell_cluster__Epithelial_3__stroma_border': 'Baseline__On-treatment',
+        'diversity_cell_cluster__Fibroblast__stroma_border': 'Baseline',
+        'pH2AX__HLA-ABC+__Epithelial_3__stroma_border': 'On-treatment',
+        'pH2AX__PD-L1 (73-10)+__APC__cancer_border': 'Baseline',
+        'stroma_border__proportion': 'On-treatment'
+    },
+    'SpaceCat_NT_combined': {
+        'APC__proportion_of__Mono_Mac': 'Baseline',
+        'APC__proportion_of__Mono_Mac__cancer_border': 'Baseline__On-treatment',
+        'APC__proportion_of__Mono_Mac__cancer_core': 'On-treatment',
+        'APC__proportion_of__Mono_Mac__stroma_core': 'Baseline',
+        'AR+__Epithelial_2__stroma_core': 'On-treatment',
+        'B__Epithelial__ratio': 'On-treatment',
+        'B__Structural__ratio': 'Baseline',
+        'B__Structural__ratio__cancer_border': 'Baseline',
+        'B__Structural__ratio__stroma_border': 'Baseline',
+        'B__Structural__ratio__stroma_core': 'Baseline',
+        'B_diversity': 'On-treatment',
+        'B_diversity__stroma_border': 'Baseline',
+        'B_diversity__stroma_core': 'On-treatment',
+        'CD8T__TMEHom': 'On-treatment',
+        'CD8T__cell_cluster_density': 'On-treatment',
+        'CD8T__cell_cluster_density__stroma_border': 'Baseline__On-treatment',
+        'CD8T__cell_cluster_density__stroma_core': 'Baseline__On-treatment',
+        'CD8T__proportion_of__T': 'On-treatment',
+        'DC__proportion_of__Mono_Mac__cancer_border': 'On-treatment',
+        'DC__proportion_of__Mono_Mac__stroma_border': 'On-treatment',
+        'Epithelial_3__EpiHet': 'Baseline',
+        'Epithelial_3__cell_cluster_density': 'Baseline',
+        'Epithelial_3__cell_cluster_density__cancer_border': 'Baseline',
+        'Epithelial_Structural_mixing_score': 'On-treatment',
+        'Epithelial__Granulocyte__ratio': 'On-treatment',
+        'Epithelial__Mono_Mac__ratio': 'On-treatment',
+        'Epithelial__NK__ratio': 'On-treatment',
+        'Epithelial__NK__ratio__stroma_core': 'On-treatment',
+        'Epithelial__Structural__ratio': 'On-treatment',
+        'Epithelial__T__ratio': 'On-treatment',
+        'Epithelial_diversity__cancer_core': 'On-treatment',
+        'GATA3+__Epithelial_1__stroma_border': 'On-treatment',
+        'GZMB+__CD4T__stroma_core': 'On-treatment',
+        'GZMB+__CD8T': 'Baseline',
+        'GZMB+__Epithelial_3': 'On-treatment',
+        'GZMB+__Epithelial_3__cancer_border': 'On-treatment',
+        'GZMB+__Epithelial_3__cancer_core': 'On-treatment',
+        'GZMB+__Neutrophil': 'On-treatment',
+        'GZMB+__all': 'On-treatment',
+        'Granulocyte__Mono_Mac__ratio__stroma_border': 'On-treatment',
+        'Granulocyte__T__ratio__stroma_border': 'On-treatment',
+        'HLA-ABC+__Epithelial_3': 'Baseline__On-treatment',
+        'HLA-ABC+__Epithelial_3__stroma_border': 'On-treatment',
+        'HLA-DR+__APC__cancer_core': 'Baseline',
+        'HLA-DR+__Epithelial_3__cancer_core': 'On-treatment',
+        'HLA-DR+__Epithelial_3__stroma_border': 'Baseline__On-treatment',
+        'HLA-DR+__Epithelial_3__stroma_core': 'Baseline',
+        'Helios+__Neutrophil__cancer_border': 'On-treatment',
+        'ICOS+__CD4T': 'Baseline',
+        'Ki67+__CD4T__stroma_border': 'Baseline',
+        'Ki67+__CD8T': 'Baseline',
+        'Ki67+__CD8T__cancer_border': 'Baseline',
+        'Ki67+__Epithelial_1': 'Baseline',
+        'Ki67+__Epithelial_1__stroma_border': 'Baseline',
+        'Ki67+__Epithelial_1__stroma_core': 'Baseline',
+        'Ki67+__Epithelial_2': 'Baseline',
+        'Ki67+__Epithelial_2__cancer_border': 'Baseline',
+        'Ki67+__Epithelial_3': 'Baseline',
+        'Ki67+__Epithelial_3__stroma_border': 'Baseline',
+        'Ki67+__Treg__cancer_border': 'Baseline',
+        'Ki67+__Treg__stroma_core': 'Baseline',
+        'Ki67+__all': 'Baseline',
+        'Ki67__GATA3+__Epithelial_2': 'Baseline',
+        'M2_Mac__TMEHom': 'On-treatment',
+        'Mono_Mac__Structural__ratio__cancer_core': 'Baseline__On-treatment',
+        'Mono_Mac_diversity__cancer_core': 'Baseline',
+        'Mono_Mac_diversity__stroma_border': 'Baseline__On-treatment',
+        'PD-L1 (73-10)+__CD4T__cancer_border': 'On-treatment',
+        'PD-L1 (73-10)+__CD4T__cancer_core': 'On-treatment',
+        'PD-L1 (73-10)+__CD8T__stroma_core': 'Baseline',
+        'PD-L1 (73-10)+__DC__cancer_border': 'On-treatment',
+        'PD-L1 (73-10)+__Epithelial_3__cancer_core': 'On-treatment',
+        'PD-L1 (73-10)+__Epithelial_3__stroma_border': 'On-treatment',
+        'PD-L1 (73-10)+__M2_Mac': 'Baseline',
+        'PD-L1 (73-10)+__Treg__cancer_border': 'On-treatment',
+        'PD-L1 (73-10)+__Treg__stroma_border': 'On-treatment',
+        'PD-L1 (73-10)+__Treg__stroma_core': 'Baseline',
+        'PD-L1 (SP142)+__APC__cancer_border': 'On-treatment',
+        'PD-L1 (SP142)+__APC__stroma_border': 'On-treatment',
+        'Structural__T__ratio': 'Baseline__On-treatment',
+        'Structural__T__ratio__cancer_core': 'Baseline__On-treatment',
+        'T-bet+__CD8T__cancer_core': 'Baseline',
+        'T-bet+__Treg__cancer_core': 'Baseline',
+        'T-bet+__Treg__stroma_border': 'Baseline',
+        'TCF1+__Epithelial_3__stroma_border': 'On-treatment',
+        'T_diversity__cancer_core': 'Baseline',
+        'T_diversity__stroma_border': 'On-treatment',
+        'Vimentin+__M2_Mac__cancer_core': 'Baseline',
+        'all__total_density': 'Baseline',
+        'all__total_density__cancer_border': 'Baseline',
+        'all__total_density__cancer_core': 'Baseline',
+        'cancer_border__proportion': 'On-treatment',
+        'diversity_cell_cluster__B__stroma_core': 'Baseline',
+        'diversity_cell_cluster__CD8T__stroma_core': 'Baseline',
+        'diversity_cell_cluster__Epithelial_3__stroma_border': 'Baseline__On-treatment',
+        'diversity_cell_cluster__Fibroblast__stroma_border': 'Baseline',
+        'pH2AX__HLA-ABC+__Epithelial_3__stroma_border': 'On-treatment',
+        'pH2AX__PD-L1 (73-10)+__APC__cancer_border': 'Baseline',
+        'stroma_border__proportion': 'On-treatment'
+    }
+}
+for dir_name, feat_timepoint_dict in params:
+    metadata_dir = os.path.join(BASE_DIR, 'NTPublic/intermediate_files/metadata')
+    plot_dir = os.path.join(REVIEW_FIG_DIR, 'NTPublic/Figure4', dir_name)
+    os.makedirs(plot_dir, exist_ok=True)
+
+    # load files
+    harmonized_metadata = pd.read_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'))
+    ranked_features_all = pd.read_csv(os.path.join(BASE_DIR, 'NTPublic', dir_name, 'analysis_files/feature_ranking_immunotherapy+chemotherapy.csv'))
+    ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['Baseline', 'On-treatment'])]
+    top_features = ranked_features.loc[ranked_features.comparison.isin(['Baseline', 'On-treatment']), :]
+    top_features = top_features.iloc[:100, :]
+
+    # summarize distribution of top features
+    top_features_by_comparison = top_features[['feature_name_unique', 'comparison']].groupby('comparison').count().reset_index()
+    top_features_by_comparison.columns = ['comparison', 'num_features']
+    top_features_by_comparison = top_features_by_comparison.sort_values('num_features', ascending=False)
+    fig, ax = plt.subplots(figsize=(4, 4))
+    sns.barplot(data=top_features_by_comparison, x='comparison', y='num_features', color='grey', ax=ax)
+    plt.xticks(rotation=90)
+    plt.tight_layout()
+    sns.despine()
+    plt.savefig(os.path.join(plot_dir, 'Figure4a_num_features.pdf'))
+    plt.close()
+
+    # heatmap of top features over time
+    timepoints = ['Baseline', 'On-treatment']
+    timepoint_features = pd.read_csv(os.path.join(BASE_DIR, 'NTPublic', dir_name, 'analysis_files/timepoint_combined_features_immunotherapy+chemotherapy.csv'))
+    feature_ranking_df = pd.read_csv(os.path.join(BASE_DIR, 'NTPublic', dir_name, 'analysis_files/feature_ranking_immunotherapy+chemotherapy.csv'))
+    feature_ranking_df = feature_ranking_df[np.isin(feature_ranking_df['comparison'], timepoints)]
+    feature_ranking_df = feature_ranking_df.sort_values(by='feature_rank_global', ascending=True)
+
+    #access the top response-associated features
+    top_features = np.unique(feature_ranking_df.loc[:, 'feature_name_unique'][:100])
+    perc = np.percentile(feature_ranking_df.importance_score, 90)
+    feature_ranking_df = feature_ranking_df[feature_ranking_df['importance_score'] > perc]
+
+    #min max scale the importance scores (scales features from 0 to 1)
+    scaled_perc_scores = MinMaxScaler().fit_transform(feature_ranking_df['importance_score'].values.reshape(-1,1))
+    feature_ranking_df.loc[:, 'scaled_percentile_importance'] = scaled_perc_scores
+
+    #pivot the dataframe for plotting (feature x timepoint)
+    pivot_df = feature_ranking_df.loc[:, ['scaled_percentile_importance', 'feature_name_unique', 'comparison']].pivot(index = 'feature_name_unique', columns = 'comparison')
+    pivot_df.columns = pivot_df.columns.droplevel(0)
+    pivot_df = pivot_df.loc[:, timepoints] #reorder
+    pivot_df.fillna(0, inplace=True) #set features with nan importance scores (i.e. not in the top 90th percentile) to 0
+    pivot_df = pivot_df.loc[top_features, :]
+
+    #access the top 100 feature-timepoint pairs
+    pivot_df_top = feature_ranking_df[:100].loc[:, ['scaled_percentile_importance', 'feature_name_unique', 'comparison']].pivot(index='feature_name_unique', columns = 'comparison')
+    pivot_df_top.columns = pivot_df_top.columns.droplevel(0)
+    pivot_df_top = pivot_df_top.loc[:, timepoints] #reorder
+    pivot_df_top.fillna(0, inplace=True) #set features with nan importance scores (i.e. not in the top 90th percentile) to 0
+
+    #sort dataframe by delta group and get the order of the ticks
+    pivot_df["group"] = pivot_df.index.map(feat_timepoint_dict)
+    pivot_df["group"] = pd.Categorical(pivot_df["group"], categories=['Baseline__On-treatment', 'Baseline', 'On-treatment'], ordered=True)
+    pivot_df.index.name='idx'
+    pivot_df.sort_values(by=["group", "idx"], inplace=True)
+    xlabs = list(pivot_df.index)
+
+    #plot clustermap
+    cmap = ['#D8C198', '#D88484', '#5AA571', '#4F8CBE']
+    sns.set_style('ticks')
+    pivot_df_run = pivot_df.loc[xlabs, :].copy()
+    pivot_df_run.drop(columns=['group'], inplace=True)
+    pivot_df_top_run = pivot_df_top.loc[xlabs, :].copy()
+    g = sns.clustermap(data=pivot_df_run, yticklabels=True, cmap='Blues', vmin=0, vmax=1, row_cluster=False,
+                       col_cluster=False, figsize=(5, 15), cbar_pos=(1, .03, .02, .1), dendrogram_ratio=0.1, colors_ratio=0.01,
+                       col_colors=cmap)
+    g.tick_params(labelsize=12)
+    ax = g.ax_heatmap
+    ax.set_ylabel('Response-associated Features', fontsize = 12)
+    ax.set_xlabel('Timepoint', fontsize = 12)
+    ax.axvline(x=0, color='k',linewidth=2.5)
+    ax.axvline(x=1, color='k',linewidth=1.5)
+    ax.axvline(x=2, color='k',linewidth=1.5)
+    ax.axvline(x=3, color='k',linewidth=1.5)
+    ax.axvline(x=4, color='k',linewidth=2.5)
+    ax.axhline(y=0, color='k',linewidth=2.5)
+    ax.axhline(y=len(pivot_df), color='k', linewidth=2.5)
+
+    x0, _y0, _w, _h = g.cbar_pos
+    for spine in g.ax_cbar.spines:
+        g.ax_cbar.spines[spine].set_color('k')
+        g.ax_cbar.spines[spine].set_linewidth(1)
+
+    for i in range(0, pivot_df_top_run.shape[0]):
+        row = pivot_df_top_run.astype('bool').iloc[i, :]
+        ids = np.where(row==True)[0]
+        for id in ids:
+            rect = Rectangle((id, i), 1, 1, fill=False, edgecolor='red', lw=0.5, zorder=10)
+            g.ax_heatmap.add_patch(rect)
+            plt.draw()
+    plt.savefig(os.path.join(plot_dir, 'Figure4b.pdf'), bbox_inches='tight', dpi=300)
+
+
+## 4.4 Limit multivariate model features ##
+
+limit_features_dir = os.path.join(REVIEW_FIG_DIR, 'limit_model_features')
+
+preds_5 = pd.read_csv(os.path.join(limit_features_dir, 'prediction_model_5/patient_outcomes/all_timepoints_results_MIBI.csv'))
+preds_10 = pd.read_csv(os.path.join(limit_features_dir, 'limit_model_features/prediction_model_10/patient_outcomes/all_timepoints_results_MIBI.csv'))
+preds_15 = pd.read_csv(os.path.join(limit_features_dir, 'limit_model_features/prediction_model_15/patient_outcomes/all_timepoints_results_MIBI.csv'))
+preds_20 = pd.read_csv(os.path.join(limit_features_dir, 'prediction_model_20/patient_outcomes/all_timepoints_results_MIBI.csv'))
+preds_reg = pd.read_csv(os.path.join(BASE_DIR, 'prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
+
+df_5 = preds_5.mean()
+df_10 = preds_10.mean()
+df_15 = preds_15.mean()
+df_20 = preds_20.mean()
+df_reg = preds_reg.mean()
+df = pd.concat([df_reg, df_20, df_15, df_10, df_5], axis=1)
+df = df.rename(columns={0: 'All features', 1: 'Top 20 features', 2: 'Top 15 features', 3: 'Top 10 features', 4: 'Top 5 features'})
+
+df = df.reset_index()
+df.replace('auc_on_nivo_list', 'On nivo', inplace=True)
+df.replace('auc_post_induction_list', 'Pre nivo', inplace=True)
+df.replace('auc_primary_list', 'Primary', inplace=True)
+df.replace('auc_baseline_list', 'Baseline', inplace=True)
+df['order'] = df['index'].replace({'Primary':0, 'Baseline':1, 'Pre nivo':2, 'On nivo': 3})
+df = df.sort_values(by='order')
+df = df.drop(columns=['order'])
+df = df.rename(columns={'index': 'Timepoint'})
+df = pd.melt(df, ['Timepoint'])
+
+sns.scatterplot(data=df[df.variable == 'All features'], x='Timepoint', y='value', hue='variable', palette=sns.color_palette(['black']), edgecolors='black')
+sns.scatterplot(data=df[df.variable != 'All features'], x='Timepoint', y='value', hue='variable', palette=sns.color_palette(['dimgrey', 'darkgrey', 'lightgrey', 'whitesmoke']), edgecolors='black')
+plt.xticks(rotation=30)
+plt.ylabel('Mean AUC')
+plt.title('Model accuracy by feature amount')
+sns.despine()
+plt.gca().legend(loc='lower right').set_title('')
+plt.savefig(os.path.join(limit_features_dir, 'feature_cap_prediction_comparisons.pdf'), bbox_inches='tight', dpi=300)
+
+
+## 4.5 Other/Stroma_Collagen/Stroma_Fibronectin/SMA/VIM to Cancer reassignment ##
 
 reclustering_dir = os.path.join(REVIEW_FIG_DIR, "Cancer_reclustering")
 os.makedirs(reclustering_dir, exist_ok=True)
 
-adata = anndata.read_h5ad(os.path.join(SPACECAT_DIR, 'adata', 'adata_preprocessed.h5ad'))
+adata = anndata.read_h5ad(os.path.join(ANALYSIS_DIR, 'adata_processed.h5ad'))
 cell_table = adata.obs
 cancer_cells = cell_table[cell_table.cell_cluster_broad == 'Cancer']
 non_cancer_cells = cell_table[cell_table.cell_cluster_broad != 'Cancer']
@@ -1164,7 +1576,7 @@ plt.ylabel('Density')
 plt.savefig(os.path.join(reclustering_dir, 'cancer_neighborhood_proportion_cancer.pdf'), bbox_inches='tight')
 
 
-neighborhood_counts = pd.read_csv('/Volumes/Shared/Noah Greenwald/TONIC_Cohort/intermediate_files/spatial_analysis/neighborhood_mats/neighborhood_counts-cell_meta_cluster_radius50.csv')
+neighborhood_counts = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'spatial_analysis/neighborhood_mats/neighborhood_counts-cell_meta_cluster_radius50.csv'))
 neighborhood_counts = neighborhood_counts[neighborhood_counts.fov.isin(cell_table.fov.unique())]
 cancer_cell_types = ['Cancer_CD56', 'Cancer_CK17', 'Cancer_Ecad', 'Cancer_SMA', 'Cancer_Vim', 'Cancer_Other',
                      'Cancer_Mono']
@@ -1172,7 +1584,7 @@ neighborhood_counts_meta = neighborhood_counts.iloc[:, :3]
 neighborhood_counts = neighborhood_counts.iloc[:, 3:]
 
 tables = {}
-for c in ['Other', 'Stroma_Collagen', 'Stroma_Fibronectin']:
+for c in ['Other', 'Stroma_Collagen', 'Stroma_Fibronectin', 'SMA', 'VIM']:
     neighborhood_counts_c = neighborhood_counts.drop(columns=[c])
     neighborhood_freqs_c = neighborhood_counts_c.div(neighborhood_counts_c.sum(axis=1), axis=0)
     neighborhood_freqs_c = neighborhood_counts_meta.merge(neighborhood_freqs_c, left_index=True, right_index=True)
@@ -1200,7 +1612,7 @@ fig, axes = plt.subplots(1, 3, figsize=(10, 4))
 fig.suptitle('Cancer cell proportion of cell neighborhoods')
 fig.supxlabel('Cancer proportion')
 fig.supylabel('Density')
-for c, ax in zip(['Other', 'Stroma_Collagen', 'Stroma_Fibronectin'], axes.flat):
+for c, ax in zip(['Other', 'Stroma_Collagen', 'Stroma_Fibronectin', 'SMA', 'VIM'], axes.flat):
     cluster_table_sub = cell_table_adj[cell_table_adj.cell_meta_cluster.isin([c, 'Cancer_new'])]
     ax.hist(cluster_table_sub.cancer_neighbors_prop, bins=20, density=True, rwidth=0.9, edgecolor='black')
     ax.set_xlim((0, 1))
@@ -1237,7 +1649,7 @@ grey_patch = mpatches.Patch(color='lightgrey', label='Original Cancer cells')
 plt.legend(handles=[green_patch, grey_patch])
 plt.savefig(os.path.join(reclustering_dir, 'Cancer_cell_new_proportions.pdf'), bbox_inches='tight')
 
-counts_table = cell_table_adj[cell_table_adj.cell_meta_cluster.isin(['Other', 'Stroma_Collagen', 'Stroma_Fibronectin'])][['cell_meta_cluster', 'cell_meta_cluster_new']]
+counts_table = cell_table_adj[cell_table_adj.cell_meta_cluster.isin(['Other', 'Stroma_Collagen', 'Stroma_Fibronectin', 'SMA', 'VIM'])][['cell_meta_cluster', 'cell_meta_cluster_new']]
 counts_table = counts_table.groupby(by=['cell_meta_cluster', 'cell_meta_cluster_new'], observed=True).value_counts().reset_index()
 counts_table.loc[counts_table.cell_meta_cluster_new!='Cancer_new', 'cell_meta_cluster_new'] = 'Same'
 counts_table = counts_table.pivot(index='cell_meta_cluster', columns='cell_meta_cluster_new', values='count').reset_index()
