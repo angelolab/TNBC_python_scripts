@@ -177,7 +177,7 @@ plot_features_sort.to_csv(os.path.join(plot_dir, 'Figure3e_top_hits.csv'))
 
 
 # PDL1+__CD68 macs on nivo example
-combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features_with_outcomes.csv'))
+combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features_outcome_labels.csv'))
 
 feature_name = 'PDL1+__CD68_Mac'
 timepoint = 'on_nivo'
