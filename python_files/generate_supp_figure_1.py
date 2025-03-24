@@ -6,6 +6,7 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+from upsetplot import from_contents, plot
 
 from pathlib import Path
 import python_files.supplementary_plot_helpers as supplementary_plot_helpers
@@ -47,6 +48,26 @@ plt.tight_layout()
 
 plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, "supp_figure_1c.pdf"), dpi=300)
 plt.close()
+
+# create upset plot of timepoint sample overlap
+timepoint_metadata = pd.read_csv(os.path.join(metadata_dir, 'TONIC_data_per_timepoint.csv'))
+clinical_data = pd.read_csv(os.path.join(BASE_DIR, 'intermediate_files/metadata/patient_clinical_data.csv'))
+
+timepoint_metadata = timepoint_metadata.loc[timepoint_metadata.MIBI_data_generated, :]
+timepoint_metadata = timepoint_metadata[timepoint_metadata.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
+timepoint_metadata = timepoint_metadata[['Patient_ID', 'Timepoint']].merge(clinical_data, on='Patient_ID')
+timepoint_metadata = timepoint_metadata[timepoint_metadata.Clinical_benefit.isin(['Yes', 'No'])]
+timepoint_metadata = timepoint_metadata.drop_duplicates()
+
+# create default upset plot
+contents_dict = {'Primary': timepoint_metadata.loc[timepoint_metadata.Timepoint == 'primary', 'Patient_ID'].values,
+                 'Baseline': timepoint_metadata.loc[timepoint_metadata.Timepoint == 'baseline', 'Patient_ID'].values,
+                 'Pre nivo': timepoint_metadata.loc[timepoint_metadata.Timepoint == 'pre_nivo', 'Patient_ID'].values,
+                 'On nivo': timepoint_metadata.loc[timepoint_metadata.Timepoint == 'on_nivo', 'Patient_ID'].values}
+
+upset_data = from_contents(contents_dict)
+plot(upset_data, sort_categories_by='-input')
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_1d.pdf'), dpi=300)
 
 
 # venn diagram of modalities across timepoints
