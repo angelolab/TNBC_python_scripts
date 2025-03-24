@@ -437,7 +437,7 @@ plt.close()
 
 ## 2.8 / 4.8  Pre-treatment and On-treatment NT vs TONIC comparisons ##
 # Original NT features
-file_path = os.path.join(NT_DIR, '/data/41586_2023_6498_MOESM3_ESM.xlsx')
+file_path = os.path.join(NT_DIR, 'data/41586_2023_6498_MOESM3_ESM.xlsx')
 NT_features = pd.read_excel(file_path, sheet_name=None)
 cell_table = pd.read_csv(os.path.join(NT_DIR, 'analysis_files/cell_table.csv'))
 cell_table = cell_table.replace({'{': '', '}': ''}, regex=True)
