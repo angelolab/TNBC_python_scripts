@@ -258,7 +258,7 @@ plt.savefig(os.path.join(plot_dir, 'Figure4b.pdf'), bbox_inches = 'tight', dpi =
 
 
 # longitudinal T / Cancer ratios
-combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features_with_outcomes.csv'))
+combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features_outcome_labels.csv'))
 
 
 # generate summary plots

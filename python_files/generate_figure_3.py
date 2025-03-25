@@ -304,7 +304,7 @@ io.imsave(os.path.join(subset_dir, 'cluster_masks_colored', fov4 + '_crop.tiff')
 
 
 # diversity of cancer border on nivo
-feature_name = 'cluster_broad_diversity_cancer_border'
+feature_name = 'cell_cluster_broad_diversity__cancer_border'
 timepoint = 'on_nivo'
 
 plot_df = combined_df.loc[(combined_df.feature_name_unique == feature_name) &
@@ -335,7 +335,7 @@ cell_table_clusters['border_plot'] = cell_table_clusters.cell_cluster_broad
 cell_table_clusters.loc[cell_table_clusters.tumor_region != 'cancer_border', 'border_plot'] = 'Other_region'
 
 diversity_colormap = pd.DataFrame({'border_plot': ['Cancer', 'Structural', 'Mono_Mac', 'T', 'Other', 'Granulocyte', 'NK', 'B', 'Other_region'],
-                             'color': ['white', 'darksalmon', 'red', 'navajowhite',  'yellowgreen', 'aqua', 'dodgerblue', 'darkviolet', 'dimgrey']})
+                             'color': ['white', 'darksalmon', 'red', 'yellow',  'yellowgreen', 'aqua', 'dodgerblue', 'darkviolet', 'dimgrey']})
 
 
 # subset = plot_df.loc[plot_df.raw_mean > 0.8, :]
