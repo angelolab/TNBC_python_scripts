@@ -202,10 +202,11 @@ og_preds['cancer_revised'] = 0
 all_preds = pd.concat([NT_preds, og_preds, combo_preds])
 
 fig, ax = plt.subplots()
-sns.boxplot(data=all_preds, x='variable', y='value', ax=ax, width=0.6, hue='cancer_revised',
+sns.boxplot(data=all_preds, x='variable', y='value', ax=ax, hue='cancer_revised',
             palette=sns.color_palette(["gold", "#1f77b4", "darkseagreen"]), showfliers=False)
 sns.stripplot(data=all_preds, x='variable', y='value', ax=ax, hue='cancer_revised',
-              palette=sns.color_palette(["gold", "#1f77b4", "darkseagreen"]), dodge=True, jitter=0.2)
+              palette=sns.color_palette(["gold", "#1f77b4", "darkseagreen"]), dodge=True)
+
 fig.set_figheight(4)
 fig.set_figwidth(8)
 plt.xticks(rotation=45)
@@ -365,10 +366,10 @@ nt_feats_preds['Analysis'] = 1
 all_preds = pd.concat([preds, adj_preds, nt_feats_preds])
 
 fig, ax = plt.subplots()
-sns.boxplot(data=all_preds, x='variable', y='value', ax=ax, width=0.6, hue='Analysis',
+sns.boxplot(data=all_preds, x='variable', y='value', ax=ax, hue='Analysis',
             palette=sns.color_palette(["#1f77b4", 'gold', "darkseagreen"]), showfliers=False)
 sns.stripplot(data=all_preds, x='variable', y='value', ax=ax, hue='Analysis',
-              palette=sns.color_palette(["#1f77b4", 'gold', "darkseagreen"]), dodge=True, jitter=0.2)
+              palette=sns.color_palette(["#1f77b4", 'gold', "darkseagreen"]), dodge=True)
 
 fig.set_figheight(4)
 fig.set_figwidth(8)
@@ -1028,7 +1029,7 @@ for immune_drop, coords in [[0, (0, 0)], [0.10, (0, 1)], [0.25, (1, 0)], [0.50, 
     sub_df_comp = ranked_features[~ranked_features.index.isin(sub_idx_list)]
     sub_df_comp = sub_df_comp[sub_df_comp.compartment != 'all']
 
-    # calculate abundance of each compartment in the top 100 and across all features
+    # calculate abundance of each compartment across all features
     drop_features = ranked_features[ranked_features.index.isin(sub_idx_list)].feature_name_unique
     feature_metadata_sub = feature_metadata[~feature_metadata.feature_name_unique.isin(drop_features)]
     feature_metadata_comp = feature_metadata_sub[feature_metadata_sub.compartment!='all']
