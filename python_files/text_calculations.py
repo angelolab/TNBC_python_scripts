@@ -9,7 +9,7 @@ sequence_dir = os.path.join(base_dir, 'sequencing_data')
 
 
 harmonized_metadata = pd.read_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'))
-study_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['primary_untreated', 'baseline', 'post_induction', 'on_nivo']), 'fov'].values
+study_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), 'fov'].values
 ranked_features_all = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_ranking.csv'))
 ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
 feature_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_metadata.csv'))
@@ -22,6 +22,7 @@ rna_metadata = rna_metadata.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID'
 
 print(len(rna_metadata.Patient_ID.unique()))
 print(len(harmonized_metadata.Tissue_ID.unique()))
+print(len(harmonized_metadata))
 
 cell_table = pd.read_csv(os.path.join(base_dir, 'analysis_files/cell_table_clusters.csv'))
 cell_table = cell_table.loc[cell_table.fov.isin(study_fovs), :]
