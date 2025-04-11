@@ -338,40 +338,25 @@ cancer_cell_list = ['Cancer'] + ['Cancer_1', 'Cancer_2', 'Cancer_3']
 structural_cell_list = ['Structural'] + ['Endothelium', 'CAF', 'Fibroblast', 'Smooth_Muscle']
 
 for immune_cell in immune_cell_list:
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'density', feature_metadata.feature_name.str.contains(immune_cell)), 'cell_class'] = 'Immune'
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'density_proportion', feature_metadata.feature_name.str.contains(immune_cell)), 'cell_class'] = 'Immune'
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'cell_diversity', feature_metadata.feature_name.str.contains(immune_cell)), 'cell_class'] = 'Immune'
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'region_diversity', feature_metadata.feature_name.str.contains(immune_cell)), 'cell_class'] = 'Immune'
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'morphology', feature_metadata.feature_name.str.contains(immune_cell)), 'cell_class'] = 'Immune'
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'functional_marker', feature_metadata.feature_name.str.contains(immune_cell)), 'cell_class'] = 'Immune'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type.isin(
+        ['density', 'density_proportion', 'cell_diversity', 'region_diversity', 'morphology', 'functional_marker']),
+        feature_metadata.feature_name.str.contains(immune_cell)), 'cell_class'] = 'Immune'
 
 for cancer_cell in cancer_cell_list:
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'density', feature_metadata.feature_name.str.contains(cancer_cell)), 'cell_class'] = 'Cancer'
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'density_proportion', feature_metadata.feature_name.str.contains(cancer_cell)), 'cell_class'] = 'Cancer'
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'cell_diversity', feature_metadata.feature_name.str.contains(cancer_cell)), 'cell_class'] = 'Cancer'
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'region_diversity', feature_metadata.feature_name.str.contains(cancer_cell)), 'cell_class'] = 'Cancer'
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'morphology', feature_metadata.feature_name.str.contains(cancer_cell)), 'cell_class'] = 'Cancer'
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'functional_marker', feature_metadata.feature_name.str.contains(cancer_cell)), 'cell_class'] = 'Cancer'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type.isin(
+        ['density', 'density_proportion', 'cell_diversity', 'region_diversity', 'morphology', 'functional_marker']),
+        feature_metadata.feature_name.str.contains(cancer_cell)), 'cell_class'] = 'Cancer'
 
 for structural_cell in structural_cell_list:
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'density', feature_metadata.feature_name.str.contains(structural_cell)), 'cell_class'] = 'Structural'
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'density_proportion', feature_metadata.feature_name.str.contains(structural_cell)), 'cell_class'] = 'Structural'
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'cell_diversity', feature_metadata.feature_name.str.contains(structural_cell)), 'cell_class'] = 'Structural'
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'region_diversity', feature_metadata.feature_name.str.contains(structural_cell)), 'cell_class'] = 'Structural'
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'morphology', feature_metadata.feature_name.str.contains(structural_cell)), 'cell_class'] = 'Structural'
-    feature_metadata.loc[np.logical_and(feature_metadata.feature_type == 'functional_marker', feature_metadata.feature_name.str.contains(structural_cell)), 'cell_class'] = 'Structural'
+    feature_metadata.loc[np.logical_and(feature_metadata.feature_type.isin(
+        ['density', 'density_proportion', 'cell_diversity', 'region_diversity', 'morphology', 'functional_marker']),
+        feature_metadata.feature_name.str.contains(structural_cell)), 'cell_class'] = 'Structural'
 
-feature_metadata.loc[feature_metadata.feature_type == 'density_ratio', 'cell_class'] = 'Multiple'
-feature_metadata.loc[feature_metadata.feature_type == 'linear_distance', 'cell_class'] = 'Multiple'
-feature_metadata.loc[feature_metadata.feature_type == 'kmeans_cluster', 'cell_class'] = 'Multiple'
-feature_metadata.loc[feature_metadata.feature_type == 'mixing_score', 'cell_class'] = 'Multiple'
-feature_metadata.loc[feature_metadata.feature_type == 'compartment_area', 'cell_class'] = 'Multiple'
-feature_metadata.loc[feature_metadata.feature_type == 'compartment_area_ratio', 'cell_class'] = 'Multiple'
+feature_metadata.loc[feature_metadata.feature_type.isin(
+    ['density_ratio', 'linear_distance', 'kmeans_cluster', 'mixing_score', 'compartment_area', 'compartment_area_ratio']),
+                     'cell_class'] = 'Multiple'
 
-feature_metadata.loc[feature_metadata.feature_type == 'fiber', 'cell_class'] = 'ECM'
-feature_metadata.loc[feature_metadata.feature_type == 'pixie_ecm', 'cell_class'] = 'ECM'
-feature_metadata.loc[feature_metadata.feature_type == 'ecm_fraction', 'cell_class'] = 'ECM'
-feature_metadata.loc[feature_metadata.feature_type == 'ecm_cluster', 'cell_class'] = 'ECM'
+feature_metadata.loc[feature_metadata.feature_type.isn(['fiber', 'pixie_ecm', 'ecm_fraction', 'ecm_cluster']), 'cell_class'] = 'ECM'
 
 feature_metadata.loc[feature_metadata.feature_name.str.contains('Immune_Other'), 'cell_class'] = 'Multiple'
 feature_metadata.loc[feature_metadata.feature_name.str.contains('Other'), 'cell_class'] = 'Multiple'
