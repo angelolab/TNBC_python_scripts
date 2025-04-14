@@ -1597,7 +1597,9 @@ for c in ['Other', 'Stroma_Collagen', 'Stroma_Fibronectin', 'SMA', 'VIM']:
     tables[c] = c_neighbors_cancer_sub[['fov', 'label', 'cell_meta_cluster', 'cancer_neighbors_prop']]
 new_cancer_cells = pd.concat(tables.values())
 new_cancer_cells['cancer_test'] = False
-new_cancer_cells.loc[new_cancer_cells['cancer_neighbors_prop'] >= 0.7, 'cancer_test'] = True
+new_cancer_cells = new_cancer_cells.merge(cell_table[['fov', 'label', 'area']], on=['fov', 'label'], how='left')
+new_cancer_cells.loc[np.logical_and(new_cancer_cells['cancer_neighbors_prop']>=0.7, new_cancer_cells['area']>=cancer_cells.area.median()), 'cancer_test'] = True
+
 
 cell_table_adj = cell_table.copy()
 cell_table_adj = cell_table_adj.merge(new_cancer_cells, on=['fov', 'label', 'cell_meta_cluster'], how='left')
@@ -1608,6 +1610,11 @@ cell_table_adj.loc[cell_table_adj['cancer_test']==True, 'cell_cluster_broad_new'
 cell_table_adj.loc[cell_table_adj['cancer_test']==True, 'cell_meta_cluster_new'] = 'Cancer_new'
 cell_table_adj['cell_cluster_new'] = cell_table_adj['cell_cluster_new'].cat.add_categories('Cancer_new')
 cell_table_adj.loc[cell_table_adj['cancer_test']==True, 'cell_cluster_new'] = 'Cancer_new'
+cell_table_adj['cell_cluster_broad_new'] = cell_table_adj['cell_cluster_broad_new'].cat.add_categories('Cancer_new')
+cell_table_adj.loc[cell_table_adj['cancer_test']==True, 'cell_cluster_broad_new'] = 'Cancer_new'
+
+cancer_recluster = cell_table_adj[['fov', 'label', 'cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad', 'cancer_neighbors_prop', 'cancer_test', 'cell_meta_cluster_new', 'cell_cluster_new', 'cell_cluster_broad_new']]
+cancer_recluster.to_csv(os.path.join(reclustering_dir, 'reassigned_cell_table.csv'), index=False)
 
 fig, axes = plt.subplots(1, 3, figsize=(10, 4))
 fig.suptitle('Cancer cell proportion of cell neighborhoods')
