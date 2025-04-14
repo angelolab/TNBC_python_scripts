@@ -299,7 +299,7 @@ plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_9i.pdf'), bbox_inch
 temp_df = plot_df[plot_df.subset == 'all']
 temp_df = temp_df[temp_df.metric == 'cluster_freq']
 temp_df = temp_df[temp_df.cell_type == 'CD68_Mac']
-temp_df = temp_df[temp_df.functional_marker.isin(['PDL1'])]
+temp_df = temp_df[temp_df.functional_marker.isin(['TIM3'])]
 
 g = sns.catplot(x='ecm_cluster', y='value', data=temp_df,
                 kind='box', col='functional_marker', sharey=False, color='grey', showfliers=False)
