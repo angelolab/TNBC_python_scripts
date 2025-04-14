@@ -9,6 +9,20 @@ sequence_dir = os.path.join(base_dir, 'sequencing_data')
 
 
 harmonized_metadata = pd.read_csv(os.path.join(metadata_dir, 'harmonized_metadata.csv'))
+clinical_data = pd.read_csv(os.path.join(base_dir, 'intermediate_files/metadata/patient_clinical_data.csv'))
+
+# RNA
+harmonized_metadata = harmonized_metadata[harmonized_metadata.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
+rna_metadata = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_tissue_rna_id.tsv'), sep='\t')
+rna_metadata = rna_metadata.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID']].drop_duplicates(), on='Tissue_ID', how='left')
+rna_metadata = rna_metadata[['Patient_ID', 'Tissue_ID']].merge(clinical_data, on='Patient_ID').drop_duplicates()
+rna_metadata = rna_metadata[rna_metadata.Clinical_benefit.isin(['Yes', 'No'])]
+
+# MIBI
+harmonized_metadata = harmonized_metadata.loc[harmonized_metadata.MIBI_data_generated, :]
+harmonized_metadata = harmonized_metadata[['Patient_ID', 'Timepoint', 'Tissue_ID', 'fov']].merge(clinical_data, on='Patient_ID')
+harmonized_metadata = harmonized_metadata[harmonized_metadata.Clinical_benefit.isin(['Yes', 'No'])]
+
 study_fovs = harmonized_metadata.loc[harmonized_metadata.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), 'fov'].values
 ranked_features_all = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_ranking.csv'))
 ranked_features = ranked_features_all.loc[ranked_features_all.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
@@ -16,13 +30,17 @@ feature_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_me
 feature_metadata['compartment_binary'] = feature_metadata.compartment.apply(lambda x: 'compartment' if x != 'all' else 'all')
 multivariate_dir = os.path.join(base_dir, 'multivariate_lasso')
 
-
-rna_metadata = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_tissue_rna_id.tsv'), sep='\t')
-rna_metadata = rna_metadata.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID']].drop_duplicates(), on='Tissue_ID', how='left')
+# DNA
+wes_metadata = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONIC_WES_meta_table.tsv'), sep='\t')
+wes_metadata = wes_metadata.rename(columns={'Individual.ID': 'Patient_ID'})
+wes_metadata = wes_metadata.loc[wes_metadata.Clinical_benefit.isin(['Yes', 'No']), :]
 
 print(len(rna_metadata.Patient_ID.unique()))
+print(len(rna_metadata.Tissue_ID.unique()))
 print(len(harmonized_metadata.Tissue_ID.unique()))
 print(len(harmonized_metadata))
+print(len(wes_metadata.Patient_ID.unique()))
+
 
 cell_table = pd.read_csv(os.path.join(base_dir, 'analysis_files/cell_table_clusters.csv'))
 cell_table = cell_table.loc[cell_table.fov.isin(study_fovs), :]
@@ -76,7 +94,7 @@ stat, pval = proportions_ztest(top_counts, total_counts)
 
 # proportion test for spatial
 spatial_features = ['mixing_score', 'cell_diversity', 'compartment_area_ratio', 'pixie_ecm',
-                    'compartment_area', 'fiber', 'linear_distance', 'ecm_fraction', 'ecm_cluster']
+                    'compartment_area', 'fiber', 'linear_distance', 'ecm_fraction', 'ecm_cluster', 'kmeans_cluster']
 spatial_mask = np.logical_or(ranked_features.feature_type.isin(spatial_features), ranked_features.compartment != 'all')
 ranked_features['spatial_feature'] = spatial_mask
 
@@ -90,7 +108,7 @@ total_counts_spatial = feature_metadata.groupby('spatial_feature').count().iloc[
 stat, pval = proportions_ztest(top_count_spatial, total_counts_spatial)
 
 # PDL1+ macs
-combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features_with_outcomes.csv'))
+combined_df = pd.read_csv(os.path.join(base_dir, 'analysis_files/timepoint_combined_features_outcome_labels.csv'))
 
 feature_name = 'PDL1+__CD68_Mac'
 timepoint = 'on_nivo'
@@ -160,3 +178,34 @@ ttest_ind(cv_scores.loc[np.logical_and(cv_scores.assay == 'RNA', cv_scores.varia
             cv_scores.loc[np.logical_and(cv_scores.assay == 'MIBI', cv_scores.variable == 'pre_nivo'), 'value'])
 
 print(np.mean(cv_scores.loc[np.logical_and(cv_scores.assay == 'DNA', cv_scores.variable == 'baseline'), 'value']))
+
+# feature type summary
+feature_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/feature_metadata.csv'))
+feature_classes = {'cell_abundance': ['density', 'density_ratio', 'density_proportion'],
+                     'diversity': ['cell_diversity', 'region_diversity'],
+                     'cell_phenotype': ['functional_marker', 'morphology', ],
+                     'cell_interactions': ['mixing_score', 'linear_distance', 'kmeans_cluster'],
+                   'structure': ['compartment_area_ratio', 'compartment_area', 'ecm_cluster', 'ecm_fraction', 'pixie_ecm', 'fiber']}
+
+# label with appropriate high-level summary category
+for feature_class in feature_classes.keys():
+    feature_metadata.loc[feature_metadata.feature_type.isin(feature_classes[feature_class]), 'feature_class'] = feature_class
+
+# add extra column to make stacked bar plotting work easily
+feature_metadata_stacked = feature_metadata.copy()
+feature_metadata_stacked['count'] = 1
+feature_metadata_stacked = feature_metadata_stacked[['feature_class', 'count']].groupby(['feature_class']).sum().reset_index()
+print(feature_metadata_stacked.sum())
+print(feature_metadata_stacked)
+
+cell_table_adj = pd.read_csv(os.path.join(base_dir, 'supplementary_figs/review_figures/Cancer_reclustering/reassigned_cell_table.csv'))
+counts_table = cell_table_adj[cell_table_adj.cell_meta_cluster.isin(['Other', 'Stroma_Collagen', 'Stroma_Fibronectin', 'SMA', 'VIM'])][['cell_meta_cluster', 'cell_meta_cluster_new']]
+counts_table = counts_table.groupby(by=['cell_meta_cluster', 'cell_meta_cluster_new'], observed=True).value_counts().reset_index()
+counts_table.loc[counts_table.cell_meta_cluster_new!='Cancer_new', 'cell_meta_cluster_new'] = 'Same'
+counts_table = counts_table.pivot(index='cell_meta_cluster', columns='cell_meta_cluster_new', values='count').reset_index()
+row_sums = counts_table.select_dtypes(include='number').sum(axis=1)
+counts_table.iloc[:, 1:] = counts_table.iloc[:, 1:].div(row_sums, axis=0)
+cancer_new_count = len(cell_table_adj[cell_table_adj.cell_cluster_broad_new=='Cancer_new'])
+
+print(counts_table.Cancer_new.mean())
+print(cancer_new_count/len(cell_table_adj))
