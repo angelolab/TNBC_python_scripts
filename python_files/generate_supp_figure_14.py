@@ -2,7 +2,6 @@ import matplotlib
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
-import numpy as np
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -17,7 +16,7 @@ combined_df = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/timepoint_combi
 
 for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
     for feature, plot_name, lims in zip(['B__NK__ratio__cancer_core', 'CD68_Mac__cluster_density', 'Vim+__CD4T'],
-                                  ['11a', '11b', '11c'], [[-5, 7], [0, 0.1], [0, 1.2]]):
+                                        ['14a', '14b', '14c'], [[-5, 7], [0, 0.1], [0, 1.2]]):
 
         plot_df = combined_df.loc[(combined_df.feature_name_unique == feature) &
                                   (combined_df.Timepoint == timepoint), :]
@@ -37,7 +36,7 @@ for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
 # top features from baseline
 for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
     for feature, plot_name, lims in zip(['Structural__cluster_broad_density__stroma_border', 'Other__Cancer__ratio__stroma_core', 'NK__Other__ratio__stroma_border'],
-                                  ['11d', '11e', '11f'], [[0, 1], [-11, 4], [-10, 0]]):
+                                        ['14d', '14e', '14f'], [[0, 1], [-11, 4], [-10, 0]]):
 
         plot_df = combined_df.loc[(combined_df.feature_name_unique == feature) &
                                   (combined_df.Timepoint == timepoint), :]
