@@ -43,10 +43,9 @@ clustergrid.ax_heatmap.set_yticklabels(new_tick_labels)
 clustergrid.savefig(os.path.join(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_8a.pdf')), dpi=300)
 plt.close()
 
-
-
-# Feature parameter tuning (panels i, j, k)
-extraction_pipeline_tuning_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "supp_figure_7_robustness")
+# Feature parameter tuning (panels b, c, d)
+#extraction_pipeline_tuning_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "supp_figure_7_robustness")
+extraction_pipeline_tuning_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, "supp_figure_8_robustness")
 if not os.path.exists(extraction_pipeline_tuning_dir):
     os.makedirs(extraction_pipeline_tuning_dir)
 
@@ -76,7 +75,7 @@ supplementary_plot_helpers.run_cancer_mask_inclusion_tests(
 )
 
 
-# Neighborhood/diversity tuning
+# Neighborhood/diversity tuning (panels e, f)
 neighbors_mat_dir = os.path.join(BASE_DIR, "supplementary_figs", "supp_figure_13_data")
 diversity_mixing_pipeline_tuning_dir = SUPPLEMENTARY_FIG_DIR
 
