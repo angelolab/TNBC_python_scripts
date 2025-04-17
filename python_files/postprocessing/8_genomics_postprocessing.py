@@ -14,7 +14,7 @@ import numpy as np
 base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
 sequence_dir = os.path.join(base_dir, 'sequencing_data')
 
-harmonized_metadata = pd.read_csv(os.path.join(base_dir, 'analysis_files/all_fovs/harmonized_metadata.csv'))
+harmonized_metadata = pd.read_csv(os.path.join(base_dir, 'v1_files/analysis_files/all_fovs/harmonized_metadata.csv'))
 
 # anonymize patient IDs
 patient_ID_mapping = pd.read_csv(os.path.join(base_dir, 'final_patient_mapping.csv'))
@@ -206,10 +206,10 @@ genomics_feature_df = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/TONI
 genomics_feature_df = genomics_feature_df.rename(columns={'Individual.ID': 'Patient_ID', 'timepoint': 'Timepoint'})
 
 # anonymize patient IDs
-patient_ID_mapping = pd.read_csv(os.path.join(base_dir, 'final_patient_mapping.csv'))
-genomics_feature_df = pd.merge(genomics_feature_df, patient_ID_mapping, on='Patient_ID', how='left')
-genomics_feature_df = genomics_feature_df.drop(columns=['Patient_ID'])
-genomics_feature_df = genomics_feature_df.rename(columns={'new_Patient_ID': 'Patient_ID'})
+# patient_ID_mapping = pd.read_csv(os.path.join(base_dir, 'final_patient_mapping.csv'))
+# genomics_feature_df = pd.merge(genomics_feature_df, patient_ID_mapping, on='Patient_ID', how='left')
+# genomics_feature_df = genomics_feature_df.drop(columns=['Patient_ID'])
+# genomics_feature_df = genomics_feature_df.rename(columns={'new_Patient_ID': 'Patient_ID'})
 
 # add in new IC10 predictions
 new_ic10 = pd.read_csv(os.path.join(sequence_dir, 'preprocessing/tonic_predictions.txt'), sep='\t')
