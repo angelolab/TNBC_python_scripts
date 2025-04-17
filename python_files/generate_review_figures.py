@@ -202,10 +202,11 @@ og_preds['cancer_revised'] = 0
 all_preds = pd.concat([NT_preds, og_preds, combo_preds])
 
 fig, ax = plt.subplots()
-sns.boxplot(data=all_preds, x='variable', y='value', ax=ax, width=0.6, hue='cancer_revised',
+sns.boxplot(data=all_preds, x='variable', y='value', ax=ax, hue='cancer_revised',
             palette=sns.color_palette(["gold", "#1f77b4", "darkseagreen"]), showfliers=False)
 sns.stripplot(data=all_preds, x='variable', y='value', ax=ax, hue='cancer_revised',
-              palette=sns.color_palette(["gold", "#1f77b4", "darkseagreen"]), dodge=True, jitter=0.2)
+              palette=sns.color_palette(["gold", "#1f77b4", "darkseagreen"]), dodge=True)
+
 fig.set_figheight(4)
 fig.set_figwidth(8)
 plt.xticks(rotation=45)
@@ -365,10 +366,10 @@ nt_feats_preds['Analysis'] = 1
 all_preds = pd.concat([preds, adj_preds, nt_feats_preds])
 
 fig, ax = plt.subplots()
-sns.boxplot(data=all_preds, x='variable', y='value', ax=ax, width=0.6, hue='Analysis',
+sns.boxplot(data=all_preds, x='variable', y='value', ax=ax, hue='Analysis',
             palette=sns.color_palette(["#1f77b4", 'gold', "darkseagreen"]), showfliers=False)
 sns.stripplot(data=all_preds, x='variable', y='value', ax=ax, hue='Analysis',
-              palette=sns.color_palette(["#1f77b4", 'gold', "darkseagreen"]), dodge=True, jitter=0.2)
+              palette=sns.color_palette(["#1f77b4", 'gold', "darkseagreen"]), dodge=True)
 
 fig.set_figheight(4)
 fig.set_figwidth(8)
@@ -437,7 +438,7 @@ plt.close()
 
 ## 2.8 / 4.8  Pre-treatment and On-treatment NT vs TONIC comparisons ##
 # Original NT features
-file_path = os.path.join(NT_DIR, '/data/41586_2023_6498_MOESM3_ESM.xlsx')
+file_path = os.path.join(NT_DIR, 'data/41586_2023_6498_MOESM3_ESM.xlsx')
 NT_features = pd.read_excel(file_path, sheet_name=None)
 cell_table = pd.read_csv(os.path.join(NT_DIR, 'analysis_files/cell_table.csv'))
 cell_table = cell_table.replace({'{': '', '}': ''}, regex=True)
@@ -1028,7 +1029,7 @@ for immune_drop, coords in [[0, (0, 0)], [0.10, (0, 1)], [0.25, (1, 0)], [0.50, 
     sub_df_comp = ranked_features[~ranked_features.index.isin(sub_idx_list)]
     sub_df_comp = sub_df_comp[sub_df_comp.compartment != 'all']
 
-    # calculate abundance of each compartment in the top 100 and across all features
+    # calculate abundance of each compartment across all features
     drop_features = ranked_features[ranked_features.index.isin(sub_idx_list)].feature_name_unique
     feature_metadata_sub = feature_metadata[~feature_metadata.feature_name_unique.isin(drop_features)]
     feature_metadata_comp = feature_metadata_sub[feature_metadata_sub.compartment!='all']
@@ -1596,7 +1597,9 @@ for c in ['Other', 'Stroma_Collagen', 'Stroma_Fibronectin', 'SMA', 'VIM']:
     tables[c] = c_neighbors_cancer_sub[['fov', 'label', 'cell_meta_cluster', 'cancer_neighbors_prop']]
 new_cancer_cells = pd.concat(tables.values())
 new_cancer_cells['cancer_test'] = False
-new_cancer_cells.loc[new_cancer_cells['cancer_neighbors_prop'] >= 0.7, 'cancer_test'] = True
+new_cancer_cells = new_cancer_cells.merge(cell_table[['fov', 'label', 'area']], on=['fov', 'label'], how='left')
+new_cancer_cells.loc[np.logical_and(new_cancer_cells['cancer_neighbors_prop']>=0.7, new_cancer_cells['area']>=cancer_cells.area.median()), 'cancer_test'] = True
+
 
 cell_table_adj = cell_table.copy()
 cell_table_adj = cell_table_adj.merge(new_cancer_cells, on=['fov', 'label', 'cell_meta_cluster'], how='left')
@@ -1607,6 +1610,11 @@ cell_table_adj.loc[cell_table_adj['cancer_test']==True, 'cell_cluster_broad_new'
 cell_table_adj.loc[cell_table_adj['cancer_test']==True, 'cell_meta_cluster_new'] = 'Cancer_new'
 cell_table_adj['cell_cluster_new'] = cell_table_adj['cell_cluster_new'].cat.add_categories('Cancer_new')
 cell_table_adj.loc[cell_table_adj['cancer_test']==True, 'cell_cluster_new'] = 'Cancer_new'
+cell_table_adj['cell_cluster_broad_new'] = cell_table_adj['cell_cluster_broad_new'].cat.add_categories('Cancer_new')
+cell_table_adj.loc[cell_table_adj['cancer_test']==True, 'cell_cluster_broad_new'] = 'Cancer_new'
+
+cancer_recluster = cell_table_adj[['fov', 'label', 'cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad', 'cancer_neighbors_prop', 'cancer_test', 'cell_meta_cluster_new', 'cell_cluster_new', 'cell_cluster_broad_new']]
+cancer_recluster.to_csv(os.path.join(reclustering_dir, 'reassigned_cell_table.csv'), index=False)
 
 fig, axes = plt.subplots(1, 3, figsize=(10, 4))
 fig.suptitle('Cancer cell proportion of cell neighborhoods')
