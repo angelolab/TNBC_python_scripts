@@ -5,8 +5,8 @@ matplotlib.rcParams['ps.fonttype'] = 42
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-import numpy as np
 import os
+import anndata
 import pandas as pd
 from matplotlib.ticker import FuncFormatter, MultipleLocator
 
@@ -193,9 +193,56 @@ sns.stripplot(data=patient_df, x='cell_cluster', y='cell_prop',
 plt.title('Baseline structural cell types', size=12)
 plt.xlabel('Cell Type')
 plt.ylabel('% of total structural cells')
-plt.ylim((0,1))
+plt.ylim((0, 1))
 plt.tight_layout()
-plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_6h.pdf'), dpi=300, bbox_inches='tight')
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_6i.pdf'), dpi=300, bbox_inches='tight')
+
+# PD1 expression
+cell_table = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/combined_cell_table_normalized_cell_labels_updated.csv'))
+mean_df = cell_table.groupby(['cell_cluster', 'fov'])['PD1'].mean().reset_index()
+cd4 = mean_df[mean_df.loc[:, 'cell_cluster'] == 'CD4T'].melt(id_vars=['cell_cluster', 'fov'])
+cd8 = mean_df[mean_df.loc[:, 'cell_cluster'] == 'CD8T'].melt(id_vars=['cell_cluster', 'fov'])
+total = pd.concat([cd4, cd8], axis=0)
+total['cell_cluster'] = list(total['cell_cluster'].values)
+
+plt.figure(figsize=(4, 4))
+sns.boxplot(x='cell_cluster', y='value', data=total.reset_index(), width=0.5, fliersize=0, color='lightgray')
+
+# Plot stripplot
+strip = sns.stripplot(x='cell_cluster', y='value', data=total.reset_index(), color='black',
+                      size=4, alpha=0.7, jitter=True)
+
+plt.xlabel('cell type', fontsize=12)
+plt.ylabel('PD1 Expression', fontsize=12)
+plt.tick_params(labelsize=10)
+plt.ylim(0, 0.002)
+plt.title('TONIC', fontsize=12)
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_6j_tonic.pdf'), bbox_inches='tight')
+
+# PD1 expression on CD4T as compared to CD8T in Wang et al.
+adata = anndata.read_h5ad('/Volumes/Shared/Noah Greenwald/NTPublic/adata/adata_preprocessed.h5ad')
+cell_table_nt = adata.to_df()
+cell_table_nt['cell_cluster'] = adata.obs['cell_cluster']
+cell_table_nt['fov'] = adata.obs['fov']
+
+mean_df = cell_table_nt.groupby(['cell_cluster', 'fov'])['PD-1'].mean().reset_index()
+cd4 = mean_df[mean_df.loc[:, 'cell_cluster'] == 'CD4T'].melt(id_vars = ['cell_cluster', 'fov'])
+cd8 = mean_df[mean_df.loc[:, 'cell_cluster'] == 'CD8T'].melt(id_vars = ['cell_cluster', 'fov'])
+total = pd.concat([cd4, cd8], axis=0)
+total['cell_cluster'] = list(total['cell_cluster'].values)
+
+plt.figure(figsize = (4,4))
+sns.boxplot(x='cell_cluster', y='value', data=total.reset_index(), width=0.5, fliersize=0, color='lightgray')
+
+# Plot stripplot
+strip = sns.stripplot(x='cell_cluster', y='value', data=total.reset_index(),
+                      color='black', size=4, alpha=0.7, jitter=True)
+
+plt.xlabel('cell type', fontsize=12)
+plt.ylabel('PD1 Expression', fontsize=12)
+plt.tick_params(labelsize=10)
+plt.title('NeoTRIP', fontsize=12)
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_6j_nt.pdf'), bbox_inches='tight')
 
 
 '''

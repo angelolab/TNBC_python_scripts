@@ -207,13 +207,10 @@ for fov in all_fovs:
     print(fov)
 
 
-
 ## 3.7 Fiber visualizations (i. j)
-
 # color fibers by alignment & length stats
 fiber_table = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'fiber_segmentation_processed_data/fiber_object_table.csv'))
-fibseg_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_8ij')
-os.makedirs(fibseg_dir, exist_ok=True)
+fibseg_dir = os.path.join(BASE_DIR, 'supplementary_figs/review_figures/fiber_features/fiber_masks')
 
 feature_fovs = {
     'alignment_score': ['TONIC_TMA14_R8C3', 'TONIC_TMA4_R10C1'],
@@ -227,7 +224,8 @@ for metric in feature_fovs:
         fiber_table_sub[f'{metric}_norm'] = fiber_table_sub[f'{metric}_norm'] + 0.5
     metric = f'{metric}_norm'
 
-    prop_dir = os.path.join(fibseg_dir, f'colored_{metric}')
+    save_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_8ij', f'colored_{metric}')
+    os.makedirs(save_dir, exist_ok=True)
     color_segmentation_by_stat(
-        fovs=fiber_table_sub.fov.unique(), data_table=fiber_table_sub, seg_dir=fibseg_dir, save_dir=prop_dir,
+        fovs=fiber_table_sub.fov.unique(), data_table=fiber_table_sub, seg_dir=fibseg_dir, save_dir=save_dir,
         stat_name=metric, cmap="Blues", seg_suffix="_fiber_labels.tiff", erode=True, fig_file_type='pdf')

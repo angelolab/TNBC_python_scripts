@@ -9,8 +9,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from matplotlib_venn import venn2
-
-
 from python_files.supplementary_plot_helpers import random_feature_generation, calculate_feature_corr
 
 
@@ -19,9 +17,7 @@ SUPPLEMENTARY_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs")
 
 
 # Analyse the significance scores of top features after randomization compared to the TONIC data.
-fp_dir = os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_9a_files')
-if not os.path.exists(fp_dir):
-    os.makedirs(fp_dir)
+fp_dir = os.path.join(BASE_DIR, "supplementary_figs", 'supp_figure_12a_files')
 
 '''
 # compute random feature sets
