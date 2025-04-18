@@ -1042,6 +1042,132 @@ deduped_distance_df_timepoint = deduped_distance_df_timepoint.merge(harmonized_m
 deduped_distance_df_timepoint.to_csv(os.path.join(output_dir, 'distance_df_per_timepoint_deduped.csv'), index=False)
 
 
+# occupancy stat summary
+
+# Create list to hold parameters for each df that will be produced
+occupancy_df_params = [['cluster_broad_freq', 'cell_cluster_broad']]
+
+occupancy_dfs = []
+for result_name, cluster_col_name in occupancy_df_params:
+
+    # remove cluster_names except for the one specified for the df
+    drop_cols = ['cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad', 'label']
+    drop_cols.remove(cluster_col_name)
+
+    # create df
+    occupancy_dfs.append(create_long_df_by_occupancy(cell_table=cell_table_occupancy,
+                                                     result_name=result_name,
+                                                     cluster_col_name=cluster_col_name,
+                                                     drop_cols=drop_cols,
+                                                     zscore_threshold=0.0))
+
+# create combined df
+total_df_occupancy = pd.concat(occupancy_dfs, axis=0)
+total_df_occupancy = total_df_occupancy.merge(harmonized_metadata, on='fov', how='inner')
+total_df_occupancy = total_df_occupancy.rename(columns={'functional_marker': 'occupancy_feature'})
+
+# save df
+total_df_occupancy.to_csv(os.path.join(output_dir, 'occupancy_df_per_core.csv'), index=False)
+
+# filter diversity scores to only include FOVs with at least the specified number of cells
+total_df = pd.read_csv(os.path.join(output_dir, 'cluster_df_per_core.csv'))
+min_cells = 5
+
+filtered_dfs = []
+metrics = [['cluster_broad_count', 'cluster_broad_freq'],
+           ['cluster_count', 'cluster_freq'],
+           ['meta_cluster_count', 'meta_cluster_freq']]
+for metric in metrics:
+    # subset count df to include cells at the relevant clustering resolution
+    for compartment in ['all']:
+        count_df = total_df[total_df.metric == metric[0]]
+        count_df = count_df[count_df.subset == compartment]
+
+        # subset diversity df to only include diversity metrics at this resolution
+        occupancy_df = total_df_occupancy[total_df_occupancy.metric == metric[1]]
+        occupancy_df = occupancy_df[occupancy_df.subset == compartment]
+
+        # for each cell type, determine which FOVs have high enough counts to be included
+        for cell_type in count_df.cell_type.unique():
+            keep_df = count_df[count_df.cell_type == cell_type]
+            keep_df = keep_df[keep_df.value >= min_cells]
+            keep_fovs = keep_df.fov.unique()
+
+            # subset morphology df to only include FOVs with high enough counts
+            keep_features = occupancy_df[occupancy_df.cell_type == cell_type]
+            keep_features = keep_features[keep_features.fov.isin(keep_fovs)]
+
+            # append to list of filtered dfs
+            filtered_dfs.append(keep_features)
+
+filtered_occupancy_df = pd.concat(filtered_dfs)
+
+# save filtered df
+filtered_occupancy_df.to_csv(os.path.join(output_dir, 'occupancy_df_per_core_filtered.csv'), index=False)
+
+# remove distances that are correlated with abundance of cell type
+
+if not os.path.exists(os.path.join(intermediate_dir, 'post_processing', 'occupancy_df_keep_features.csv')):
+    density_df = total_df.loc[(total_df.metric == 'cluster_broad_density') & (total_df.subset == 'all')]
+
+    # NOTE: this is purely for consistency, the table when created only includes the cluster_broad_freq metric and all compartments
+    filtered_occupancy_df = filtered_occupancy_df.loc[(filtered_occupancy_df.metric == 'cluster_broad_freq') & (filtered_occupancy_df.subset == 'all')]
+
+    # remove images without tumor cells
+    density_df = density_df.loc[density_df.Timepoint != 'lymphnode_neg', :]
+    filtered_occupancy_df = filtered_occupancy_df.loc[filtered_occupancy_df.fov.isin(density_df.fov.unique())]
+    cell_types = filtered_occupancy_df.cell_type.unique()
+
+    # calculate which pairings to keep
+    keep_cells, keep_features = [], []
+
+    for cell_type in cell_types:
+        density_subset = density_df.loc[density_df.cell_type == cell_type]
+        occupancy_subset = filtered_occupancy_df.loc[filtered_occupancy_df.linear_distance == cell_type]
+        occupancy_wide = occupancy_subset.pivot(index='fov', columns='cell_type', values='value')
+        occupancy_wide.reset_index(inplace=True)
+        occupancy_wide = pd.merge(occupancy_wide, density_subset[['fov', 'value']], on='fov', how='inner')
+
+        # get correlations
+        corr_df = occupancy_wide.corr(method='spearman')
+
+        # determine which features to keep
+        corr_vals = corr_df.loc['value', :].abs()
+        corr_vals = corr_vals[corr_vals < 0.7]
+
+        # add to list of features to keep
+        keep_cells.extend(corr_vals.index)
+        keep_features.extend([cell_type] * len(corr_vals.index))
+
+    keep_df = pd.DataFrame({'cell_type': keep_cells, 'feature_name': keep_features})
+
+    keep_df.to_csv(os.path.join(intermediate_dir, 'post_processing', 'occupancy_df_keep_features.csv'), index=False)
+else:
+    keep_df = pd.read_csv(os.path.join(intermediate_dir, 'post_processing', 'occupancy_df_keep_features.csv'))
+
+deduped_dfs = []
+for cell_type in keep_df.cell_type.unique():
+    keep_features = keep_df.loc[keep_df.cell_type == cell_type, 'feature_name'].unique()
+    if len(keep_features) > 0:
+        keep_df_subset = filtered_occupancy_df.loc[filtered_occupancy_df.cell_type == cell_type]
+        keep_df_subset = keep_df_subset.loc[keep_df_subset.linear_distance.isin(keep_features)]
+        deduped_dfs.append(keep_df_subset)
+
+deduped_occupancy_df = pd.concat(deduped_dfs)
+
+# save filtered df
+deduped_occupancy_df.to_csv(os.path.join(output_dir, 'occupancy_df_per_core_deduped.csv'), index=False)
+
+# create version aggregated by timepoint
+deduped_occupancy_df_grouped = deduped_occupancy_df.groupby(['Tissue_ID', 'cell_type', 'linear_distance', 'metric', 'subset'])
+deduped_occupancy_df_timepoint = deduped_occupancy_df_grouped['value'].agg([np.mean, np.std])
+deduped_occupancy_df_timepoint.reset_index(inplace=True)
+deduped_occupancy_df_timepoint = deduped_occupancy_df_timepoint.merge(harmonized_metadata.drop(['fov', 'MIBI_data_generated'], axis=1).drop_duplicates(), on='Tissue_ID')
+
+# save timepoint df
+deduped_occupancy_df_timepoint.to_csv(os.path.join(output_dir, 'occupancy_df_per_timepoint_deduped.csv'), index=False)
+
+
 # fiber analysis
 fiber_stats.columns = fiber_stats.columns.str.replace('avg_', '')
 fiber_stats.columns = fiber_stats.columns.str.replace('fiber_', '')
