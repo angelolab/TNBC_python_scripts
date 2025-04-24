@@ -8,10 +8,13 @@ matplotlib.rcParams['ps.fonttype'] = 42
 
 import matplotlib.pyplot as plt
 import seaborn as sns
+import numpy as np
 from venny4py.venny4py import venny4py
+from matplotlib_venn import venn2
 
 BASE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/"
 SUPPLEMENTARY_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs")
+REVIEW_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs/review_figures")
 ANALYSIS_DIR = os.path.join(BASE_DIR, "analysis_files")
 
 
@@ -264,3 +267,62 @@ sets = {'Wang et al.': NT_feats, 'TONIC': TONIC_feats}
 venny4py(sets=sets, colors="yb")
 plt.title("On-treatment Features")
 plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_16i.pdf'), bbox_inches='tight', dpi=300)
+
+
+colors_dict = {'original':'#C9C9C9', 'updated': '#78CE8B'}
+
+predicted_features_new = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'Cancer_reclustering', 'prediction_model', 'all_timepoints_results_MIBI.csv'))
+predicted_features_new.columns = ['on nivo', 'baseline', 'pre nivo', 'primary']
+predicted_features_new = predicted_features_new.loc[:, ['primary', 'baseline', 'pre nivo', 'on nivo']]
+predicted_features_new = predicted_features_new.melt()
+predicted_features_new['annotation'] = 'updated'
+
+predicted_features_old = pd.read_csv(os.path.join(BASE_DIR, 'prediction_model', 'patient_outcomes', 'all_timepoints_results_MIBI.csv'))
+predicted_features_old.columns = ['on nivo', 'baseline', 'pre nivo', 'primary']
+predicted_features_old = predicted_features_old.loc[:, ['primary', 'baseline', 'pre nivo', 'on nivo']]
+predicted_features_old = predicted_features_old.melt()
+predicted_features_old['annotation'] = 'original'
+predicted_features_joint = pd.concat([predicted_features_old, predicted_features_new], axis=0)
+
+_, axes = plt.subplots(1, 1, figsize=(4.5, 4.5), gridspec_kw={'hspace': 0.65, 'wspace': 0.3, 'bottom': 0.15})
+g = sns.boxplot(x='variable', y='value', hue='annotation', data=predicted_features_joint, linewidth=1, fliersize=0, width=0.6, ax=axes, palette=colors_dict)
+g = sns.stripplot(x='variable', y='value', hue='annotation', data=predicted_features_joint, linewidth=0.8,  size=5, edgecolor="black", ax=axes, palette=colors_dict, legend=False, dodge=True, jitter=True)
+
+g.tick_params(labelsize=10)
+g.set_xlabel('Timepoint', fontsize=10)
+g.set_ylabel('AUC', fontsize=10)
+g.set_ylim(0.4, 1.0)
+plt.savefig(os.path.join('auc.pdf'), bbox_inches='tight')
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_16l.pdf'), bbox_inches='tight', dpi=300)
+
+feature_ranking = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'Cancer_reclustering', 'SpaceCat', 'feature_ranking.csv'))
+feature_ranking_df = feature_ranking[np.isin(feature_ranking['comparison'], ['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
+feature_ranking_df['feature_name_unique'] = [i.replace('cell_cluster_revised', 'cell_cluster') for i in feature_ranking_df['feature_name_unique'] ]
+joint_features_new = feature_ranking_df['feature_name_unique'] + '_time_' + feature_ranking_df['comparison']
+joint_features_new = joint_features_new[:100].values
+joint_features_new = [i.replace('cell_cluster_revised', 'cell_cluster') for i in joint_features_new]
+
+feature_ranking_old = pd.read_csv(os.path.join(REVIEW_FIG_DIR, 'SpaceCat_original', '', 'feature_ranking.csv'))
+feature_ranking_df_old = feature_ranking_old[np.isin(feature_ranking_old['comparison'], ['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
+joint_features_old = feature_ranking_df_old['feature_name_unique'] + '_time_' + feature_ranking_df_old['comparison']
+joint_features_old = joint_features_old[:100].values
+
+new_not_old = list(set(joint_features_new).difference(set(joint_features_old)))
+old_not_new = list(set(joint_features_old).difference(set(joint_features_new)))
+
+original_set = set(joint_features_old)
+updated_set = set(joint_features_new)
+plt.figure(figsize=(4, 4))
+
+v = venn2([original_set, updated_set], set_labels=['original', 'updated'], set_colors=['#C9C9C9', '#78CE8B'])
+
+for region_id in ('10', '01', '11'):
+    label = v.get_label_by_id(region_id)
+    if label is not None:
+        label.set_fontsize(14)
+
+for label in v.set_labels:
+    if label is not None:
+        label.set_fontsize(16)
+
+plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_16k.pdf'), bbox_inches='tight')
