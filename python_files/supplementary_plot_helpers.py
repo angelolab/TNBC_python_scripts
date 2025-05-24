@@ -1342,7 +1342,7 @@ def run_diversity_mixing_tuning_tests(
     plt.tight_layout()
     plt.savefig(
         pathlib.Path(save_dir) /
-        f"neighborhood_diversity_cell_cluster_broad_box_test.pdf",
+        f"supp_figure_8e.pdf",
         dpi=300
     )
 
@@ -1393,7 +1393,7 @@ def run_diversity_mixing_tuning_tests(
 
     plt.savefig(
         pathlib.Path(save_dir) /
-        f"mixing_score_cell_cluster_broad_box_test.pdf",
+        f"supp_figure_8f.pdf",
         dpi=300
     )
 
