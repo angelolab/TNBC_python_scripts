@@ -3,6 +3,8 @@ import anndata
 import pandas as pd
 import numpy as np
 
+from postprocessing_utils import TIMEPOINT_COLUMNS, combine_features, generate_feature_rankings, prediction_preprocessing
+
 from SpaceCat.features import SpaceCat
 
 
@@ -160,4 +162,47 @@ grouped.columns = ['raw_mean', 'raw_std', 'normalized_mean', 'normalized_std']
 grouped = grouped.reset_index()
 grouped.to_csv(os.path.join(ANALYSIS_DIR, 'timepoint_features_filtered.csv'), index=False)
 
-## run 7_create_evolution_df.py and nivo_outcomes.py
+
+## 7_create_evolution_df.py converted
+study_name = 'TONIC'
+
+harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'harmonized_metadata.csv'))
+timepoint_features = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_features_filtered.csv'))
+timepoint_features_agg = timepoint_features.merge(
+    harmonized_metadata[['Tissue_ID', 'Timepoint', 'Patient_ID'] + TIMEPOINT_COLUMNS].drop_duplicates(), on='Tissue_ID',
+    how='left')
+patient_metadata = pd.read_csv(os.path.join(INTERMEDIATE_DIR, f'metadata/{study_name}_data_per_patient.csv'))
+outcome_data = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'metadata/patient_clinical_data.csv'))
+
+# add evolution features to get finalized features specified by timepoint
+combine_features(harmonized_metadata, timepoint_features, TIMEPOINT_COLUMNS, timepoint_features_agg, patient_metadata,
+                 outcome_data)
+
+
+## nivo_outcomes.py converted
+harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'harmonized_metadata.csv'))
+patient_metadata = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'metadata/TONIC_data_per_patient.csv'))
+feature_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_metadata.csv'))
+
+#
+# To generate the feature rankings, you must have downloaded the patient outcome data.
+#
+outcome_data = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'metadata/patient_clinical_data.csv'))
+
+# load previously computed results
+combined_df = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features.csv'))
+combined_df = combined_df.merge(outcome_data, on='Patient_ID')
+combined_df = combined_df.loc[combined_df.Clinical_benefit.isin(['Yes', 'No']), :]
+combined_df.to_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features_outcome_labels.csv'), index=False)
+
+# generate  pvalues and feature ranking
+generate_feature_rankings(combined_df, feature_metadata)
+
+
+# preprocess feature sets for modeling
+df_feature = pd.read_csv(os.path.join(ANALYSIS_DIR, f'timepoint_combined_features_outcome_labels.csv'))
+prediction_dir = os.path.join(ANALYSIS_DIR, 'prediction_model')
+os.makedirs(prediction_dir, exist_ok=True)
+
+prediction_preprocessing(df_feature, prediction_dir)
+os.makedirs(os.path.join(prediction_dir, 'patient_outcomes'), exist_ok=True)
