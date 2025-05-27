@@ -28,6 +28,7 @@ rna_metadata = rna_metadata.merge(harmonized_metadata[['Patient_ID', 'Tissue_ID'
 clinical_data = pd.read_csv(os.path.join(BASE_DIR, 'intermediate_files/metadata/patient_clinical_data.csv'))
 
 harmonized_metadata = harmonized_metadata.loc[harmonized_metadata.MIBI_data_generated, :]
+harmonized_metadata = harmonized_metadata[harmonized_metadata.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
 harmonized_metadata = harmonized_metadata[['Patient_ID', 'Timepoint']].merge(clinical_data, on='Patient_ID')
 harmonized_metadata = harmonized_metadata[harmonized_metadata.Clinical_benefit.isin(['Yes', 'No'])]
 wes_metadata = wes_metadata.rename(columns={'Individual.ID': 'Patient_ID', 'timepoint': 'Timepoint'})
@@ -61,78 +62,17 @@ for idx, row in sample_summary_df.iterrows():
 
 sample_summary_df.to_csv(os.path.join(save_dir, 'Supplementary_Table_3.csv'), index=False)
 
-# feature metadata
-feature_metadata = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature_metadata.csv'))
-
-feature_metadata.columns = ['Feature name', 'Feature name including compartment', 'Compartment the feature is calculated in',
-                            'Level of clustering granularity for cell types', 'Type of feature']
-
-correlation_feature_order = pd.read_csv(os.path.join(BASE_DIR, 'supplementary_figs/review_figures/Correlation clustermap/clustermap_feature_order.csv'))
-feature_metadata = feature_metadata.merge(correlation_feature_order, on='Feature name including compartment')
-feature_metadata.to_csv(os.path.join(save_dir, 'Supplementary_Table_4.csv'), index=False)
-
-# sequencing features
-sequencing_features = pd.read_csv(os.path.join(BASE_DIR, 'sequencing_data/processed_genomics_features.csv'))
-sequencing_features = sequencing_features[['feature_name', 'data_type', 'feature_type']].drop_duplicates()
-sequencing_features = sequencing_features.loc[sequencing_features.feature_type != 'gene_rna', :]
-
-sequencing_features.to_csv(os.path.join(save_dir, 'Supplementary_Table_5.csv'), index=False)
-
-# feature ranking
-feature_rank = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_ranking.csv'))
-sub_columns = ['feature_name_unique', 'comparison', 'pval', 'fdr_pval', 'med_diff', 'pval_rank', 'cor_rank',
-               'combined_rank', 'importance_score', 'signed_importance_score',
-               'feature_name', 'compartment', 'cell_pop_level', 'feature_type', 'feature_type_broad']
-feature_rank_sub = feature_rank[sub_columns]
-feature_rank_sub = feature_rank_sub[feature_rank_sub.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
-
-feature_values = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features_outcome_labels.csv'))
-feature_values = feature_values[feature_values.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
-feature_tp_df = feature_values[['feature_name_unique', 'Timepoint']].drop_duplicates()
-
-feature_tp_df['AUC'] = np.nan
-for _, row in feature_tp_df.iloc[:, :2].iterrows():
-    feature, tp = row
-    data = feature_values.loc[
-        np.logical_and(feature_values.feature_name_unique == feature, feature_values.Timepoint == tp)]
-    data.reset_index(inplace=True)
-    X = data.raw_mean.values.reshape(-1, 1)
-    y = data.Clinical_benefit
-
-    # Perform stratified k-fold cross-validation
-    kfold_avg_aucs = []
-    for i in range(10):
-        # Define the number of folds
-        k = 3
-        skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=i)
-        model = LogisticRegression()
-        aucs = []
-        for train_index, test_index in skf.split(X, y):
-            try:
-                X_train, X_test = X[train_index], X[test_index]
-                y_train, y_test = y[train_index], y[test_index]
-
-                model.fit(X_train, y_train)
-                y_pred = model.predict(X_test)
-                probabilities = model.predict_proba(X_test)[::, 1]
-                auc = metrics.roc_auc_score(y_test, probabilities)
-                aucs.append(auc)
-            except ValueError:
-                continue
-        kfold_avg_aucs.append(np.array(aucs).mean())
-    mean_auc = np.array(kfold_avg_aucs).mean()
-    feature_tp_df.loc[np.logical_and(feature_values.feature_name_unique == feature, feature_values.Timepoint == tp), 'AUC'] = mean_auc
-
-feature_tp_df = feature_tp_df.rename(columns={'Timepoint': 'comparison'})
-feature_rank__auc = feature_rank_sub.merge(feature_tp_df, on=['feature_name_unique', 'comparison'], how='left')
-feature_rank__auc.to_csv(os.path.join(save_dir, 'Supplementary_Table_6.csv'), index=False)
-
 # FOV counts per patient and timepoint
+clinical_data = pd.read_csv(os.path.join(BASE_DIR, 'intermediate_files/metadata/patient_clinical_data.csv'))
+
 harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'harmonized_metadata.csv'))
 harmonized_metadata = harmonized_metadata[harmonized_metadata.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
+harmonized_metadata = harmonized_metadata[['Patient_ID', 'Timepoint', 'MIBI_data_generated', 'fov', 'rna_seq_sample_id']].merge(clinical_data, on='Patient_ID')
+harmonized_metadata = harmonized_metadata[harmonized_metadata.Clinical_benefit.isin(['Yes', 'No'])]
 mibi_metadata = harmonized_metadata[harmonized_metadata.MIBI_data_generated]
 
 wes_metadata = pd.read_csv(os.path.join(BASE_DIR, 'sequencing_data/preprocessing/TONIC_WES_meta_table.tsv'), sep='\t')
+wes_metadata = wes_metadata[wes_metadata.Clinical_benefit.isin(['Yes', 'No'])]
 dna_counts = wes_metadata[['Individual.ID', 'timepoint', 'Experiment.System.ID']].drop_duplicates().groupby(['Individual.ID', 'timepoint'])['Experiment.System.ID'].count().unstack(fill_value=0).stack().reset_index()
 dna_counts = dna_counts.rename(columns={0: 'DNA samples', 'Individual.ID': 'Patient_ID', 'timepoint': 'Timepoint'})
 
@@ -146,13 +86,16 @@ all_counts = mibi_counts.merge(rna_counts, on=['Patient_ID', 'Timepoint'], how='
 all_counts = all_counts.merge(dna_counts, on=['Patient_ID', 'Timepoint'], how='outer').fillna(0)
 for col in ['MIBI fovs', 'RNA samples', 'DNA samples']:
     all_counts[col] = all_counts[col].astype(int)
-all_counts.sort_values(by=['Patient_ID', 'Timepoint']).to_csv(os.path.join(save_dir, 'Supplementary_Table_7.csv'), index=False)
+all_counts.sort_values(by=['Patient_ID', 'Timepoint']).to_csv(os.path.join(save_dir, 'Supplementary_Table_4.csv'), index=False)
 
-# top features for multivariate modeling
-all_model_rankings = pd.read_csv(os.path.join(BASE_DIR, 'multivariate_lasso/intermediate_results/all_model_rankings.csv'))
-top_model_features = all_model_rankings[all_model_rankings.top_ranked]
-top_model_features = top_model_features[['timepoint', 'modality', 'feature_name_unique', 'importance_score', 'coef_norm']]
-top_model_features.to_csv(os.path.join(save_dir, 'Supplementary_Table_8.csv'), index=False)
+# feature metadata
+feature_metadata = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature_metadata.csv'))
+feature_metadata.columns = ['Feature name', 'Feature name including compartment', 'Compartment the feature is calculated in',
+                            'Level of clustering granularity for cell types', 'Type of feature']
+
+correlation_feature_order = pd.read_csv(os.path.join(BASE_DIR, 'supplementary_figs/review_figures/Correlation clustermap/clustermap_feature_order.csv'))
+feature_metadata = feature_metadata.merge(correlation_feature_order, on='Feature name including compartment')
+feature_metadata.to_csv(os.path.join(save_dir, 'Supplementary_Table_5.csv'), index=False)
 
 # get overlap between static and evolution top features
 ranked_features = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature_ranking.csv'))
@@ -191,7 +134,7 @@ static_features = pd.DataFrame({'Feature name': static_ids, 'Feature type': 'sta
 evolution_features = pd.DataFrame({'Feature name': evolution_ids, 'Feature type': 'evolution'})
 shared_features = pd.DataFrame({'Feature name': overlap_features, 'Feature type': 'shared'})
 all_features = pd.concat([static_features, evolution_features, shared_features])
-all_features.to_csv(os.path.join(save_dir, 'Supplementary_Table_9.csv'), index=False)
+all_features.to_csv(os.path.join(save_dir, 'Supplementary_Table_7.csv'), index=False)
 
 # NT pre-treatment feature comparison
 tonic_features = pd.read_csv(os.path.join(BASE_DIR, 'analysis_files/feature_ranking.csv'))
@@ -272,18 +215,66 @@ NT_SPACECAT_feats.sort()
 
 pre_treatment_table = pd.DataFrame({'TONIC features': pd.Series(TONIC_feats), 'Wang et al features': pd.Series(WANG_feats),
                                     'NT SpaceCat features': pd.Series(NT_SPACECAT_feats)})
-pre_treatment_table.to_csv(os.path.join(save_dir, 'Supplementary_Table_10.csv'), index=False)
+pre_treatment_table.to_csv(os.path.join(save_dir, 'Supplementary_Table_8.csv'), index=False)
 
-# NT feature ranking
-NT_DIR = '/Volumes/Shared/Noah Greenwald/NTPublic'
-feature_rank = pd.read_csv(os.path.join(NT_DIR, 'NT_features_only/analysis_files/feature_ranking_immunotherapy+chemotherapy.csv'))
-
+# feature ranking
+feature_rank = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_ranking.csv'))
 sub_columns = ['feature_name_unique', 'comparison', 'pval', 'fdr_pval', 'med_diff', 'pval_rank', 'cor_rank',
                'combined_rank', 'importance_score', 'signed_importance_score',
                'feature_name', 'compartment', 'cell_pop_level', 'feature_type', 'feature_type_broad']
 feature_rank_sub = feature_rank[sub_columns]
-feature_type_dict = {'functional_marker': 'phenotype', 'density': 'density', 'cell_interactions': 'interactions'}
-feature_rank_sub['feature_type_broad'] = feature_rank_sub.feature_type.map(feature_type_dict)
-feature_rank_sub = feature_rank_sub[feature_rank_sub.comparison.isin(['Baseline', 'On-treatment'])]
+feature_rank_sub = feature_rank_sub[feature_rank_sub.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
 
-feature_rank_sub.to_csv(os.path.join(save_dir, 'Supplementary_Table_11.csv'), index=False)
+feature_values = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features_outcome_labels.csv'))
+feature_values = feature_values[feature_values.Timepoint.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo'])]
+feature_tp_df = feature_values[['feature_name_unique', 'Timepoint']].drop_duplicates()
+
+feature_tp_df['AUC'] = np.nan
+for _, row in feature_tp_df.iloc[:, :2].iterrows():
+    feature, tp = row
+    data = feature_values.loc[
+        np.logical_and(feature_values.feature_name_unique == feature, feature_values.Timepoint == tp)]
+    data.reset_index(inplace=True)
+    X = data.raw_mean.values.reshape(-1, 1)
+    y = data.Clinical_benefit
+
+    # Perform stratified k-fold cross-validation
+    kfold_avg_aucs = []
+    for i in range(10):
+        # Define the number of folds
+        k = 3
+        skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=i)
+        model = LogisticRegression()
+        aucs = []
+        for train_index, test_index in skf.split(X, y):
+            try:
+                X_train, X_test = X[train_index], X[test_index]
+                y_train, y_test = y[train_index], y[test_index]
+
+                model.fit(X_train, y_train)
+                y_pred = model.predict(X_test)
+                probabilities = model.predict_proba(X_test)[::, 1]
+                auc = metrics.roc_auc_score(y_test, probabilities)
+                aucs.append(auc)
+            except ValueError:
+                continue
+        kfold_avg_aucs.append(np.array(aucs).mean())
+    mean_auc = np.array(kfold_avg_aucs).mean()
+    feature_tp_df.loc[np.logical_and(feature_values.feature_name_unique == feature, feature_values.Timepoint == tp), 'AUC'] = mean_auc
+
+feature_tp_df = feature_tp_df.rename(columns={'Timepoint': 'comparison'})
+feature_rank__auc = feature_rank_sub.merge(feature_tp_df, on=['feature_name_unique', 'comparison'], how='left')
+feature_rank__auc.to_csv(os.path.join(save_dir, 'Supplementary_Table_9.csv'), index=False)
+
+# top features for multivariate modeling
+all_model_rankings = pd.read_csv(os.path.join(BASE_DIR, 'multivariate_lasso/intermediate_results/all_model_rankings.csv'))
+top_model_features = all_model_rankings[all_model_rankings.top_ranked]
+top_model_features = top_model_features[['timepoint', 'modality', 'feature_name_unique', 'importance_score', 'coef_norm']]
+top_model_features.to_csv(os.path.join(save_dir, 'Supplementary_Table_10.csv'), index=False)
+
+# sequencing features
+sequencing_features = pd.read_csv(os.path.join(BASE_DIR, 'sequencing_data/processed_genomics_features.csv'))
+sequencing_features = sequencing_features[['feature_name', 'data_type', 'feature_type']].drop_duplicates()
+sequencing_features = sequencing_features.loc[sequencing_features.feature_type != 'gene_rna', :]
+
+sequencing_features.to_csv(os.path.join(save_dir, 'Supplementary_Table_11.csv'), index=False)
