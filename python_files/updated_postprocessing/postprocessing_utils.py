@@ -1,6 +1,6 @@
 import os
 import warnings
-from typing import Callable, Dict, List, Optional, Tuple, TypedDict, Union
+from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -55,7 +55,8 @@ def generate_patient_paired_timepoints(
         distance_metric: Callable[[pd.Series, pd.Series], float], tissue_id_col: str = "Tissue_ID",
         patient_id_col: str = "Patient_ID", timepoint_col: str = "Timepoint",
         feature_to_compare: str = "normalized_mean",
-        feature_to_create: str = "euclidean_distance_normalized_mean_filtered_features"
+        feature_to_create: str = "euclidean_distance_normalized_mean_filtered_features",
+        timepoint_pairs = TIMEPOINT_PAIRS, timepoint_names=TIMEPOINT_NAMES
 ) -> pd.DataFrame:
     """Compute distance metric between timepoints aggregated across all evolution table features.
 
@@ -103,7 +104,7 @@ def generate_patient_paired_timepoints(
         # get the unique tissue samples for each timepoint
         patient_data_dedup = patient_data[
             patient_data[timepoint_col].isin(
-                TIMEPOINT_NAMES
+                timepoint_names
             )
         ].drop_duplicates()
 
@@ -131,7 +132,7 @@ def generate_patient_paired_timepoints(
         ).rename(tissue_id_timepoint_map, axis=1)
 
         # if a specific timepoint pair exists, then compute the mean difference across all features
-        for tp in TIMEPOINT_PAIRS:
+        for tp in timepoint_pairs:
             if tp[0] in wide_timepoint.columns.values and tp[1] in wide_timepoint.columns.values:
                 col_difference = distance_metric(
                     wide_timepoint.loc[:, tp[0]], wide_timepoint.loc[:, tp[1]]
@@ -162,11 +163,12 @@ def generate_patient_paired_timepoints(
     return timepoint_comparisons
 
 
-def combine_features(analysis_dir, harmonized_metadata, timepoint_features, evolution_cats, timepoint_features_agg,
-                     patient_metadata):
+def combine_features(analysis_dir, harmonized_metadata, timepoint_features, timepoint_features_agg,
+                     patient_metadata, metadata_cols=['Patient_ID'], timepoint_columns=TIMEPOINT_COLUMNS,
+                     timepoint_names=TIMEPOINT_NAMES, timepoint_pairs = TIMEPOINT_PAIRS, file_suffix=''):
     evolution_dfs = []
     # generate evolution df based on difference in timepoints
-    for evolution_col in evolution_cats:
+    for evolution_col in timepoint_columns:
         timepoint_1, timepoint_2 = evolution_col.split('__')
         evolution_df = timepoint_features_agg[timepoint_features_agg[evolution_col]].copy()
         evolution_df = evolution_df.loc[evolution_df.Timepoint.isin([timepoint_1, timepoint_2])]
@@ -194,58 +196,59 @@ def combine_features(analysis_dir, harmonized_metadata, timepoint_features, evol
     # add the Euclidean distance between all normalized and raw features across all patients
     aggregate_euclidean = generate_patient_paired_timepoints(
         harmonized_metadata, timepoint_features,
-        distance_metric=euclidean_timepoint
+        distance_metric=euclidean_timepoint, timepoint_pairs=timepoint_pairs, timepoint_names=timepoint_names
     )
     aggregate_euclidean = evolution_df[["Patient_ID", "comparison"]].drop_duplicates().merge(
         aggregate_euclidean, on=["Patient_ID", "comparison"]
     )[aggregate_euclidean.columns]
     evolution_df = pd.concat([evolution_df, aggregate_euclidean])
-    evolution_df.to_csv(os.path.join(analysis_dir, "timepoint_evolution_features.csv"), index=False)
+    evolution_df.to_csv(os.path.join(analysis_dir, f"timepoint_evolution_features{file_suffix}.csv"), index=False)
 
     # create combined df
-    timepoint_features = pd.read_csv(os.path.join(analysis_dir, 'timepoint_features_filtered.csv'))
+    timepoint_features = pd.read_csv(os.path.join(analysis_dir, f'timepoint_features_filtered{file_suffix}.csv'))
     timepoint_features = timepoint_features.merge(
-        harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint'] + TIMEPOINT_COLUMNS].drop_duplicates(),
+        harmonized_metadata[['Patient_ID', 'Tissue_ID', 'Timepoint'] + timepoint_columns].drop_duplicates(),
         on='Tissue_ID')
-    timepoint_features = timepoint_features.merge(patient_metadata[['Patient_ID']].drop_duplicates(), on='Patient_ID',
+    timepoint_features = timepoint_features.merge(patient_metadata[metadata_cols].drop_duplicates(), on='Patient_ID',
                                                   how='left')
 
     # Hacky, remove once metadata is updated
-    timepoint_features = timepoint_features.loc[timepoint_features.Patient_ID < 200, :]
-    timepoint_features = timepoint_features.loc[timepoint_features.Timepoint.isin(TIMEPOINT_NAMES), :]
+    #timepoint_features = timepoint_features.loc[timepoint_features.Patient_ID < 200, :]
+    timepoint_features = timepoint_features.loc[timepoint_features.Timepoint.isin(timepoint_names), :]
     timepoint_features = timepoint_features[
         ['Tissue_ID', 'feature_name', 'feature_name_unique', 'raw_mean', 'raw_std', 'normalized_mean', 'normalized_std',
-         'Patient_ID', 'Timepoint']]
+         'Timepoint'] + metadata_cols]
 
     # look at evolution
-    evolution_df = pd.read_csv(os.path.join(analysis_dir, 'timepoint_evolution_features.csv'))
-    evolution_df = evolution_df.merge(patient_metadata[['Patient_ID']].drop_duplicates(), on='Patient_ID', how='left')
+    evolution_df = pd.read_csv(os.path.join(analysis_dir, f'timepoint_evolution_features{file_suffix}.csv'))
+    evolution_df = evolution_df.merge(patient_metadata[metadata_cols].drop_duplicates(), on='Patient_ID', how='left')
     evolution_df = evolution_df.rename(
         columns={'raw_value': 'raw_mean', 'normalized_value': 'normalized_mean', 'comparison': 'Timepoint'})
-    evolution_df = evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint']]
+    evolution_df = evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Timepoint'] + metadata_cols]
 
     # combine together into single df
     combined_df = timepoint_features.copy()
-    combined_df = combined_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Patient_ID', 'Timepoint']]
-    combined_df = pd.concat([combined_df, evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean',
-                                                        'Patient_ID', 'Timepoint']]])
+    combined_df = combined_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Timepoint'] + metadata_cols]
+    combined_df = pd.concat([combined_df, evolution_df[['feature_name_unique', 'raw_mean', 'normalized_mean', 'Timepoint'] + metadata_cols]])
     combined_df['combined_name'] = combined_df.feature_name_unique + '__' + combined_df.Timepoint
 
     # drop any immune_agg features
     combined_df = combined_df[~combined_df.feature_name_unique.str.contains('immune_agg')]
 
-    combined_df.to_csv(os.path.join(analysis_dir, 'timepoint_combined_features.csv'), index=False)
+    combined_df.to_csv(os.path.join(analysis_dir, f'timepoint_combined_features{file_suffix}.csv'), index=False)
 
 
-def generate_feature_rankings(analysis_dir, combined_df, feature_metadata):
+def generate_feature_rankings(analysis_dir, combined_df, feature_metadata, pop_col='Clinical_benefit',
+                              populations=['No', 'Yes'], timepoint_names=TIMEPOINT_NAMES, file_suffix=''):
     method = 'ttest'
+    pop1, pop2 = populations
 
     # placeholder for all values
     total_dfs = []
 
     for comparison in combined_df.Timepoint.unique():
-        population_df = compare_populations(feature_df=combined_df, pop_col='Clinical_benefit',
-                                            timepoints=[comparison], pop_1='No', pop_2='Yes', method=method)
+        population_df = compare_populations(feature_df=combined_df, pop_col=pop_col,
+                                            timepoints=[comparison], pop_1=pop1, pop_2=pop2, method=method)
 
         if np.sum(~population_df.log_pval.isna()) == 0:
             continue
@@ -293,7 +296,7 @@ def generate_feature_rankings(analysis_dir, combined_df, feature_metadata):
 
     # get ranking of non-evolution features
     ranked_features_no_evo = ranked_features_df.loc[
-                             ranked_features_df.comparison.isin(['primary', 'baseline', 'pre_nivo', 'on_nivo']), :]
+                             ranked_features_df.comparison.isin(timepoint_names), :]
     ranked_features_no_evo['feature_rank_global'] = ranked_features_no_evo.importance_score.rank(ascending=False)
     ranked_features_df = ranked_features_df.merge(
         ranked_features_no_evo.loc[:, ['feature_name_unique', 'comparison', 'feature_rank_global']],
@@ -317,7 +320,7 @@ def generate_feature_rankings(analysis_dir, combined_df, feature_metadata):
         ranked_features_df.drop(columns='temp_comparison', inplace=True)
 
     # saved formatted df
-    ranked_features_df.to_csv(os.path.join(analysis_dir, 'feature_ranking.csv'), index=False)
+    ranked_features_df.to_csv(os.path.join(analysis_dir, f'feature_ranking{file_suffix}.csv'), index=False)
 
 
 def prediction_preprocessing(df_feature, prediction_dir):

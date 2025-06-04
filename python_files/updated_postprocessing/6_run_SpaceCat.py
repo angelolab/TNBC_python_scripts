@@ -172,11 +172,9 @@ timepoint_features_agg = timepoint_features.merge(
     harmonized_metadata[['Tissue_ID', 'Timepoint', 'Patient_ID'] + TIMEPOINT_COLUMNS].drop_duplicates(), on='Tissue_ID',
     how='left')
 patient_metadata = pd.read_csv(os.path.join(INTERMEDIATE_DIR, f'metadata/{study_name}_data_per_patient.csv'))
-outcome_data = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'metadata/patient_clinical_data.csv'))
 
 # add evolution features to get finalized features specified by timepoint
-combine_features(harmonized_metadata, timepoint_features, TIMEPOINT_COLUMNS, timepoint_features_agg, patient_metadata,
-                 outcome_data)
+combine_features(ANALYSIS_DIR, harmonized_metadata, timepoint_features, TIMEPOINT_COLUMNS, timepoint_features_agg, patient_metadata)
 
 
 ## nivo_outcomes.py converted
@@ -196,7 +194,7 @@ combined_df = combined_df.loc[combined_df.Clinical_benefit.isin(['Yes', 'No']), 
 combined_df.to_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features_outcome_labels.csv'), index=False)
 
 # generate  pvalues and feature ranking
-generate_feature_rankings(combined_df, feature_metadata)
+generate_feature_rankings(ANALYSIS_DIR, combined_df, feature_metadata)
 
 
 # preprocess feature sets for modeling
