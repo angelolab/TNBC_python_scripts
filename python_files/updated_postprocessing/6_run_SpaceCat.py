@@ -13,13 +13,17 @@ ANALYSIS_DIR = os.path.join(BASE_DIR, 'analysis_files')
 INTERMEDIATE_DIR = os.path.join(BASE_DIR, 'intermediate_files')
 FORMATTED_DIR = os.path.join(INTERMEDIATE_DIR, 'formatted_files')
 
+
+############# SKIP ANNDATA GENERATION IF NO CHANGES TO CELL TABLE
+
 # read in data
 cell_table = pd.read_csv(os.path.join(ANALYSIS_DIR, 'combined_cell_table_normalized_cell_labels_updated.csv'))
 func_table = pd.read_csv(os.path.join(ANALYSIS_DIR, 'cell_table_func_all.csv'))
 
 for col in func_table.columns:
     if col not in ['fov', 'label', 'cell_cluster_broad', 'cell_cluster', 'cell_meta_cluster']:
-        func_table[col] = func_table[col].astype(int)
+        if col not in ['H3K9ac_H3K27me3_ratio', 'CD45RO_CD45RB_ratio']:
+            func_table[col] = func_table[col].astype(int)
         func_table = func_table.rename(columns={col: f'{col}+'})
 
 cell_table = cell_table.merge(func_table, on=['fov', 'label', 'cell_cluster_broad', 'cell_cluster', 'cell_meta_cluster'])
@@ -69,6 +73,9 @@ adata.obsm['spatial'] = cell_table.loc[:, centroid_cols].values
 
 # save the anndata object
 adata.write_h5ad(os.path.join(ANALYSIS_DIR, 'adata.h5ad'))
+
+#############
+
 
 # run SpaceCat
 adata = anndata.read_h5ad(os.path.join(ANALYSIS_DIR, 'adata.h5ad'))
