@@ -165,7 +165,8 @@ def generate_patient_paired_timepoints(
 
 def combine_features(analysis_dir, harmonized_metadata, timepoint_features, timepoint_features_agg,
                      patient_metadata, metadata_cols=['Patient_ID'], timepoint_columns=TIMEPOINT_COLUMNS,
-                     timepoint_names=TIMEPOINT_NAMES, timepoint_pairs = TIMEPOINT_PAIRS, file_suffix=''):
+                     timepoint_names=TIMEPOINT_NAMES, timepoint_pairs=TIMEPOINT_PAIRS, file_suffix='',
+                     drop_immune_agg=True):
     evolution_dfs = []
     # generate evolution df based on difference in timepoints
     for evolution_col in timepoint_columns:
@@ -233,7 +234,8 @@ def combine_features(analysis_dir, harmonized_metadata, timepoint_features, time
     combined_df['combined_name'] = combined_df.feature_name_unique + '__' + combined_df.Timepoint
 
     # drop any immune_agg features
-    combined_df = combined_df[~combined_df.feature_name_unique.str.contains('immune_agg')]
+    if drop_immune_agg==True:
+        combined_df = combined_df[~combined_df.feature_name_unique.str.contains('immune_agg')]
 
     combined_df.to_csv(os.path.join(analysis_dir, f'timepoint_combined_features{file_suffix}.csv'), index=False)
 
