@@ -3,6 +3,8 @@ import anndata
 import pandas as pd
 import numpy as np
 
+from postprocessing_utils import TIMEPOINT_COLUMNS, combine_features, generate_feature_rankings, prediction_preprocessing
+
 from SpaceCat.features import SpaceCat
 
 
@@ -138,10 +140,9 @@ excluded_features = excluded_features[~excluded_features.feature_name_unique.str
 excluded_features.to_csv(os.path.join(ANALYSIS_DIR, 'excluded_features.csv'), index=False)
 
 # group by timepoint
-adata_processed = anndata.read_h5ad(os.path.join(ANALYSIS_DIR, 'adata_processed.h5ad'))
 harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'harmonized_metadata.csv'))
 
-fov_data_df = adata_processed.uns['combined_feature_data']
+fov_data_df = pd.read_csv(os.path.join(ANALYSIS_DIR, 'combined_feature_data.csv'))
 fov_data_df = pd.merge(fov_data_df, harmonized_metadata[['Tissue_ID', 'fov']], on='fov', how='left')
 grouped = fov_data_df.groupby(['Tissue_ID', 'feature_name', 'feature_name_unique', 'compartment',
                                'cell_pop_level', 'feature_type']).agg({'raw_value': ['mean', 'std'],
@@ -150,7 +151,7 @@ grouped.columns = ['raw_mean', 'raw_std', 'normalized_mean', 'normalized_std']
 grouped = grouped.reset_index()
 grouped.to_csv(os.path.join(ANALYSIS_DIR, 'timepoint_features.csv'), index=False)
 
-fov_data_df_filtered = adata_processed.uns['combined_feature_data_filtered']
+fov_data_df_filtered = pd.read_csv(os.path.join(ANALYSIS_DIR, 'combined_feature_data_filtered.csv'))
 fov_data_df_filtered = pd.merge(fov_data_df_filtered, harmonized_metadata[['Tissue_ID', 'fov']], on='fov', how='left')
 grouped = fov_data_df_filtered.groupby(['Tissue_ID', 'feature_name', 'feature_name_unique', 'compartment',
                                  'cell_pop_level', 'feature_type']).agg({'raw_value': ['mean', 'std'],
@@ -160,4 +161,45 @@ grouped.columns = ['raw_mean', 'raw_std', 'normalized_mean', 'normalized_std']
 grouped = grouped.reset_index()
 grouped.to_csv(os.path.join(ANALYSIS_DIR, 'timepoint_features_filtered.csv'), index=False)
 
-## run 7_create_evolution_df.py and nivo_outcomes.py
+
+## 7_create_evolution_df.py converted
+study_name = 'TONIC'
+
+timepoint_features = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_features_filtered.csv'))
+timepoint_features_agg = timepoint_features.merge(
+    harmonized_metadata[['Tissue_ID', 'Timepoint', 'Patient_ID'] + TIMEPOINT_COLUMNS].drop_duplicates(), on='Tissue_ID',
+    how='left')
+patient_metadata = pd.read_csv(os.path.join(INTERMEDIATE_DIR, f'metadata/{study_name}_data_per_patient.csv'))
+
+# add evolution features to get finalized features specified by timepoint
+combine_features(ANALYSIS_DIR, harmonized_metadata, timepoint_features, timepoint_features_agg, patient_metadata,
+                 timepoint_columns=TIMEPOINT_COLUMNS)
+
+
+## nivo_outcomes.py converted
+patient_metadata = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'metadata/TONIC_data_per_patient.csv'))
+feature_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_metadata.csv'))
+
+#
+# To generate the feature rankings, you must have downloaded the patient outcome data.
+#
+outcome_data = pd.read_csv(os.path.join(INTERMEDIATE_DIR, 'metadata/patient_clinical_data.csv'))
+
+# load previously computed results
+combined_df = pd.read_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features.csv'))
+combined_df = combined_df.merge(outcome_data, on='Patient_ID')
+combined_df = combined_df.loc[combined_df.Clinical_benefit.isin(['Yes', 'No']), :]
+combined_df.to_csv(os.path.join(ANALYSIS_DIR, 'timepoint_combined_features_outcome_labels.csv'), index=False)
+
+# generate  pvalues and feature ranking
+generate_feature_rankings(ANALYSIS_DIR, combined_df, feature_metadata)
+
+
+# preprocess feature sets for modeling
+df_feature = pd.read_csv(os.path.join(ANALYSIS_DIR, f'timepoint_combined_features_outcome_labels.csv'))
+prediction_dir = os.path.join(ANALYSIS_DIR, 'prediction_model')
+os.makedirs(prediction_dir, exist_ok=True)
+df_feature.to_csv(os.path.join(prediction_dir, 'timepoint_combined_features_outcome_labels.csv'), index=False)
+
+prediction_preprocessing(df_feature, prediction_dir)
+os.makedirs(os.path.join(prediction_dir, 'patient_outcomes'), exist_ok=True)

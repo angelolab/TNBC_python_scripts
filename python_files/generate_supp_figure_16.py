@@ -1,6 +1,8 @@
 import os
 import pandas as pd
 import matplotlib
+import itertools
+import shutil
 import matplotlib.lines as mlines
 
 matplotlib.rcParams['pdf.fonttype'] = 42
@@ -11,12 +13,253 @@ import seaborn as sns
 import numpy as np
 from venny4py.venny4py import venny4py
 from matplotlib_venn import venn2
+import anndata
 
 BASE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/"
 SUPPLEMENTARY_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs")
 REVIEW_FIG_DIR = os.path.join(BASE_DIR, "supplementary_figs/review_figures")
 ANALYSIS_DIR = os.path.join(BASE_DIR, "analysis_files")
 
+
+'''
+## GENERATE SPACECAT FEATURES FOR NT DATA ##
+## RUN SPACECAT ON NT DATA
+NT_DIR = '/Volumes/Shared/Noah Greenwald/NTPublic'
+harmonized_metadata = pd.read_csv(os.path.join(NT_DIR, 'analysis_files', 'harmonized_metadata.csv'))
+
+## SPACECAT FEATURES ONLY
+adata_processed = anndata.read_h5ad(os.path.join(NT_DIR, 'adata', 'adata_preprocessed.h5ad'))
+
+features = SpaceCat(adata_processed, image_key='fov', seg_label_key='label', cell_area_key='area',
+                    cluster_key=['cell_cluster', 'cell_cluster_broad'],
+                    compartment_key='compartment', compartment_area_key='compartment_area')
+
+mixing_df = pd.read_csv(os.path.join(NT_DIR, 'intermediate_files/spatial_analysis/mixing_score/homogeneous_mixing_scores-ratio5_count200.csv'))
+cols = mixing_df.columns.tolist()
+keep_cols = [col for col in cols if 'mixing_score' in col]
+mixing_df = mixing_df[['fov'] + keep_cols]
+mixing_df = mixing_df[mixing_df.fov.isin(adata_processed.obs.fov.unique())]
+
+# specify cell type pairs to compute a ratio for
+ratio_pairings = [('CD8T', 'CD4T'), ('CD4T', 'Treg'), ('CD8T', 'Treg')]
+# specify addtional per cell and per image stats
+per_cell_stats = [
+    ['morphology', 'cell_cluster', ['cell_size']]
+]
+per_img_stats = [
+    ['mixing_score', mixing_df],
+]
+
+import time
+start = time.time()
+print('Start SpaceCat')
+# Generate features and save anndata
+adata_processed = features.run_spacecat(functional_feature_level='cell_cluster', diversity_feature_level='cell_cluster',
+                                        pixel_radius=25,
+                                        specified_ratios_cluster_key='cell_cluster', specified_ratios=ratio_pairings,
+                                        per_cell_stats=per_cell_stats, per_img_stats=per_img_stats,
+                                        correlation_filtering_thresh=0.95)
+
+end = time.time()
+length = end - start
+print(f'End SpaceCat - {length/60}')
+
+folder = 'SpaceCat'
+out_dir = os.path.join(NT_DIR, folder)
+os.makedirs(out_dir, exist_ok=True)
+adata_processed.write_h5ad(os.path.join(out_dir, 'adata_processed.h5ad'))
+
+# Save finalized tables to csv
+adata_processed.uns['combined_feature_data'].to_csv(os.path.join(out_dir, 'combined_feature_data.csv'), index=False)
+adata_processed.uns['combined_feature_data_filtered'].to_csv(os.path.join(out_dir, 'combined_feature_data_filtered.csv'), index=False)
+adata_processed.uns['feature_metadata'].to_csv(os.path.join(out_dir, 'feature_metadata.csv'), index=False)
+adata_processed.uns['excluded_features'].to_csv(os.path.join(out_dir, 'excluded_features.csv'), index=False)
+
+df = pd.read_csv(os.path.join(out_dir, 'combined_feature_data_filtered.csv'))
+feature_data = df.merge(harmonized_metadata[['fov', 'Tissue_ID']], on='fov', how='left')
+grouped = feature_data.groupby(['Tissue_ID', 'feature_name', 'feature_name_unique', 'compartment',
+                                 'cell_pop_level', 'feature_type']).agg({'raw_value': ['mean', 'std'],
+                                                                            'normalized_value': ['mean', 'std']})
+grouped.columns = ['raw_mean', 'raw_std', 'normalized_mean', 'normalized_std']
+grouped = grouped.reset_index()
+
+output_dir = os.path.join(out_dir, 'output_files')
+analysis_dir = os.path.join(out_dir, 'analysis_files')
+
+os.makedirs(analysis_dir, exist_ok=True)
+os.makedirs(output_dir, exist_ok=True)
+os.makedirs(os.path.join(out_dir, 'prediction_model'), exist_ok=True)
+grouped.to_csv(os.path.join(analysis_dir, 'timepoint_features_filtered.csv'), index=False)
+
+timepoint_features = pd.read_csv(os.path.join(analysis_dir, f'timepoint_features_filtered.csv'))
+tissue_treatment = harmonized_metadata[['Tissue_ID', 'Arm']].drop_duplicates()
+timepoint_features_subset = timepoint_features.merge(tissue_treatment)
+
+timepoint_features_C = timepoint_features_subset[timepoint_features_subset.Arm=='C']
+timepoint_features_C = timepoint_features_C.drop(columns='Arm')
+timepoint_features_C.to_csv(os.path.join(analysis_dir, 'timepoint_features_filtered_chemotherapy.csv'), index=False)
+timepoint_features_C_I = timepoint_features_subset[timepoint_features_subset.Arm=='C&I']
+timepoint_features_C_I = timepoint_features_C_I.drop(columns='Arm')
+timepoint_features_C_I.to_csv(os.path.join(analysis_dir, 'timepoint_features_filtered_immunotherapy+chemotherapy.csv'), index=False)
+
+
+## CALCULATE INTERACTION FEATURES
+adata = anndata.read_h5ad(os.path.join(NT_DIR, 'SpaceCat', 'adata_processed.h5ad'))
+neighborhood_mat = adata.obsm['neighbors_counts_cell_cluster_radius25']
+neighborhood_mat = pd.concat([adata.obs.loc[:, ['fov', 'label', 'cell_cluster']], neighborhood_mat], axis=1)
+interactions_df = neighborhood_mat[['fov', 'cell_cluster']]
+
+# define epithelial and TME cell clusters
+ep_cells = ['Epithelial_1', 'Epithelial_3', 'Epithelial_2']
+tme_cells = ['APC', 'B', 'CD4T', 'CD8T', 'DC', 'Endothelial',
+       'Fibroblast', 'M2_Mac', 'NK', 'Neutrophil', 'PDPN', 'Plasma',
+       'Treg']
+interactions_df['Epi'] = neighborhood_mat[ep_cells].sum(axis=1)
+interactions_df['TME'] = neighborhood_mat[tme_cells].sum(axis=1)
+interactions_df = interactions_df.groupby(by=['fov', 'cell_cluster']).sum(numeric_only=True).reset_index()
+
+interactions_df = interactions_df.merge(adata.obs[['fov', 'cell_size']].groupby(by='fov').count().reset_index(), on='fov')
+interactions_df = interactions_df.rename(columns={'cell_size': 'total_cells'})
+interactions_df['Epi'] = interactions_df['Epi'] / interactions_df['total_cells']
+interactions_df['TME'] = interactions_df['TME'] / interactions_df['total_cells']
+interactions_df['isEpi'] = interactions_df['cell_cluster'].isin(ep_cells)
+interactions_df['isEpi'] = ['Epi' if check else 'TME' for check in interactions_df['isEpi']]
+
+# sum total homotypic and heterotypic interactions per cell type
+interactions_df = pd.melt(interactions_df, id_vars=['fov', 'cell_cluster', 'isEpi'], value_vars=['Epi', 'TME'])
+interactions_df['feature_type'] = [cell + 'Hom' if cell == interactions_df['variable'][i] else cell + 'Het' for i, cell in enumerate(interactions_df.isEpi)]
+interactions_df['feature'] = interactions_df["cell_cluster"].astype(str) + '__' + interactions_df["feature_type"].astype(str)
+interactions_df = interactions_df.pivot(index='fov', columns='feature', values='value').reset_index()
+
+folder = 'SpaceCat_NT_combined'
+out_dir = os.path.join(NT_DIR, folder)
+os.makedirs(out_dir, exist_ok=True)
+interactions_df.to_csv(os.path.join(out_dir, 'Epi_TME_interactions.csv'), index=False)
+
+
+## SPACECAT + WANG INTERACTION FEATURES
+adata_processed = anndata.read_h5ad(os.path.join(NT_DIR, 'adata', 'adata_preprocessed.h5ad'))
+
+features = SpaceCat(adata_processed, image_key='fov', seg_label_key='label', cell_area_key='area',
+                    cluster_key=['cell_cluster', 'cell_cluster_broad'],
+                    compartment_key='compartment', compartment_area_key='compartment_area')
+
+mixing_df = pd.read_csv(os.path.join(NT_DIR, 'intermediate_files/spatial_analysis/mixing_score/homogeneous_mixing_scores-ratio5_count200.csv'))
+cols = mixing_df.columns.tolist()
+keep_cols = [col for col in cols if 'mixing_score' in col]
+mixing_df = mixing_df[['fov'] + keep_cols]
+mixing_df = mixing_df[mixing_df.fov.isin(adata_processed.obs.fov.unique())]
+cell_interactions = pd.read_csv(os.path.join(out_dir, 'Epi_TME_interactions.csv'))
+
+# specify cell type pairs to compute a ratio for
+ratio_pairings = [('CD8T', 'CD4T'), ('CD4T', 'Treg'), ('CD8T', 'Treg')]
+# specify addtional per cell and per image stats
+per_cell_stats = [
+    ['morphology', 'cell_cluster', ['cell_size']]
+]
+per_img_stats = [
+    ['mixing_score', mixing_df],
+    ['cell_interactions', cell_interactions]
+]
+
+# Generate features and save anndata
+adata_processed = features.run_spacecat(functional_feature_level='cell_cluster', diversity_feature_level='cell_cluster',
+                                        pixel_radius=25,
+                                        specified_ratios_cluster_key='cell_cluster', specified_ratios=ratio_pairings,
+                                        per_cell_stats=per_cell_stats, per_img_stats=per_img_stats,
+                                        correlation_filtering_thresh=0.95)
+adata_processed.write_h5ad(os.path.join(out_dir, 'adata_processed.h5ad'))
+
+# Save finalized tables to csv
+adata_processed.uns['combined_feature_data'].to_csv(os.path.join(out_dir, 'combined_feature_data.csv'), index=False)
+adata_processed.uns['combined_feature_data_filtered'].to_csv(os.path.join(out_dir, 'combined_feature_data_filtered.csv'), index=False)
+adata_processed.uns['feature_metadata'].to_csv(os.path.join(out_dir, 'feature_metadata.csv'), index=False)
+adata_processed.uns['excluded_features'].to_csv(os.path.join(out_dir, 'excluded_features.csv'), index=False)
+
+df = pd.read_csv(os.path.join(out_dir, 'combined_feature_data_filtered.csv'))
+feature_data = df.merge(harmonized_metadata[['fov', 'Tissue_ID']], on='fov', how='left')
+grouped = feature_data.groupby(['Tissue_ID', 'feature_name', 'feature_name_unique', 'compartment',
+                                 'cell_pop_level', 'feature_type']).agg({'raw_value': ['mean', 'std'],
+                                                                            'normalized_value': ['mean', 'std']})
+grouped.columns = ['raw_mean', 'raw_std', 'normalized_mean', 'normalized_std']
+grouped = grouped.reset_index()
+
+output_dir = os.path.join(out_dir, 'output_files')
+analysis_dir = os.path.join(out_dir, 'analysis_files')
+
+os.makedirs(analysis_dir, exist_ok=True)
+os.makedirs(output_dir, exist_ok=True)
+os.makedirs(os.path.join(out_dir, 'prediction_model'), exist_ok=True)
+grouped.to_csv(os.path.join(analysis_dir, 'timepoint_features_filtered.csv'), index=False)
+
+timepoint_features = pd.read_csv(os.path.join(analysis_dir, f'timepoint_features_filtered.csv'))
+tissue_treatment = harmonized_metadata[['Tissue_ID', 'Arm']].drop_duplicates()
+timepoint_features_subset = timepoint_features.merge(tissue_treatment)
+
+timepoint_features_C = timepoint_features_subset[timepoint_features_subset.Arm=='C']
+timepoint_features_C = timepoint_features_C.drop(columns='Arm')
+timepoint_features_C.to_csv(os.path.join(analysis_dir, 'timepoint_features_filtered_chemotherapy.csv'), index=False)
+timepoint_features_C_I = timepoint_features_subset[timepoint_features_subset.Arm=='C&I']
+timepoint_features_C_I = timepoint_features_C_I.drop(columns='Arm')
+timepoint_features_C_I.to_csv(os.path.join(analysis_dir, 'timepoint_features_filtered_immunotherapy+chemotherapy.csv'), index=False)
+
+
+## 7_create_evolution_df.py converted
+TIMEPOINT_NAMES = ['Baseline', 'On-treatment']
+
+# define the timepoint pairs to use, these index into harmonized_metadata
+TIMEPOINT_PAIRS = [
+    ("Baseline", "On-treatment")
+]
+
+# define the timepoint columns as they appear in timepoint_df
+TIMEPOINT_COLUMNS = [
+    "Baseline__On-treatment",
+]
+
+for analysis_method, treatment in itertools.product(['SpaceCat', 'SpaceCat_NT_combined'], ['_chemotherapy', '_immunotherapy+chemotherapy']):
+    analysis_dir = os.path.join(NT_DIR, analysis_method, 'analysis_files')
+    harmonized_metadata = pd.read_csv(os.path.join(os.path.join(NT_DIR, 'analysis_files', 'harmonized_metadata.csv')))
+    timepoint_features = pd.read_csv(os.path.join(analysis_dir, f'timepoint_features_filtered{treatment}.csv'))
+    timepoint_features_agg = timepoint_features.merge(harmonized_metadata[['Tissue_ID', 'Timepoint', 'Patient_ID'] + TIMEPOINT_COLUMNS].drop_duplicates(), on='Tissue_ID', how='left')
+    patient_metadata = pd.read_csv(os.path.join(os.path.join(NT_DIR, 'intermediate_files', 'metadata/NTPublic_data_per_patient.csv')))
+
+
+    # add evolution features to get finalized features specified by timepoint
+    combine_features(analysis_dir, harmonized_metadata, timepoint_features, timepoint_features_agg, 
+                    patient_metadata, metadata_cols=['Patient_ID', 'pCR', 'Arm'], 
+                    timepoint_columns=TIMEPOINT_COLUMNS, timepoint_names=TIMEPOINT_NAMES, timepoint_pairs = TIMEPOINT_PAIRS,
+                    file_suffix=treatment)
+
+    # generate  pvalues and feature ranking
+    feature_metadata = pd.read_csv(os.path.join(NT_DIR, analysis_method, 'feature_metadata.csv'))
+    combined_df = pd.read_csv(os.path.join(analysis_dir, f'timepoint_combined_features{treatment}.csv'))
+    generate_feature_rankings(analysis_dir, combined_df, feature_metadata, pop_col='pCR', 
+                              populations=['RD', 'pCR'], timepoint_names=TIMEPOINT_NAMES, file_suffix=treatment)
+                              
+## PREDICTION PREPROCESSING
+for analysis_method in ['SpaceCat', 'SpaceCat_NT_combined']:
+    sub_dir = os.path.join(NT_DIR, analysis_method)
+    top_dir = os.path.join(sub_dir ,'prediction_model')
+    analysis_dir = os.path.join(NT_DIR, analysis_method, 'analysis_files')
+
+    os.makedirs(os.path.join(top_dir, 'chemotherapy'), exist_ok=True)
+    os.makedirs(os.path.join(top_dir, 'immunotherapy+chemotherapy'), exist_ok=True)
+
+    for treatment in ['_chemotherapy', '_immunotherapy+chemotherapy']:
+
+        # read data
+        prediction_dir = os.path.join(top_dir, treatment[1:])
+        shutil.copy(os.path.join(analysis_dir, f'timepoint_combined_features{treatment}.csv'), os.path.join(prediction_dir, f'timepoint_combined_features{treatment}.csv'))
+        
+        df_feature = pd.read_csv(os.path.join(prediction_dir, f'timepoint_combined_features{treatment}.csv'))
+        prediction_preprocessing(df_feature, prediction_dir)
+        
+        os.makedirs(os.path.join(prediction_dir, 'patient_outcomes'), exist_ok=True)
+        
+    ## RUN all_timepoints.R
+
+'''
 
 # plot top baseline features
 NT_DIR = '/Volumes/Shared/Noah Greenwald/NTPublic'
@@ -48,7 +291,6 @@ for timepoint in ['Baseline', 'On-treatment']:
 
 
 # WANG DATA COMPARISON
-NT_DIR = '/Volumes/Shared/Noah Greenwald/NTPublic'
 pred_chemo = pd.read_csv(os.path.join(NT_DIR, 'SpaceCat/prediction_model/chemotherapy/patient_outcomes/all_timepoints_results.csv'))
 pred_chemo_immuno = pd.read_csv(os.path.join(NT_DIR, 'SpaceCat/prediction_model/immunotherapy+chemotherapy/patient_outcomes/all_timepoints_results.csv'))
 pred_chemo = pred_chemo.rename(columns={'auc_baseline_list': 'baseline_C', 'auc_on_treatment_list': 'on_treatment_C',
