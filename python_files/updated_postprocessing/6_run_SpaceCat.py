@@ -56,10 +56,10 @@ markers = ['CD11c', 'CD14', 'CD163', 'CD20', 'CD3', 'CD31', 'CD38', 'CD4', 'CD45
 centroid_cols = ['centroid-0', 'centroid-1']
 cell_data_cols = ['fov', 'label', 'cell_meta_cluster', 'cell_cluster', 'cell_cluster_broad',
                   'compartment', 'compartment_area',
-                  'area', 'area_nuclear', 'cell_size', 'cell_size_nuclear', 'centroid-0', 'centroid-1',
-                  'centroid-0_nuclear', 'centroid-1_nuclear','centroid_dif', 'centroid_dif_nuclear', 'major_axis_length',
+                  'area', 'area_nuclear', 'nc_ratio', 'cell_size', 'cell_size_nuclear', 'centroid-0', 'centroid-1',
+                  'centroid-0_nuclear', 'centroid-1_nuclear', 'major_axis_length',
                   'distance_to__B', 'distance_to__Cancer', 'distance_to__Granulocyte', 'distance_to__Mono_Mac',
-                  'distance_to__NK', 'distance_to__Other', 'distance_to__Structural', 'distance_to__T']
+                  'distance_to__NK', 'distance_to__Other', 'distance_to__Structural', 'distance_to__T'] + complex_morph_cols
 
 # create anndata from table subsetted for marker info, which will be stored in adata.X
 adata = anndata.AnnData(cell_table.loc[:, markers])
@@ -93,9 +93,10 @@ ecm_clusters = pd.read_csv(os.path.join(FORMATTED_DIR, 'ecm_cluster_stats.csv'))
 # specify cell type pairs to compute a ratio for
 ratio_pairings = [('CD8T', 'CD4T'), ('CD4T', 'Treg'), ('CD8T', 'Treg'), ('CD68_Mac', 'CD163_Mac')]
 
-# specify addtional per cell and per image stats
+# specify additional per cell and per image stats
 per_cell_stats = [
-    ['morphology', 'cell_cluster', ['area', 'major_axis_length']],
+    ['morphology', 'cell_cluster', ['area', 'area_nuclear', 'nc_ratio', 'convex_hull_resid', 'centroid_dif', 'centroid_dif_nuclear', 'eccentricity', 'num_concavities',
+                                    'perim_square_over_area', 'convex_hull_resid_nuclear', 'eccentricity_nuclear', 'num_concavities_nuclear']],
     ['linear_distance', 'cell_cluster_broad', ['distance_to__B', 'distance_to__Cancer', 'distance_to__Granulocyte', 'distance_to__Mono_Mac',
                                                'distance_to__NK', 'distance_to__Other', 'distance_to__Structural', 'distance_to__T']]
 
@@ -121,7 +122,7 @@ adata_processed = features.run_spacecat(functional_feature_level='cell_cluster',
                                         specified_ratios_cluster_key='cell_cluster', specified_ratios=ratio_pairings,
                                         per_cell_stats=per_cell_stats, per_img_stats=per_img_stats)
 
-adata_processed.write_h5ad(os.path.join(ANALYSIS_DIR, 'adata', 'adata_processed.h5ad'))
+adata_processed.write_h5ad(os.path.join(ANALYSIS_DIR, 'adata_processed.h5ad'))
 
 # Save finalized tables to csv
 adata_processed.uns['combined_feature_data'].to_csv(os.path.join(ANALYSIS_DIR, 'combined_feature_data.csv'), index=False)
@@ -129,22 +130,23 @@ adata_processed.uns['combined_feature_data_filtered'].to_csv(os.path.join(ANALYS
 adata_processed.uns['feature_metadata'].to_csv(os.path.join(ANALYSIS_DIR, 'feature_metadata.csv'), index=False)
 adata_processed.uns['excluded_features'].to_csv(os.path.join(ANALYSIS_DIR, 'excluded_features.csv'), index=False)
 
-# filter out immune_agg features
-combined_feature_data = pd.read_csv(os.path.join(ANALYSIS_DIR, 'combined_feature_data.csv'))
-combined_feature_data = combined_feature_data[~combined_feature_data.feature_name_unique.str.contains('immune_agg')]
-combined_feature_data.to_csv(os.path.join(ANALYSIS_DIR, 'combined_feature_data.csv'), index=False)
+# clean features and filter out immune_agg compartment
+for file in ['combined_feature_data', 'combined_feature_data_filtered', 'feature_metadata', 'excluded_features']:
+    df = pd.read_csv(os.path.join(ANALYSIS_DIR, file + '.csv'))
+    if file == 'excluded_features':
+        df = df[~df.feature_name_unique.str.contains('immune_agg')]
+        df.to_csv(os.path.join(ANALYSIS_DIR, file + '.csv'), index=False)
+        continue
+    df = df[df.compartment != 'immune_agg']
+    df = df[~df.feature_name_unique.str.contains('immune_agg')]
+    df = df[~np.logical_and(df.feature_type == 'linear_distance', df.compartment != 'all')]
+    df = df[~np.logical_and(df.feature_type == 'morphology', df.compartment != 'all')]
+    df.loc[df.cell_pop_level.isna(), 'cell_pop_level'] = 'all'
 
-combined_feature_data_filtered = pd.read_csv(os.path.join(ANALYSIS_DIR, 'combined_feature_data_filtered.csv'))
-combined_feature_data_filtered = combined_feature_data_filtered[~combined_feature_data_filtered.feature_name_unique.str.contains('immune_agg')]
-combined_feature_data_filtered.to_csv(os.path.join(ANALYSIS_DIR, 'combined_feature_data_filtered.csv'), index=False)
-
-feature_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'feature_metadata.csv'))
-feature_metadata = feature_metadata[~feature_metadata.feature_name_unique.str.contains('immune_agg')]
-feature_metadata.to_csv(os.path.join(ANALYSIS_DIR, 'feature_metadata.csv'), index=False)
-
-excluded_features = pd.read_csv(os.path.join(ANALYSIS_DIR, 'excluded_features.csv'))
-excluded_features = excluded_features[~excluded_features.feature_name_unique.str.contains('immune_agg')]
-excluded_features.to_csv(os.path.join(ANALYSIS_DIR, 'excluded_features.csv'), index=False)
+    for comp in ['cancer_core', 'cancer_border', 'stroma_core', 'stroma_border']:
+        df.loc[df.feature_name == comp + '__proportion', 'compartment'] = comp
+        df.loc[df.feature_name == comp + '__proportion', 'compartment'] = comp
+    df.to_csv(os.path.join(ANALYSIS_DIR, file + '.csv'), index=False)
 
 # group by timepoint
 harmonized_metadata = pd.read_csv(os.path.join(ANALYSIS_DIR, 'harmonized_metadata.csv'))
