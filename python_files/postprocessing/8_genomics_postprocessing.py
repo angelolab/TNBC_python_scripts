@@ -14,7 +14,7 @@ import numpy as np
 base_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort'
 sequence_dir = os.path.join(base_dir, 'sequencing_data')
 
-harmonized_metadata = pd.read_csv(os.path.join(base_dir, 'v1_files/analysis_files/all_fovs/harmonized_metadata.csv'))
+harmonized_metadata = pd.read_csv(os.path.join(sequence_dir, 'harmonized_metadata.csv'))
 
 # anonymize patient IDs
 patient_ID_mapping = pd.read_csv(os.path.join(base_dir, 'final_patient_mapping.csv'))
