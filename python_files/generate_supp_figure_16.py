@@ -350,7 +350,6 @@ plt.savefig(os.path.join(SUPPLEMENTARY_FIG_DIR, 'supp_figure_16f.pdf'), bbox_inc
 
 # TONIC DATA COMPARISON
 SpaceCat_dir = os.path.join(BASE_DIR, 'TONIC_SpaceCat')
-data_dir = '/Volumes/Shared/Noah Greenwald/TONIC_Cohort/TONIC_SpaceCat/NT_features_only'
 preds = pd.read_csv(os.path.join(SpaceCat_dir, 'SpaceCat/prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
 preds = preds[['auc_primary_list', 'auc_baseline_list', 'auc_post_induction_list', 'auc_on_nivo_list']]
 preds = preds.rename(columns={'auc_primary_list': 'Primary', 'auc_baseline_list': 'Baseline',
