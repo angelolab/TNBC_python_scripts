@@ -8,6 +8,8 @@ ANALYSIS_DIR = os.path.join(BASE_DIR, 'analysis_files')
 INTERMEDIATE_DIR = os.path.join(BASE_DIR, 'intermediate_files')
 FORMATTED_DIR = os.path.join(INTERMEDIATE_DIR, 'formatted_files')
 
+############# SKIP IF NO CHANGES TO INTERMEDIATE FILES / COMPARTMENT ASSIGNMENTS
+
 ### KMEANS FORMATTING ###
 kmeans_dir = os.path.join(INTERMEDIATE_DIR, 'spatial_analysis/neighborhood_analysis/cell_cluster_radius100_frequency_12')
 kmeans_cell_table = pd.read_csv(os.path.join(kmeans_dir, 'cell_table_clusters.csv'))

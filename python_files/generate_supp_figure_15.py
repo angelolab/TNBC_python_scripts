@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from matplotlib_venn import venn3
+from alpineer.io_utils import list_files
 
 
 BASE_DIR = "/Volumes/Shared/Noah Greenwald/TONIC_Cohort/"
@@ -124,12 +125,21 @@ for timepoint in ['primary', 'baseline', 'pre_nivo', 'on_nivo']:
 
 ## 4.4 Limit multivariate model features ##
 limit_features_dir = os.path.join(REVIEW_FIG_DIR, 'limit_model_features')
+prediction_dir = os.path.join(BASE_DIR, 'prediction_model')
+
+'''
+for feature_cap_num in [5, 10, 15, 20]:
+    feature_cap_dir = os.path.join(limit_features_dir, f'prediction_model_feature_cap_num')
+    os.makedirs(os.path.join(feature_cap_dir, 'patient_outcomes'), exist_ok=True)
+    
+## RUN all_timepoints-feature_cap.R for each feature_cap_num
+'''
 
 preds_5 = pd.read_csv(os.path.join(limit_features_dir, 'prediction_model_5/patient_outcomes/all_timepoints_results_MIBI.csv'))
-preds_10 = pd.read_csv(os.path.join(limit_features_dir, 'limit_model_features/prediction_model_10/patient_outcomes/all_timepoints_results_MIBI.csv'))
-preds_15 = pd.read_csv(os.path.join(limit_features_dir, 'limit_model_features/prediction_model_15/patient_outcomes/all_timepoints_results_MIBI.csv'))
+preds_10 = pd.read_csv(os.path.join(limit_features_dir, 'prediction_model_10/patient_outcomes/all_timepoints_results_MIBI.csv'))
+preds_15 = pd.read_csv(os.path.join(limit_features_dir, 'prediction_model_15/patient_outcomes/all_timepoints_results_MIBI.csv'))
 preds_20 = pd.read_csv(os.path.join(limit_features_dir, 'prediction_model_20/patient_outcomes/all_timepoints_results_MIBI.csv'))
-preds_reg = pd.read_csv(os.path.join(BASE_DIR, 'prediction_model/patient_outcomes/all_timepoints_results_MIBI.csv'))
+preds_reg = pd.read_csv(os.path.join(prediction_dir, 'patient_outcomes/all_timepoints_results_MIBI.csv'))
 
 df_5 = preds_5.mean()
 df_10 = preds_10.mean()
